@@ -1,0 +1,775 @@
+/* ============ Токены ============ */
+
+:root {
+  --accent: #0a84ff;
+  --accent-2: #5e5ce6;
+  --green: #30d158;
+  --red: #ff453a;
+  --orange: #ff9f0a;
+
+  /* Прозрачность декоративного "хрома" (навбар, таббар) — её крутит
+     слайдер в настройках. Содержательные панели на неё не завязаны,
+     чтобы текст оставался читаемым при любом положении слайдера. */
+  --glass-alpha: 0.55;
+  --glass-blur: 28px;
+
+  --radius-xl: 30px;
+  --radius-l: 22px;
+  --radius-m: 16px;
+  --radius-s: 12px;
+
+  --bg: #000000;
+  --bg-elevated: #0c0c0e;
+  --ink: #ffffff;
+  --ink-dim: rgba(235, 235, 245, 0.82);
+  --ink-faint: rgba(235, 235, 245, 0.58);
+
+  --glass-tint: 28, 28, 32;
+  --glass-border: rgba(255, 255, 255, 0.22);
+  --hairline: rgba(255, 255, 255, 0.14);
+
+  /* Непрозрачные поверхности для карточек, пузырей и списков —
+     контраст текста на них не зависит от слайдера прозрачности. */
+  --content-bg: rgba(40, 40, 46, 0.6);
+  --content-border: rgba(255, 255, 255, 0.16);
+  --input-bg: rgba(255, 255, 255, 0.12);
+  --input-border: rgba(255, 255, 255, 0.2);
+
+  /* Тень под текстом на стекле — так же, как Apple добивается читаемости
+     поверх произвольного фона в Liquid Glass (vibrancy): не сплошная
+     заливка, а лёгкий контровой контур у самих букв. Работает при любой
+     степени прозрачности, потому что не зависит от того, что именно
+     видно сквозь стекло. */
+  --text-shadow-on-glass: 0 1px 3px rgba(0, 0, 0, 0.55), 0 0px 1px rgba(0, 0, 0, 0.35);
+}
+
+html[data-theme="light"] {
+  --bg: #eef0f4;
+  --bg-elevated: #ffffff;
+  --ink: #0b0b0d;
+  --ink-dim: rgba(35, 35, 40, 0.78);
+  --ink-faint: rgba(35, 35, 40, 0.52);
+
+  --glass-tint: 255, 255, 255;
+  --glass-border: rgba(255, 255, 255, 0.6);
+  --hairline: rgba(0, 0, 0, 0.1);
+
+  --content-bg: rgba(255, 255, 255, 0.68);
+  --content-border: rgba(0, 0, 0, 0.08);
+  --input-bg: rgba(0, 0, 0, 0.06);
+  --input-border: rgba(0, 0, 0, 0.1);
+  --text-shadow-on-glass: 0 1px 2px rgba(255, 255, 255, 0.6);
+}
+
+@media (prefers-color-scheme: light) {
+  html[data-theme="auto"] {
+    --bg: #eef0f4;
+    --bg-elevated: #ffffff;
+    --ink: #0b0b0d;
+    --ink-dim: rgba(35, 35, 40, 0.78);
+    --ink-faint: rgba(35, 35, 40, 0.52);
+
+    --glass-tint: 255, 255, 255;
+    --glass-border: rgba(255, 255, 255, 0.6);
+    --hairline: rgba(0, 0, 0, 0.1);
+
+    --content-bg: rgba(255, 255, 255, 0.68);
+    --content-border: rgba(0, 0, 0, 0.08);
+    --input-bg: rgba(0, 0, 0, 0.06);
+    --input-border: rgba(0, 0, 0, 0.1);
+    --text-shadow-on-glass: 0 1px 2px rgba(255, 255, 255, 0.6);
+  }
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  overscroll-behavior: none;
+}
+
+body {
+  font-family: -apple-system, "SF Pro Text", "SF Pro Display", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.hidden { display: none !important; }
+
+button, input, textarea {
+  font-family: inherit;
+  color: inherit;
+}
+
+/* ============ Фоновая атмосфера (Liquid Glass нужен цвет под собой) ============ */
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(50% 32% at 15% 0%, rgba(94, 92, 230, 0.28), transparent 65%),
+    radial-gradient(45% 28% at 90% 6%, rgba(10, 132, 255, 0.22), transparent 65%),
+    radial-gradient(55% 32% at 50% 100%, rgba(48, 209, 88, 0.1), transparent 65%),
+    var(--bg);
+  filter: saturate(1.1);
+}
+html[data-theme="light"] body::before,
+html[data-theme="auto"] body::before {
+  opacity: 0.4;
+}
+
+/* ============ Стеклянная поверхность ============ */
+/* .glass — декоративный "хром" (навбар, таббар, поле ввода в чате):
+   прозрачность регулируется слайдером в настройках. На нём не бывает
+   плотного текста — только иконки и короткие подписи. */
+
+.glass {
+  background: rgba(var(--glass-tint), var(--glass-alpha));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  border: 1px solid var(--glass-border);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 8px 30px rgba(0, 0, 0, 0.28);
+}
+.glass, .glass * { text-shadow: var(--text-shadow-on-glass); }
+
+/* .glass-content — карточки, списки, пузыри сообщений: настоящее стекло
+   (полупрозрачное, с размытием), но текст на нём всегда читаем — не за
+   счёт того, что мы гасим прозрачность, а за счёт лёгкой тени под
+   буквами (тот же приём, что использует сама Apple в Liquid Glass —
+   vibrancy/lensing), плюс насыщенное размытие, которое сглаживает
+   цветовые пятна фона под панелью. */
+
+.glass-content {
+  background: var(--content-bg);
+  -webkit-backdrop-filter: blur(34px) saturate(190%);
+  backdrop-filter: blur(34px) saturate(190%);
+  border: 1px solid var(--content-border);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 8px 30px rgba(0, 0, 0, 0.22);
+}
+.glass-content, .glass-content * { text-shadow: var(--text-shadow-on-glass); }
+
+html[data-theme="light"] .glass-content,
+html[data-theme="auto"] .glass-content {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+/* Системная настройка "повышенный контраст" / принудительная цветовая
+   схема — надёжный, а не приблизительный способ адаптации: если у
+   человека уже включена эта настройка ОС/браузера, стекло становится
+   практически непрозрачным и тень с текста снимается за ненадобностью. */
+@media (prefers-contrast: more) {
+  :root { --content-bg: rgba(18, 18, 20, 0.97); --glass-alpha: 0.94; }
+  html[data-theme="light"],
+  html[data-theme="auto"] { --content-bg: rgba(255, 255, 255, 0.98); }
+  .glass, .glass *, .glass-content, .glass-content * { text-shadow: none; }
+}
+@media (forced-colors: active) {
+  .glass, .glass-content { backdrop-filter: none; -webkit-backdrop-filter: none; forced-color-adjust: none; background: Canvas; border-color: CanvasText; }
+  .glass *, .glass-content * { text-shadow: none; color: CanvasText; }
+}
+
+/* ============ Онбординг ============ */
+
+#onboarding {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow: hidden;
+}
+
+.onboarding-glow {
+  position: absolute;
+  inset: -20%;
+  background:
+    radial-gradient(40% 35% at 25% 20%, rgba(94, 92, 230, 0.55), transparent 60%),
+    radial-gradient(45% 40% at 85% 15%, rgba(10, 132, 255, 0.5), transparent 60%),
+    radial-gradient(50% 45% at 50% 100%, rgba(255, 55, 95, 0.25), transparent 60%);
+  filter: blur(10px);
+  animation: drift 18s ease-in-out infinite alternate;
+}
+@keyframes drift {
+  from { transform: scale(1) rotate(0deg); }
+  to { transform: scale(1.15) rotate(8deg); }
+}
+
+.onboarding-card {
+  position: relative;
+  width: min(380px, 100%);
+  padding: 40px 28px 32px;
+  border-radius: var(--radius-xl);
+  text-align: center;
+}
+
+.app-glyph {
+  position: relative;
+  width: 84px;
+  height: 60px;
+  margin: 0 auto 20px;
+}
+.glyph-bubble {
+  position: absolute;
+  border-radius: 20px 20px 20px 4px;
+  background: linear-gradient(160deg, var(--accent), var(--accent-2));
+  box-shadow: 0 6px 18px rgba(10, 132, 255, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.5);
+}
+.glyph-bubble.b1 { width: 60px; height: 40px; top: 0; left: 0; }
+.glyph-bubble.b2 {
+  width: 48px; height: 32px; bottom: 0; right: 0;
+  border-radius: 18px 18px 4px 18px;
+  background: rgba(var(--glass-tint), 0.9);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+}
+
+.onboarding-card h1 {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0 0 10px;
+}
+.onboarding-sub {
+  color: var(--ink-dim);
+  font-size: 15px;
+  line-height: 1.5;
+  margin: 0 0 28px;
+}
+
+#onboarding-form { display: flex; flex-direction: column; gap: 14px; }
+
+#onboarding-name {
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-m);
+  padding: 14px 16px;
+  font-size: 17px;
+  background: var(--input-bg);
+  color: var(--ink);
+  outline: none;
+  text-align: center;
+}
+#onboarding-name::placeholder { color: var(--ink-faint); }
+
+/* ============ Кнопки ============ */
+
+.btn-primary, .btn-secondary, .btn-tertiary {
+  border: none;
+  border-radius: var(--radius-m);
+  padding: 14px 18px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+  transition: transform 0.12s ease, opacity 0.12s ease;
+}
+.btn-primary:active, .btn-secondary:active, .btn-tertiary:active { transform: scale(0.97); opacity: 0.85; }
+
+.btn-primary {
+  background: linear-gradient(160deg, var(--accent), var(--accent-2));
+  color: #fff;
+  box-shadow: 0 8px 22px rgba(10, 132, 255, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+}
+
+.btn-secondary {
+  background: var(--input-bg);
+  color: var(--accent);
+  flex: 1;
+}
+
+.btn-tertiary {
+  background: transparent;
+  color: var(--ink-dim);
+  font-weight: 500;
+}
+
+/* ============ Оболочка приложения ============ */
+
+#app-shell { height: 100dvh; display: flex; flex-direction: column; }
+
+#nav-bar {
+  padding: calc(env(safe-area-inset-top) + 10px) 20px 14px;
+  border-radius: 0 0 var(--radius-l) var(--radius-l);
+  border-top: none;
+  z-index: 20;
+}
+#nav-title { margin: 0; font-size: 30px; font-weight: 700; letter-spacing: -0.02em; }
+
+#content { flex: 1; overflow: hidden; position: relative; }
+.screen { height: 100%; overflow-y: auto; padding: 16px 16px calc(env(safe-area-inset-bottom) + 100px); }
+
+.empty-state {
+  text-align: center;
+  padding: 80px 24px 0;
+  color: var(--ink-dim);
+}
+.empty-icon { font-size: 44px; margin-bottom: 12px; }
+.empty-state h2 { font-size: 19px; margin: 0 0 8px; color: var(--ink); }
+.empty-state p { font-size: 14px; line-height: 1.5; margin: 0; }
+
+/* ============ Список чатов ============ */
+
+.chats-list { display: flex; flex-direction: column; gap: 10px; }
+
+.chat-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: var(--radius-l);
+  text-align: left;
+  cursor: pointer;
+}
+
+.avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 15px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 15px;
+  color: #fff;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.4);
+}
+
+.chat-row-body { flex: 1; min-width: 0; }
+.chat-row-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.chat-row-name { font-size: 16px; font-weight: 600; }
+.chat-row-sub { font-size: 14px; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-row-status { font-size: 10px; }
+.status-connected, .status-in-call { color: var(--green); }
+.status-disconnected { color: var(--ink-faint); }
+.status-connecting, .status-new, .status-awaiting-answer { color: var(--orange); }
+
+/* ============ Подключение ============ */
+
+.banner {
+  padding: 12px 16px;
+  border-radius: var(--radius-m);
+  margin-bottom: 14px;
+  font-size: 14px;
+  color: var(--green);
+  font-weight: 600;
+}
+
+.connect-card {
+  border-radius: var(--radius-xl);
+  padding: 22px 18px;
+  margin-bottom: 16px;
+}
+.connect-card h2 { font-size: 20px; margin: 0 0 8px; letter-spacing: -0.01em; }
+.connect-card .muted { color: var(--ink-dim); font-size: 14px; line-height: 1.5; margin: 0 0 14px; }
+.connect-card textarea {
+  width: 100%;
+  min-height: 76px;
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-m);
+  background: var(--input-bg);
+  color: var(--ink);
+  padding: 12px 14px;
+  font-size: 14px;
+  font-family: ui-monospace, "SF Mono", monospace;
+  resize: vertical;
+  margin-bottom: 12px;
+  outline: none;
+}
+.connect-card textarea::placeholder { color: var(--ink-faint); }
+.code-box {
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-m);
+  padding: 14px;
+  margin-bottom: 10px;
+  max-height: 110px;
+  overflow-y: auto;
+}
+.code-box code {
+  font-family: ui-monospace, "SF Mono", monospace;
+  font-size: 12px;
+  word-break: break-all;
+  color: var(--ink-dim);
+  line-height: 1.5;
+}
+.link-box {
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-m);
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: var(--accent);
+  font-weight: 600;
+  word-break: break-all;
+}
+.row-actions { display: flex; gap: 10px; margin-bottom: 14px; }
+
+.contact-send { margin-bottom: 4px; }
+.contact-send input[type="text"] {
+  width: 100%;
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-m);
+  background: var(--input-bg);
+  color: var(--ink);
+  padding: 12px 14px;
+  font-size: 15px;
+  outline: none;
+  margin-bottom: 10px;
+}
+.contact-send input[type="text"]::placeholder { color: var(--ink-faint); }
+.divider { height: 1px; background: var(--hairline); margin: 18px 0; }
+
+/* ============ Настройки ============ */
+
+.settings-group {
+  border-radius: var(--radius-l);
+  padding: 4px 16px;
+  margin-bottom: 16px;
+}
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--hairline);
+  font-size: 16px;
+  width: 100%;
+  background: none;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  cursor: pointer;
+}
+.settings-group .settings-row:last-child { border-bottom: none; }
+.settings-row.column { flex-direction: column; align-items: stretch; gap: 10px; }
+.settings-row input[type="text"] {
+  border: none;
+  background: transparent;
+  text-align: right;
+  font-size: 16px;
+  color: var(--accent);
+  outline: none;
+  max-width: 60%;
+}
+.settings-row input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+.link-row { color: var(--accent); font-weight: 500; }
+.chevron { color: var(--ink-faint); }
+.destructive { color: var(--red); font-weight: 500; justify-content: flex-start; }
+
+.theme-seg {
+  display: flex;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: 10px;
+  padding: 3px;
+  gap: 3px;
+}
+.theme-seg button {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 8px 0;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+.theme-seg button.active {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+/* ============ Тред чата ============ */
+
+#screen-chat.screen {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.chat-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: calc(env(safe-area-inset-top) + 10px) 12px 12px 6px;
+  flex-shrink: 0;
+}
+.icon-btn {
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+}
+.back-btn { font-size: 30px; font-weight: 400; line-height: 1; }
+.chat-header-info { flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.chat-header-info #chat-peer-name { font-size: 16px; font-weight: 600; }
+.chat-header-info .muted { font-size: 12px; color: var(--ink-dim); }
+.call-icon:disabled { opacity: 0.3; }
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bubble-row { display: flex; }
+.bubble-row.mine { justify-content: flex-end; }
+.bubble-row.theirs { justify-content: flex-start; }
+
+.bubble {
+  max-width: 78%;
+  padding: 10px 14px 8px;
+  border-radius: 20px;
+  font-size: 16px;
+  line-height: 1.35;
+  position: relative;
+}
+.bubble-row.mine .bubble {
+  background: linear-gradient(160deg, var(--accent), var(--accent-2));
+  color: #fff;
+  border-bottom-right-radius: 6px;
+}
+.bubble-row.theirs .bubble {
+  border-bottom-left-radius: 6px;
+}
+.bubble-time {
+  display: block;
+  font-size: 10px;
+  opacity: 0.75;
+  margin-top: 3px;
+  text-align: right;
+  color: inherit;
+}
+.bubble-row.theirs .bubble-time { color: var(--ink-faint); opacity: 1; }
+
+.chat-input-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px calc(env(safe-area-inset-bottom) + 10px) calc(env(safe-area-inset-bottom) + 10px) 14px;
+  flex-shrink: 0;
+  border-radius: var(--radius-l) var(--radius-l) 0 0;
+}
+#chat-input {
+  flex: 1;
+  border: 1px solid var(--input-border);
+  background: var(--content-bg);
+  border-radius: 20px;
+  padding: 11px 16px;
+  font-size: 16px;
+  outline: none;
+  color: var(--ink);
+}
+#chat-input::placeholder { color: var(--ink-faint); }
+.send-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* ============ Таб-бар ============ */
+
+#tab-bar {
+  display: flex;
+  padding: 8px 8px calc(env(safe-area-inset-bottom) + 8px);
+  border-radius: var(--radius-l) var(--radius-l) 0 0;
+  border-bottom: none;
+  z-index: 20;
+}
+.tab-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 0 2px;
+  border: none;
+  background: none;
+  color: var(--ink-faint);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+}
+.tab-btn.active { color: var(--accent); }
+
+/* ============ Звонок ============ */
+
+#call-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(env(safe-area-inset-top) + 60px) 24px calc(env(safe-area-inset-bottom) + 60px);
+  color: #fff;
+  overflow: hidden;
+}
+.call-bg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(60% 50% at 50% 0%, rgba(94, 92, 230, 0.6), transparent 60%),
+    radial-gradient(70% 60% at 50% 100%, rgba(10, 132, 255, 0.45), transparent 60%),
+    #000;
+  -webkit-backdrop-filter: blur(40px);
+  backdrop-filter: blur(40px);
+}
+.call-content { display: flex; flex-direction: column; align-items: center; gap: 14px; margin-top: 40px; }
+.call-avatar {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  font-weight: 700;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2), 0 20px 50px rgba(0, 0, 0, 0.4);
+}
+#call-peer-name { font-size: 26px; font-weight: 700; margin: 0; }
+.call-phase { font-size: 16px; color: rgba(255, 255, 255, 0.7); margin: 0; }
+
+.call-controls { display: flex; gap: 30px; align-items: center; }
+.call-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: none;
+  color: #fff;
+  cursor: pointer;
+  font-size: 12px;
+}
+.call-btn svg {
+  width: 62px;
+  height: 62px;
+  padding: 18px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  box-sizing: border-box;
+}
+.call-btn.active svg { background: #fff; color: #000; }
+.call-btn.hangup svg { background: var(--red); color: #fff; }
+
+/* ============ Модальная шторка ============ */
+
+.sheet { position: fixed; inset: 0; z-index: 70; display: flex; align-items: flex-end; }
+.sheet-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.45); }
+.sheet-panel {
+  position: relative;
+  width: 100%;
+  max-height: 82vh;
+  overflow-y: auto;
+  border-radius: 26px 26px 0 0;
+  padding: 10px 22px calc(env(safe-area-inset-bottom) + 24px);
+}
+.sheet-handle {
+  width: 36px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--ink-faint);
+  margin: 6px auto 16px;
+}
+.sheet-panel h2 { font-size: 21px; margin: 0 0 12px; }
+.sheet-panel p { font-size: 14.5px; line-height: 1.55; color: var(--ink-dim); margin: 0 0 14px; }
+.sheet-panel strong { color: var(--ink); }
+.sheet-panel .btn-primary { margin-top: 6px; }
+
+/* ============ Toast ============ */
+
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom) + 100px);
+  transform: translate(-50%, 20px);
+  background: rgba(40, 40, 44, 0.92);
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: 16px;
+  font-size: 14px;
+  font-weight: 500;
+  max-width: 86vw;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  z-index: 90;
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+#toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* ============ Desktop / широкие экраны ============ */
+
+@media (min-width: 640px) {
+  body { display: flex; align-items: center; justify-content: center; }
+  #app-shell {
+    width: 420px;
+    height: min(860px, 94dvh);
+    border-radius: 44px;
+    overflow: hidden;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--hairline);
+    position: relative;
+  }
+  #onboarding { position: fixed; }
+  #screen-chat.screen { border-radius: 44px; }
+  #call-screen, .sheet { max-width: 420px; margin: 0 auto; }
+}
+
+/* ============ Доступность ============ */
+
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-glow { animation: none; }
+  * { transition-duration: 0.001ms !important; animation-duration: 0.001ms !important; }
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
