@@ -1,4 +1,3 @@
-[README.md](https://github.com/user-attachments/files/32264516/README.md)
 
 ## Новое: подключение по номеру/email без ручного обмена кодами
 

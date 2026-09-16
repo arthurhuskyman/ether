@@ -2,7 +2,7 @@
 // главный экран и открывалось офлайн. Сигнальные коды и P2P-соединения
 // сервис-воркер не трогает: это происходит напрямую в вкладке через WebRTC.
 
-const CACHE_VERSION = "ether-shell-v1";
+const CACHE_VERSION = "ether-shell-v3";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -11,6 +11,7 @@ const SHELL_FILES = [
   "./js/app.js",
   "./js/webrtc.js",
   "./js/signaling-codec.js",
+  "./js/signaling-client.js",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/apple-touch-icon.png"

@@ -1,0 +1,14 @@
+{
+  "name": "ether-signaling-relay",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Минимальный сигнальный релей для Эфир: только presence и пересылка offer/answer, без хранения данных.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "ws": "^8.17.0"
+  }
+}

@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
 <title>Эфир — связь напрямую</title>
-<meta name="description" content="Обмен сообщениями и звонки напрямую между устройствами, без серверов." />
+<meta name="description" content="Обмен сообщениями и звонки напрямую между устройствами по номеру телефона или email." />
 
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#000000" />
@@ -29,11 +29,13 @@
       <div class="glyph-bubble b2"></div>
     </div>
     <h1>Эфир</h1>
-    <p class="onboarding-sub">Сообщения и звонки напрямую между устройствами.<br />Без единого сервера посередине.</p>
+    <p class="onboarding-sub">Сообщения и звонки напрямую между устройствами —<br />автоматически, как только контакт тоже в сети.</p>
     <form id="onboarding-form">
       <input id="onboarding-name" type="text" placeholder="Как вас представить?" autocomplete="name" maxlength="40" required />
+      <input id="onboarding-identity" type="text" placeholder="Ваш телефон или email" autocomplete="tel" maxlength="80" required />
       <button type="submit" class="btn-primary">Начать</button>
     </form>
+    <p class="onboarding-fine">Номер/email не публикуются — по ним контакты просто находят вас через сигнальный сервер. Адрес сервера задаётся в Настройках.</p>
   </div>
 </div>
 
@@ -51,70 +53,87 @@
       <div id="chats-empty" class="empty-state hidden">
         <div class="empty-icon">💬</div>
         <h2>Пока никого нет на связи</h2>
-        <p>Откройте вкладку «Подключить», чтобы соединиться с первым собеседником.</p>
+        <p>Откройте вкладку «Контакты», чтобы добавить первого собеседника по номеру или email.</p>
       </div>
       <div id="chats-list" class="chats-list"></div>
     </section>
 
-    <!-- ПОДКЛЮЧЕНИЕ -->
+    <!-- КОНТАКТЫ -->
     <section id="screen-connect" class="screen hidden">
-      <div id="incoming-banner" class="banner glass-content hidden">
-        <span id="incoming-banner-text"></span>
+
+      <div id="signaling-banner" class="banner glass-content warn hidden">
+        <span id="signaling-banner-text"></span>
       </div>
 
-      <div class="connect-card glass-content" id="invite-idle">
-        <h2>Пригласить собеседника</h2>
-        <p class="muted">Вы создадите код приглашения и перешлёте его — любым способом: сообщением, почтой, AirDrop, QR. Сервер в этом не участвует.</p>
-        <button id="create-invite-btn" class="btn-primary">Создать приглашение</button>
+      <div class="connect-card glass-content" id="add-contact-card">
+        <h2>Добавить контакт</h2>
+        <p class="muted">Введите номер телефона или email — как только этот человек тоже откроет приложение (с тем же сигнальным сервером), вы автоматически окажетесь на связи. Никакого кода передавать не нужно.</p>
+        <input id="add-contact-name" type="text" placeholder="Имя (необязательно)" maxlength="40" />
+        <input id="add-contact-value" type="text" placeholder="Телефон или email контакта" maxlength="80" />
+        <button id="add-contact-btn" class="btn-primary">Добавить контакт</button>
       </div>
 
-      <div class="connect-card glass-content hidden" id="invite-active">
-        <h2>Шаг 1 · отправьте код</h2>
-        <p class="muted">Перешлите ссылку или код собеседнику любым способом.</p>
-        <div class="code-box"><code id="invite-code-out"></code></div>
-        <div class="row-actions">
-          <button id="copy-code-btn" class="btn-secondary">Копировать код</button>
+      <button id="toggle-manual-btn" class="link-toggle">Ручное подключение без сервера, по коду ›</button>
+
+      <div id="manual-section" class="hidden">
+        <div id="incoming-banner" class="banner glass-content hidden">
+          <span id="incoming-banner-text"></span>
         </div>
-        <div class="link-box"><span id="invite-link-out"></span></div>
-        <div class="row-actions">
-          <button id="copy-link-btn" class="btn-secondary">Копировать ссылку</button>
-          <button id="share-link-btn" class="btn-secondary">Поделиться</button>
+
+        <div class="connect-card glass-content" id="invite-idle">
+          <h2>Пригласить кодом</h2>
+          <p class="muted">Полностью без какого-либо сервера: вы создадите код приглашения и перешлёте его сами — сообщением, почтой, AirDrop, QR.</p>
+          <button id="create-invite-btn" class="btn-primary">Создать приглашение</button>
         </div>
-        <div class="contact-send">
-          <input id="invite-contact" type="text" placeholder="Или сразу: телефон / email собеседника" />
+
+        <div class="connect-card glass-content hidden" id="invite-active">
+          <h2>Шаг 1 · отправьте код</h2>
+          <p class="muted">Перешлите ссылку или код собеседнику любым способом.</p>
+          <div class="code-box"><code id="invite-code-out"></code></div>
           <div class="row-actions">
-            <button id="invite-send-sms" class="btn-secondary">Отправить SMS</button>
-            <button id="invite-send-email" class="btn-secondary">Отправить на почту</button>
+            <button id="copy-code-btn" class="btn-secondary">Копировать код</button>
           </div>
-        </div>
-
-        <div class="divider"></div>
-
-        <h2>Шаг 2 · вставьте код ответа</h2>
-        <p class="muted">Когда собеседник откроет ссылку, он получит код ответа — вставьте его сюда.</p>
-        <textarea id="answer-code-in" placeholder="Код ответа"></textarea>
-        <button id="complete-invite-btn" class="btn-primary">Подключить</button>
-        <button id="new-invite-again" class="btn-tertiary">Начать заново</button>
-      </div>
-
-      <div class="connect-card glass-content" id="join-card">
-        <h2>У меня есть код приглашения</h2>
-        <div id="paste-code-wrap">
-          <p class="muted">Вставьте код, который прислал собеседник.</p>
-          <textarea id="paste-code-in" placeholder="Код приглашения"></textarea>
-          <button id="reply-btn" class="btn-primary">Ответить</button>
-        </div>
-        <div id="answer-out-wrap" class="hidden">
-          <p class="muted">Отправьте этот код обратно тем же способом — как только собеседник его введёт, вы окажетесь на связи.</p>
-          <div class="code-box"><code id="answer-out-code"></code></div>
+          <div class="link-box"><span id="invite-link-out"></span></div>
           <div class="row-actions">
-            <button id="answer-copy-btn" class="btn-secondary">Копировать код</button>
+            <button id="copy-link-btn" class="btn-secondary">Копировать ссылку</button>
+            <button id="share-link-btn" class="btn-secondary">Поделиться</button>
           </div>
           <div class="contact-send">
-            <input id="answer-contact" type="text" placeholder="Или сразу: телефон / email собеседника" />
+            <input id="invite-contact" type="text" placeholder="Или сразу: телефон / email собеседника" />
             <div class="row-actions">
-              <button id="answer-send-sms" class="btn-secondary">Отправить SMS</button>
-              <button id="answer-send-email" class="btn-secondary">Отправить на почту</button>
+              <button id="invite-send-sms" class="btn-secondary">Отправить SMS</button>
+              <button id="invite-send-email" class="btn-secondary">Отправить на почту</button>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <h2>Шаг 2 · вставьте код ответа</h2>
+          <p class="muted">Когда собеседник откроет ссылку, он получит код ответа — вставьте его сюда.</p>
+          <textarea id="answer-code-in" placeholder="Код ответа"></textarea>
+          <button id="complete-invite-btn" class="btn-primary">Подключить</button>
+          <button id="new-invite-again" class="btn-tertiary">Начать заново</button>
+        </div>
+
+        <div class="connect-card glass-content" id="join-card">
+          <h2>У меня есть код приглашения</h2>
+          <div id="paste-code-wrap">
+            <p class="muted">Вставьте код, который прислал собеседник.</p>
+            <textarea id="paste-code-in" placeholder="Код приглашения"></textarea>
+            <button id="reply-btn" class="btn-primary">Ответить</button>
+          </div>
+          <div id="answer-out-wrap" class="hidden">
+            <p class="muted">Отправьте этот код обратно тем же способом — как только собеседник его введёт, вы окажетесь на связи.</p>
+            <div class="code-box"><code id="answer-out-code"></code></div>
+            <div class="row-actions">
+              <button id="answer-copy-btn" class="btn-secondary">Копировать код</button>
+            </div>
+            <div class="contact-send">
+              <input id="answer-contact" type="text" placeholder="Или сразу: телефон / email собеседника" />
+              <div class="row-actions">
+                <button id="answer-send-sms" class="btn-secondary">Отправить SMS</button>
+                <button id="answer-send-email" class="btn-secondary">Отправить на почту</button>
+              </div>
             </div>
           </div>
         </div>
@@ -128,6 +147,19 @@
           <span>Ваше имя</span>
           <input id="settings-name" type="text" maxlength="40" />
         </label>
+        <label class="settings-row">
+          <span>Телефон / email</span>
+          <input id="settings-identity" type="text" maxlength="80" />
+        </label>
+      </div>
+
+      <div class="settings-group glass-content">
+        <div class="settings-row column">
+          <span>Сигнальный сервер <span id="signaling-status-dot" class="status-dot"></span></span>
+          <input id="settings-signaling-url" type="text" placeholder="wss://ваш-сервер.example.com" />
+          <button id="save-signaling-btn" class="btn-secondary" style="width:100%;margin-top:2px;">Сохранить и подключиться</button>
+          <span id="signaling-status-text" class="fine muted"></span>
+        </div>
       </div>
 
       <div class="settings-group glass-content">
@@ -186,8 +218,8 @@
       <span>Чаты</span>
     </button>
     <button class="tab-btn" data-tab="connect">
-      <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M10.6 13.4a1 1 0 0 1 0-1.4l3-3a1 1 0 1 1 1.4 1.4l-3 3a1 1 0 0 1-1.4 0zM8.5 15.5 6 18a3.5 3.5 0 0 1-5-5l2.5-2.5 1.4 1.4L2.4 14.4a1.5 1.5 0 0 0 2.2 2.2L7 14.1l1.5 1.4zm7-7L18 6a3.5 3.5 0 0 1 5 5l-2.5 2.5-1.4-1.4 2.5-2.5a1.5 1.5 0 0 0-2.2-2.2L17 10l-1.5-1.5z"/></svg>
-      <span>Подключить</span>
+      <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-4 0-8 2-8 5v1h16v-1c0-3-4-5-8-5z"/></svg>
+      <span>Контакты</span>
     </button>
     <button class="tab-btn" data-tab="settings">
       <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zM19.4 13a7.4 7.4 0 0 0 .06-1 7.4 7.4 0 0 0-.06-1l2-1.6-2-3.4-2.4 1a7.7 7.7 0 0 0-1.7-1L14.9 3H9.1l-.4 2.6a7.7 7.7 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.4 7.4 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.7 7.7 0 0 0 1.7 1l.4 2.6h5.8l.4-2.6a7.7 7.7 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6z"/></svg>
@@ -221,10 +253,11 @@
   <div class="sheet-panel glass-content">
     <div class="sheet-handle"></div>
     <h2>Как это работает</h2>
-    <p><strong>Без серверов.</strong> Сообщения и звук идут напрямую между устройствами по протоколу WebRTC. Ни текст, ни голос никогда не проходят через сторонний сервер и не сохраняются нигде, кроме ваших устройств.</p>
-    <p><strong>Единственный момент, когда нужен посредник, — самое первое подключение.</strong> Двум устройствам нужно один раз «представиться» друг другу — обменяться техническим кодом. Приложение создаёт этот код сам, а отправляете вы его любым удобным способом: в мессенджере, почте, через AirDrop или QR. Дальше всё происходит напрямую.</p>
-    <p><strong>Публичные STUN-серверы Google</strong> помогают устройству узнать свой внешний сетевой адрес — как справочная служба, которая называет номер, но не слушает разговор. Они не видят и не передают ни сообщения, ни звук.</p>
-    <p><strong>Ограничения такого подхода:</strong> соединение живёт, пока открыто приложение хотя бы на одном экране — фоновая работа на телефонах ограничена системой. Push-уведомлений о новых сообщениях, когда приложение закрыто, быть не может: это требует сервера. В очень строгих сетях (например, за корпоративным файрволом с symmetric NAT) прямое соединение иногда не устанавливается — в этом случае обычно помогает мобильный интернет вместо Wi-Fi.</p>
+    <p><strong>Сообщения и звук — всегда напрямую.</strong> Они идут между устройствами по протоколу WebRTC. Ни текст, ни голос никогда не проходят через сторонний сервер и не сохраняются нигде, кроме ваших устройств.</p>
+    <p><strong>Сигнальный сервер нужен только для рандеву.</strong> Он в реальном времени хранит в памяти (не на диске) короткий список «кто сейчас онлайн» — по хэшу от номера/email, не по самому номеру — и один раз пересылает технический пакет подключения (offer/answer), когда оба контакта одновременно в сети. Дальше сервер из разговора выходит полностью, даже если позже вы позвоните ещё раз.</p>
+    <p><strong>Можно и совсем без сервера.</strong> В разделе «Контакты» есть режим «Ручное подключение по коду» — тогда вы сами пересылаете код любым способом, а сервер не участвует вообще, даже в рандеву.</p>
+    <p><strong>Публичные STUN-серверы Google</strong> помогают устройству узнать свой внешний сетевой адрес — как справочная служба, которая называет номер, но не слушает разговор.</p>
+    <p><strong>Ограничения:</strong> оба человека должны иметь открытое приложение (хотя бы в фоне на компьютере, на телефоне — активным) в момент установления связи. Push-уведомлений о сообщении, когда приложение полностью закрыто, всё ещё нет — это отдельная большая тема. Свой сигнальный сервер нужно один раз развернуть — инструкция в README проекта.</p>
     <button id="how-it-works-close" class="btn-primary">Понятно</button>
   </div>
 </div>
@@ -232,6 +265,7 @@
 <div id="toast"></div>
 
 <script src="js/signaling-codec.js"></script>
+<script src="js/signaling-client.js"></script>
 <script src="js/webrtc.js"></script>
 <script src="js/app.js"></script>
 </body>

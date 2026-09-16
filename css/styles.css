@@ -249,7 +249,7 @@ html[data-theme="auto"] .glass-content {
 
 #onboarding-form { display: flex; flex-direction: column; gap: 14px; }
 
-#onboarding-name {
+#onboarding-name, #onboarding-identity {
   border: 1px solid var(--input-border);
   border-radius: var(--radius-m);
   padding: 14px 16px;
@@ -259,7 +259,7 @@ html[data-theme="auto"] .glass-content {
   outline: none;
   text-align: center;
 }
-#onboarding-name::placeholder { color: var(--ink-faint); }
+#onboarding-name::placeholder, #onboarding-identity::placeholder { color: var(--ink-faint); }
 
 /* ============ Кнопки ============ */
 
@@ -365,6 +365,42 @@ html[data-theme="auto"] .glass-content {
   color: var(--green);
   font-weight: 600;
 }
+.banner.warn { color: var(--orange); font-weight: 500; line-height: 1.4; }
+
+.link-toggle {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 4px 4px 16px;
+  cursor: pointer;
+}
+
+.status-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-left: 6px;
+  background: var(--ink-faint);
+  vertical-align: middle;
+}
+.status-dot.online { background: var(--green); box-shadow: 0 0 6px rgba(48,209,88,0.7); }
+.status-dot.connecting { background: var(--orange); }
+.status-dot.off { background: var(--ink-faint); }
+
+.onboarding-fine {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-faint);
+  margin: 18px 0 0;
+}
+
+.fine { font-size: 12px; line-height: 1.4; }
 
 .connect-card {
   border-radius: var(--radius-xl);
@@ -373,21 +409,19 @@ html[data-theme="auto"] .glass-content {
 }
 .connect-card h2 { font-size: 20px; margin: 0 0 8px; letter-spacing: -0.01em; }
 .connect-card .muted { color: var(--ink-dim); font-size: 14px; line-height: 1.5; margin: 0 0 14px; }
-.connect-card textarea {
+.connect-card textarea, .connect-card input[type="text"] {
   width: 100%;
-  min-height: 76px;
   border: 1px solid var(--input-border);
   border-radius: var(--radius-m);
   background: var(--input-bg);
   color: var(--ink);
   padding: 12px 14px;
   font-size: 14px;
-  font-family: ui-monospace, "SF Mono", monospace;
-  resize: vertical;
   margin-bottom: 12px;
   outline: none;
 }
-.connect-card textarea::placeholder { color: var(--ink-faint); }
+.connect-card textarea { min-height: 76px; font-family: ui-monospace, "SF Mono", monospace; resize: vertical; }
+.connect-card textarea::placeholder, .connect-card input::placeholder { color: var(--ink-faint); }
 .code-box {
   background: var(--input-bg);
   border: 1px solid var(--input-border);
@@ -467,6 +501,17 @@ html[data-theme="auto"] .glass-content {
 .settings-row input[type="range"] {
   width: 100%;
   accent-color: var(--accent);
+}
+#settings-signaling-url {
+  width: 100%;
+  text-align: left;
+  max-width: 100%;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-s);
+  padding: 10px 12px;
+  font-size: 14px;
+  color: var(--ink);
 }
 .link-row { color: var(--accent); font-weight: 500; }
 .chevron { color: var(--ink-faint); }
