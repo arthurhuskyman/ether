@@ -4,6 +4,16 @@
 // вступает WebRTC напрямую — сигнальный сервер к переписке и звонку
 // никакого отношения больше не имеет.
 
+// ---------- Совместимость со старыми версиями сервера ----------
+// Старые сборки relay отдавали online как массив голых id (строк),
+// новые — массив объектов {id, name, visible}. Разбираем оба формата,
+// чтобы рассинхрон версий клиент/сервер не ломал всё молча.
+
+function normalizeRosterEntry(u) {
+  if (typeof u === "string") return { id: u, name: "", visible: true };
+  return { id: u.id, name: u.name || "", visible: u.visible !== false };
+}
+
 class SignalingClient extends EventTarget {
   constructor(url, myId, opts = {}) {
     super();
@@ -46,6 +56,7 @@ class SignalingClient extends EventTarget {
     ws.addEventListener("open", () => {
       this._retryDelay = 1000;
       this.connected = true;
+      console.info("[signaling] соединение открыто, регистрируюсь как", this.myId.slice(0, 10) + "…");
       ws.send(JSON.stringify({ type: "register", id: this.myId, name: this.name, visible: this.visible }));
       this.dispatchEvent(new CustomEvent("connected"));
     });
@@ -58,25 +69,32 @@ class SignalingClient extends EventTarget {
         return;
       }
       if (msg.type === "registered") {
-        this.dispatchEvent(new CustomEvent("online-list", { detail: { users: msg.online || [] } }));
+        const users = (msg.online || []).map(normalizeRosterEntry);
+        console.info("[signaling] зарегистрирован, сейчас онлайн:", users.length);
+        this.dispatchEvent(new CustomEvent("online-list", { detail: { users } }));
       } else if (msg.type === "presence") {
+        console.info("[signaling] presence:", msg.id.slice(0, 10) + "…", msg.online ? "online" : "offline");
         this.dispatchEvent(new CustomEvent("presence", { detail: { id: msg.id, online: msg.online, name: msg.name, visible: msg.visible } }));
       } else if (msg.type === "signal") {
+        console.info("[signaling] сигнал от", msg.from.slice(0, 10) + "…", msg.data && msg.data.t);
         this.dispatchEvent(new CustomEvent("signal", { detail: { from: msg.from, data: msg.data } }));
       } else if (msg.type === "unreachable") {
+        console.info("[signaling] недоступен:", msg.to.slice(0, 10) + "…");
         this.dispatchEvent(new CustomEvent("unreachable", { detail: { to: msg.to } }));
       }
     });
 
     ws.addEventListener("close", () => {
       this.connected = false;
+      console.info("[signaling] соединение закрыто, переподключаюсь…");
       this.dispatchEvent(new CustomEvent("disconnected"));
       this._scheduleRetry();
     });
-    ws.addEventListener("error", () => {
+    ws.addEventListener("error", (e) => {
+      console.warn("[signaling] ошибка соединения", e);
       try {
         ws.close();
-      } catch (e) {}
+      } catch (e2) {}
     });
   }
 

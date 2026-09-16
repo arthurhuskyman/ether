@@ -470,11 +470,25 @@ function wireSignalingEvents() {
       try {
         const answer = await link.acceptOfferAndCreateAnswer(packet);
         signaling.signal(from, answer);
-      } catch (e) {}
+      } catch (e) {
+        console.error("[webrtc] не удалось ответить на offer:", e);
+        mesh.remove(from); // не оставляем зависшую полусвязь, блокирующую повторные попытки
+        const c = state.contacts.get(from);
+        if (c) c.status = "disconnected";
+        if (state.chatId === from) renderChatThread();
+        if (state.tab === "chats") renderChatsList();
+      }
     } else if (packet.t === "answer") {
       const link = mesh.get(from);
       if (link) {
-        try { await link.acceptAnswer(packet); } catch (e) {}
+        try { await link.acceptAnswer(packet); } catch (e) {
+          console.error("[webrtc] не удалось принять answer:", e);
+          mesh.remove(from);
+          const c = state.contacts.get(from);
+          if (c) c.status = "disconnected";
+          if (state.chatId === from) renderChatThread();
+          if (state.tab === "chats") renderChatsList();
+        }
       }
     }
   });
@@ -508,7 +522,35 @@ async function attemptConnect(id, { force = false } = {}) {
   try {
     const packet = await link.createInitialOffer("");
     signaling.signal(id, packet);
-  } catch (e) {}
+    watchConnectionTimeout(id);
+  } catch (e) {
+    console.error("[webrtc] не удалось создать offer:", e);
+    mesh.remove(id); // без этого статус навсегда останется "new" и заблокирует повторные попытки
+    const c = state.contacts.get(id);
+    if (c) c.status = "disconnected";
+    if (state.chatId === id) renderChatThread();
+    if (state.tab === "chats") renderChatsList();
+  }
+}
+
+// Сторожевой таймер: если через 10с после отправки offer соединение так и
+// не поднялось (а явной ошибки/события failed не было), считаем попытку
+// зависшей и сбрасываем её — иначе контакт мог бы застрять в "Соединяемся…"
+// навсегда, а автоповтор никогда бы не сработал.
+function watchConnectionTimeout(id) {
+  setTimeout(() => {
+    const link = mesh.get(id);
+    if (!link || link.status === "connected" || link.status === "in-call" || link.status === "disconnected") return;
+    console.warn("[webrtc] соединение с", id.slice(0, 10) + "…", "зависло, сбрасываю и пробую снова");
+    mesh.remove(id);
+    const c = state.contacts.get(id);
+    if (c) {
+      c.status = "disconnected";
+      if (state.chatId === id) renderChatThread();
+      if (state.tab === "chats") renderChatsList();
+      if (c.managed && c.online) scheduleAutoConnect(id);
+    }
+  }, 10000);
 }
 
 // ---------- Экран "Контакты" ----------

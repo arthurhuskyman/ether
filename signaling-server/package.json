@@ -5,10 +5,16 @@
   "description": "Минимальный сигнальный релей для Эфир: только presence и пересылка offer/answer, без хранения данных.",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node test-two-clients.js && node test-e2e-webrtc.js"
   },
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "ws": "^8.17.0"
+  },
+  "devDependencies": {
+    "@roamhq/wrtc": "^0.10.0"
   }
 }
