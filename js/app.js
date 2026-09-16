@@ -471,7 +471,7 @@ function wireSignalingEvents() {
         const answer = await link.acceptOfferAndCreateAnswer(packet);
         signaling.signal(from, answer);
       } catch (e) {
-        console.error("[webrtc] не удалось ответить на offer:", e);
+        etherLog("error", "[webrtc] не удалось ответить на offer:", String(e));
         mesh.remove(from); // не оставляем зависшую полусвязь, блокирующую повторные попытки
         const c = state.contacts.get(from);
         if (c) c.status = "disconnected";
@@ -482,7 +482,7 @@ function wireSignalingEvents() {
       const link = mesh.get(from);
       if (link) {
         try { await link.acceptAnswer(packet); } catch (e) {
-          console.error("[webrtc] не удалось принять answer:", e);
+          etherLog("error", "[webrtc] не удалось принять answer:", String(e));
           mesh.remove(from);
           const c = state.contacts.get(from);
           if (c) c.status = "disconnected";
@@ -512,19 +512,22 @@ function scheduleAutoConnect(id) {
 }
 
 async function attemptConnect(id, { force = false } = {}) {
-  if (!signaling || !signaling.connected) return;
+  const tag = id.slice(0, 10) + "…";
+  if (!signaling || !signaling.connected) { etherLog("info", "[connect]", tag, "пропуск: сигнальный сервер не подключён"); return; }
   const existing = mesh.get(id);
-  if (existing && existing.status !== "disconnected") return;
-  if (!onlineSet.has(id)) return;
-  if (!force && !(Store.myId < id)) return; // даём собеседнику шанс быть инициатором первым
+  if (existing && existing.status !== "disconnected") { etherLog("info", "[connect]", tag, "пропуск: уже есть связь в статусе", existing.status); return; }
+  if (!onlineSet.has(id)) { etherLog("info", "[connect]", tag, "пропуск: контакт не онлайн по данным сервера"); return; }
+  if (!force && !(Store.myId < id)) { etherLog("info", "[connect]", tag, "жду — инициатором должен быть собеседник (тай-брейк)"); return; }
   if (existing) mesh.remove(id);
+  etherLog("info", "[connect]", tag, "создаю offer" + (force ? " (force)" : ""));
   const link = mesh.createOutgoingLink(id);
   try {
     const packet = await link.createInitialOffer("");
     signaling.signal(id, packet);
+    etherLog("info", "[connect]", tag, "offer отправлен через сигнальный сервер");
     watchConnectionTimeout(id);
   } catch (e) {
-    console.error("[webrtc] не удалось создать offer:", e);
+    etherLog("error", "[webrtc] не удалось создать offer:", String(e));
     mesh.remove(id); // без этого статус навсегда останется "new" и заблокирует повторные попытки
     const c = state.contacts.get(id);
     if (c) c.status = "disconnected";
@@ -541,7 +544,7 @@ function watchConnectionTimeout(id) {
   setTimeout(() => {
     const link = mesh.get(id);
     if (!link || link.status === "connected" || link.status === "in-call" || link.status === "disconnected") return;
-    console.warn("[webrtc] соединение с", id.slice(0, 10) + "…", "зависло, сбрасываю и пробую снова");
+    etherLog("warn", "[webrtc] соединение с", id.slice(0, 10) + "…", "зависло, сбрасываю и пробую снова");
     mesh.remove(id);
     const c = state.contacts.get(id);
     if (c) {
@@ -896,6 +899,50 @@ function wireSettingsScreen() {
 
   $("#how-it-works-btn").addEventListener("click", () => $("#how-it-works-sheet").classList.remove("hidden"));
   $("#how-it-works-close").addEventListener("click", () => $("#how-it-works-sheet").classList.add("hidden"));
+
+  $("#diagnostics-btn").addEventListener("click", () => {
+    renderDiagnostics();
+    $("#diagnostics-sheet").classList.remove("hidden");
+  });
+  $("#diagnostics-close").addEventListener("click", () => $("#diagnostics-sheet").classList.add("hidden"));
+  $("#diagnostics-refresh-btn").addEventListener("click", renderDiagnostics);
+  $("#diagnostics-copy-btn").addEventListener("click", () => copyText(buildDiagnosticsText(), "Диагностика скопирована"));
+}
+
+function buildDiagnosticsText() {
+  const lines = [];
+  lines.push("=== Эфир — диагностика ===");
+  lines.push("Время: " + new Date().toLocaleString("ru-RU"));
+  lines.push("Мой id: " + (Store.myId ? Store.myId.slice(0, 16) + "…" : "(не задан)"));
+  lines.push("Сигнальный сервер: " + effectiveSignalingUrl());
+  lines.push("Статус сервера: " + (signaling ? (signaling.connected ? "подключён" : "не подключён, переподключается") : "не инициализирован"));
+  lines.push("Онлайн по данным сервера: " + onlineSet.size + " (roster: " + onlineRoster.size + ")");
+  lines.push("");
+  lines.push("--- Контакты ---");
+  if (state.contacts.size === 0) lines.push("(нет контактов)");
+  for (const c of state.contacts.values()) {
+    lines.push(
+      `${c.name} | id=${c.id.slice(0, 10)}… | managed=${c.managed} | online=${c.online} | status=${c.status} | сообщений=${c.messages.length}`
+    );
+  }
+  lines.push("");
+  lines.push("--- Журнал событий (последние) ---");
+  const log = window.__etherDiag || [];
+  for (const entry of log.slice(-80)) {
+    lines.push(`[${new Date(entry.ts).toLocaleTimeString("ru-RU")}] [${entry.level}] ${entry.line}`);
+  }
+  return lines.join("\n");
+}
+
+function renderDiagnostics() {
+  $("#diagnostics-summary").innerHTML = `
+    <div><b>Мой id:</b> ${Store.myId ? escapeHtml(Store.myId.slice(0, 16)) + "…" : "не задан"}</div>
+    <div><b>Сервер:</b> ${escapeHtml(effectiveSignalingUrl())}</div>
+    <div><b>Статус сервера:</b> ${signaling ? (signaling.connected ? "подключён ✅" : "не подключён ⚠️") : "не инициализирован ⚠️"}</div>
+    <div><b>Онлайн сейчас:</b> ${onlineSet.size}</div>
+    <div><b>Контактов:</b> ${state.contacts.size}</div>
+  `;
+  $("#diagnostics-log").textContent = buildDiagnosticsText();
 }
 
 // ---------- События mesh (WebRTC-соединения) ----------

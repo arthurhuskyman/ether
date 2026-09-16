@@ -4,6 +4,19 @@
 // вступает WebRTC напрямую — сигнальный сервер к переписке и звонку
 // никакого отношения больше не имеет.
 
+// ---------- Общий буфер диагностики ----------
+// Копится в памяти вкладки, чтобы можно было открыть "Диагностику" в
+// Настройках и скопировать текстом — без необходимости лезть в devtools,
+// что на iPhone без Mac рядом почти невозможно.
+
+window.__etherDiag = window.__etherDiag || [];
+function etherLog(level, ...args) {
+  const line = args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ");
+  window.__etherDiag.push({ ts: Date.now(), level, line });
+  if (window.__etherDiag.length > 300) window.__etherDiag.shift();
+  (console[level] || console.log).call(console, ...args);
+}
+
 // ---------- Совместимость со старыми версиями сервера ----------
 // Старые сборки relay отдавали online как массив голых id (строк),
 // новые — массив объектов {id, name, visible}. Разбираем оба формата,
@@ -56,7 +69,7 @@ class SignalingClient extends EventTarget {
     ws.addEventListener("open", () => {
       this._retryDelay = 1000;
       this.connected = true;
-      console.info("[signaling] соединение открыто, регистрируюсь как", this.myId.slice(0, 10) + "…");
+      etherLog("info", "[signaling] соединение открыто, регистрируюсь как", this.myId.slice(0, 10) + "…");
       ws.send(JSON.stringify({ type: "register", id: this.myId, name: this.name, visible: this.visible }));
       this.dispatchEvent(new CustomEvent("connected"));
     });
@@ -70,28 +83,28 @@ class SignalingClient extends EventTarget {
       }
       if (msg.type === "registered") {
         const users = (msg.online || []).map(normalizeRosterEntry);
-        console.info("[signaling] зарегистрирован, сейчас онлайн:", users.length);
+        etherLog("info", "[signaling] зарегистрирован, сейчас онлайн:", users.length);
         this.dispatchEvent(new CustomEvent("online-list", { detail: { users } }));
       } else if (msg.type === "presence") {
-        console.info("[signaling] presence:", msg.id.slice(0, 10) + "…", msg.online ? "online" : "offline");
+        etherLog("info", "[signaling] presence:", msg.id.slice(0, 10) + "…", msg.online ? "online" : "offline");
         this.dispatchEvent(new CustomEvent("presence", { detail: { id: msg.id, online: msg.online, name: msg.name, visible: msg.visible } }));
       } else if (msg.type === "signal") {
-        console.info("[signaling] сигнал от", msg.from.slice(0, 10) + "…", msg.data && msg.data.t);
+        etherLog("info", "[signaling] сигнал от", msg.from.slice(0, 10) + "…", msg.data && msg.data.t);
         this.dispatchEvent(new CustomEvent("signal", { detail: { from: msg.from, data: msg.data } }));
       } else if (msg.type === "unreachable") {
-        console.info("[signaling] недоступен:", msg.to.slice(0, 10) + "…");
+        etherLog("info", "[signaling] недоступен:", msg.to.slice(0, 10) + "…");
         this.dispatchEvent(new CustomEvent("unreachable", { detail: { to: msg.to } }));
       }
     });
 
     ws.addEventListener("close", () => {
       this.connected = false;
-      console.info("[signaling] соединение закрыто, переподключаюсь…");
+      etherLog("info", "[signaling] соединение закрыто, переподключаюсь…");
       this.dispatchEvent(new CustomEvent("disconnected"));
       this._scheduleRetry();
     });
     ws.addEventListener("error", (e) => {
-      console.warn("[signaling] ошибка соединения", e);
+      etherLog("warn", "[signaling] ошибка соединения", String(e));
       try {
         ws.close();
       } catch (e2) {}

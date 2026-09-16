@@ -810,6 +810,31 @@ input.switch:checked::before { transform: translateX(18px); }
 .sheet-panel strong { color: var(--ink); }
 .sheet-panel .btn-primary { margin-top: 6px; }
 
+.diag-summary {
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-m);
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.7;
+  margin-bottom: 12px;
+}
+.diag-log {
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-m);
+  padding: 12px 14px;
+  max-height: 220px;
+  overflow-y: auto;
+  font-family: ui-monospace, "SF Mono", monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--ink-dim);
+  margin: 0 0 12px;
+}
+
 /* ============ Toast ============ */
 
 #toast {

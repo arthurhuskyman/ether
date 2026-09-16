@@ -2,7 +2,7 @@
 // главный экран и открывалось офлайн. Сигнальные коды и P2P-соединения
 // сервис-воркер не трогает: это происходит напрямую в вкладке через WebRTC.
 
-const CACHE_VERSION = "ether-shell-v5";
+const CACHE_VERSION = "ether-shell-v6";
 const SHELL_FILES = [
   "./",
   "./index.html",

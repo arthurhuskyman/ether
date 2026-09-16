@@ -193,6 +193,10 @@
           <span>Как это работает и почему без серверов</span>
           <span class="chevron">›</span>
         </button>
+        <button id="diagnostics-btn" class="settings-row link-row">
+          <span>Диагностика соединения</span>
+          <span class="chevron">›</span>
+        </button>
       </div>
 
       <div class="settings-group glass-content">
@@ -273,6 +277,23 @@
     <p><strong>Публичные STUN-серверы Google</strong> помогают устройству узнать свой внешний сетевой адрес — как справочная служба, которая называет номер, но не слушает разговор.</p>
     <p><strong>Ограничения:</strong> оба человека должны иметь открытое приложение (хотя бы в фоне на компьютере, на телефоне — активным) в момент установления связи. Push-уведомлений о сообщении, когда приложение полностью закрыто, всё ещё нет — это отдельная большая тема. По умолчанию используется общий сигнальный сервер — свой собственный можно развернуть и указать в Настройках, инструкция в README проекта.</p>
     <button id="how-it-works-close" class="btn-primary">Понятно</button>
+  </div>
+</div>
+
+<!-- ДИАГНОСТИКА -->
+<div id="diagnostics-sheet" class="sheet hidden">
+  <div class="sheet-backdrop"></div>
+  <div class="sheet-panel glass-content">
+    <div class="sheet-handle"></div>
+    <h2>Диагностика соединения</h2>
+    <p class="muted fine">Скопируйте текст ниже и пришлите его, если что-то не работает — здесь видно, на каком именно шаге застряло соединение.</p>
+    <div id="diagnostics-summary" class="diag-summary"></div>
+    <pre id="diagnostics-log" class="diag-log"></pre>
+    <div class="row-actions">
+      <button id="diagnostics-copy-btn" class="btn-secondary">Скопировать всё</button>
+      <button id="diagnostics-refresh-btn" class="btn-secondary">Обновить</button>
+    </div>
+    <button id="diagnostics-close" class="btn-primary">Закрыть</button>
   </div>
 </div>
 
