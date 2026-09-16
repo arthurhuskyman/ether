@@ -1,5 +1,12 @@
 "use strict";
 
+// Сервер, прописанный по умолчанию — можно изменить в Настройках.
+const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
+
+function effectiveSignalingUrl() {
+  return (Store.signalingUrl || DEFAULT_SIGNALING_URL).trim();
+}
+
 // ---------- Хранилище ----------
 
 const Store = {
@@ -14,6 +21,9 @@ const Store = {
 
   get signalingUrl() { return localStorage.getItem("ether.signalingUrl") || ""; },
   set signalingUrl(v) { localStorage.setItem("ether.signalingUrl", v); },
+
+  get discoverable() { return localStorage.getItem("ether.discoverable") !== "0"; },
+  set discoverable(v) { localStorage.setItem("ether.discoverable", v ? "1" : "0"); },
 
   get contactsJson() { return localStorage.getItem("ether.contacts") || "[]"; },
   set contactsJson(v) { localStorage.setItem("ether.contacts", v); },
@@ -38,6 +48,7 @@ const state = {
 let mesh;
 let signaling = null;
 const onlineSet = new Set();
+const onlineRoster = new Map(); // id -> { name, visible } — все, кто сейчас зарегистрирован на сервере
 const autoConnectTimers = new Map();
 
 // ---------- Утилиты интерфейса ----------
@@ -122,7 +133,8 @@ function startApp() {
   $$(".theme-seg button").forEach((b) => b.classList.toggle("active", b.dataset.theme === Store.theme));
   $("#settings-name").value = Store.name;
   $("#settings-identity").value = Store.myIdentityRaw;
-  $("#settings-signaling-url").value = Store.signalingUrl;
+  $("#settings-signaling-url").value = Store.signalingUrl || DEFAULT_SIGNALING_URL;
+  $("#settings-discoverable").checked = Store.discoverable;
 
   loadContacts();
 
@@ -208,7 +220,7 @@ function renderTab() {
   $("#nav-title").textContent = titles[state.tab];
 
   if (state.tab === "chats") renderChatsList();
-  if (state.tab === "connect") renderSignalingBanner();
+  if (state.tab === "connect") { renderSignalingBanner(); renderOnlineRosterList(); }
 }
 
 // ---------- Статусы контактов ----------
@@ -223,8 +235,8 @@ function contactStatusLabel(c) {
 
 function contactStatusClass(c) {
   if (c.status === "connected" || c.status === "in-call") return "status-connected";
+  if (c.managed && c.online) return "status-connected";
   if (c.status === "connecting" || c.status === "new" || c.status === "awaiting-answer") return "status-connecting";
-  if (c.managed && c.online) return "status-connecting";
   return "status-disconnected";
 }
 
@@ -340,6 +352,26 @@ function wireChatScreen() {
   });
 
   $("#chat-call-btn").addEventListener("click", () => beginCall(state.chatId));
+
+  $("#chat-delete-btn").addEventListener("click", () => {
+    const c = state.contacts.get(state.chatId);
+    if (!c) return;
+    if (!confirm(`Удалить контакт «${c.name}»? Переписка будет потеряна.`)) return;
+    deleteContact(state.chatId);
+  });
+}
+
+function deleteContact(id) {
+  clearAutoConnectTimer(id);
+  mesh.remove(id);
+  const audioEl = document.getElementById("remote-audio-" + id);
+  if (audioEl) audioEl.remove();
+  state.contacts.delete(id);
+  persistContacts();
+  if (state.callId === id) closeCallScreen();
+  if (state.chatId === id) state.chatId = null;
+  renderTab();
+  toast("Контакт удалён");
 }
 
 // ---------- Идентификатор и сигнальный сервер ----------
@@ -352,11 +384,8 @@ function updateSignalingStatusUI(kind, text) {
 
 function renderSignalingBanner() {
   const banner = $("#signaling-banner");
-  if (!Store.signalingUrl) {
-    $("#signaling-banner-text").textContent = "Сигнальный сервер не настроен — контакты будут подключаться только вручную, по коду. Задайте адрес в Настройках, чтобы подключаться автоматически.";
-    banner.classList.remove("hidden");
-  } else if (!signaling || !signaling.connected) {
-    $("#signaling-banner-text").textContent = "Нет связи с сигнальным сервером — переподключаемся…";
+  if (!signaling || !signaling.connected) {
+    $("#signaling-banner-text").textContent = "Нет связи с сигнальным сервером — переподключаемся… Бесплатный хостинг сервера может «просыпаться» до 30 секунд после простоя.";
     banner.classList.remove("hidden");
   } else {
     banner.classList.add("hidden");
@@ -364,19 +393,21 @@ function renderSignalingBanner() {
 }
 
 function initSignaling() {
-  const url = Store.signalingUrl;
+  const url = effectiveSignalingUrl();
   if (signaling) { signaling.stop(); signaling = null; }
   onlineSet.clear();
+  onlineRoster.clear();
   for (const c of state.contacts.values()) c.online = false;
 
   if (!url) {
     updateSignalingStatusUI("off", "Сервер не настроен");
     renderSignalingBanner();
     renderChatsList();
+    renderOnlineRosterList();
     return;
   }
   updateSignalingStatusUI("connecting", "Подключение…");
-  signaling = new SignalingClient(url, Store.myId);
+  signaling = new SignalingClient(url, Store.myId, { name: Store.name, visible: Store.discoverable });
   wireSignalingEvents();
   signaling.start();
   renderSignalingBanner();
@@ -391,28 +422,36 @@ function wireSignalingEvents() {
   signaling.addEventListener("disconnected", () => {
     updateSignalingStatusUI("off", "Нет соединения — переподключаемся…");
     for (const c of state.contacts.values()) if (c.managed) c.online = false;
+    onlineRoster.clear();
     renderSignalingBanner();
     if (state.tab === "chats") renderChatsList();
+    if (state.tab === "connect") renderOnlineRosterList();
   });
 
   signaling.addEventListener("online-list", (ev) => {
-    for (const id of ev.detail.ids) onlineSet.add(id);
-    for (const c of state.contacts.values()) {
-      if (c.managed && onlineSet.has(c.id)) { c.online = true; scheduleAutoConnect(c.id); }
+    for (const u of ev.detail.users) {
+      onlineSet.add(u.id);
+      onlineRoster.set(u.id, { name: u.name, visible: u.visible !== false });
+      const c = state.contacts.get(u.id);
+      if (c && c.managed) { c.online = true; scheduleAutoConnect(u.id); }
     }
     if (state.tab === "chats") renderChatsList();
+    if (state.tab === "connect") renderOnlineRosterList();
   });
 
   signaling.addEventListener("presence", (ev) => {
-    const { id, online } = ev.detail;
-    if (online) onlineSet.add(id); else onlineSet.delete(id);
+    const { id, online, name, visible } = ev.detail;
+    if (online) { onlineSet.add(id); onlineRoster.set(id, { name, visible: visible !== false }); }
+    else { onlineSet.delete(id); onlineRoster.delete(id); }
+
     const c = state.contacts.get(id);
     if (c && c.managed) {
       c.online = online;
       if (online) scheduleAutoConnect(id); else clearAutoConnectTimer(id);
       if (state.chatId === id) renderChatThread();
-      if (state.tab === "chats") renderChatsList();
     }
+    if (state.tab === "chats") renderChatsList();
+    if (state.tab === "connect") renderOnlineRosterList();
   });
 
   signaling.addEventListener("signal", async (ev) => {
@@ -473,6 +512,48 @@ async function attemptConnect(id, { force = false } = {}) {
 }
 
 // ---------- Экран "Контакты" ----------
+
+// ---------- Экран "Контакты" ----------
+
+function renderOnlineRosterList() {
+  const wrap = $("#online-roster-list");
+  const empty = $("#online-roster-empty");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+
+  const rows = Array.from(onlineRoster.entries()).filter(
+    ([id, u]) => id !== Store.myId && u.visible !== false && !state.contacts.has(id)
+  );
+
+  if (rows.length === 0) {
+    empty.classList.remove("hidden");
+    return;
+  }
+  empty.classList.add("hidden");
+
+  for (const [id, u] of rows) {
+    const row = document.createElement("div");
+    row.className = "roster-row";
+    row.innerHTML = `
+      <div class="avatar avatar-sm" style="background:${avatarGradient(u.name || id)}">${initials(u.name || "?")}</div>
+      <span class="roster-name">${escapeHtml(u.name || "Без имени")}</span>
+      <button class="btn-secondary roster-add-btn">Добавить</button>
+    `;
+    row.querySelector(".roster-add-btn").addEventListener("click", () => {
+      state.contacts.set(id, {
+        id, name: u.name || "Без имени", raw: "", managed: true,
+        online: true, status: "disconnected", messages: [], lastActivity: Date.now(),
+      });
+      persistContacts();
+      toast("Контакт добавлен");
+      scheduleAutoConnect(id);
+      renderOnlineRosterList();
+      state.tab = "chats";
+      renderTab();
+    });
+    wrap.appendChild(row);
+  }
+}
 
 function wireConnectScreen() {
   $("#add-contact-btn").addEventListener("click", async () => {
@@ -714,7 +795,7 @@ function wireCallScreen() {
 function wireSettingsScreen() {
   $("#settings-name").addEventListener("change", (e) => {
     const v = e.target.value.trim();
-    if (v) { Store.name = v; toast("Имя обновлено"); }
+    if (v) { Store.name = v; toast("Имя обновлено"); initSignaling(); }
   });
 
   $("#settings-identity").addEventListener("change", async (e) => {
@@ -735,7 +816,13 @@ function wireSettingsScreen() {
   $("#save-signaling-btn").addEventListener("click", () => {
     Store.signalingUrl = $("#settings-signaling-url").value.trim();
     initSignaling();
-    toast(Store.signalingUrl ? "Сохранено, подключаемся" : "Сервер отключён");
+    toast("Сохранено, подключаемся");
+  });
+
+  $("#settings-discoverable").addEventListener("change", (e) => {
+    Store.discoverable = e.target.checked;
+    initSignaling();
+    toast(e.target.checked ? "Вы видны в общем списке онлайн" : "Вы скрыты из общего списка онлайн");
   });
 
   $("#glass-slider").addEventListener("input", (e) => {

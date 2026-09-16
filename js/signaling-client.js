@@ -5,10 +5,12 @@
 // никакого отношения больше не имеет.
 
 class SignalingClient extends EventTarget {
-  constructor(url, myId) {
+  constructor(url, myId, opts = {}) {
     super();
     this.url = url;
     this.myId = myId;
+    this.name = opts.name || "";
+    this.visible = opts.visible !== false;
     this.ws = null;
     this.shouldRun = false;
     this._retryDelay = 1000;
@@ -44,7 +46,7 @@ class SignalingClient extends EventTarget {
     ws.addEventListener("open", () => {
       this._retryDelay = 1000;
       this.connected = true;
-      ws.send(JSON.stringify({ type: "register", id: this.myId }));
+      ws.send(JSON.stringify({ type: "register", id: this.myId, name: this.name, visible: this.visible }));
       this.dispatchEvent(new CustomEvent("connected"));
     });
 
@@ -56,9 +58,9 @@ class SignalingClient extends EventTarget {
         return;
       }
       if (msg.type === "registered") {
-        this.dispatchEvent(new CustomEvent("online-list", { detail: { ids: msg.online || [] } }));
+        this.dispatchEvent(new CustomEvent("online-list", { detail: { users: msg.online || [] } }));
       } else if (msg.type === "presence") {
-        this.dispatchEvent(new CustomEvent("presence", { detail: { id: msg.id, online: msg.online } }));
+        this.dispatchEvent(new CustomEvent("presence", { detail: { id: msg.id, online: msg.online, name: msg.name, visible: msg.visible } }));
       } else if (msg.type === "signal") {
         this.dispatchEvent(new CustomEvent("signal", { detail: { from: msg.from, data: msg.data } }));
       } else if (msg.type === "unreachable") {

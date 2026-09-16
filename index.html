@@ -35,7 +35,7 @@
       <input id="onboarding-identity" type="text" placeholder="Ваш телефон или email" autocomplete="tel" maxlength="80" required />
       <button type="submit" class="btn-primary">Начать</button>
     </form>
-    <p class="onboarding-fine">Номер/email не публикуются — по ним контакты просто находят вас через сигнальный сервер. Адрес сервера задаётся в Настройках.</p>
+    <p class="onboarding-fine">Сигнальный сервер уже настроен по умолчанию, адрес можно сменить в Настройках. Номер/email не публикуются — по ним контакты просто находят вас через этот сервер.</p>
   </div>
 </div>
 
@@ -71,6 +71,13 @@
         <input id="add-contact-name" type="text" placeholder="Имя (необязательно)" maxlength="40" />
         <input id="add-contact-value" type="text" placeholder="Телефон или email контакта" maxlength="80" />
         <button id="add-contact-btn" class="btn-primary">Добавить контакт</button>
+      </div>
+
+      <div class="connect-card glass-content" id="online-roster-card">
+        <h2>Сейчас в сети</h2>
+        <p class="muted">Все, кто прямо сейчас открыл приложение с тем же сигнальным сервером и не скрыл себя из списка.</p>
+        <div id="online-roster-list" class="roster-list"></div>
+        <p id="online-roster-empty" class="muted fine hidden">Пока никого не видно — либо никто, кроме вас, ещё не открыл приложение, либо все скрыли себя в Настройках.</p>
       </div>
 
       <button id="toggle-manual-btn" class="link-toggle">Ручное подключение без сервера, по коду ›</button>
@@ -160,6 +167,10 @@
           <button id="save-signaling-btn" class="btn-secondary" style="width:100%;margin-top:2px;">Сохранить и подключиться</button>
           <span id="signaling-status-text" class="fine muted"></span>
         </div>
+        <label class="settings-row">
+          <span>Показывать меня в списке «Сейчас в сети»</span>
+          <input id="settings-discoverable" type="checkbox" class="switch" />
+        </label>
       </div>
 
       <div class="settings-group glass-content">
@@ -199,6 +210,9 @@
         </div>
         <button id="chat-call-btn" class="icon-btn call-icon" aria-label="Позвонить">
           <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.7 21 3 13.3 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.4 0 .8-.2 1L6.6 10.8z"/></svg>
+        </button>
+        <button id="chat-delete-btn" class="icon-btn delete-icon" aria-label="Удалить контакт">
+          <svg viewBox="0 0 24 24" width="19" height="19"><path fill="currentColor" d="M6 7h12l-1 13.1a2 2 0 0 1-2 1.9H9a2 2 0 0 1-2-1.9L6 7zm3-3.5A1.5 1.5 0 0 1 10.5 2h3A1.5 1.5 0 0 1 15 3.5V5H9v-1.5zM4 5h16v2H4V5z"/></svg>
         </button>
       </div>
       <div id="chat-messages" class="chat-messages"></div>
@@ -257,7 +271,7 @@
     <p><strong>Сигнальный сервер нужен только для рандеву.</strong> Он в реальном времени хранит в памяти (не на диске) короткий список «кто сейчас онлайн» — по хэшу от номера/email, не по самому номеру — и один раз пересылает технический пакет подключения (offer/answer), когда оба контакта одновременно в сети. Дальше сервер из разговора выходит полностью, даже если позже вы позвоните ещё раз.</p>
     <p><strong>Можно и совсем без сервера.</strong> В разделе «Контакты» есть режим «Ручное подключение по коду» — тогда вы сами пересылаете код любым способом, а сервер не участвует вообще, даже в рандеву.</p>
     <p><strong>Публичные STUN-серверы Google</strong> помогают устройству узнать свой внешний сетевой адрес — как справочная служба, которая называет номер, но не слушает разговор.</p>
-    <p><strong>Ограничения:</strong> оба человека должны иметь открытое приложение (хотя бы в фоне на компьютере, на телефоне — активным) в момент установления связи. Push-уведомлений о сообщении, когда приложение полностью закрыто, всё ещё нет — это отдельная большая тема. Свой сигнальный сервер нужно один раз развернуть — инструкция в README проекта.</p>
+    <p><strong>Ограничения:</strong> оба человека должны иметь открытое приложение (хотя бы в фоне на компьютере, на телефоне — активным) в момент установления связи. Push-уведомлений о сообщении, когда приложение полностью закрыто, всё ещё нет — это отдельная большая тема. По умолчанию используется общий сигнальный сервер — свой собственный можно развернуть и указать в Настройках, инструкция в README проекта.</p>
     <button id="how-it-works-close" class="btn-primary">Понятно</button>
   </div>
 </div>
