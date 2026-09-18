@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
 <meta name="color-scheme" content="dark light" />
 <title>Эфир — связь напрямую</title>
-<meta name="description" content="Обмен сообщениями и звонки напрямую между устройствами по номеру телефона или email." />
+<meta name="description" content="Обмен сообщениями и звонки напрямую между устройствами." />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#000000" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -17,8 +17,22 @@
 </head>
 <body>
 
+<!-- ЭКРАН РАЗБЛОКИРОВКИ -->
+<div id="lock-screen" class="hidden">
+  <div class="lock-card glass-content">
+    <div class="lock-icon">
+      <svg viewBox="0 0 24 24" width="40" height="40"><path fill="currentColor" d="M17 8h-1V6a4 4 0 0 0-8 0v2H7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2zM9 6a3 3 0 0 1 6 0v2H9V6zm3 12a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"/></svg>
+    </div>
+    <h1 class="lock-title">Эфир защищён</h1>
+    <p class="onboarding-sub">Введите пин-код</p>
+    <input id="lock-pin" type="password" inputmode="numeric" maxlength="8" placeholder="••••" class="pin-input" autocomplete="off" />
+    <button type="button" id="lock-submit" class="btn-primary">Разблокировать</button>
+    <button type="button" id="lock-forgot" class="btn-tertiary">Забыли пин-код?</button>
+  </div>
+</div>
+
 <!-- ОНБОРДИНГ -->
-<div id="onboarding">
+<div id="onboarding" class="hidden">
   <div class="onboarding-glow"></div>
   <div class="onboarding-card glass-content">
     <div class="app-glyph">
@@ -32,7 +46,7 @@
       <input id="onboarding-identity" type="text" placeholder="Ваш телефон или email" autocomplete="tel" maxlength="80" required />
       <button type="submit" class="btn-primary">Начать</button>
     </form>
-    <p class="onboarding-fine">Сигнальный сервер уже настроен по умолчанию, адрес можно сменить в Настройках. Номер/email не публикуются — по ним контакты просто находят вас через этот сервер.</p>
+    <p class="onboarding-fine">Сигнальный сервер уже настроен по умолчанию, адрес можно сменить в Настройках.</p>
   </div>
 </div>
 
@@ -45,125 +59,86 @@
 
   <main id="content">
 
-    <!-- ЧАТЫ -->
     <section id="screen-chats" class="screen">
+      <div class="search-wrap">
+        <input id="global-search" type="text" placeholder="Поиск по чатам" class="search-input" autocomplete="off" />
+      </div>
       <div id="chats-empty" class="empty-state hidden">
         <div class="empty-icon">💬</div>
         <h2>Пока никого нет на связи</h2>
-        <p>Откройте вкладку «Контакты», чтобы добавить первого собеседника по номеру или email.</p>
+        <p>Откройте вкладку «Контакты», чтобы добавить первого собеседника.</p>
       </div>
       <div id="chats-list" class="chats-list"></div>
+      <div id="chats-archived-toggle" class="link-toggle-wrap hidden">
+        <button type="button" id="toggle-archived" class="link-toggle">Показать архив ›</button>
+      </div>
     </section>
 
-    <!-- ЗВОНКИ -->
     <section id="screen-calls" class="screen hidden">
       <div id="calls-empty" class="empty-state hidden">
         <div class="empty-icon">📞</div>
         <h2>Звонков пока не было</h2>
-        <p>Здесь появится история — кто кому звонил, состоялся ли разговор и сколько он длился.</p>
       </div>
       <div id="calls-list" class="calls-list"></div>
     </section>
 
-    <!-- КОНТАКТЫ -->
     <section id="screen-connect" class="screen hidden">
       <div id="signaling-banner" class="banner glass-content warn hidden">
         <span id="signaling-banner-text"></span>
       </div>
-
-      <div class="connect-card glass-content" id="add-contact-card">
+      <div class="connect-card glass-content">
         <h2>Добавить контакт</h2>
-        <p class="muted">Введите номер телефона или email — как только этот человек тоже откроет приложение (с тем же сигнальным сервером), вы автоматически окажетесь на связи. Никакого кода передавать не нужно.</p>
+        <p class="muted">Введите номер телефона или email — как только этот человек откроет приложение, вы автоматически окажетесь на связи.</p>
         <input id="add-contact-name" type="text" placeholder="Имя (необязательно)" maxlength="40" />
         <input id="add-contact-value" type="text" placeholder="Телефон или email контакта" maxlength="80" />
         <button type="button" id="add-contact-btn" class="btn-primary">Добавить контакт</button>
       </div>
-
-      <div class="connect-card glass-content" id="online-roster-card">
+      <div class="connect-card glass-content">
         <h2>Сейчас в сети</h2>
-        <p class="muted">Все, кто прямо сейчас открыл приложение с тем же сигнальным сервером и не скрыл себя из списка.</p>
         <div id="online-roster-list" class="roster-list"></div>
-        <p id="online-roster-empty" class="muted fine hidden">Пока никого не видно — либо никто, кроме вас, ещё не открыл приложение, либо все скрыли себя в Настройках.</p>
+        <p id="online-roster-empty" class="muted fine hidden">Пока никого не видно.</p>
       </div>
-
       <button type="button" id="toggle-manual-btn" class="link-toggle">Ручное подключение без сервера, по коду ›</button>
-
       <div id="manual-section" class="hidden">
-        <div id="incoming-banner" class="banner glass-content hidden">
-          <span id="incoming-banner-text"></span>
-        </div>
-
+        <div id="incoming-banner" class="banner glass-content hidden"><span id="incoming-banner-text"></span></div>
         <div class="connect-card glass-content" id="invite-idle">
           <h2>Пригласить кодом</h2>
-          <p class="muted">Полностью без какого-либо сервера: вы создадите код приглашения и перешлёте его сами — сообщением, почтой, AirDrop, QR.</p>
           <button type="button" id="create-invite-btn" class="btn-primary">Создать приглашение</button>
         </div>
-
         <div class="connect-card glass-content hidden" id="invite-active">
           <h2>Шаг 1 · отправьте код</h2>
-          <p class="muted">Перешлите ссылку или код собеседнику любым способом.</p>
           <div class="code-box"><code id="invite-code-out"></code></div>
-          <div class="row-actions">
-            <button type="button" id="copy-code-btn" class="btn-secondary">Копировать код</button>
-          </div>
+          <div class="row-actions"><button type="button" id="copy-code-btn" class="btn-secondary">Копировать код</button></div>
           <div class="link-box"><span id="invite-link-out"></span></div>
           <div class="row-actions">
             <button type="button" id="copy-link-btn" class="btn-secondary">Копировать ссылку</button>
             <button type="button" id="share-link-btn" class="btn-secondary">Поделиться</button>
           </div>
-          <div class="contact-send">
-            <input id="invite-contact" type="text" placeholder="Или сразу: телефон / email собеседника" />
-            <div class="row-actions">
-              <button type="button" id="invite-send-sms" class="btn-secondary">Отправить SMS</button>
-              <button type="button" id="invite-send-email" class="btn-secondary">Отправить на почту</button>
-            </div>
-          </div>
           <div class="divider"></div>
           <h2>Шаг 2 · вставьте код ответа</h2>
-          <p class="muted">Когда собеседник откроет ссылку, он получит код ответа — вставьте его сюда.</p>
           <textarea id="answer-code-in" placeholder="Код ответа"></textarea>
           <button type="button" id="complete-invite-btn" class="btn-primary">Подключить</button>
           <button type="button" id="new-invite-again" class="btn-tertiary">Начать заново</button>
         </div>
-
         <div class="connect-card glass-content" id="join-card">
           <h2>У меня есть код приглашения</h2>
           <div id="paste-code-wrap">
-            <p class="muted">Вставьте код, который прислал собеседник.</p>
             <textarea id="paste-code-in" placeholder="Код приглашения"></textarea>
             <button type="button" id="reply-btn" class="btn-primary">Ответить</button>
           </div>
           <div id="answer-out-wrap" class="hidden">
-            <p class="muted">Отправьте этот код обратно тем же способом — как только собеседник его введёт, вы окажетесь на связи.</p>
             <div class="code-box"><code id="answer-out-code"></code></div>
-            <div class="row-actions">
-              <button type="button" id="answer-copy-btn" class="btn-secondary">Копировать код</button>
-            </div>
-            <div class="contact-send">
-              <input id="answer-contact" type="text" placeholder="Или сразу: телефон / email собеседника" />
-              <div class="row-actions">
-                <button type="button" id="answer-send-sms" class="btn-secondary">Отправить SMS</button>
-                <button type="button" id="answer-send-email" class="btn-secondary">Отправить на почту</button>
-              </div>
-            </div>
+            <div class="row-actions"><button type="button" id="answer-copy-btn" class="btn-secondary">Копировать код</button></div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- НАСТРОЙКИ -->
     <section id="screen-settings" class="screen hidden">
       <div class="settings-group glass-content">
-        <label class="settings-row">
-          <span>Ваше имя</span>
-          <input id="settings-name" type="text" maxlength="40" />
-        </label>
-        <label class="settings-row">
-          <span>Телефон / email</span>
-          <input id="settings-identity" type="text" maxlength="80" />
-        </label>
+        <label class="settings-row"><span>Ваше имя</span><input id="settings-name" type="text" maxlength="40" /></label>
+        <label class="settings-row"><span>Телефон / email</span><input id="settings-identity" type="text" maxlength="80" /></label>
       </div>
-
       <div class="settings-group glass-content">
         <div class="settings-row column">
           <span>Сигнальный сервер <span id="signaling-status-dot" class="status-dot"></span></span>
@@ -176,7 +151,16 @@
           <input id="settings-discoverable" type="checkbox" class="switch" />
         </label>
       </div>
-
+      <div class="settings-group glass-content">
+        <label class="settings-row">
+          <span>Уведомления о сообщениях</span>
+          <input id="settings-notifications" type="checkbox" class="switch" />
+        </label>
+        <label class="settings-row">
+          <span>Пин-код при входе</span>
+          <input id="settings-pinlock" type="checkbox" class="switch" />
+        </label>
+      </div>
       <div class="settings-group glass-content">
         <div class="settings-row column">
           <span>Прозрачность стекла</span>
@@ -191,24 +175,17 @@
           </div>
         </div>
       </div>
-
       <div class="settings-group glass-content">
-        <button type="button" id="how-it-works-btn" class="settings-row link-row">
-          <span>Как это работает и почему без серверов</span>
-          <span class="chevron">›</span>
-        </button>
-        <button type="button" id="diagnostics-btn" class="settings-row link-row">
-          <span>Диагностика соединения</span>
-          <span class="chevron">›</span>
-        </button>
+        <button type="button" id="export-backup-btn" class="settings-row link-row"><span>Экспорт всех данных</span><span class="chevron">›</span></button>
+        <button type="button" id="import-backup-btn" class="settings-row link-row"><span>Импорт данных из файла</span><span class="chevron">›</span></button>
+        <button type="button" id="how-it-works-btn" class="settings-row link-row"><span>Как это работает</span><span class="chevron">›</span></button>
+        <button type="button" id="diagnostics-btn" class="settings-row link-row"><span>Диагностика соединения</span><span class="chevron">›</span></button>
       </div>
-
       <div class="settings-group glass-content">
         <button type="button" id="reset-all-btn" class="settings-row destructive">Разорвать все соединения</button>
       </div>
     </section>
 
-    <!-- ЧАТ -->
     <section id="screen-chat" class="screen hidden">
       <div class="chat-header glass">
         <button type="button" id="chat-back" class="icon-btn back-btn" aria-label="Назад">‹</button>
@@ -216,6 +193,10 @@
           <span id="chat-peer-name">Собеседник</span>
           <span id="chat-peer-status" class="muted"></span>
         </div>
+        <span id="chat-transport-badge" class="transport-badge hidden">P2P</span>
+        <button type="button" id="chat-search-btn" class="icon-btn" aria-label="Поиск">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
+        </button>
         <button type="button" id="chat-call-btn" class="icon-btn call-icon" aria-label="Позвонить">
           <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.7 21 3 13.3 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.4 0 .8-.2 1L6.6 10.8z"/></svg>
         </button>
@@ -224,11 +205,30 @@
         </button>
       </div>
 
+      <div id="chat-search-bar" class="search-bar glass hidden">
+        <input id="chat-search-input" type="text" placeholder="Поиск по переписке" class="search-input-inline" autocomplete="off" />
+        <span id="chat-search-counter" class="search-counter"></span>
+        <button type="button" id="chat-search-close" class="icon-btn small" aria-label="Закрыть">
+          <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
+        </button>
+      </div>
+
       <div id="chat-messages" class="chat-messages"></div>
+
+      <div id="reply-banner" class="edit-banner glass hidden">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/></svg>
+        <div class="reply-banner-body">
+          <div class="reply-banner-author">Ответ</div>
+          <div class="reply-banner-text"></div>
+        </div>
+        <button type="button" id="reply-cancel-btn" class="icon-btn small" aria-label="Отменить">
+          <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
+        </button>
+      </div>
 
       <div id="edit-banner" class="edit-banner glass hidden">
         <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-        <span class="edit-banner-text">Редактирование сообщения</span>
+        <span class="edit-banner-text">Редактирование</span>
         <button type="button" id="edit-cancel-btn" class="icon-btn small" aria-label="Отменить">
           <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
         </button>
@@ -298,8 +298,20 @@
   <div class="sheet-backdrop"></div>
   <div class="sheet-panel glass-content">
     <div class="sheet-handle"></div>
+    <div id="reaction-bar" class="reaction-bar"></div>
     <div id="message-sheet-body" class="sheet-actions"></div>
     <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="message-sheet">Отмена</button>
+  </div>
+</div>
+
+<!-- ШИТ ПЕРЕСЫЛКИ -->
+<div id="forward-sheet" class="sheet hidden">
+  <div class="sheet-backdrop"></div>
+  <div class="sheet-panel glass-content">
+    <div class="sheet-handle"></div>
+    <h2>Переслать</h2>
+    <div id="forward-list" class="forward-list"></div>
+    <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="forward-sheet">Отмена</button>
   </div>
 </div>
 
@@ -325,17 +337,28 @@
   </div>
 </div>
 
-<!-- ШТОРКА "КАК ЭТО РАБОТАЕТ" -->
+<!-- ШИТ ВВОДА ПИН-КОДА (настройка) -->
+<div id="set-pin-sheet" class="sheet hidden">
+  <div class="sheet-backdrop"></div>
+  <div class="sheet-panel glass-content">
+    <div class="sheet-handle"></div>
+    <h2 id="set-pin-title">Новый пин-код</h2>
+    <input id="set-pin-input" type="password" inputmode="numeric" maxlength="8" placeholder="••••" class="pin-input" />
+    <button type="button" id="set-pin-save-btn" class="btn-primary">Сохранить</button>
+    <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="set-pin-sheet">Отмена</button>
+  </div>
+</div>
+
+<!-- КАК РАБОТАЕТ -->
 <div id="how-it-works-sheet" class="sheet hidden">
   <div class="sheet-backdrop"></div>
   <div class="sheet-panel glass-content">
     <div class="sheet-handle"></div>
     <h2>Как это работает</h2>
-    <p><strong>Пока оба онлайн — всегда напрямую.</strong> Сообщения и звук идут между устройствами по протоколу WebRTC. Сервер их не видит и не передаёт.</p>
-    <p><strong>Если собеседник офлайн — сообщение временно хранится на сервере, но в зашифрованном виде.</strong> Если сервер перезапустится и очередь пропадёт, отправитель сам перешлёт сообщение повторно, как только вернётся связь — ваше исходящее остаётся в исходящей очереди до тех пор, пока собеседник не подтвердит получение напрямую.</p>
-    <p><strong>Статусы сообщений.</strong> Серая галочка — отправлено. Жёлтая — доставлено. Зелёная — прочитано. Красная — не удалось связаться, повторная отправка произойдёт автоматически.</p>
-    <p><strong>Можно и совсем без сервера</strong> — «Ручное подключение по коду», тогда сервер не участвует вообще.</p>
-    <p><strong>Звонки</strong> работают только пока оба устройства в сети одновременно.</p>
+    <p><strong>Пока оба онлайн — напрямую.</strong> Сообщения и звук идут между устройствами через WebRTC.</p>
+    <p><strong>Если собеседник офлайн</strong> — сообщение шифруется и хранится на сервере до момента, когда он подключится. Ваше исходящее не удаляется из очереди, пока собеседник не подтвердит получение.</p>
+    <p><strong>Статусы:</strong> ✓ серая — отправлено, ✓ жёлтая — доставлено, ✓ зелёная — прочитано, ✓ красная — ошибка.</p>
+    <p><strong>Приложение защищено</strong> пин-кодом, если вы его включили в настройках.</p>
     <button type="button" id="how-it-works-close" class="btn-primary">Понятно</button>
   </div>
 </div>
@@ -345,12 +368,11 @@
   <div class="sheet-backdrop"></div>
   <div class="sheet-panel glass-content">
     <div class="sheet-handle"></div>
-    <h2>Диагностика соединения</h2>
-    <p class="muted fine">Скопируйте текст ниже и пришлите его, если что-то не работает.</p>
+    <h2>Диагностика</h2>
     <div id="diagnostics-summary" class="diag-summary"></div>
     <pre id="diagnostics-log" class="diag-log"></pre>
     <div class="row-actions">
-      <button type="button" id="diagnostics-copy-btn" class="btn-secondary">Скопировать всё</button>
+      <button type="button" id="diagnostics-copy-btn" class="btn-secondary">Скопировать</button>
       <button type="button" id="diagnostics-refresh-btn" class="btn-secondary">Обновить</button>
     </div>
     <button type="button" id="diagnostics-close" class="btn-primary">Закрыть</button>
@@ -358,12 +380,13 @@
 </div>
 
 <div id="toast"></div>
+<input type="file" id="import-backup-input" class="hidden" accept="application/json" />
 
 <div id="boot-recovery" class="hidden">
   <div class="onboarding-card glass-content boot-recovery-card">
-    <h1 class="boot-recovery-title">Что-то пошло не так при запуске</h1>
-    <p class="onboarding-sub">Похоже, локальные данные приложения повреждены. Обычно помогает очистить их — переписка на этом устройстве будет потеряна, но сами контакты можно будет добавить заново.</p>
-    <button type="button" id="boot-recovery-reset" class="btn-primary">Очистить данные и начать заново</button>
+    <h1 class="boot-recovery-title">Что-то пошло не так</h1>
+    <p class="onboarding-sub">Возможно, локальные данные повреждены. Можно очистить их и начать заново.</p>
+    <button type="button" id="boot-recovery-reset" class="btn-primary">Очистить и начать заново</button>
   </div>
 </div>
 
