@@ -23,8 +23,8 @@ function etherLog(level, ...args) {
 // чтобы рассинхрон версий клиент/сервер не ломал всё молча.
 
 function normalizeRosterEntry(u) {
-  if (typeof u === "string") return { id: u, name: "", visible: true };
-  return { id: u.id, name: u.name || "", visible: u.visible !== false };
+  if (typeof u === "string") return { id: u, name: "", visible: true, publicKey: null };
+  return { id: u.id, name: u.name || "", visible: u.visible !== false, publicKey: u.publicKey || null };
 }
 
 class SignalingClient extends EventTarget {
@@ -34,6 +34,7 @@ class SignalingClient extends EventTarget {
     this.myId = myId;
     this.name = opts.name || "";
     this.visible = opts.visible !== false;
+    this.publicKey = opts.publicKey || null;
     this.ws = null;
     this.shouldRun = false;
     this._retryDelay = 1000;
@@ -70,7 +71,7 @@ class SignalingClient extends EventTarget {
       this._retryDelay = 1000;
       this.connected = true;
       etherLog("info", "[signaling] соединение открыто, регистрируюсь как", this.myId.slice(0, 10) + "…");
-      ws.send(JSON.stringify({ type: "register", id: this.myId, name: this.name, visible: this.visible }));
+      ws.send(JSON.stringify({ type: "register", id: this.myId, name: this.name, visible: this.visible, publicKey: this.publicKey }));
       this.dispatchEvent(new CustomEvent("connected"));
     });
 
@@ -87,13 +88,27 @@ class SignalingClient extends EventTarget {
         this.dispatchEvent(new CustomEvent("online-list", { detail: { users } }));
       } else if (msg.type === "presence") {
         etherLog("info", "[signaling] presence:", msg.id.slice(0, 10) + "…", msg.online ? "online" : "offline");
-        this.dispatchEvent(new CustomEvent("presence", { detail: { id: msg.id, online: msg.online, name: msg.name, visible: msg.visible } }));
+        this.dispatchEvent(new CustomEvent("presence", { detail: { id: msg.id, online: msg.online, name: msg.name, visible: msg.visible, publicKey: msg.publicKey } }));
       } else if (msg.type === "signal") {
         etherLog("info", "[signaling] сигнал от", msg.from.slice(0, 10) + "…", msg.data && msg.data.t);
         this.dispatchEvent(new CustomEvent("signal", { detail: { from: msg.from, data: msg.data } }));
       } else if (msg.type === "unreachable") {
         etherLog("info", "[signaling] недоступен:", msg.to.slice(0, 10) + "…");
         this.dispatchEvent(new CustomEvent("unreachable", { detail: { to: msg.to } }));
+      } else if (msg.type === "deliver") {
+        etherLog("info", "[mailbox] конверт от", msg.from.slice(0, 10) + "…", msg.queued ? "(из очереди)" : "(напрямую)");
+        this.dispatchEvent(new CustomEvent("deliver", { detail: { from: msg.from, msgId: msg.msgId, envelope: msg.envelope, fromPublicKey: msg.fromPublicKey, queued: !!msg.queued } }));
+      } else if (msg.type === "deliver-ack") {
+        this.dispatchEvent(new CustomEvent("deliver-ack", { detail: { msgId: msg.msgId } }));
+      } else if (msg.type === "replaced") {
+        // Сервер разрешает только одно соединение на id одновременно — это
+        // значит, с тем же телефоном/email кто-то подключился ещё в одной
+        // вкладке или на другом устройстве. Не боремся за место: если бы
+        // тут же попытались переподключиться, вышла бы бесконечная борьба
+        // туда-обратно с тем, вторым соединением.
+        etherLog("warn", "[signaling] эта вкладка отключена сервером — обнаружена ещё одна сессия с тем же id (другая вкладка/устройство с тем же телефоном или email?)");
+        this.shouldRun = false;
+        this.dispatchEvent(new CustomEvent("replaced"));
       }
     });
 
@@ -127,6 +142,21 @@ class SignalingClient extends EventTarget {
 
   signal(to, data) {
     return this.send("signal", { to, data });
+  }
+
+  // Отправить конверт (зашифрованное сообщение или квитанцию) — сервер
+  // либо перешлёт его сразу, либо придержит до следующего подключения
+  // адресата. fromPublicKey передаётся рядом открытым текстом, чтобы
+  // получатель мог расшифровать даже если никогда раньше не видел нас
+  // онлайн. Возвращает false, только если у нас самих сейчас нет связи
+  // с сервером вообще — тогда конверт нужно поставить в свою локальную
+  // исходящую очередь и повторить попытку позже.
+  deliver(to, msgId, envelope, fromPublicKey) {
+    return this.send("deliver", { to, msgId, envelope, fromPublicKey });
+  }
+
+  mailboxAck(msgId) {
+    return this.send("mailbox-ack", { msgId });
   }
 }
 

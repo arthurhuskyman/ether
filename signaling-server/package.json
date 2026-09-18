@@ -6,7 +6,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node test-two-clients.js && node test-e2e-webrtc.js"
+    "test": "node test-two-clients.js && node test-e2e-webrtc.js && node test-race-condition.js && node test-crypto.js"
   },
   "engines": {
     "node": ">=18"

@@ -39,6 +39,7 @@ class PeerLink extends EventTarget {
     this.remoteName = remoteName;
     this.role = role; // 'offerer' | 'answerer'
     this.status = "new"; // new | awaiting-answer | connecting | connected | in-call | disconnected
+    this._closed = false;
     this.pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
     this.dc = null;
     this.localAudioTrack = null;
@@ -101,35 +102,62 @@ class PeerLink extends EventTarget {
   }
 
   // ---- Первое рукопожатие (ручной обмен кодом) ----
+  //
+  // Эти методы асинхронные и могут занимать до нескольких секунд (ожидание
+  // ICE). Если за это время связь была отменена другой веткой кода —
+  // например, обе стороны почти одновременно решили быть звонящими, и
+  // разрешение конфликта закрыло это самое соединение — pc.close() уже
+  // вызван, а дальнейшие операции над ним кидают InvalidStateError. Здесь
+  // это не бага сети, а нормальная ситуация "нас опередили", поэтому вместо
+  // исключения тихо возвращаем null — вызывающий код просто ничего не делает.
 
   async createInitialOffer(roomTag) {
-    const offer = await this.pc.createOffer();
-    await this.pc.setLocalDescription(offer);
-    await waitForIceGathering(this.pc);
-    return {
-      t: "offer",
-      n: this.localName,
-      r: roomTag,
-      d: { type: this.pc.localDescription.type, sdp: this.pc.localDescription.sdp },
-    };
+    try {
+      const offer = await this.pc.createOffer();
+      await this.pc.setLocalDescription(offer);
+      await waitForIceGathering(this.pc);
+      if (this._closed || this.pc.signalingState === "closed") return null;
+      return {
+        t: "offer",
+        n: this.localName,
+        r: roomTag,
+        x: crypto.randomUUID(),
+        d: { type: this.pc.localDescription.type, sdp: this.pc.localDescription.sdp },
+      };
+    } catch (e) {
+      if (this._closed || this.pc.signalingState === "closed") return null;
+      throw e;
+    }
   }
 
   async acceptOfferAndCreateAnswer(packet) {
     this.remoteName = packet.n || this.remoteName;
-    await this.pc.setRemoteDescription(packet.d);
-    const answer = await this.pc.createAnswer();
-    await this.pc.setLocalDescription(answer);
-    await waitForIceGathering(this.pc);
-    return {
-      t: "answer",
-      n: this.localName,
-      d: { type: this.pc.localDescription.type, sdp: this.pc.localDescription.sdp },
-    };
+    try {
+      await this.pc.setRemoteDescription(packet.d);
+      const answer = await this.pc.createAnswer();
+      await this.pc.setLocalDescription(answer);
+      await waitForIceGathering(this.pc);
+      if (this._closed || this.pc.signalingState === "closed") return null;
+      return {
+        t: "answer",
+        n: this.localName,
+        x: crypto.randomUUID(),
+        d: { type: this.pc.localDescription.type, sdp: this.pc.localDescription.sdp },
+      };
+    } catch (e) {
+      if (this._closed || this.pc.signalingState === "closed") return null;
+      throw e;
+    }
   }
 
   async acceptAnswer(packet) {
     this.remoteName = packet.n || this.remoteName;
-    await this.pc.setRemoteDescription(packet.d);
+    try {
+      await this.pc.setRemoteDescription(packet.d);
+    } catch (e) {
+      if (this._closed || this.pc.signalingState === "closed") return;
+      throw e;
+    }
   }
 
   // ---- Дальнейшая пересогласование уже идёт через открытый канал ----
@@ -170,6 +198,23 @@ class PeerLink extends EventTarget {
     this.send({ kind: "call-state", state: "ringing" });
   }
 
+  // Сторона, которой звонят, должна отдельно и явно добавить свой
+  // аудиопоток — без этого разговор получается односторонним: звонящий
+  // передаёт звук, а его никто не передаёт обратно.
+  async answerCall() {
+    if (!this.localAudioTrack) {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      this.localAudioTrack = stream.getAudioTracks()[0];
+    }
+    this.pc.addTrack(this.localAudioTrack);
+    this._setStatus("in-call");
+    this.send({ kind: "call-state", state: "accepted" });
+  }
+
+  declineCall() {
+    this.send({ kind: "call-state", state: "declined" });
+  }
+
   setMuted(muted) {
     if (this.localAudioTrack) this.localAudioTrack.enabled = !muted;
   }
@@ -186,6 +231,7 @@ class PeerLink extends EventTarget {
   }
 
   close() {
+    this._closed = true;
     try {
       if (this.localAudioTrack) this.localAudioTrack.stop();
       if (this.dc) this.dc.close();
