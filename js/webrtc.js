@@ -1,13 +1,8 @@
-// Слой P2P-связи. Единственный момент, когда двум устройствам нужен
-// посредник — обмен самым первым SDP-пакетом (offer/answer). После того
-// как канал открыт, все дальнейшие договорённости (в том числе запуск
-// аудио для звонка) идут через сам P2P data-channel.
-//
-// STUN помогает узнать внешний адрес; TURN — ретранслятор, без которого
-// звонки в мобильных сетях (симметричный NAT) физически не поднимаются.
-// Учётные данные TURN динамически запрашиваются у Metered по API-ключу.
+// Слой P2P-связи. TURN-серверы подгружаются с вашего аккаунта Metered.
+// Пока они грузятся, никто не создаёт PeerLink — см. window.__etherIceReady
+// в app.js. Так первый же вызов createInitialOffer() уже имеет TURN.
 
-const METERED_API_KEY = "aa111f28aa9541c01ac274e43e383bd7f685"; // Ваш API-ключ
+const METERED_API_KEY = "aa111f28aa9541c01ac274e43e383bd7f685";
 const METERED_API_URL = `https://arthurhusky.metered.live/api/v1/turn/credentials?apiKey=${METERED_API_KEY}`;
 
 let ICE_SERVERS = [
@@ -15,18 +10,19 @@ let ICE_SERVERS = [
   { urls: "stun:stun1.l.google.com:19302" },
 ];
 
-// Асинхронно получаем TURN-серверы при старте
-(async () => {
+window.__etherIceReady = (async () => {
   try {
-    const response = await fetch(METERED_API_URL);
-    if (!response.ok) throw new Error(`Metered API вернул ${response.status}`);
-    const meteredServers = await response.json();
-    if (Array.isArray(meteredServers) && meteredServers.length > 0) {
-      ICE_SERVERS = [...ICE_SERVERS, ...meteredServers];
-      etherLog("info", "[webrtc] TURN-серверы от Metered загружены:", meteredServers.length);
+    const r = await fetch(METERED_API_URL, { cache: "no-store" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const list = await r.json();
+    if (Array.isArray(list) && list.length > 0) {
+      ICE_SERVERS = ICE_SERVERS.concat(list);
+      console.log("[webrtc] TURN Metered загружены:", list.length, list);
+    } else {
+      console.warn("[webrtc] Metered вернул пустой список");
     }
   } catch (e) {
-    etherLog("error", "[webrtc] не удалось загрузить TURN-серверы Metered:", String(e));
+    console.warn("[webrtc] не удалось загрузить TURN Metered:", e);
   }
 })();
 
@@ -55,18 +51,26 @@ class PeerLink extends EventTarget {
     this.role = role;
     this.status = "new";
     this._closed = false;
-    // Используем глобальную переменную ICE_SERVERS
-    this.pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    this.pc = new RTCPeerConnection({ iceServers: ICE_SERVERS, iceCandidatePoolSize: 4 });
     this.dc = null;
     this.localAudioTrack = null;
     this._pendingNegotiation = false;
     this._renegotiationRetryTimer = null;
+    this._pingTimer = null;
+    this._lastPingAt = 0;
 
     this.pc.addEventListener("connectionstatechange", () => {
       if (this._closed) return;
       const s = this.pc.connectionState;
       if (s === "connected" && this.status !== "in-call") this._setStatus("connected");
       if (s === "failed" || s === "disconnected" || s === "closed") this._setStatus("disconnected");
+    });
+
+    this.pc.addEventListener("iceconnectionstatechange", () => {
+      if (this._closed) return;
+      if (this.pc.iceConnectionState === "failed") {
+        try { this.pc.restartIce(); } catch (e) {}
+      }
     });
 
     this.pc.addEventListener("track", (ev) => {
@@ -95,14 +99,27 @@ class PeerLink extends EventTarget {
   }
 
   _bindDataChannel() {
-    this.dc.addEventListener("open", () => this._setStatus("connected"));
-    this.dc.addEventListener("close", () => this._setStatus("disconnected"));
+    this.dc.addEventListener("open", () => {
+      this._setStatus("connected");
+      clearInterval(this._pingTimer);
+      this._pingTimer = setInterval(() => {
+        if (this._closed) return;
+        this.send({ kind: "ping", t: Date.now() });
+      }, 5000);
+    });
+    this.dc.addEventListener("close", () => {
+      clearInterval(this._pingTimer);
+      this._setStatus("disconnected");
+    });
     this.dc.addEventListener("message", (ev) => {
       let payload;
       try { payload = JSON.parse(ev.data); } catch (e) { return; }
-      if (payload && payload.kind === "sdp") {
-        this._handleRemoteSdp(payload).catch((e) => etherLog("warn", "[webrtc] ошибка пересогласования:", String(e)));
-      } else if (payload) {
+      if (!payload) return;
+      if (payload.kind === "ping") { this.send({ kind: "pong", t: payload.t }); return; }
+      if (payload.kind === "pong") { this._lastPingAt = Date.now(); return; }
+      if (payload.kind === "sdp") {
+        this._handleRemoteSdp(payload).catch((e) => console.warn("[webrtc] пересогласование:", e));
+      } else {
         this.dispatchEvent(new CustomEvent("app-message", { detail: payload }));
       }
     });
@@ -110,10 +127,8 @@ class PeerLink extends EventTarget {
 
   send(payload) {
     if (this.dc && this.dc.readyState === "open") {
-      try {
-        this.dc.send(JSON.stringify(payload));
-        return true;
-      } catch (e) { return false; }
+      try { this.dc.send(JSON.stringify(payload)); return true; }
+      catch (e) { return false; }
     }
     return false;
   }
@@ -125,10 +140,7 @@ class PeerLink extends EventTarget {
       await waitForIceGathering(this.pc);
       if (this._closed || this.pc.signalingState === "closed") return null;
       return {
-        t: "offer",
-        n: this.localName,
-        r: roomTag,
-        x: crypto.randomUUID(),
+        t: "offer", n: this.localName, r: roomTag, x: crypto.randomUUID(),
         d: { type: this.pc.localDescription.type, sdp: this.pc.localDescription.sdp },
       };
     } catch (e) {
@@ -146,9 +158,7 @@ class PeerLink extends EventTarget {
       await waitForIceGathering(this.pc);
       if (this._closed || this.pc.signalingState === "closed") return null;
       return {
-        t: "answer",
-        n: this.localName,
-        x: crypto.randomUUID(),
+        t: "answer", n: this.localName, x: crypto.randomUUID(),
         d: { type: this.pc.localDescription.type, sdp: this.pc.localDescription.sdp },
       };
     } catch (e) {
@@ -159,9 +169,8 @@ class PeerLink extends EventTarget {
 
   async acceptAnswer(packet) {
     this.remoteName = (packet && packet.n) || this.remoteName;
-    try {
-      await this.pc.setRemoteDescription(packet.d);
-    } catch (e) {
+    try { await this.pc.setRemoteDescription(packet.d); }
+    catch (e) {
       if (this._closed || this.pc.signalingState === "closed") return;
       throw e;
     }
@@ -185,7 +194,7 @@ class PeerLink extends EventTarget {
         return;
       }
     } catch (e) {
-      etherLog("warn", "[webrtc] пересогласование не удалось:", String(e));
+      console.warn("[webrtc] пересогласование не удалось:", e);
     } finally {
       if (!this._renegotiationRetryTimer) this._pendingNegotiation = false;
     }
@@ -247,6 +256,7 @@ class PeerLink extends EventTarget {
   close() {
     if (this._closed) return;
     this._closed = true;
+    clearInterval(this._pingTimer);
     if (this._renegotiationRetryTimer) { clearTimeout(this._renegotiationRetryTimer); this._renegotiationRetryTimer = null; }
     try {
       if (this.localAudioTrack) this.localAudioTrack.stop();
@@ -263,21 +273,18 @@ class MeshManager extends EventTarget {
     this.localName = localName;
     this.links = new Map();
   }
-
   createOutgoingLink(id) {
     this.remove(id);
     const link = new PeerLink({ id, localName: this.localName, role: "offerer" });
     this._wire(link);
     return link;
   }
-
   createIncomingLink(id) {
     this.remove(id);
     const link = new PeerLink({ id, localName: this.localName, role: "answerer" });
     this._wire(link);
     return link;
   }
-
   _wire(link) {
     this.links.set(link.id, link);
     link.addEventListener("status", () => {
@@ -290,22 +297,15 @@ class MeshManager extends EventTarget {
       this.dispatchEvent(new CustomEvent("remote-track", { detail: { id: link.id, ...ev.detail } }));
     });
   }
-
   broadcast(payload, excludeId = null) {
-    for (const [id, link] of this.links) {
-      if (id === excludeId) continue;
-      link.send(payload);
-    }
+    for (const [id, link] of this.links) { if (id === excludeId) continue; link.send(payload); }
   }
-
   get(id) { return this.links.get(id); }
-
   remove(id) {
     const link = this.links.get(id);
     if (link) link.close();
     this.links.delete(id);
   }
-
   connectedCount() {
     let n = 0;
     for (const link of this.links.values()) if (link.status === "connected" || link.status === "in-call") n++;
