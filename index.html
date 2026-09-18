@@ -312,6 +312,18 @@
 
 <div id="toast"></div>
 
+<!-- СТРАХОВОЧНЫЙ ЭКРАН: показывается, только если запуск завис по
+     непредвиденной причине (например, повреждённые локальные данные) —
+     чтобы вместо пустого/серого экрана человек увидел, что происходит,
+     и мог сам восстановиться, не дожидаясь переустановки. -->
+<div id="boot-recovery" class="hidden">
+  <div class="onboarding-card glass-content" style="text-align:center;">
+    <h1 style="font-size:22px;">Что-то пошло не так при запуске</h1>
+    <p class="onboarding-sub">Похоже, локальные данные приложения повреждены. Обычно помогает очистить их — переписка на этом устройстве будет потеряна, но сами контакты можно будет добавить заново.</p>
+    <button id="boot-recovery-reset" class="btn-primary">Очистить данные и начать заново</button>
+  </div>
+</div>
+
 <script src="js/signaling-codec.js"></script>
 <script src="js/crypto-helper.js"></script>
 <script src="js/signaling-client.js"></script>

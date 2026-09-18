@@ -29,13 +29,21 @@ const Store = {
   set contactsJson(v) { localStorage.setItem("ether.contacts", v); },
 
   get myPrivateKeyJwk() {
-    const v = localStorage.getItem("ether.privKey");
-    return v ? JSON.parse(v) : null;
+    try {
+      const v = localStorage.getItem("ether.privKey");
+      return v ? JSON.parse(v) : null;
+    } catch (e) {
+      return null; // повреждённая запись — не роняем запуск приложения из-за нее
+    }
   },
   set myPrivateKeyJwk(v) { localStorage.setItem("ether.privKey", JSON.stringify(v)); },
   get myPublicKeyJwk() {
-    const v = localStorage.getItem("ether.pubKey");
-    return v ? JSON.parse(v) : null;
+    try {
+      const v = localStorage.getItem("ether.pubKey");
+      return v ? JSON.parse(v) : null;
+    } catch (e) {
+      return null;
+    }
   },
   set myPublicKeyJwk(v) { localStorage.setItem("ether.pubKey", JSON.stringify(v)); },
 
@@ -115,7 +123,7 @@ function applyTheme(theme) {
 function initOnboarding() {
   if (Store.name && Store.myId) {
     $("#onboarding").classList.add("hidden");
-    ensureKeyPair().then(startApp); // на случай апгрейда с версии без шифрования
+    ensureKeyPair().then(startApp).catch((e) => { etherLog("error", "[boot] сбой при запуске:", String(e)); startApp(); }); // на случай апгрейда с версии без шифрования
     return;
   }
   $("#onboarding").classList.remove("hidden");
@@ -146,11 +154,19 @@ function initOnboarding() {
 // Ключевая пара для сквозного шифрования сообщений, которые приходится
 // временно класть на сервер, пока контакт офлайн. Генерируется один раз
 // на устройство и остаётся тут же — секретный ключ никуда не уходит.
+// Если это по какой-то причине не удаётся (старый iOS, повреждённое
+// хранилище и т.п.) — приложение всё равно должно запуститься: просто
+// офлайн-доставка сообщений будет недоступна, а не весь экран станет
+// пустым/серым из-за одного упавшего await в цепочке запуска.
 async function ensureKeyPair() {
-  if (Store.myPrivateKeyJwk && Store.myPublicKeyJwk) return;
-  const { publicKeyJwk, privateKeyJwk } = await CryptoHelper.generateKeyPair();
-  Store.myPrivateKeyJwk = privateKeyJwk;
-  Store.myPublicKeyJwk = publicKeyJwk;
+  try {
+    if (Store.myPrivateKeyJwk && Store.myPublicKeyJwk) return;
+    const { publicKeyJwk, privateKeyJwk } = await CryptoHelper.generateKeyPair();
+    Store.myPrivateKeyJwk = privateKeyJwk;
+    Store.myPublicKeyJwk = publicKeyJwk;
+  } catch (e) {
+    etherLog("error", "[crypto] не удалось создать ключевую пару, офлайн-доставка будет недоступна:", String(e));
+  }
 }
 
 // ---------- Запуск приложения ----------
@@ -1290,4 +1306,45 @@ function wireMeshEvents() {
 
 // ---------- Старт ----------
 
-document.addEventListener("DOMContentLoaded", initOnboarding);
+// Страховка: если через несколько секунд после загрузки страницы ни
+// экран приветствия, ни само приложение так и не показались — что-то
+// сломалось раньше, чем ожидалось (необработанное исключение где-то в
+// цепочке запуска). Вместо тихого пустого/серого экрана даём человеку
+// явный выход.
+function showBootRecovery() {
+  document.getElementById("onboarding").classList.add("hidden");
+  document.getElementById("app-shell").classList.add("hidden");
+  document.getElementById("boot-recovery").classList.remove("hidden");
+}
+
+function bootDidNotRender() {
+  const onboardingHidden = document.getElementById("onboarding").classList.contains("hidden");
+  const appHidden = document.getElementById("app-shell").classList.contains("hidden");
+  return onboardingHidden && appHidden;
+}
+
+const bootWatchdog = setTimeout(() => {
+  if (bootDidNotRender()) showBootRecovery();
+}, 6000);
+
+window.addEventListener("error", (ev) => {
+  if (bootDidNotRender()) { clearTimeout(bootWatchdog); showBootRecovery(); }
+});
+window.addEventListener("unhandledrejection", (ev) => {
+  if (bootDidNotRender()) { clearTimeout(bootWatchdog); showBootRecovery(); }
+});
+
+document.addEventListener("DOMContentLoaded", () => {
+  try {
+    initOnboarding();
+    clearTimeout(bootWatchdog);
+  } catch (e) {
+    showBootRecovery();
+  }
+});
+
+document.getElementById("boot-recovery-reset")?.addEventListener("click", () => {
+  localStorage.clear();
+  if ("caches" in window) caches.keys().then((names) => names.forEach((n) => caches.delete(n)));
+  location.reload();
+});
