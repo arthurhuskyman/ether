@@ -1,7 +1,7 @@
-// Service worker — кеширует оболочку и показывает уведомления.
-// Показ через SW, потому что new Notification() на iOS Safari не работает.
+// Service worker: кеш оболочки, показ уведомлений (в том числе из push),
+// обработка клика по уведомлению.
 
-const CACHE_VERSION = "ether-shell-v13";
+const CACHE_VERSION = "ether-shell-v14";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -50,8 +50,8 @@ self.addEventListener("fetch", (event) => {
   );
 });
 
-// Показ уведомления по запросу из страницы. Работает там, где
-// new Notification() молча ничего не делает — то есть на iOS Safari.
+// -------- Показ уведомления по запросу из страницы --------
+// (для iOS Safari — единственный рабочий способ показать уведомление из JS)
 self.addEventListener("message", (event) => {
   const data = event.data || {};
   if (data.type !== "show-notification") return;
@@ -68,14 +68,50 @@ self.addEventListener("message", (event) => {
   });
 });
 
+// -------- Push из сервера --------
+self.addEventListener("push", (event) => {
+  let data = { title: "Эфир", body: "", contactId: null, kind: "message", tag: "ether" };
+  if (event.data) {
+    try {
+      const parsed = event.data.json();
+      data = { ...data, ...parsed };
+    } catch (e) {
+      data.body = event.data.text() || "";
+    }
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title || "Эфир", {
+      body: data.body || "",
+      tag: data.tag || "ether",
+      badge: "./icons/icon-192.png",
+      icon: "./icons/icon-192.png",
+      data: { contactId: data.contactId || null, kind: data.kind || "message" },
+      vibrate: data.kind === "call" ? [300, 150, 300, 150, 300] : [100, 50, 100],
+      requireInteraction: data.kind === "call",
+    })
+  );
+});
+
+// -------- Обновление подписки на push --------
+self.addEventListener("pushsubscriptionchange", (event) => {
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+      for (const c of list) c.postMessage({ type: "push-subscription-changed" });
+    })
+  );
+});
+
+// -------- Клик по уведомлению --------
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const contactId = event.notification.data && event.notification.data.contactId;
+  const data = event.notification.data || {};
+  const contactId = data.contactId;
+  const kind = data.kind || "message";
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
       for (const c of list) {
         if ("focus" in c) {
-          c.postMessage({ type: "open-contact", contactId });
+          c.postMessage({ type: "open-contact", contactId, kind });
           return c.focus();
         }
       }

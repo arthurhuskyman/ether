@@ -1,4 +1,5 @@
-// Тонкий клиент к сигнальному серверу.
+// Клиент к сигнальному серверу: presence, сигнальные пакеты, доставка
+// зашифрованных конвертов, Web Push подписка.
 
 window.__etherDiag = window.__etherDiag || [];
 function etherLog(level, ...args) {
@@ -32,6 +33,7 @@ class SignalingClient extends EventTarget {
     this._retryTimer = null;
     this.connected = false;
     this._stopped = false;
+    this._pushSubscription = null;
   }
 
   start() {
@@ -46,7 +48,9 @@ class SignalingClient extends EventTarget {
     this.connected = false;
     if (this._retryTimer) { clearTimeout(this._retryTimer); this._retryTimer = null; }
     if (this.ws) {
-      try { this.ws.onopen = this.ws.onmessage = this.ws.onclose = this.ws.onerror = null; } catch (e) {}
+      try {
+        this.ws.onopen = this.ws.onmessage = this.ws.onclose = this.ws.onerror = null;
+      } catch (e) {}
       try { this.ws.close(); } catch (e) {}
       this.ws = null;
     }
@@ -68,7 +72,13 @@ class SignalingClient extends EventTarget {
       this._retryDelay = 1000;
       this.connected = true;
       etherLog("info", "[signaling] соединение открыто, регистрируюсь как", String(this.myId).slice(0, 10) + "…");
-      ws.send(JSON.stringify({ type: "register", id: this.myId, name: this.name, visible: this.visible, publicKey: this.publicKey }));
+      ws.send(JSON.stringify({
+        type: "register",
+        id: this.myId,
+        name: this.name,
+        visible: this.visible,
+        publicKey: this.publicKey,
+      }));
       this.dispatchEvent(new CustomEvent("connected"));
     });
 
@@ -80,11 +90,21 @@ class SignalingClient extends EventTarget {
 
       if (msg.type === "registered") {
         const users = (Array.isArray(msg.online) ? msg.online : []).map(normalizeRosterEntry).filter(Boolean);
-        etherLog("info", "[signaling] зарегистрирован, сейчас онлайн:", users.length);
+        etherLog("info", "[signaling] зарегистрирован, онлайн:", users.length);
         this.dispatchEvent(new CustomEvent("online-list", { detail: { users } }));
+      } else if (msg.type === "vapid-key" && typeof msg.key === "string") {
+        etherLog("info", "[push] получен VAPID-ключ от сервера");
+        this.dispatchEvent(new CustomEvent("vapid-key", { detail: { key: msg.key } }));
+      } else if (msg.type === "push-subscribed") {
+        etherLog("info", "[push] сервер подтвердил подписку");
+        this.dispatchEvent(new CustomEvent("push-subscribed"));
+      } else if (msg.type === "push-unsubscribed") {
+        this.dispatchEvent(new CustomEvent("push-unsubscribed"));
       } else if (msg.type === "presence" && typeof msg.id === "string") {
         etherLog("info", "[signaling] presence:", msg.id.slice(0, 10) + "…", msg.online ? "online" : "offline");
-        this.dispatchEvent(new CustomEvent("presence", { detail: { id: msg.id, online: !!msg.online, name: msg.name, visible: msg.visible, publicKey: msg.publicKey } }));
+        this.dispatchEvent(new CustomEvent("presence", {
+          detail: { id: msg.id, online: !!msg.online, name: msg.name, visible: msg.visible, publicKey: msg.publicKey },
+        }));
       } else if (msg.type === "signal" && typeof msg.from === "string") {
         etherLog("info", "[signaling] сигнал от", msg.from.slice(0, 10) + "…", msg.data && msg.data.t);
         this.dispatchEvent(new CustomEvent("signal", { detail: { from: msg.from, data: msg.data } }));
@@ -94,12 +114,18 @@ class SignalingClient extends EventTarget {
       } else if (msg.type === "deliver" && typeof msg.from === "string" && typeof msg.msgId === "string") {
         etherLog("info", "[mailbox] конверт от", msg.from.slice(0, 10) + "…", msg.queued ? "(из очереди)" : "(напрямую)");
         this.dispatchEvent(new CustomEvent("deliver", {
-          detail: { from: msg.from, msgId: msg.msgId, envelope: msg.envelope, fromPublicKey: msg.fromPublicKey, queued: !!msg.queued },
+          detail: {
+            from: msg.from,
+            msgId: msg.msgId,
+            envelope: msg.envelope,
+            fromPublicKey: msg.fromPublicKey,
+            queued: !!msg.queued,
+          },
         }));
       } else if (msg.type === "deliver-ack" && typeof msg.msgId === "string") {
         this.dispatchEvent(new CustomEvent("deliver-ack", { detail: { msgId: msg.msgId } }));
       } else if (msg.type === "replaced") {
-        etherLog("warn", "[signaling] эта вкладка отключена сервером — обнаружена ещё одна сессия с тем же id");
+        etherLog("warn", "[signaling] вкладка отключена сервером — тот же id открыт в другом месте");
         this.shouldRun = false;
         this.dispatchEvent(new CustomEvent("replaced"));
       }
@@ -148,9 +174,20 @@ class SignalingClient extends EventTarget {
   }
 
   mailboxAck(msgId) { return this.send("mailbox-ack", { msgId }); }
+
+  sendPushSubscription(subscription) {
+    if (!subscription) return false;
+    this._pushSubscription = subscription;
+    return this.send("push-subscribe", { subscription });
+  }
+
+  sendPushUnsubscribe() {
+    this._pushSubscription = null;
+    return this.send("push-unsubscribe", {});
+  }
 }
 
-// ---------- Идентификатор ----------
+// ---------- Идентификатор из телефона/email ----------
 const Identity = (() => {
   function normalize(raw) {
     const trimmed = String(raw || "").trim();

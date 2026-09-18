@@ -1,6 +1,5 @@
-// Слой P2P-связи. TURN-серверы подгружаются с вашего аккаунта Metered.
-// Пока они грузятся, никто не создаёт PeerLink — см. window.__etherIceReady
-// в app.js. Так первый же вызов createInitialOffer() уже имеет TURN.
+// Слой P2P-связи. TURN-серверы подгружаются с аккаунта Metered; пока
+// они не загружены, ничего не создаётся — ждём window.__etherIceReady.
 
 const METERED_API_KEY = "aa111f28aa9541c01ac274e43e383bd7f685";
 const METERED_API_URL = `https://arthurhusky.metered.live/api/v1/turn/credentials?apiKey=${METERED_API_KEY}`;
@@ -17,7 +16,7 @@ window.__etherIceReady = (async () => {
     const list = await r.json();
     if (Array.isArray(list) && list.length > 0) {
       ICE_SERVERS = ICE_SERVERS.concat(list);
-      console.log("[webrtc] TURN Metered загружены:", list.length, list);
+      console.log("[webrtc] TURN Metered загружены:", list.length);
     } else {
       console.warn("[webrtc] Metered вернул пустой список");
     }
@@ -57,7 +56,6 @@ class PeerLink extends EventTarget {
     this._pendingNegotiation = false;
     this._renegotiationRetryTimer = null;
     this._pingTimer = null;
-    this._lastPingAt = 0;
 
     this.pc.addEventListener("connectionstatechange", () => {
       if (this._closed) return;
@@ -116,7 +114,7 @@ class PeerLink extends EventTarget {
       try { payload = JSON.parse(ev.data); } catch (e) { return; }
       if (!payload) return;
       if (payload.kind === "ping") { this.send({ kind: "pong", t: payload.t }); return; }
-      if (payload.kind === "pong") { this._lastPingAt = Date.now(); return; }
+      if (payload.kind === "pong") return;
       if (payload.kind === "sdp") {
         this._handleRemoteSdp(payload).catch((e) => console.warn("[webrtc] пересогласование:", e));
       } else {
