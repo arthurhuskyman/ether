@@ -1,7 +1,35 @@
-const ICE_SERVERS = [
+// Слой P2P-связи. Единственный момент, когда двум устройствам нужен
+// посредник — обмен самым первым SDP-пакетом (offer/answer). После того
+// как канал открыт, все дальнейшие договорённости (в том числе запуск
+// аудио для звонка) идут через сам P2P data-channel.
+//
+// STUN помогает узнать внешний адрес; TURN — ретранслятор, без которого
+// звонки в мобильных сетях (симметричный NAT) физически не поднимаются.
+// Учётные данные TURN динамически запрашиваются у Metered по API-ключу.
+
+const METERED_API_KEY = "aa111f28aa9541c01ac274e43e383bd7f685"; // Ваш API-ключ
+const METERED_API_URL = `https://arthurhusky.metered.live/api/v1/turn/credentials?apiKey=${METERED_API_KEY}`;
+
+let ICE_SERVERS = [
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun1.l.google.com:19302" },
 ];
+
+// Асинхронно получаем TURN-серверы при старте
+(async () => {
+  try {
+    const response = await fetch(METERED_API_URL);
+    if (!response.ok) throw new Error(`Metered API вернул ${response.status}`);
+    const meteredServers = await response.json();
+    if (Array.isArray(meteredServers) && meteredServers.length > 0) {
+      ICE_SERVERS = [...ICE_SERVERS, ...meteredServers];
+      etherLog("info", "[webrtc] TURN-серверы от Metered загружены:", meteredServers.length);
+    }
+  } catch (e) {
+    etherLog("error", "[webrtc] не удалось загрузить TURN-серверы Metered:", String(e));
+  }
+})();
+
 const ICE_GATHER_TIMEOUT_MS = 4000;
 
 function waitForIceGathering(pc) {
@@ -27,6 +55,7 @@ class PeerLink extends EventTarget {
     this.role = role;
     this.status = "new";
     this._closed = false;
+    // Используем глобальную переменную ICE_SERVERS
     this.pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
     this.dc = null;
     this.localAudioTrack = null;

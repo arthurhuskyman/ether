@@ -6,16 +6,13 @@
 <meta name="color-scheme" content="dark light" />
 <title>Эфир — связь напрямую</title>
 <meta name="description" content="Обмен сообщениями и звонки напрямую между устройствами по номеру телефона или email." />
-
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#000000" />
-
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Эфир" />
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
 <link rel="icon" href="icons/favicon-32.png" sizes="32x32" />
-
 <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
@@ -48,6 +45,7 @@
 
   <main id="content">
 
+    <!-- ЧАТЫ -->
     <section id="screen-chats" class="screen">
       <div id="chats-empty" class="empty-state hidden">
         <div class="empty-icon">💬</div>
@@ -57,6 +55,17 @@
       <div id="chats-list" class="chats-list"></div>
     </section>
 
+    <!-- ЗВОНКИ -->
+    <section id="screen-calls" class="screen hidden">
+      <div id="calls-empty" class="empty-state hidden">
+        <div class="empty-icon">📞</div>
+        <h2>Звонков пока не было</h2>
+        <p>Здесь появится история — кто кому звонил, состоялся ли разговор и сколько он длился.</p>
+      </div>
+      <div id="calls-list" class="calls-list"></div>
+    </section>
+
+    <!-- КОНТАКТЫ -->
     <section id="screen-connect" class="screen hidden">
       <div id="signaling-banner" class="banner glass-content warn hidden">
         <span id="signaling-banner-text"></span>
@@ -109,9 +118,7 @@
               <button type="button" id="invite-send-email" class="btn-secondary">Отправить на почту</button>
             </div>
           </div>
-
           <div class="divider"></div>
-
           <h2>Шаг 2 · вставьте код ответа</h2>
           <p class="muted">Когда собеседник откроет ссылку, он получит код ответа — вставьте его сюда.</p>
           <textarea id="answer-code-in" placeholder="Код ответа"></textarea>
@@ -144,6 +151,7 @@
       </div>
     </section>
 
+    <!-- НАСТРОЙКИ -->
     <section id="screen-settings" class="screen hidden">
       <div class="settings-group glass-content">
         <label class="settings-row">
@@ -200,6 +208,7 @@
       </div>
     </section>
 
+    <!-- ЧАТ -->
     <section id="screen-chat" class="screen hidden">
       <div class="chat-header glass">
         <button type="button" id="chat-back" class="icon-btn back-btn" aria-label="Назад">‹</button>
@@ -210,11 +219,21 @@
         <button type="button" id="chat-call-btn" class="icon-btn call-icon" aria-label="Позвонить">
           <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.7 21 3 13.3 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.4 0 .8-.2 1L6.6 10.8z"/></svg>
         </button>
-        <button type="button" id="chat-delete-btn" class="icon-btn delete-icon" aria-label="Удалить контакт">
-          <svg viewBox="0 0 24 24" width="19" height="19"><path fill="currentColor" d="M6 7h12l-1 13.1a2 2 0 0 1-2 1.9H9a2 2 0 0 1-2-1.9L6 7zm3-3.5A1.5 1.5 0 0 1 10.5 2h3A1.5 1.5 0 0 1 15 3.5V5H9v-1.5zM4 5h16v2H4V5z"/></svg>
+        <button type="button" id="chat-more-btn" class="icon-btn" aria-label="Ещё">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M6 10.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm6 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm6 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z"/></svg>
         </button>
       </div>
+
       <div id="chat-messages" class="chat-messages"></div>
+
+      <div id="edit-banner" class="edit-banner glass hidden">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+        <span class="edit-banner-text">Редактирование сообщения</span>
+        <button type="button" id="edit-cancel-btn" class="icon-btn small" aria-label="Отменить">
+          <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
+        </button>
+      </div>
+
       <form id="chat-form" class="chat-input-bar glass">
         <input id="chat-input" type="text" placeholder="Сообщение" autocomplete="off" maxlength="4000" />
         <button type="submit" class="send-btn" aria-label="Отправить">
@@ -229,6 +248,10 @@
     <button type="button" class="tab-btn active" data-tab="chats">
       <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 4V6a2 2 0 0 1 2-2z"/></svg>
       <span>Чаты</span>
+    </button>
+    <button type="button" class="tab-btn" data-tab="calls">
+      <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.7 21 3 13.3 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.4 0 .8-.2 1L6.6 10.8z"/></svg>
+      <span>Звонки</span>
     </button>
     <button type="button" class="tab-btn" data-tab="connect">
       <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-4 0-8 2-8 5v1h16v-1c0-3-4-5-8-5z"/></svg>
@@ -270,6 +293,38 @@
   </div>
 </div>
 
+<!-- ШИТ ДЕЙСТВИЙ НАД СООБЩЕНИЕМ -->
+<div id="message-sheet" class="sheet hidden">
+  <div class="sheet-backdrop"></div>
+  <div class="sheet-panel glass-content">
+    <div class="sheet-handle"></div>
+    <div id="message-sheet-body" class="sheet-actions"></div>
+    <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="message-sheet">Отмена</button>
+  </div>
+</div>
+
+<!-- ШИТ ДЕЙСТВИЙ НАД КОНТАКТОМ -->
+<div id="contact-sheet" class="sheet hidden">
+  <div class="sheet-backdrop"></div>
+  <div class="sheet-panel glass-content">
+    <div class="sheet-handle"></div>
+    <div id="contact-sheet-body" class="sheet-actions"></div>
+    <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="contact-sheet">Отмена</button>
+  </div>
+</div>
+
+<!-- ШИТ ПЕРЕИМЕНОВАНИЯ -->
+<div id="rename-sheet" class="sheet hidden">
+  <div class="sheet-backdrop"></div>
+  <div class="sheet-panel glass-content">
+    <div class="sheet-handle"></div>
+    <h2>Переименовать контакт</h2>
+    <input id="rename-input" type="text" maxlength="40" class="rename-input" />
+    <button type="button" id="rename-save-btn" class="btn-primary">Сохранить</button>
+    <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="rename-sheet">Отмена</button>
+  </div>
+</div>
+
 <!-- ШТОРКА "КАК ЭТО РАБОТАЕТ" -->
 <div id="how-it-works-sheet" class="sheet hidden">
   <div class="sheet-backdrop"></div>
@@ -277,13 +332,10 @@
     <div class="sheet-handle"></div>
     <h2>Как это работает</h2>
     <p><strong>Пока оба онлайн — всегда напрямую.</strong> Сообщения и звук идут между устройствами по протоколу WebRTC. Сервер их не видит и не передаёт.</p>
-    <p><strong>Если собеседник офлайн — сообщение временно хранится на сервере, но в зашифрованном виде.</strong> Чтобы доставка была гарантированной, сообщение шифруется прямо на вашем устройстве (алгоритм Диффи—Хеллмана + AES-GCM) ключом, который знают только два устройства. Сервер держит только нечитаемый шифротекст в памяти до момента, когда собеседник подключится.</p>
+    <p><strong>Если собеседник офлайн — сообщение временно хранится на сервере, но в зашифрованном виде.</strong> Если сервер перезапустится и очередь пропадёт, отправитель сам перешлёт сообщение повторно, как только вернётся связь — ваше исходящее остаётся в исходящей очереди до тех пор, пока собеседник не подтвердит получение напрямую.</p>
     <p><strong>Статусы сообщений.</strong> Серая галочка — отправлено. Жёлтая — доставлено. Зелёная — прочитано. Красная — не удалось связаться, повторная отправка произойдёт автоматически.</p>
-    <p><strong>Сигнальный сервер</strong> в реальном времени хранит в памяти короткий список «кто сейчас онлайн» — по хэшу от номера/email, не по самому номеру — и пересылает технический пакет подключения (offer/answer).</p>
     <p><strong>Можно и совсем без сервера</strong> — «Ручное подключение по коду», тогда сервер не участвует вообще.</p>
-    <p><strong>Публичные STUN-серверы Google</strong> помогают устройству узнать свой внешний сетевой адрес.</p>
     <p><strong>Звонки</strong> работают только пока оба устройства в сети одновременно.</p>
-    <p><strong>Ограничения:</strong> push-уведомлений о сообщении, когда приложение полностью закрыто, всё ещё нет.</p>
     <button type="button" id="how-it-works-close" class="btn-primary">Понятно</button>
   </div>
 </div>
