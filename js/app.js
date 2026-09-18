@@ -1,14 +1,16 @@
 "use strict";
 
-// Сервер, прописанный по умолчанию — можно изменить в Настройках.
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
+const MAX_MESSAGE_LENGTH = 4000;
+const PENDING_ACKS_LIMIT = 1000;
+const OUTBOX_LIMIT = 500;
+const SEEN_DELIVER_LIMIT = 500;
 
 function effectiveSignalingUrl() {
   return (Store.signalingUrl || DEFAULT_SIGNALING_URL).trim();
 }
 
 // ---------- Хранилище ----------
-
 const Store = {
   get name() { return localStorage.getItem("ether.name") || ""; },
   set name(v) { localStorage.setItem("ether.name", v); },
@@ -29,57 +31,55 @@ const Store = {
   set contactsJson(v) { localStorage.setItem("ether.contacts", v); },
 
   get myPrivateKeyJwk() {
-    try {
-      const v = localStorage.getItem("ether.privKey");
-      return v ? JSON.parse(v) : null;
-    } catch (e) {
-      return null; // повреждённая запись — не роняем запуск приложения из-за нее
-    }
+    try { const v = localStorage.getItem("ether.privKey"); return v ? JSON.parse(v) : null; }
+    catch (e) { return null; }
   },
   set myPrivateKeyJwk(v) { localStorage.setItem("ether.privKey", JSON.stringify(v)); },
   get myPublicKeyJwk() {
-    try {
-      const v = localStorage.getItem("ether.pubKey");
-      return v ? JSON.parse(v) : null;
-    } catch (e) {
-      return null;
-    }
+    try { const v = localStorage.getItem("ether.pubKey"); return v ? JSON.parse(v) : null; }
+    catch (e) { return null; }
   },
   set myPublicKeyJwk(v) { localStorage.setItem("ether.pubKey", JSON.stringify(v)); },
 
-  get glassAlpha() { return parseFloat(localStorage.getItem("ether.glassAlpha") || "0.5"); },
-  set glassAlpha(v) { localStorage.setItem("ether.glassAlpha", String(v)); },
+  get glassAlpha() {
+    const raw = parseFloat(localStorage.getItem("ether.glassAlpha") || "0.5");
+    if (!Number.isFinite(raw)) return 0.5;
+    return Math.min(0.85, Math.max(0.18, raw));
+  },
+  set glassAlpha(v) {
+    if (!Number.isFinite(v)) return;
+    localStorage.setItem("ether.glassAlpha", String(Math.min(0.85, Math.max(0.18, v))));
+  },
 
   get theme() { return localStorage.getItem("ether.theme") || "auto"; },
   set theme(v) { localStorage.setItem("ether.theme", v); },
 };
 
 // ---------- Состояние ----------
-
 const state = {
   tab: "chats",
   chatId: null,
   callId: null,
-  callPhase: null, // "calling" | "ringing" | "active"
-  pendingOutgoing: null, // ручной поток (без сервера)
-  contacts: new Map(), // id -> { id, name, raw, managed, online, status, messages, lastActivity }
+  callPhase: null,
+  pendingOutgoing: null,
+  contacts: new Map(),
 };
 
 let mesh;
 let signaling = null;
+let signalingCleanup = null;
 const onlineSet = new Set();
-const onlineRoster = new Map(); // id -> { name, visible, publicKey } — все, кто сейчас зарегистрирован на сервере
+const onlineRoster = new Map();
 const autoConnectTimers = new Map();
-const recentSignalNonces = new Set(); // защита от повторной обработки одного и того же offer/answer
+const recentSignalNonces = new Set();
 
-// ---------- Гарантированная доставка: очереди и сопоставление квитанций ----------
-const pendingAcks = new Map(); // msgId (наше исходящее сообщение) -> contactId, чтобы применять входящие квитанции
-const outbox = new Map(); // msgId -> { to, envelope, fromPublicKey } — конверты, не дошедшие до сервера, на повтор при переподключении
-const pendingNoKey = new Map(); // contactId -> [{ msgId, payload }] — ждут, пока не узнаем публичный ключ контакта
-const seenDeliverIds = new Set(); // защита от повторной обработки одного и того же конверта из "deliver"
+const pendingAcks = new Map();
+const outbox = new Map();
+const pendingNoKey = new Map();
+const seenDeliverIds = new Set();
 
 function isDuplicateSignal(from, packet) {
-  if (!packet || !packet.x) return false; // старый формат без метки — не фильтруем
+  if (!packet || !packet.x) return false;
   const key = from + ":" + packet.x;
   if (recentSignalNonces.has(key)) return true;
   recentSignalNonces.add(key);
@@ -87,17 +87,24 @@ function isDuplicateSignal(from, packet) {
   return false;
 }
 
-// ---------- Утилиты интерфейса ----------
-
+// ---------- Утилиты UI ----------
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
 function escapeHtml(s) {
-  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function truncate(s, n) {
+  s = String(s == null ? "" : s);
+  return s.length > n ? s.slice(0, n - 1) + "…" : s;
+}
+function initials(name) {
+  return String(name || "?").trim().slice(0, 2).toUpperCase() || "?";
 }
 
 function toast(message) {
   const el = $("#toast");
+  if (!el) return;
   el.textContent = message;
   el.classList.add("show");
   clearTimeout(toast._t);
@@ -105,25 +112,25 @@ function toast(message) {
 }
 
 function formatTime(ts) {
-  const d = new Date(ts);
-  return d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  try { return new Date(ts).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }); }
+  catch (e) { return ""; }
 }
 
 function applyGlassAlpha(v) {
+  if (!Number.isFinite(v)) v = 0.5;
   document.documentElement.style.setProperty("--glass-alpha", v.toFixed(2));
   document.documentElement.style.setProperty("--glass-blur", (14 + v * 26).toFixed(0) + "px");
 }
-
-function applyTheme(theme) {
-  document.documentElement.dataset.theme = theme;
-}
+function applyTheme(theme) { document.documentElement.dataset.theme = theme; }
 
 // ---------- Онбординг ----------
-
 function initOnboarding() {
   if (Store.name && Store.myId) {
     $("#onboarding").classList.add("hidden");
-    ensureKeyPair().then(startApp).catch((e) => { etherLog("error", "[boot] сбой при запуске:", String(e)); startApp(); }); // на случай апгрейда с версии без шифрования
+    ensureKeyPair().then(startApp).catch((e) => {
+      etherLog("error", "[boot] сбой при запуске:", String(e));
+      startApp();
+    });
     return;
   }
   $("#onboarding").classList.remove("hidden");
@@ -136,12 +143,8 @@ function initOnboarding() {
     const idVal = $("#onboarding-identity").value.trim();
     if (!nameVal || !idVal) return;
     let identity;
-    try {
-      identity = await Identity.idFor(idVal);
-    } catch (err) {
-      toast(err.message);
-      return;
-    }
+    try { identity = await Identity.idFor(idVal); }
+    catch (err) { toast(err.message); return; }
     Store.name = nameVal;
     Store.myIdentityRaw = identity.normalized;
     Store.myId = identity.id;
@@ -151,13 +154,6 @@ function initOnboarding() {
   });
 }
 
-// Ключевая пара для сквозного шифрования сообщений, которые приходится
-// временно класть на сервер, пока контакт офлайн. Генерируется один раз
-// на устройство и остаётся тут же — секретный ключ никуда не уходит.
-// Если это по какой-то причине не удаётся (старый iOS, повреждённое
-// хранилище и т.п.) — приложение всё равно должно запуститься: просто
-// офлайн-доставка сообщений будет недоступна, а не весь экран станет
-// пустым/серым из-за одного упавшего await в цепочке запуска.
 async function ensureKeyPair() {
   try {
     if (Store.myPrivateKeyJwk && Store.myPublicKeyJwk) return;
@@ -165,12 +161,11 @@ async function ensureKeyPair() {
     Store.myPrivateKeyJwk = privateKeyJwk;
     Store.myPublicKeyJwk = publicKeyJwk;
   } catch (e) {
-    etherLog("error", "[crypto] не удалось создать ключевую пару, офлайн-доставка будет недоступна:", String(e));
+    etherLog("error", "[crypto] не удалось создать ключевую пару:", String(e));
   }
 }
 
-// ---------- Запуск приложения ----------
-
+// ---------- Запуск ----------
 function startApp() {
   $("#onboarding").classList.add("hidden");
   $("#app-shell").classList.remove("hidden");
@@ -192,6 +187,7 @@ function startApp() {
   $("#settings-discoverable").checked = Store.discoverable;
 
   loadContacts();
+  resumeUnsentMessages();
 
   const incoming = SignalingCodec.extractCodeFromLocation();
   history.replaceState(null, "", location.pathname + location.search);
@@ -203,20 +199,26 @@ function startApp() {
 }
 
 function registerServiceWorker() {
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("./sw.js").catch(() => {});
-  }
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(() => {});
 }
 
-// ---------- Контакты (персистентные, по телефону/email) ----------
-
+// ---------- Контакты ----------
 function loadContacts() {
   let arr = [];
-  try { arr = JSON.parse(Store.contactsJson) || []; } catch (e) {}
+  try { arr = JSON.parse(Store.contactsJson) || []; } catch (e) { arr = []; }
+  if (!Array.isArray(arr)) arr = [];
   for (const c of arr) {
+    if (!c || typeof c.id !== "string") continue;
     state.contacts.set(c.id, {
-      id: c.id, name: c.name, raw: c.raw || "", managed: true, publicKey: c.publicKey || null,
-      online: false, status: "disconnected", messages: c.messages || [], lastActivity: c.lastActivity || 0,
+      id: c.id,
+      name: c.name || "",
+      raw: c.raw || "",
+      managed: true,
+      publicKey: c.publicKey || null,
+      online: false,
+      status: "disconnected",
+      messages: Array.isArray(c.messages) ? c.messages : [],
+      lastActivity: c.lastActivity || 0,
     });
   }
 }
@@ -224,18 +226,23 @@ function loadContacts() {
 function persistContacts() {
   const arr = Array.from(state.contacts.values())
     .filter((c) => c.managed)
-    .map((c) => ({ id: c.id, name: c.name, raw: c.raw, publicKey: c.publicKey, messages: c.messages, lastActivity: c.lastActivity }));
+    .map((c) => ({
+      id: c.id, name: c.name, raw: c.raw, publicKey: c.publicKey,
+      messages: c.messages, lastActivity: c.lastActivity,
+    }));
   Store.contactsJson = JSON.stringify(arr);
 }
 
-function keysDiffer(a, b) {
-  return JSON.stringify(a || null) !== JSON.stringify(b || null);
-}
+function keysDiffer(a, b) { return JSON.stringify(a || null) !== JSON.stringify(b || null); }
 
 function ensureContactEntry(id, suggestedName) {
   let c = state.contacts.get(id);
   if (!c) {
-    c = { id, name: suggestedName || "Новый контакт", raw: "", managed: true, publicKey: null, online: true, status: "new", messages: [], lastActivity: Date.now() };
+    c = {
+      id, name: suggestedName || "Новый контакт", raw: "", managed: true,
+      publicKey: null, online: onlineSet.has(id), status: "new",
+      messages: [], lastActivity: Date.now(),
+    };
     state.contacts.set(id, c);
     persistContacts();
   } else if (suggestedName && (!c.name || c.name === "Новый контакт")) {
@@ -246,7 +253,6 @@ function ensureContactEntry(id, suggestedName) {
 }
 
 // ---------- Таб-бар ----------
-
 function wireTabBar() {
   $$(".tab-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -282,8 +288,7 @@ function renderTab() {
   if (state.tab === "connect") { renderSignalingBanner(); renderOnlineRosterList(); }
 }
 
-// ---------- Статусы контактов ----------
-
+// ---------- Статусы ----------
 function contactStatusLabel(c) {
   if (c.status === "in-call") return "разговор";
   if (c.status === "connected") return "на связи";
@@ -291,29 +296,21 @@ function contactStatusLabel(c) {
   if (c.managed) return c.online ? "в сети" : "офлайн";
   return "офлайн";
 }
-
 function contactStatusClass(c) {
   if (c.status === "connected" || c.status === "in-call") return "status-connected";
   if (c.managed && c.online) return "status-connected";
   if (c.status === "connecting" || c.status === "new" || c.status === "awaiting-answer") return "status-connecting";
   return "status-disconnected";
 }
-
-function isReachable(c) {
-  return c.status === "connected" || c.status === "in-call";
-}
+function isReachable(c) { return c.status === "connected" || c.status === "in-call"; }
 
 // ---------- Список чатов ----------
-
 function renderChatsList() {
   const list = $("#chats-list");
   const empty = $("#chats-empty");
   list.innerHTML = "";
 
-  if (state.contacts.size === 0) {
-    empty.classList.remove("hidden");
-    return;
-  }
+  if (state.contacts.size === 0) { empty.classList.remove("hidden"); return; }
   empty.classList.add("hidden");
 
   const items = Array.from(state.contacts.entries()).sort((a, b) => {
@@ -326,27 +323,22 @@ function renderChatsList() {
   for (const [id, c] of items) {
     const last = c.messages[c.messages.length - 1];
     const row = document.createElement("button");
+    row.type = "button";
     row.className = "chat-row glass-content";
     row.innerHTML = `
-      <div class="avatar" style="background:${avatarGradient(c.name)}">${initials(c.name)}</div>
+      <div class="avatar" style="background:${avatarGradient(c.name)}">${escapeHtml(initials(c.name))}</div>
       <div class="chat-row-body">
         <div class="chat-row-top">
           <span class="chat-row-name">${escapeHtml(c.name || "Без имени")}</span>
           <span class="chat-row-status ${contactStatusClass(c)}">●</span>
         </div>
-        <div class="chat-row-sub">${last ? escapeHtml(truncate(last.text, 42)) : contactStatusLabel(c)}</div>
+        <div class="chat-row-sub">${last ? escapeHtml(truncate(last.text, 42)) : escapeHtml(contactStatusLabel(c))}</div>
       </div>
     `;
-    row.addEventListener("click", () => {
-      state.chatId = id;
-      renderTab();
-    });
+    row.addEventListener("click", () => { state.chatId = id; renderTab(); });
     list.appendChild(row);
   }
 }
-
-function truncate(s, n) { return s.length > n ? s.slice(0, n - 1) + "…" : s; }
-function initials(name) { return (name || "?").trim().slice(0, 2).toUpperCase(); }
 
 function avatarGradient(name) {
   const palettes = [
@@ -357,12 +349,12 @@ function avatarGradient(name) {
     "linear-gradient(160deg,#64D2FF,#5E5CE6)",
   ];
   let h = 0;
-  for (const c of name || "?") h = (h * 31 + c.charCodeAt(0)) % palettes.length;
+  const s = String(name || "?");
+  for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) % palettes.length;
   return palettes[h];
 }
 
 // ---------- Тред чата ----------
-
 function ackGlyph(ack) {
   if (ack === "failed") return `<span class="ack-tick ack-failed" title="Не доставлено до сервера">✓</span>`;
   if (ack === "read") return `<span class="ack-tick ack-read" title="Прочитано">✓</span>`;
@@ -372,41 +364,38 @@ function ackGlyph(ack) {
 
 function renderChatThread() {
   const c = state.contacts.get(state.chatId);
-  if (!c) {
-    state.chatId = null;
-    renderTab();
-    return;
-  }
+  if (!c) { state.chatId = null; renderTab(); return; }
   $("#chat-peer-name").textContent = c.name || "Без имени";
   $("#chat-peer-status").textContent = contactStatusLabel(c);
   $("#chat-call-btn").disabled = !isReachable(c);
 
   const wrap = $("#chat-messages");
   wrap.innerHTML = "";
+  const frag = document.createDocumentFragment();
   for (const m of c.messages) {
     const bubble = document.createElement("div");
     bubble.className = "bubble-row " + (m.from === "me" ? "mine" : "theirs");
     const tick = m.from === "me" ? ackGlyph(m.ack) : "";
     bubble.innerHTML = `<div class="bubble ${m.from === "me" ? "" : "glass-content"}">${escapeHtml(m.text)}<span class="bubble-time">${formatTime(m.ts)}${tick}</span></div>`;
-    wrap.appendChild(bubble);
+    frag.appendChild(bubble);
   }
+  wrap.appendChild(frag);
   wrap.scrollTop = wrap.scrollHeight;
 
   markThreadRead(c);
 }
 
-// Пока человек смотрит именно этот тред, все непрочитанные входящие
-// сообщения сразу помечаются прочитанными и квитанция уходит обратно
-// отправителю — напрямую, если он сейчас на связи, иначе через сервер,
-// как и обычное сообщение.
 function markThreadRead(c) {
+  const toAck = [];
   for (const m of c.messages) {
     if (m.from === "them" && !m.readAckSent) {
       m.readAckSent = true;
-      sendAckFor(c.id, m.id, "read");
+      toAck.push(m.id);
     }
   }
+  if (toAck.length === 0) return;
   persistContacts();
+  sendAckBatch(c.id, toAck, "read");
 }
 
 function wireChatScreen() {
@@ -432,18 +421,31 @@ function wireChatScreen() {
 async function sendChatMessage(contactId, text) {
   const c = state.contacts.get(contactId);
   if (!c) return;
+
+  if (text.length > MAX_MESSAGE_LENGTH) {
+    text = text.slice(0, MAX_MESSAGE_LENGTH);
+    toast("Сообщение обрезано до " + MAX_MESSAGE_LENGTH + " символов");
+  }
+
   const msgId = crypto.randomUUID();
   const ts = Date.now();
   c.messages.push({ id: msgId, from: "me", text, ts, ack: "sent" });
   c.lastActivity = ts;
   pendingAcks.set(msgId, contactId);
+  trimMap(pendingAcks, PENDING_ACKS_LIMIT);
   persistContacts();
   if (state.chatId === contactId) renderChatThread();
   if (state.tab === "chats") renderChatsList();
 
   const link = mesh.get(contactId);
   if (link && link.send({ kind: "chat", id: msgId, text, ts })) {
-    return; // ушло напрямую по P2P; статус обновится квитанцией по тому же каналу
+    setTimeout(() => {
+      const mm = c.messages.find((x) => x.id === msgId);
+      if (mm && mm.ack === "sent" && !outbox.has(msgId)) {
+        deliverEncrypted(c, msgId, { kind: "chat", id: msgId, text, ts });
+      }
+    }, 3000);
+    return;
   }
 
   await deliverEncrypted(c, msgId, { kind: "chat", id: msgId, text, ts });
@@ -452,8 +454,14 @@ async function sendChatMessage(contactId, text) {
 function deleteContact(id) {
   clearAutoConnectTimer(id);
   mesh.remove(id);
+
+  pendingNoKey.delete(id);
+  for (const [msgId, entry] of outbox) if (entry.to === id) outbox.delete(msgId);
+  for (const [msgId, cid] of pendingAcks) if (cid === id) pendingAcks.delete(msgId);
+
   const audioEl = document.getElementById("remote-audio-" + id);
   if (audioEl) audioEl.remove();
+
   state.contacts.delete(id);
   persistContacts();
   if (state.callId === id) closeCallScreen();
@@ -462,14 +470,11 @@ function deleteContact(id) {
   toast("Контакт удалён");
 }
 
-// ---------- Гарантированная доставка (офлайн-очередь на сервере) ----------
-//
-// Пока оба устройства онлайн, сообщения идут напрямую по P2P — сервер их
-// не видит вообще. Если собеседник офлайн, сообщение шифруется прямо на
-// устройстве (ECDH + AES-GCM, см. js/crypto-helper.js) и кладётся на
-// сервер, который хранит только нечитаемый шифротекст в памяти до тех
-// пор, пока собеседник не подключится — после чего сразу его получает.
+function trimMap(map, max) {
+  while (map.size > max) map.delete(map.keys().next().value);
+}
 
+// ---------- Гарантированная доставка ----------
 function markMessageAck(contactId, msgId, ack) {
   const c = state.contacts.get(contactId);
   if (!c) return;
@@ -483,9 +488,6 @@ function markMessageAck(contactId, msgId, ack) {
 
 async function deliverEncrypted(contact, msgId, payloadObj) {
   if (!contact.publicKey) {
-    // Ключа собеседника ещё не видели — не можем зашифровать. Запоминаем и
-    // отправим сразу, как только узнаем его ключ (обычно — в момент, когда
-    // он в первый раз появится в сети).
     markMessageAck(contact.id, msgId, "failed");
     if (!pendingNoKey.has(contact.id)) pendingNoKey.set(contact.id, []);
     pendingNoKey.get(contact.id).push({ msgId, payload: payloadObj });
@@ -495,8 +497,13 @@ async function deliverEncrypted(contact, msgId, payloadObj) {
     const sharedKey = await CryptoHelper.deriveSharedKey(Store.myPrivateKeyJwk, contact.publicKey);
     const envelope = await CryptoHelper.encryptJson(sharedKey, payloadObj);
     outbox.set(msgId, { to: contact.id, envelope });
+    trimMap(outbox, OUTBOX_LIMIT);
+    if (!pendingAcks.has(msgId)) {
+      pendingAcks.set(msgId, contact.id);
+      trimMap(pendingAcks, PENDING_ACKS_LIMIT);
+    }
     const sent = signaling && signaling.deliver(contact.id, msgId, envelope, Store.myPublicKeyJwk);
-    if (!sent) markMessageAck(contact.id, msgId, "failed"); // останется в outbox, повторим при переподключении
+    if (!sent) markMessageAck(contact.id, msgId, "failed");
   } catch (e) {
     etherLog("error", "[crypto] не удалось зашифровать конверт:", String(e));
     markMessageAck(contact.id, msgId, "failed");
@@ -513,26 +520,44 @@ function flushPendingNoKey(contactId) {
 }
 
 function flushOutbox() {
+  if (!signaling || !signaling.connected) return;
   for (const [msgId, entry] of outbox) {
     signaling.deliver(entry.to, msgId, entry.envelope, Store.myPublicKeyJwk);
   }
 }
 
-// Квитанция (доставлено/прочитано) для чужого сообщения — тем же путём:
-// напрямую, если собеседник сейчас на связи, иначе тоже через очередь.
-function sendAckFor(contactId, originalMsgId, ackState) {
-  const link = mesh.get(contactId);
-  if (link && link.send({ kind: "ack", id: originalMsgId, state: ackState })) return;
-  const c = state.contacts.get(contactId);
-  if (c) deliverEncrypted(c, crypto.randomUUID(), { kind: "ack", id: originalMsgId, state: ackState });
+function resumeUnsentMessages() {
+  if (!Store.myPublicKeyJwk) return;
+  for (const c of state.contacts.values()) {
+    for (const m of c.messages) {
+      if (m.from === "me" && (m.ack === "sent" || m.ack === "failed")) {
+        m.ack = "sent";
+        if (!pendingAcks.has(m.id)) pendingAcks.set(m.id, c.id);
+        deliverEncrypted(c, m.id, { kind: "chat", id: m.id, text: m.text, ts: m.ts });
+      }
+    }
+  }
+  persistContacts();
 }
 
-// ---------- Идентификатор и сигнальный сервер ----------
+function sendAckBatch(contactId, originalMsgIds, ackState) {
+  const link = mesh.get(contactId);
+  const payload = { kind: "ack-batch", ids: originalMsgIds.slice(), state: ackState };
+  if (link && link.send(payload)) return;
+  const c = state.contacts.get(contactId);
+  if (c) deliverEncrypted(c, crypto.randomUUID(), payload);
+}
 
+function sendAckFor(contactId, originalMsgId, ackState) {
+  sendAckBatch(contactId, [originalMsgId], ackState);
+}
+
+// ---------- Сигнальный сервер ----------
 function updateSignalingStatusUI(kind, text) {
   const dot = $("#signaling-status-dot");
-  dot.className = "status-dot " + kind;
-  $("#signaling-status-text").textContent = text;
+  const label = $("#signaling-status-text");
+  if (dot) dot.className = "status-dot " + kind;
+  if (label) label.textContent = text;
 }
 
 function renderSignalingBanner() {
@@ -547,6 +572,7 @@ function renderSignalingBanner() {
 
 function initSignaling() {
   const url = effectiveSignalingUrl();
+  if (signalingCleanup) { try { signalingCleanup(); } catch (e) {} signalingCleanup = null; }
   if (signaling) { signaling.stop(); signaling = null; }
   onlineSet.clear();
   onlineRoster.clear();
@@ -561,34 +587,41 @@ function initSignaling() {
   }
   updateSignalingStatusUI("connecting", "Подключение…");
   signaling = new SignalingClient(url, Store.myId, { name: Store.name, visible: Store.discoverable, publicKey: Store.myPublicKeyJwk });
-  wireSignalingEvents();
+  signalingCleanup = wireSignalingEvents(signaling);
   signaling.start();
   renderSignalingBanner();
 }
 
-function wireSignalingEvents() {
-  signaling.addEventListener("connected", () => {
+function wireSignalingEvents(sig) {
+  const on = (type, fn) => {
+    const wrapped = (ev) => fn(ev);
+    sig.addEventListener(type, wrapped);
+    return { type, wrapped };
+  };
+  const subs = [];
+
+  subs.push(on("connected", () => {
     updateSignalingStatusUI("online", "Подключено");
     renderSignalingBanner();
     flushOutbox();
-  });
+  }));
 
-  signaling.addEventListener("disconnected", () => {
+  subs.push(on("disconnected", () => {
     updateSignalingStatusUI("off", "Нет соединения — переподключаемся…");
     for (const c of state.contacts.values()) if (c.managed) c.online = false;
     onlineRoster.clear();
     renderSignalingBanner();
     if (state.tab === "chats") renderChatsList();
     if (state.tab === "connect") renderOnlineRosterList();
-  });
+  }));
 
-  signaling.addEventListener("replaced", () => {
+  subs.push(on("replaced", () => {
     updateSignalingStatusUI("off", "Отключено — тот же телефон/email открыт в другом месте");
     toast("Этот же контакт подключён в другой вкладке или на другом устройстве — здесь связь с сервером отключена, чтобы не мешать друг другу");
     renderSignalingBanner();
-  });
+  }));
 
-  signaling.addEventListener("online-list", (ev) => {
+  subs.push(on("online-list", (ev) => {
     for (const u of ev.detail.users) {
       onlineSet.add(u.id);
       onlineRoster.set(u.id, { name: u.name, visible: u.visible !== false, publicKey: u.publicKey || null });
@@ -601,9 +634,9 @@ function wireSignalingEvents() {
     }
     if (state.tab === "chats") renderChatsList();
     if (state.tab === "connect") renderOnlineRosterList();
-  });
+  }));
 
-  signaling.addEventListener("presence", (ev) => {
+  subs.push(on("presence", (ev) => {
     const { id, online, name, visible, publicKey } = ev.detail;
     if (online) { onlineSet.add(id); onlineRoster.set(id, { name, visible: visible !== false, publicKey: publicKey || null }); }
     else { onlineSet.delete(id); onlineRoster.delete(id); }
@@ -617,29 +650,27 @@ function wireSignalingEvents() {
     }
     if (state.tab === "chats") renderChatsList();
     if (state.tab === "connect") renderOnlineRosterList();
-  });
+  }));
 
-  signaling.addEventListener("signal", async (ev) => {
+  subs.push(on("signal", async (ev) => {
     const { from, data: packet } = ev.detail;
     if (!packet || !packet.t) return;
-    if (isDuplicateSignal(from, packet)) return; // тот же пакет уже обработан — игнорируем молча
+    if (isDuplicateSignal(from, packet)) return;
 
     if (packet.t === "offer") {
       const existing = mesh.get(from);
       const iAmSupposedToOffer = Store.myId < from;
-      if (existing && existing.role === "offerer" && iAmSupposedToOffer && existing.status !== "disconnected") {
-        return; // ждём свой offer/answer, входящий игнорируем (защита от гонки)
-      }
+      if (existing && existing.role === "offerer" && iAmSupposedToOffer && existing.status !== "disconnected") return;
       if (existing) mesh.remove(from);
       ensureContactEntry(from, packet.n);
       const link = mesh.createIncomingLink(from);
       try {
         const answer = await link.acceptOfferAndCreateAnswer(packet);
-        if (!answer) { etherLog("info", "[connect]", from.slice(0, 10) + "…", "ответ на offer отменён — соединение уже переопределено"); return; }
-        signaling.signal(from, answer);
+        if (!answer) return;
+        sig.signal(from, answer);
       } catch (e) {
         etherLog("error", "[webrtc] не удалось ответить на offer:", String(e));
-        mesh.remove(from); // не оставляем зависшую полусвязь, блокирующую повторные попытки
+        mesh.remove(from);
         const c = state.contacts.get(from);
         if (c) c.status = "disconnected";
         if (state.chatId === from) renderChatThread();
@@ -648,7 +679,8 @@ function wireSignalingEvents() {
     } else if (packet.t === "answer") {
       const link = mesh.get(from);
       if (link) {
-        try { await link.acceptAnswer(packet); } catch (e) {
+        try { await link.acceptAnswer(packet); }
+        catch (e) {
           etherLog("error", "[webrtc] не удалось принять answer:", String(e));
           mesh.remove(from);
           const c = state.contacts.get(from);
@@ -658,33 +690,27 @@ function wireSignalingEvents() {
         }
       }
     }
-  });
+  }));
 
-  signaling.addEventListener("unreachable", (ev) => {
+  subs.push(on("unreachable", (ev) => {
     const c = state.contacts.get(ev.detail.to);
     if (c) { c.online = false; if (state.tab === "chats") renderChatsList(); }
-  });
+  }));
 
-  signaling.addEventListener("deliver-ack", (ev) => {
-    // Сервер подтвердил, что принял конверт на себя — либо сразу передал
-    // адресату, либо гарантированно придержит его. С нашей стороны это и
-    // есть "доставлено" (жёлтая галочка); сама запись остаётся в outbox
-    // до переподключения на случай повторной отправки не потребуется —
-    // но outbox чистим сразу, раз сервер уже подтвердил приём.
+  subs.push(on("deliver-ack", (ev) => {
     const { msgId } = ev.detail;
-    const entry = outbox.get(msgId);
-    outbox.delete(msgId);
     const contactId = pendingAcks.get(msgId);
+    pendingAcks.delete(msgId);
+    outbox.delete(msgId);
     if (contactId) markMessageAck(contactId, msgId, "delivered");
-    else if (entry) markMessageAck(entry.to, msgId, "delivered");
-  });
+  }));
 
-  signaling.addEventListener("deliver", async (ev) => {
+  subs.push(on("deliver", async (ev) => {
     const { from, msgId, envelope, fromPublicKey, queued } = ev.detail;
-    signaling.mailboxAck(msgId); // иначе сервер пришлёт этот же конверт заново при следующем подключении
+    sig.mailboxAck(msgId);
     if (seenDeliverIds.has(msgId)) return;
     seenDeliverIds.add(msgId);
-    if (seenDeliverIds.size > 500) seenDeliverIds.delete(seenDeliverIds.values().next().value);
+    if (seenDeliverIds.size > SEEN_DELIVER_LIMIT) seenDeliverIds.delete(seenDeliverIds.values().next().value);
 
     let payload;
     try {
@@ -694,10 +720,10 @@ function wireSignalingEvents() {
       payload = await CryptoHelper.decryptJson(sharedKey, envelope);
       if (fromPublicKey) {
         const c = state.contacts.get(from);
-        if (c && fromPublicKey && keysDiffer(fromPublicKey, c.publicKey)) { c.publicKey = fromPublicKey; persistContacts(); }
+        if (c && keysDiffer(fromPublicKey, c.publicKey)) { c.publicKey = fromPublicKey; persistContacts(); }
       }
     } catch (e) {
-      etherLog("error", "[crypto] не удалось расшифровать конверт из", queued ? "очереди" : "прямой доставки", "от", from.slice(0, 10) + "…:", String(e));
+      etherLog("error", "[crypto] не удалось расшифровать конверт:", String(e));
       return;
     }
 
@@ -712,12 +738,18 @@ function wireSignalingEvents() {
       if (isOpen) renderChatThread();
       else toast(`${c.name}: ${truncate(payload.text, 40)}`);
       if (state.tab === "chats") renderChatsList();
-      sendAckFor(from, payload.id, "delivered");
-      if (isOpen) sendAckFor(from, payload.id, "read");
+      sendAckBatch(from, [payload.id], "delivered");
+      if (isOpen) sendAckBatch(from, [payload.id], "read");
     } else if (payload.kind === "ack") {
       markMessageAck(from, payload.id, payload.state);
+    } else if (payload.kind === "ack-batch" && Array.isArray(payload.ids)) {
+      for (const id of payload.ids) markMessageAck(from, id, payload.state);
     }
-  });
+  }));
+
+  return () => {
+    for (const s of subs) sig.removeEventListener(s.type, s.wrapped);
+  };
 }
 
 function clearAutoConnectTimer(id) {
@@ -728,35 +760,34 @@ function clearAutoConnectTimer(id) {
 
 function scheduleAutoConnect(id) {
   attemptConnect(id);
-  if (autoConnectTimers.has(id)) return; // повтор уже запланирован — не откладываем его каждый раз заново
-  autoConnectTimers.set(
-    id,
-    setTimeout(() => {
-      autoConnectTimers.delete(id);
-      attemptConnect(id, { force: true });
-    }, 4000)
-  );
+  if (autoConnectTimers.has(id)) return;
+  autoConnectTimers.set(id, setTimeout(() => {
+    autoConnectTimers.delete(id);
+    attemptConnect(id, { force: true });
+  }, 4000));
 }
 
 async function attemptConnect(id, { force = false } = {}) {
-  const tag = id.slice(0, 10) + "…";
-  if (!signaling || !signaling.connected) { etherLog("info", "[connect]", tag, "пропуск: сигнальный сервер не подключён"); return; }
+  const tag = String(id).slice(0, 10) + "…";
+  if (!signaling || !signaling.connected) return;
   const existing = mesh.get(id);
-  if (existing && existing.status !== "disconnected") { etherLog("info", "[connect]", tag, "пропуск: уже есть связь в статусе", existing.status); return; }
-  if (!onlineSet.has(id)) { etherLog("info", "[connect]", tag, "пропуск: контакт не онлайн по данным сервера"); return; }
-  if (!force && !(Store.myId < id)) { etherLog("info", "[connect]", tag, "жду — инициатором должен быть собеседник (тай-брейк)"); return; }
+  if (existing && existing.status !== "disconnected") return;
+  if (!onlineSet.has(id)) return;
+
+  const iShouldOffer = Store.myId < id;
+  if (!force && !iShouldOffer) return;
+  if (force && !iShouldOffer && existing && existing.role === "answerer") return;
+
   if (existing) mesh.remove(id);
-  etherLog("info", "[connect]", tag, "создаю offer" + (force ? " (force)" : ""));
   const link = mesh.createOutgoingLink(id);
   try {
     const packet = await link.createInitialOffer("");
-    if (!packet) { etherLog("info", "[connect]", tag, "offer отменён — соединение уже переопределено"); return; }
+    if (!packet) return;
     signaling.signal(id, packet);
-    etherLog("info", "[connect]", tag, "offer отправлен через сигнальный сервер");
     watchConnectionTimeout(id);
   } catch (e) {
     etherLog("error", "[webrtc] не удалось создать offer:", String(e));
-    mesh.remove(id); // без этого статус навсегда останется "new" и заблокирует повторные попытки
+    mesh.remove(id);
     const c = state.contacts.get(id);
     if (c) c.status = "disconnected";
     if (state.chatId === id) renderChatThread();
@@ -764,15 +795,11 @@ async function attemptConnect(id, { force = false } = {}) {
   }
 }
 
-// Сторожевой таймер: если через 10с после отправки offer соединение так и
-// не поднялось (а явной ошибки/события failed не было), считаем попытку
-// зависшей и сбрасываем её — иначе контакт мог бы застрять в "Соединяемся…"
-// навсегда, а автоповтор никогда бы не сработал.
 function watchConnectionTimeout(id) {
   setTimeout(() => {
     const link = mesh.get(id);
     if (!link || link.status === "connected" || link.status === "in-call" || link.status === "disconnected") return;
-    etherLog("warn", "[webrtc] соединение с", id.slice(0, 10) + "…", "зависло, сбрасываю и пробую снова");
+    etherLog("warn", "[webrtc] соединение зависло, сбрасываю");
     mesh.remove(id);
     const c = state.contacts.get(id);
     if (c) {
@@ -785,9 +812,6 @@ function watchConnectionTimeout(id) {
 }
 
 // ---------- Экран "Контакты" ----------
-
-// ---------- Экран "Контакты" ----------
-
 function renderOnlineRosterList() {
   const wrap = $("#online-roster-list");
   const empty = $("#online-roster-empty");
@@ -798,24 +822,22 @@ function renderOnlineRosterList() {
     ([id, u]) => id !== Store.myId && u.visible !== false && !state.contacts.has(id)
   );
 
-  if (rows.length === 0) {
-    empty.classList.remove("hidden");
-    return;
-  }
+  if (rows.length === 0) { empty.classList.remove("hidden"); return; }
   empty.classList.add("hidden");
 
   for (const [id, u] of rows) {
     const row = document.createElement("div");
     row.className = "roster-row";
     row.innerHTML = `
-      <div class="avatar avatar-sm" style="background:${avatarGradient(u.name || id)}">${initials(u.name || "?")}</div>
+      <div class="avatar avatar-sm" style="background:${avatarGradient(u.name || id)}">${escapeHtml(initials(u.name || "?"))}</div>
       <span class="roster-name">${escapeHtml(u.name || "Без имени")}</span>
-      <button class="btn-secondary roster-add-btn">Добавить</button>
+      <button type="button" class="btn-secondary roster-add-btn">Добавить</button>
     `;
     row.querySelector(".roster-add-btn").addEventListener("click", () => {
       state.contacts.set(id, {
-        id, name: u.name || "Без имени", raw: "", managed: true, publicKey: u.publicKey || null,
-        online: true, status: "disconnected", messages: [], lastActivity: Date.now(),
+        id, name: u.name || "Без имени", raw: "", managed: true,
+        publicKey: u.publicKey || null, online: true, status: "disconnected",
+        messages: [], lastActivity: Date.now(),
       });
       persistContacts();
       toast("Контакт добавлен");
@@ -844,8 +866,8 @@ function wireConnectScreen() {
     } else {
       state.contacts.set(identity.id, {
         id: identity.id, name: nameVal || identity.normalized, raw: identity.normalized,
-        managed: true, online: onlineSet.has(identity.id), status: "disconnected",
-        messages: [], lastActivity: Date.now(),
+        managed: true, publicKey: null, online: onlineSet.has(identity.id),
+        status: "disconnected", messages: [], lastActivity: Date.now(),
       });
       persistContacts();
       toast("Контакт добавлен");
@@ -864,8 +886,6 @@ function wireConnectScreen() {
       ? "Ручное подключение без сервера, по коду ›"
       : "Скрыть ручное подключение ‹";
   });
-
-  // ---- Ручной поток (полностью без сервера), как раньше ----
 
   $("#create-invite-btn").addEventListener("click", createInvite);
   $("#copy-code-btn").addEventListener("click", () => copyText($("#invite-code-out").textContent, "Код скопирован"));
@@ -969,15 +989,14 @@ async function handleIncomingCode(code, fromLink) {
 
 function copyText(text, msg) {
   if (navigator.clipboard) {
-    navigator.clipboard.writeText(text).then(() => toast(msg));
+    navigator.clipboard.writeText(text).then(() => toast(msg)).catch(() => toast("Не удалось скопировать"));
   } else {
     const ta = document.createElement("textarea");
     ta.value = text;
     document.body.appendChild(ta);
     ta.select();
-    document.execCommand("copy");
+    try { document.execCommand("copy"); toast(msg); } catch (e) {}
     ta.remove();
-    toast(msg);
   }
 }
 
@@ -1003,7 +1022,6 @@ function wireContactSend({ smsBtnId, mailBtnId, inputId, textGetter }) {
 }
 
 // ---------- Звонки ----------
-
 async function beginCall(id) {
   const c = state.contacts.get(id);
   let link = mesh.get(id);
@@ -1048,7 +1066,7 @@ function setCallPhaseActive() {
 }
 
 let callTimerInterval = null;
-const pendingRemoteStreams = new Map(); // id -> MediaStream, ждёт явного "Принять" из-за autoplay-политики браузера
+const pendingRemoteStreams = new Map();
 
 function attachRemoteAudio(id, stream) {
   let audioEl = document.getElementById("remote-audio-" + id);
@@ -1060,7 +1078,7 @@ function attachRemoteAudio(id, stream) {
     document.body.appendChild(audioEl);
   }
   audioEl.srcObject = stream;
-  audioEl.play().catch(() => {}); // если браузер всё равно заблокирует — молча, звонок сам по себе всё равно работает
+  audioEl.play().catch(() => {});
 }
 function startCallTimer() {
   const started = Date.now();
@@ -1075,6 +1093,7 @@ function startCallTimer() {
 
 function closeCallScreen() {
   clearInterval(callTimerInterval);
+  callTimerInterval = null;
   $("#call-screen").classList.add("hidden");
   $("#call-mute-btn").classList.remove("active");
   if (state.callId) pendingRemoteStreams.delete(state.callId);
@@ -1115,7 +1134,6 @@ function wireCallScreen() {
 }
 
 // ---------- Настройки ----------
-
 function wireSettingsScreen() {
   $("#settings-name").addEventListener("change", (e) => {
     const v = e.target.value.trim();
@@ -1152,7 +1170,7 @@ function wireSettingsScreen() {
   $("#glass-slider").addEventListener("input", (e) => {
     const v = parseFloat(e.target.value);
     Store.glassAlpha = v;
-    applyGlassAlpha(v);
+    applyGlassAlpha(Store.glassAlpha);
   });
 
   $$(".theme-seg button").forEach((btn) => {
@@ -1169,6 +1187,10 @@ function wireSettingsScreen() {
     for (const t of autoConnectTimers.values()) clearTimeout(t);
     autoConnectTimers.clear();
     onlineSet.clear();
+    pendingAcks.clear();
+    outbox.clear();
+    pendingNoKey.clear();
+    seenDeliverIds.clear();
     state.contacts.clear();
     Store.contactsJson = "[]";
     resetConnectScreen();
@@ -1196,13 +1218,12 @@ function buildDiagnosticsText() {
   lines.push("Сигнальный сервер: " + effectiveSignalingUrl());
   lines.push("Статус сервера: " + (signaling ? (signaling.connected ? "подключён" : "не подключён, переподключается") : "не инициализирован"));
   lines.push("Онлайн по данным сервера: " + onlineSet.size + " (roster: " + onlineRoster.size + ")");
+  lines.push("pendingAcks: " + pendingAcks.size + ", outbox: " + outbox.size + ", pendingNoKey: " + pendingNoKey.size);
   lines.push("");
   lines.push("--- Контакты ---");
   if (state.contacts.size === 0) lines.push("(нет контактов)");
   for (const c of state.contacts.values()) {
-    lines.push(
-      `${c.name} | id=${c.id.slice(0, 10)}… | managed=${c.managed} | online=${c.online} | status=${c.status} | сообщений=${c.messages.length}`
-    );
+    lines.push(`${c.name} | id=${String(c.id).slice(0, 10)}… | managed=${c.managed} | online=${c.online} | status=${c.status} | сообщений=${c.messages.length}`);
   }
   lines.push("");
   lines.push("--- Журнал событий (последние) ---");
@@ -1216,8 +1237,9 @@ function buildDiagnosticsText() {
 }
 
 function renderDiagnostics() {
+  const idShort = Store.myId ? escapeHtml(String(Store.myId).slice(0, 16)) + "…" : "не задан";
   $("#diagnostics-summary").innerHTML = `
-    <div><b>Мой id:</b> ${Store.myId ? escapeHtml(Store.myId.slice(0, 16)) + "…" : "не задан"}</div>
+    <div><b>Мой id:</b> ${idShort}</div>
     <div><b>Сервер:</b> ${escapeHtml(effectiveSignalingUrl())}</div>
     <div><b>Статус сервера:</b> ${signaling ? (signaling.connected ? "подключён ✅" : "не подключён ⚠️") : "не инициализирован ⚠️"}</div>
     <div><b>Онлайн сейчас:</b> ${onlineSet.size}</div>
@@ -1226,8 +1248,7 @@ function renderDiagnostics() {
   $("#diagnostics-log").textContent = buildDiagnosticsText();
 }
 
-// ---------- События mesh (WebRTC-соединения) ----------
-
+// ---------- События mesh ----------
 function wireMeshEvents() {
   mesh.addEventListener("link-status", (ev) => {
     const { id, status } = ev.detail;
@@ -1238,7 +1259,7 @@ function wireMeshEvents() {
 
     if (status === "connected" && !wasConnected) {
       const link = mesh.get(id);
-      if (link.remoteName) c.name = link.remoteName;
+      if (link && link.remoteName) c.name = link.remoteName;
       if (c.managed) persistContacts();
       toast(`«${c.name}» на связи`);
       clearAutoConnectTimer(id);
@@ -1259,8 +1280,8 @@ function wireMeshEvents() {
     if (!c) return;
 
     if (payload.kind === "chat") {
-      const msgId = payload.id || crypto.randomUUID(); // на случай пакета от старой версии без id
-      if (c.messages.some((m) => m.id === msgId)) return; // уже получали (например, повтор после реконнекта)
+      const msgId = payload.id || crypto.randomUUID();
+      if (c.messages.some((m) => m.id === msgId)) return;
       const isOpen = state.chatId === id;
       c.messages.push({ id: msgId, from: "them", text: payload.text, ts: payload.ts || Date.now(), readAckSent: isOpen });
       c.lastActivity = Date.now();
@@ -1269,13 +1290,13 @@ function wireMeshEvents() {
       else toast(`${c.name}: ${truncate(payload.text, 40)}`);
       if (state.tab === "chats") renderChatsList();
 
-      // Подтверждаем доставку сразу; прочтение — только если тред открыт.
-      sendAckFor(id, msgId, "delivered");
-      if (isOpen) sendAckFor(id, msgId, "read");
+      sendAckBatch(id, [msgId], "delivered");
+      if (isOpen) sendAckBatch(id, [msgId], "read");
     }
 
-    if (payload.kind === "ack") {
-      markMessageAck(id, payload.id, payload.state);
+    if (payload.kind === "ack") markMessageAck(id, payload.id, payload.state);
+    if (payload.kind === "ack-batch" && Array.isArray(payload.ids)) {
+      for (const ackId of payload.ids) markMessageAck(id, ackId, payload.state);
     }
 
     if (payload.kind === "call-state") {
@@ -1294,9 +1315,6 @@ function wireMeshEvents() {
   mesh.addEventListener("remote-track", (ev) => {
     const { id, stream } = ev.detail;
     if (state.callId === id && state.callPhase !== "active") {
-      // Звук пришёл раньше, чем нажали "Принять" — не запускаем
-      // автовоспроизведение сейчас (строгие браузеры вроде Safari это
-      // заблокируют без прямого жеста пользователя), просто запоминаем.
       pendingRemoteStreams.set(id, stream);
       return;
     }
@@ -1304,13 +1322,7 @@ function wireMeshEvents() {
   });
 }
 
-// ---------- Старт ----------
-
-// Страховка: если через несколько секунд после загрузки страницы ни
-// экран приветствия, ни само приложение так и не показались — что-то
-// сломалось раньше, чем ожидалось (необработанное исключение где-то в
-// цепочке запуска). Вместо тихого пустого/серого экрана даём человеку
-// явный выход.
+// ---------- Boot-recovery ----------
 function showBootRecovery() {
   document.getElementById("onboarding").classList.add("hidden");
   document.getElementById("app-shell").classList.add("hidden");
@@ -1327,10 +1339,10 @@ const bootWatchdog = setTimeout(() => {
   if (bootDidNotRender()) showBootRecovery();
 }, 6000);
 
-window.addEventListener("error", (ev) => {
+window.addEventListener("error", () => {
   if (bootDidNotRender()) { clearTimeout(bootWatchdog); showBootRecovery(); }
 });
-window.addEventListener("unhandledrejection", (ev) => {
+window.addEventListener("unhandledrejection", () => {
   if (bootDidNotRender()) { clearTimeout(bootWatchdog); showBootRecovery(); }
 });
 

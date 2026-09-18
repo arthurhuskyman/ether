@@ -1,29 +1,20 @@
-// Тонкий клиент к сигнальному серверу. Его роль строго ограничена:
-// сообщить "я на связи", узнать, кто из контактов сейчас тоже на связи,
-// и один раз переслать пакет подключения (offer/answer). Дальше в дело
-// вступает WebRTC напрямую — сигнальный сервер к переписке и звонку
-// никакого отношения больше не имеет.
-
-// ---------- Общий буфер диагностики ----------
-// Копится в памяти вкладки, чтобы можно было открыть "Диагностику" в
-// Настройках и скопировать текстом — без необходимости лезть в devtools,
-// что на iPhone без Mac рядом почти невозможно.
+// Тонкий клиент к сигнальному серверу.
 
 window.__etherDiag = window.__etherDiag || [];
 function etherLog(level, ...args) {
-  const line = args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ");
+  const line = args.map((a) => (typeof a === "string" ? a : safeJson(a))).join(" ");
   window.__etherDiag.push({ ts: Date.now(), level, line });
   if (window.__etherDiag.length > 300) window.__etherDiag.shift();
   (console[level] || console.log).call(console, ...args);
 }
-
-// ---------- Совместимость со старыми версиями сервера ----------
-// Старые сборки relay отдавали online как массив голых id (строк),
-// новые — массив объектов {id, name, visible}. Разбираем оба формата,
-// чтобы рассинхрон версий клиент/сервер не ломал всё молча.
+function safeJson(a) {
+  try { return JSON.stringify(a); } catch (e) { return String(a); }
+}
 
 function normalizeRosterEntry(u) {
+  if (!u) return null;
   if (typeof u === "string") return { id: u, name: "", visible: true, publicKey: null };
+  if (typeof u !== "object" || typeof u.id !== "string") return null;
   return { id: u.id, name: u.name || "", visible: u.visible !== false, publicKey: u.publicKey || null };
 }
 
@@ -38,26 +29,31 @@ class SignalingClient extends EventTarget {
     this.ws = null;
     this.shouldRun = false;
     this._retryDelay = 1000;
+    this._retryTimer = null;
     this.connected = false;
+    this._stopped = false;
   }
 
   start() {
+    if (this._stopped) return;
     this.shouldRun = true;
     this._connect();
   }
 
   stop() {
     this.shouldRun = false;
+    this._stopped = true;
     this.connected = false;
+    if (this._retryTimer) { clearTimeout(this._retryTimer); this._retryTimer = null; }
     if (this.ws) {
-      try {
-        this.ws.close();
-      } catch (e) {}
+      try { this.ws.onopen = this.ws.onmessage = this.ws.onclose = this.ws.onerror = null; } catch (e) {}
+      try { this.ws.close(); } catch (e) {}
+      this.ws = null;
     }
   }
 
   _connect() {
-    if (!this.shouldRun || !this.url) return;
+    if (!this.shouldRun || !this.url || this._stopped) return;
     let ws;
     try {
       ws = new WebSocket(this.url);
@@ -68,125 +64,112 @@ class SignalingClient extends EventTarget {
     this.ws = ws;
 
     ws.addEventListener("open", () => {
+      if (this.ws !== ws) return;
       this._retryDelay = 1000;
       this.connected = true;
-      etherLog("info", "[signaling] соединение открыто, регистрируюсь как", this.myId.slice(0, 10) + "…");
+      etherLog("info", "[signaling] соединение открыто, регистрируюсь как", String(this.myId).slice(0, 10) + "…");
       ws.send(JSON.stringify({ type: "register", id: this.myId, name: this.name, visible: this.visible, publicKey: this.publicKey }));
       this.dispatchEvent(new CustomEvent("connected"));
     });
 
     ws.addEventListener("message", (ev) => {
+      if (this.ws !== ws) return;
       let msg;
-      try {
-        msg = JSON.parse(ev.data);
-      } catch (e) {
-        return;
-      }
+      try { msg = JSON.parse(ev.data); } catch (e) { return; }
+      if (!msg || typeof msg.type !== "string") return;
+
       if (msg.type === "registered") {
-        const users = (msg.online || []).map(normalizeRosterEntry);
+        const users = (Array.isArray(msg.online) ? msg.online : []).map(normalizeRosterEntry).filter(Boolean);
         etherLog("info", "[signaling] зарегистрирован, сейчас онлайн:", users.length);
         this.dispatchEvent(new CustomEvent("online-list", { detail: { users } }));
-      } else if (msg.type === "presence") {
+      } else if (msg.type === "presence" && typeof msg.id === "string") {
         etherLog("info", "[signaling] presence:", msg.id.slice(0, 10) + "…", msg.online ? "online" : "offline");
-        this.dispatchEvent(new CustomEvent("presence", { detail: { id: msg.id, online: msg.online, name: msg.name, visible: msg.visible, publicKey: msg.publicKey } }));
-      } else if (msg.type === "signal") {
+        this.dispatchEvent(new CustomEvent("presence", { detail: { id: msg.id, online: !!msg.online, name: msg.name, visible: msg.visible, publicKey: msg.publicKey } }));
+      } else if (msg.type === "signal" && typeof msg.from === "string") {
         etherLog("info", "[signaling] сигнал от", msg.from.slice(0, 10) + "…", msg.data && msg.data.t);
         this.dispatchEvent(new CustomEvent("signal", { detail: { from: msg.from, data: msg.data } }));
-      } else if (msg.type === "unreachable") {
+      } else if (msg.type === "unreachable" && typeof msg.to === "string") {
         etherLog("info", "[signaling] недоступен:", msg.to.slice(0, 10) + "…");
         this.dispatchEvent(new CustomEvent("unreachable", { detail: { to: msg.to } }));
-      } else if (msg.type === "deliver") {
+      } else if (msg.type === "deliver" && typeof msg.from === "string" && typeof msg.msgId === "string") {
         etherLog("info", "[mailbox] конверт от", msg.from.slice(0, 10) + "…", msg.queued ? "(из очереди)" : "(напрямую)");
-        this.dispatchEvent(new CustomEvent("deliver", { detail: { from: msg.from, msgId: msg.msgId, envelope: msg.envelope, fromPublicKey: msg.fromPublicKey, queued: !!msg.queued } }));
-      } else if (msg.type === "deliver-ack") {
+        this.dispatchEvent(new CustomEvent("deliver", {
+          detail: { from: msg.from, msgId: msg.msgId, envelope: msg.envelope, fromPublicKey: msg.fromPublicKey, queued: !!msg.queued },
+        }));
+      } else if (msg.type === "deliver-ack" && typeof msg.msgId === "string") {
         this.dispatchEvent(new CustomEvent("deliver-ack", { detail: { msgId: msg.msgId } }));
       } else if (msg.type === "replaced") {
-        // Сервер разрешает только одно соединение на id одновременно — это
-        // значит, с тем же телефоном/email кто-то подключился ещё в одной
-        // вкладке или на другом устройстве. Не боремся за место: если бы
-        // тут же попытались переподключиться, вышла бы бесконечная борьба
-        // туда-обратно с тем, вторым соединением.
-        etherLog("warn", "[signaling] эта вкладка отключена сервером — обнаружена ещё одна сессия с тем же id (другая вкладка/устройство с тем же телефоном или email?)");
+        etherLog("warn", "[signaling] эта вкладка отключена сервером — обнаружена ещё одна сессия с тем же id");
         this.shouldRun = false;
         this.dispatchEvent(new CustomEvent("replaced"));
       }
     });
 
     ws.addEventListener("close", () => {
+      if (this.ws !== ws) return;
+      this.ws = null;
       this.connected = false;
       etherLog("info", "[signaling] соединение закрыто, переподключаюсь…");
       this.dispatchEvent(new CustomEvent("disconnected"));
       this._scheduleRetry();
     });
+
     ws.addEventListener("error", (e) => {
       etherLog("warn", "[signaling] ошибка соединения", String(e));
-      try {
-        ws.close();
-      } catch (e2) {}
+      try { ws.close(); } catch (e2) {}
     });
   }
 
   _scheduleRetry() {
-    if (!this.shouldRun) return;
-    setTimeout(() => this._connect(), this._retryDelay);
+    if (!this.shouldRun || this._stopped) return;
+    this._retryTimer = setTimeout(() => {
+      this._retryTimer = null;
+      this._connect();
+    }, this._retryDelay);
     this._retryDelay = Math.min(this._retryDelay * 1.6, 20000);
   }
 
   send(type, payload) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return false;
+    try {
       this.ws.send(JSON.stringify({ type, ...payload }));
       return true;
+    } catch (e) {
+      etherLog("warn", "[signaling] не удалось отправить", type, String(e));
+      return false;
     }
-    return false;
   }
 
-  signal(to, data) {
-    return this.send("signal", { to, data });
-  }
+  signal(to, data) { return this.send("signal", { to, data }); }
 
-  // Отправить конверт (зашифрованное сообщение или квитанцию) — сервер
-  // либо перешлёт его сразу, либо придержит до следующего подключения
-  // адресата. fromPublicKey передаётся рядом открытым текстом, чтобы
-  // получатель мог расшифровать даже если никогда раньше не видел нас
-  // онлайн. Возвращает false, только если у нас самих сейчас нет связи
-  // с сервером вообще — тогда конверт нужно поставить в свою локальную
-  // исходящую очередь и повторить попытку позже.
   deliver(to, msgId, envelope, fromPublicKey) {
+    if (!envelope || typeof envelope.iv !== "string" || typeof envelope.ct !== "string") return false;
     return this.send("deliver", { to, msgId, envelope, fromPublicKey });
   }
 
-  mailboxAck(msgId) {
-    return this.send("mailbox-ack", { msgId });
-  }
+  mailboxAck(msgId) { return this.send("mailbox-ack", { msgId }); }
 }
 
-// ---------- Идентификатор из номера/почты ----------
-// Сам номер телефона или email на сервер не уходит — только их хэш,
-// посчитанный прямо на устройстве. Это не анонимно (номера телефонов
-// легко перебрать хэшированием — их пространство небольшое), но сервер
-// физически не хранит и не видит сами контактные данные.
-
+// ---------- Идентификатор ----------
 const Identity = (() => {
   function normalize(raw) {
-    const trimmed = raw.trim();
-    if (trimmed.includes("@")) {
-      return { type: "email", value: trimmed.toLowerCase() };
-    }
-    const digits = trimmed.replace(/[^\d+]/g, "");
-    return { type: "phone", value: digits };
+    const trimmed = String(raw || "").trim();
+    if (!trimmed) return { type: "email", value: "" };
+    if (trimmed.includes("@")) return { type: "email", value: trimmed.toLowerCase() };
+    const plus = trimmed.startsWith("+") ? "+" : "";
+    const digits = trimmed.replace(/\D/g, "");
+    return { type: "phone", value: plus + digits };
   }
 
   async function hashId(normalizedValue) {
     const bytes = new TextEncoder().encode("ether:" + normalizedValue);
     const digest = await crypto.subtle.digest("SHA-256", bytes);
-    return Array.from(new Uint8Array(digest))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
+    return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
   }
 
   async function idFor(raw) {
     const { type, value } = normalize(raw);
-    if (!value) throw new Error("Пустое значение");
+    if (!value || value === "+") throw new Error("Пустое значение");
     if (type === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
       throw new Error("Похоже, это не email и не телефон");
     }

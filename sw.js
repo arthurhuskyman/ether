@@ -1,8 +1,4 @@
-// Service worker — кеширует оболочку приложения, чтобы оно ставилось на
-// главный экран и открывалось офлайн. Сигнальные коды и P2P-соединения
-// сервис-воркер не трогает: это происходит напрямую в вкладке через WebRTC.
-
-const CACHE_VERSION = "ether-shell-v11";
+const CACHE_VERSION = "ether-shell-v12";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -19,19 +15,15 @@ const SHELL_FILES = [
 ];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_VERSION).then((cache) => cache.addAll(SHELL_FILES))
-  );
+  event.waitUntil(caches.open(CACHE_VERSION).then((cache) => cache.addAll(SHELL_FILES)));
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys.filter((key) => key !== CACHE_VERSION).map((key) => caches.delete(key))
-      )
-    )
+    caches.keys().then((keys) => Promise.all(
+      keys.filter((key) => key !== CACHE_VERSION).map((key) => caches.delete(key))
+    ))
   );
   self.clients.claim();
 });
@@ -39,17 +31,19 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
 
+  const url = new URL(event.request.url);
+  if (url.origin !== location.origin) return;
+  if (url.search) return;
+
   event.respondWith(
     caches.match(event.request).then((cached) => {
-      const network = fetch(event.request)
-        .then((response) => {
-          if (response && response.status === 200 && response.type === "basic") {
-            const copy = response.clone();
-            caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, copy));
-          }
-          return response;
-        })
-        .catch(() => cached);
+      const network = fetch(event.request).then((response) => {
+        if (response && response.status === 200 && response.type === "basic") {
+          const copy = response.clone();
+          caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, copy));
+        }
+        return response;
+      }).catch(() => cached);
       return cached || network;
     })
   );

@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<meta name="color-scheme" content="dark light" />
 <title>Эфир — связь напрямую</title>
 <meta name="description" content="Обмен сообщениями и звонки напрямую между устройствами по номеру телефона или email." />
 
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#000000" />
 
-<!-- iOS: установка на главный экран без App Store -->
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Эфир" />
@@ -48,7 +48,6 @@
 
   <main id="content">
 
-    <!-- ЧАТЫ -->
     <section id="screen-chats" class="screen">
       <div id="chats-empty" class="empty-state hidden">
         <div class="empty-icon">💬</div>
@@ -58,9 +57,7 @@
       <div id="chats-list" class="chats-list"></div>
     </section>
 
-    <!-- КОНТАКТЫ -->
     <section id="screen-connect" class="screen hidden">
-
       <div id="signaling-banner" class="banner glass-content warn hidden">
         <span id="signaling-banner-text"></span>
       </div>
@@ -70,7 +67,7 @@
         <p class="muted">Введите номер телефона или email — как только этот человек тоже откроет приложение (с тем же сигнальным сервером), вы автоматически окажетесь на связи. Никакого кода передавать не нужно.</p>
         <input id="add-contact-name" type="text" placeholder="Имя (необязательно)" maxlength="40" />
         <input id="add-contact-value" type="text" placeholder="Телефон или email контакта" maxlength="80" />
-        <button id="add-contact-btn" class="btn-primary">Добавить контакт</button>
+        <button type="button" id="add-contact-btn" class="btn-primary">Добавить контакт</button>
       </div>
 
       <div class="connect-card glass-content" id="online-roster-card">
@@ -80,7 +77,7 @@
         <p id="online-roster-empty" class="muted fine hidden">Пока никого не видно — либо никто, кроме вас, ещё не открыл приложение, либо все скрыли себя в Настройках.</p>
       </div>
 
-      <button id="toggle-manual-btn" class="link-toggle">Ручное подключение без сервера, по коду ›</button>
+      <button type="button" id="toggle-manual-btn" class="link-toggle">Ручное подключение без сервера, по коду ›</button>
 
       <div id="manual-section" class="hidden">
         <div id="incoming-banner" class="banner glass-content hidden">
@@ -90,7 +87,7 @@
         <div class="connect-card glass-content" id="invite-idle">
           <h2>Пригласить кодом</h2>
           <p class="muted">Полностью без какого-либо сервера: вы создадите код приглашения и перешлёте его сами — сообщением, почтой, AirDrop, QR.</p>
-          <button id="create-invite-btn" class="btn-primary">Создать приглашение</button>
+          <button type="button" id="create-invite-btn" class="btn-primary">Создать приглашение</button>
         </div>
 
         <div class="connect-card glass-content hidden" id="invite-active">
@@ -98,18 +95,18 @@
           <p class="muted">Перешлите ссылку или код собеседнику любым способом.</p>
           <div class="code-box"><code id="invite-code-out"></code></div>
           <div class="row-actions">
-            <button id="copy-code-btn" class="btn-secondary">Копировать код</button>
+            <button type="button" id="copy-code-btn" class="btn-secondary">Копировать код</button>
           </div>
           <div class="link-box"><span id="invite-link-out"></span></div>
           <div class="row-actions">
-            <button id="copy-link-btn" class="btn-secondary">Копировать ссылку</button>
-            <button id="share-link-btn" class="btn-secondary">Поделиться</button>
+            <button type="button" id="copy-link-btn" class="btn-secondary">Копировать ссылку</button>
+            <button type="button" id="share-link-btn" class="btn-secondary">Поделиться</button>
           </div>
           <div class="contact-send">
             <input id="invite-contact" type="text" placeholder="Или сразу: телефон / email собеседника" />
             <div class="row-actions">
-              <button id="invite-send-sms" class="btn-secondary">Отправить SMS</button>
-              <button id="invite-send-email" class="btn-secondary">Отправить на почту</button>
+              <button type="button" id="invite-send-sms" class="btn-secondary">Отправить SMS</button>
+              <button type="button" id="invite-send-email" class="btn-secondary">Отправить на почту</button>
             </div>
           </div>
 
@@ -118,8 +115,8 @@
           <h2>Шаг 2 · вставьте код ответа</h2>
           <p class="muted">Когда собеседник откроет ссылку, он получит код ответа — вставьте его сюда.</p>
           <textarea id="answer-code-in" placeholder="Код ответа"></textarea>
-          <button id="complete-invite-btn" class="btn-primary">Подключить</button>
-          <button id="new-invite-again" class="btn-tertiary">Начать заново</button>
+          <button type="button" id="complete-invite-btn" class="btn-primary">Подключить</button>
+          <button type="button" id="new-invite-again" class="btn-tertiary">Начать заново</button>
         </div>
 
         <div class="connect-card glass-content" id="join-card">
@@ -127,19 +124,19 @@
           <div id="paste-code-wrap">
             <p class="muted">Вставьте код, который прислал собеседник.</p>
             <textarea id="paste-code-in" placeholder="Код приглашения"></textarea>
-            <button id="reply-btn" class="btn-primary">Ответить</button>
+            <button type="button" id="reply-btn" class="btn-primary">Ответить</button>
           </div>
           <div id="answer-out-wrap" class="hidden">
             <p class="muted">Отправьте этот код обратно тем же способом — как только собеседник его введёт, вы окажетесь на связи.</p>
             <div class="code-box"><code id="answer-out-code"></code></div>
             <div class="row-actions">
-              <button id="answer-copy-btn" class="btn-secondary">Копировать код</button>
+              <button type="button" id="answer-copy-btn" class="btn-secondary">Копировать код</button>
             </div>
             <div class="contact-send">
               <input id="answer-contact" type="text" placeholder="Или сразу: телефон / email собеседника" />
               <div class="row-actions">
-                <button id="answer-send-sms" class="btn-secondary">Отправить SMS</button>
-                <button id="answer-send-email" class="btn-secondary">Отправить на почту</button>
+                <button type="button" id="answer-send-sms" class="btn-secondary">Отправить SMS</button>
+                <button type="button" id="answer-send-email" class="btn-secondary">Отправить на почту</button>
               </div>
             </div>
           </div>
@@ -147,7 +144,6 @@
       </div>
     </section>
 
-    <!-- НАСТРОЙКИ -->
     <section id="screen-settings" class="screen hidden">
       <div class="settings-group glass-content">
         <label class="settings-row">
@@ -164,7 +160,7 @@
         <div class="settings-row column">
           <span>Сигнальный сервер <span id="signaling-status-dot" class="status-dot"></span></span>
           <input id="settings-signaling-url" type="text" placeholder="wss://ваш-сервер.example.com" />
-          <button id="save-signaling-btn" class="btn-secondary" style="width:100%;margin-top:2px;">Сохранить и подключиться</button>
+          <button type="button" id="save-signaling-btn" class="btn-secondary settings-btn-full">Сохранить и подключиться</button>
           <span id="signaling-status-text" class="fine muted"></span>
         </div>
         <label class="settings-row">
@@ -181,47 +177,46 @@
         <div class="settings-row column">
           <span>Оформление</span>
           <div class="theme-seg">
-            <button data-theme="light">Светлая</button>
-            <button data-theme="dark">Тёмная</button>
-            <button data-theme="auto" class="active">Системная</button>
+            <button type="button" data-theme="light">Светлая</button>
+            <button type="button" data-theme="dark">Тёмная</button>
+            <button type="button" data-theme="auto" class="active">Системная</button>
           </div>
         </div>
       </div>
 
       <div class="settings-group glass-content">
-        <button id="how-it-works-btn" class="settings-row link-row">
+        <button type="button" id="how-it-works-btn" class="settings-row link-row">
           <span>Как это работает и почему без серверов</span>
           <span class="chevron">›</span>
         </button>
-        <button id="diagnostics-btn" class="settings-row link-row">
+        <button type="button" id="diagnostics-btn" class="settings-row link-row">
           <span>Диагностика соединения</span>
           <span class="chevron">›</span>
         </button>
       </div>
 
       <div class="settings-group glass-content">
-        <button id="reset-all-btn" class="settings-row destructive">Разорвать все соединения</button>
+        <button type="button" id="reset-all-btn" class="settings-row destructive">Разорвать все соединения</button>
       </div>
     </section>
 
-    <!-- ЧАТ -->
     <section id="screen-chat" class="screen hidden">
       <div class="chat-header glass">
-        <button id="chat-back" class="icon-btn back-btn" aria-label="Назад">‹</button>
+        <button type="button" id="chat-back" class="icon-btn back-btn" aria-label="Назад">‹</button>
         <div class="chat-header-info">
           <span id="chat-peer-name">Собеседник</span>
           <span id="chat-peer-status" class="muted"></span>
         </div>
-        <button id="chat-call-btn" class="icon-btn call-icon" aria-label="Позвонить">
+        <button type="button" id="chat-call-btn" class="icon-btn call-icon" aria-label="Позвонить">
           <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.7 21 3 13.3 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.4 0 .8-.2 1L6.6 10.8z"/></svg>
         </button>
-        <button id="chat-delete-btn" class="icon-btn delete-icon" aria-label="Удалить контакт">
+        <button type="button" id="chat-delete-btn" class="icon-btn delete-icon" aria-label="Удалить контакт">
           <svg viewBox="0 0 24 24" width="19" height="19"><path fill="currentColor" d="M6 7h12l-1 13.1a2 2 0 0 1-2 1.9H9a2 2 0 0 1-2-1.9L6 7zm3-3.5A1.5 1.5 0 0 1 10.5 2h3A1.5 1.5 0 0 1 15 3.5V5H9v-1.5zM4 5h16v2H4V5z"/></svg>
         </button>
       </div>
       <div id="chat-messages" class="chat-messages"></div>
       <form id="chat-form" class="chat-input-bar glass">
-        <input id="chat-input" type="text" placeholder="Сообщение" autocomplete="off" />
+        <input id="chat-input" type="text" placeholder="Сообщение" autocomplete="off" maxlength="4000" />
         <button type="submit" class="send-btn" aria-label="Отправить">
           <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M3 11.5 21 3l-6 18-4-7.5L3 11.5z"/></svg>
         </button>
@@ -231,15 +226,15 @@
   </main>
 
   <nav id="tab-bar" class="glass">
-    <button class="tab-btn active" data-tab="chats">
+    <button type="button" class="tab-btn active" data-tab="chats">
       <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 4V6a2 2 0 0 1 2-2z"/></svg>
       <span>Чаты</span>
     </button>
-    <button class="tab-btn" data-tab="connect">
+    <button type="button" class="tab-btn" data-tab="connect">
       <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-4 0-8 2-8 5v1h16v-1c0-3-4-5-8-5z"/></svg>
       <span>Контакты</span>
     </button>
-    <button class="tab-btn" data-tab="settings">
+    <button type="button" class="tab-btn" data-tab="settings">
       <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zM19.4 13a7.4 7.4 0 0 0 .06-1 7.4 7.4 0 0 0-.06-1l2-1.6-2-3.4-2.4 1a7.7 7.7 0 0 0-1.7-1L14.9 3H9.1l-.4 2.6a7.7 7.7 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.4 7.4 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.7 7.7 0 0 0 1.7 1l.4 2.6h5.8l.4-2.6a7.7 7.7 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6z"/></svg>
       <span>Настройки</span>
     </button>
@@ -255,20 +250,20 @@
     <p id="call-phase" class="call-phase"></p>
   </div>
   <div class="call-controls" id="call-controls-active">
-    <button id="call-mute-btn" class="call-btn">
+    <button type="button" id="call-mute-btn" class="call-btn">
       <svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-2.1A7 7 0 0 0 19 12h-2z"/></svg>
       <span>Микрофон</span>
     </button>
-    <button id="call-hangup-btn" class="call-btn hangup">
+    <button type="button" id="call-hangup-btn" class="call-btn hangup">
       <svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M12 9c-2.5 0-4.9.5-7 1.4v3.4c0 .6-.4 1.1-.9 1.3-1 .4-2 1-2.8 1.6a1.5 1.5 0 0 0-.2 2.2l1.8 1.8a1.5 1.5 0 0 0 2 .1c.5-.4 1-.8 1.6-1.1a1.5 1.5 0 0 1 1.6.1c1 .7 2.2 1.2 3.9 1.2s2.9-.5 3.9-1.2a1.5 1.5 0 0 1 1.6-.1c.6.3 1.1.7 1.6 1.1a1.5 1.5 0 0 0 2-.1l1.8-1.8a1.5 1.5 0 0 0-.2-2.2c-.8-.6-1.8-1.2-2.8-1.6a1.4 1.4 0 0 1-.9-1.3v-3.4A17.6 17.6 0 0 0 12 9z" transform="rotate(135 12 12)"/></svg>
     </button>
   </div>
   <div class="call-controls hidden" id="call-controls-incoming">
-    <button id="call-decline-btn" class="call-btn hangup">
+    <button type="button" id="call-decline-btn" class="call-btn hangup">
       <svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M12 9c-2.5 0-4.9.5-7 1.4v3.4c0 .6-.4 1.1-.9 1.3-1 .4-2 1-2.8 1.6a1.5 1.5 0 0 0-.2 2.2l1.8 1.8a1.5 1.5 0 0 0 2 .1c.5-.4 1-.8 1.6-1.1a1.5 1.5 0 0 1 1.6.1c1 .7 2.2 1.2 3.9 1.2s2.9-.5 3.9-1.2a1.5 1.5 0 0 1 1.6-.1c.6.3 1.1.7 1.6 1.1a1.5 1.5 0 0 0 2-.1l1.8-1.8a1.5 1.5 0 0 0-.2-2.2c-.8-.6-1.8-1.2-2.8-1.6a1.4 1.4 0 0 1-.9-1.3v-3.4A17.6 17.6 0 0 0 12 9z" transform="rotate(135 12 12)"/></svg>
       <span>Отклонить</span>
     </button>
-    <button id="call-accept-btn" class="call-btn accept">
+    <button type="button" id="call-accept-btn" class="call-btn accept">
       <svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.7 21 3 13.3 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.4 0 .8-.2 1L6.6 10.8z"/></svg>
       <span>Принять</span>
     </button>
@@ -282,14 +277,14 @@
     <div class="sheet-handle"></div>
     <h2>Как это работает</h2>
     <p><strong>Пока оба онлайн — всегда напрямую.</strong> Сообщения и звук идут между устройствами по протоколу WebRTC. Сервер их не видит и не передаёт.</p>
-    <p><strong>Если собеседник офлайн — сообщение временно хранится на сервере, но в зашифрованном виде.</strong> Чтобы доставка была гарантированной, а не только «пока оба в сети», сообщение шифруется прямо на вашем устройстве (алгоритм Диффи—Хеллмана + AES-GCM) ключом, который знают только два устройства — ваше и собеседника. Сервер держит только нечитаемый шифротекст в памяти (не на диске) до момента, когда собеседник подключится и заберёт его, после чего запись удаляется.</p>
-    <p><strong>Статусы сообщений.</strong> Серая галочка — сообщение отправлено. Жёлтая — доставлено (получено собеседником напрямую или гарантированно принято сервером на хранение). Зелёная — собеседник открыл переписку и увидел сообщение. Красная — не удалось даже связаться с сервером, сообщение отправится повторно, как только связь появится.</p>
-    <p><strong>Сигнальный сервер также помогает найти друг друга.</strong> Он в реальном времени хранит в памяти короткий список «кто сейчас онлайн» — по хэшу от номера/email, не по самому номеру — и пересылает технический пакет подключения (offer/answer), когда оба контакта одновременно в сети.</p>
-    <p><strong>Можно и совсем без сервера.</strong> В разделе «Контакты» есть режим «Ручное подключение по коду» — тогда вы сами пересылаете код любым способом, а сервер не участвует вообще; но в этом режиме гарантированная офлайн-доставка недоступна — обоим нужно быть в сети одновременно.</p>
-    <p><strong>Публичные STUN-серверы Google</strong> помогают устройству узнать свой внешний сетевой адрес — как справочная служба, которая называет номер, но не слушает разговор.</p>
-    <p><strong>Звонки</strong> работают только пока оба устройства в сети одновременно — гарантированная доставка касается только текстовых сообщений, для звонка собеседника нужно застать на связи.</p>
-    <p><strong>Ограничения:</strong> push-уведомлений о сообщении, когда приложение полностью закрыто, всё ещё нет. По умолчанию используется общий сигнальный сервер — свой собственный можно развернуть и указать в Настройках, инструкция в README проекта.</p>
-    <button id="how-it-works-close" class="btn-primary">Понятно</button>
+    <p><strong>Если собеседник офлайн — сообщение временно хранится на сервере, но в зашифрованном виде.</strong> Чтобы доставка была гарантированной, сообщение шифруется прямо на вашем устройстве (алгоритм Диффи—Хеллмана + AES-GCM) ключом, который знают только два устройства. Сервер держит только нечитаемый шифротекст в памяти до момента, когда собеседник подключится.</p>
+    <p><strong>Статусы сообщений.</strong> Серая галочка — отправлено. Жёлтая — доставлено. Зелёная — прочитано. Красная — не удалось связаться, повторная отправка произойдёт автоматически.</p>
+    <p><strong>Сигнальный сервер</strong> в реальном времени хранит в памяти короткий список «кто сейчас онлайн» — по хэшу от номера/email, не по самому номеру — и пересылает технический пакет подключения (offer/answer).</p>
+    <p><strong>Можно и совсем без сервера</strong> — «Ручное подключение по коду», тогда сервер не участвует вообще.</p>
+    <p><strong>Публичные STUN-серверы Google</strong> помогают устройству узнать свой внешний сетевой адрес.</p>
+    <p><strong>Звонки</strong> работают только пока оба устройства в сети одновременно.</p>
+    <p><strong>Ограничения:</strong> push-уведомлений о сообщении, когда приложение полностью закрыто, всё ещё нет.</p>
+    <button type="button" id="how-it-works-close" class="btn-primary">Понятно</button>
   </div>
 </div>
 
@@ -299,28 +294,24 @@
   <div class="sheet-panel glass-content">
     <div class="sheet-handle"></div>
     <h2>Диагностика соединения</h2>
-    <p class="muted fine">Скопируйте текст ниже и пришлите его, если что-то не работает — здесь видно, на каком именно шаге застряло соединение.</p>
+    <p class="muted fine">Скопируйте текст ниже и пришлите его, если что-то не работает.</p>
     <div id="diagnostics-summary" class="diag-summary"></div>
     <pre id="diagnostics-log" class="diag-log"></pre>
     <div class="row-actions">
-      <button id="diagnostics-copy-btn" class="btn-secondary">Скопировать всё</button>
-      <button id="diagnostics-refresh-btn" class="btn-secondary">Обновить</button>
+      <button type="button" id="diagnostics-copy-btn" class="btn-secondary">Скопировать всё</button>
+      <button type="button" id="diagnostics-refresh-btn" class="btn-secondary">Обновить</button>
     </div>
-    <button id="diagnostics-close" class="btn-primary">Закрыть</button>
+    <button type="button" id="diagnostics-close" class="btn-primary">Закрыть</button>
   </div>
 </div>
 
 <div id="toast"></div>
 
-<!-- СТРАХОВОЧНЫЙ ЭКРАН: показывается, только если запуск завис по
-     непредвиденной причине (например, повреждённые локальные данные) —
-     чтобы вместо пустого/серого экрана человек увидел, что происходит,
-     и мог сам восстановиться, не дожидаясь переустановки. -->
 <div id="boot-recovery" class="hidden">
-  <div class="onboarding-card glass-content" style="text-align:center;">
-    <h1 style="font-size:22px;">Что-то пошло не так при запуске</h1>
+  <div class="onboarding-card glass-content boot-recovery-card">
+    <h1 class="boot-recovery-title">Что-то пошло не так при запуске</h1>
     <p class="onboarding-sub">Похоже, локальные данные приложения повреждены. Обычно помогает очистить их — переписка на этом устройстве будет потеряна, но сами контакты можно будет добавить заново.</p>
-    <button id="boot-recovery-reset" class="btn-primary">Очистить данные и начать заново</button>
+    <button type="button" id="boot-recovery-reset" class="btn-primary">Очистить данные и начать заново</button>
   </div>
 </div>
 

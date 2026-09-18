@@ -1,20 +1,7 @@
-// Слой P2P-связи. Никакого backend нет вообще: единственный момент,
-// когда двум устройствам нужен посредник — обмен самым первым
-// SDP-пакетом (offer/answer), потому что кто-то должен узнать текущий
-// сетевой адрes и параметры другого устройства. Этот обмен происходит
-// вручную — кодом или ссылкой, которую пользователь пересылает любым
-// удобным способом (AirDrop, сообщением, QR). Для обхода NAT используются
-// только публичные STUN-серверы Google — они не видят и не передают ни
-// текст, ни звук, а лишь помогают устройству узнать свой внешний адрес.
-// После того как канал открыт, все дальнейшие договорённости (например,
-// добавление аудио для звонка) идут уже через сам P2P data-channel —
-// новый код вводить не нужно.
-
 const ICE_SERVERS = [
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun1.l.google.com:19302" },
 ];
-
 const ICE_GATHER_TIMEOUT_MS = 4000;
 
 function waitForIceGathering(pc) {
@@ -37,16 +24,17 @@ class PeerLink extends EventTarget {
     this.id = id;
     this.localName = localName;
     this.remoteName = remoteName;
-    this.role = role; // 'offerer' | 'answerer'
-    this.status = "new"; // new | awaiting-answer | connecting | connected | in-call | disconnected
+    this.role = role;
+    this.status = "new";
     this._closed = false;
     this.pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
     this.dc = null;
     this.localAudioTrack = null;
-    this.remoteAudioEl = null;
     this._pendingNegotiation = false;
+    this._renegotiationRetryTimer = null;
 
     this.pc.addEventListener("connectionstatechange", () => {
+      if (this._closed) return;
       const s = this.pc.connectionState;
       if (s === "connected" && this.status !== "in-call") this._setStatus("connected");
       if (s === "failed" || s === "disconnected" || s === "closed") this._setStatus("disconnected");
@@ -54,7 +42,7 @@ class PeerLink extends EventTarget {
 
     this.pc.addEventListener("track", (ev) => {
       const [stream] = ev.streams;
-      this.dispatchEvent(new CustomEvent("remote-track", { detail: { stream, track: ev.track } }));
+      if (stream) this.dispatchEvent(new CustomEvent("remote-track", { detail: { stream, track: ev.track } }));
     });
 
     this.pc.addEventListener("negotiationneeded", () => this._renegotiateOverDataChannel());
@@ -71,6 +59,8 @@ class PeerLink extends EventTarget {
   }
 
   _setStatus(status) {
+    if (this._closed && status !== "disconnected") return;
+    if (this.status === status) return;
     this.status = status;
     this.dispatchEvent(new CustomEvent("status", { detail: { status } }));
   }
@@ -80,14 +70,10 @@ class PeerLink extends EventTarget {
     this.dc.addEventListener("close", () => this._setStatus("disconnected"));
     this.dc.addEventListener("message", (ev) => {
       let payload;
-      try {
-        payload = JSON.parse(ev.data);
-      } catch (e) {
-        return;
-      }
-      if (payload.kind === "sdp") {
-        this._handleRemoteSdp(payload);
-      } else {
+      try { payload = JSON.parse(ev.data); } catch (e) { return; }
+      if (payload && payload.kind === "sdp") {
+        this._handleRemoteSdp(payload).catch((e) => etherLog("warn", "[webrtc] ошибка пересогласования:", String(e)));
+      } else if (payload) {
         this.dispatchEvent(new CustomEvent("app-message", { detail: payload }));
       }
     });
@@ -95,21 +81,13 @@ class PeerLink extends EventTarget {
 
   send(payload) {
     if (this.dc && this.dc.readyState === "open") {
-      this.dc.send(JSON.stringify(payload));
-      return true;
+      try {
+        this.dc.send(JSON.stringify(payload));
+        return true;
+      } catch (e) { return false; }
     }
     return false;
   }
-
-  // ---- Первое рукопожатие (ручной обмен кодом) ----
-  //
-  // Эти методы асинхронные и могут занимать до нескольких секунд (ожидание
-  // ICE). Если за это время связь была отменена другой веткой кода —
-  // например, обе стороны почти одновременно решили быть звонящими, и
-  // разрешение конфликта закрыло это самое соединение — pc.close() уже
-  // вызван, а дальнейшие операции над ним кидают InvalidStateError. Здесь
-  // это не бага сети, а нормальная ситуация "нас опередили", поэтому вместо
-  // исключения тихо возвращаем null — вызывающий код просто ничего не делает.
 
   async createInitialOffer(roomTag) {
     try {
@@ -131,7 +109,7 @@ class PeerLink extends EventTarget {
   }
 
   async acceptOfferAndCreateAnswer(packet) {
-    this.remoteName = packet.n || this.remoteName;
+    this.remoteName = (packet && packet.n) || this.remoteName;
     try {
       await this.pc.setRemoteDescription(packet.d);
       const answer = await this.pc.createAnswer();
@@ -151,7 +129,7 @@ class PeerLink extends EventTarget {
   }
 
   async acceptAnswer(packet) {
-    this.remoteName = packet.n || this.remoteName;
+    this.remoteName = (packet && packet.n) || this.remoteName;
     try {
       await this.pc.setRemoteDescription(packet.d);
     } catch (e) {
@@ -160,22 +138,32 @@ class PeerLink extends EventTarget {
     }
   }
 
-  // ---- Дальнейшая пересогласование уже идёт через открытый канал ----
-
   async _renegotiateOverDataChannel() {
     if (this._pendingNegotiation) return;
-    if (!this.dc || this.dc.readyState !== "open") return; // до первого рукопожатия — обычный flow, не через dc
+    if (!this.dc || this.dc.readyState !== "open") return;
+    if (this._closed) return;
     this._pendingNegotiation = true;
     try {
       const offer = await this.pc.createOffer();
       await this.pc.setLocalDescription(offer);
-      this.send({ kind: "sdp", sdpType: "offer", sdp: this.pc.localDescription.sdp });
+      const ok = this.send({ kind: "sdp", sdpType: "offer", sdp: this.pc.localDescription.sdp });
+      if (!ok && !this._closed) {
+        this._renegotiationRetryTimer = setTimeout(() => {
+          this._renegotiationRetryTimer = null;
+          this._pendingNegotiation = false;
+          this._renegotiateOverDataChannel();
+        }, 500);
+        return;
+      }
+    } catch (e) {
+      etherLog("warn", "[webrtc] пересогласование не удалось:", String(e));
     } finally {
-      this._pendingNegotiation = false;
+      if (!this._renegotiationRetryTimer) this._pendingNegotiation = false;
     }
   }
 
   async _handleRemoteSdp(payload) {
+    if (this._closed) return;
     if (payload.sdpType === "offer") {
       await this.pc.setRemoteDescription({ type: "offer", sdp: payload.sdp });
       const answer = await this.pc.createAnswer();
@@ -186,9 +174,8 @@ class PeerLink extends EventTarget {
     }
   }
 
-  // ---- Звонки ----
-
   async startCall() {
+    if (this._closed) throw new Error("link closed");
     if (!this.localAudioTrack) {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       this.localAudioTrack = stream.getAudioTracks()[0];
@@ -198,10 +185,8 @@ class PeerLink extends EventTarget {
     this.send({ kind: "call-state", state: "ringing" });
   }
 
-  // Сторона, которой звонят, должна отдельно и явно добавить свой
-  // аудиопоток — без этого разговор получается односторонним: звонящий
-  // передаёт звук, а его никто не передаёт обратно.
   async answerCall() {
+    if (this._closed) throw new Error("link closed");
     if (!this.localAudioTrack) {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       this.localAudioTrack = stream.getAudioTracks()[0];
@@ -211,17 +196,17 @@ class PeerLink extends EventTarget {
     this.send({ kind: "call-state", state: "accepted" });
   }
 
-  declineCall() {
-    this.send({ kind: "call-state", state: "declined" });
-  }
+  declineCall() { this.send({ kind: "call-state", state: "declined" }); }
 
   setMuted(muted) {
     if (this.localAudioTrack) this.localAudioTrack.enabled = !muted;
   }
 
   endCall() {
-    const senders = this.pc.getSenders().filter((s) => s.track && s.track.kind === "audio");
-    senders.forEach((s) => this.pc.removeTrack(s));
+    try {
+      const senders = this.pc.getSenders().filter((s) => s.track && s.track.kind === "audio");
+      senders.forEach((s) => { try { this.pc.removeTrack(s); } catch (e) {} });
+    } catch (e) {}
     if (this.localAudioTrack) {
       this.localAudioTrack.stop();
       this.localAudioTrack = null;
@@ -231,7 +216,9 @@ class PeerLink extends EventTarget {
   }
 
   close() {
+    if (this._closed) return;
     this._closed = true;
+    if (this._renegotiationRetryTimer) { clearTimeout(this._renegotiationRetryTimer); this._renegotiationRetryTimer = null; }
     try {
       if (this.localAudioTrack) this.localAudioTrack.stop();
       if (this.dc) this.dc.close();
@@ -241,21 +228,22 @@ class PeerLink extends EventTarget {
   }
 }
 
-// Управляет набором PeerLink (mesh: сколько угодно прямых подключений).
 class MeshManager extends EventTarget {
   constructor(localName) {
     super();
     this.localName = localName;
-    this.links = new Map(); // id -> PeerLink
+    this.links = new Map();
   }
 
   createOutgoingLink(id) {
+    this.remove(id);
     const link = new PeerLink({ id, localName: this.localName, role: "offerer" });
     this._wire(link);
     return link;
   }
 
   createIncomingLink(id) {
+    this.remove(id);
     const link = new PeerLink({ id, localName: this.localName, role: "answerer" });
     this._wire(link);
     return link;
@@ -281,9 +269,7 @@ class MeshManager extends EventTarget {
     }
   }
 
-  get(id) {
-    return this.links.get(id);
-  }
+  get(id) { return this.links.get(id); }
 
   remove(id) {
     const link = this.links.get(id);
