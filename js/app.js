@@ -2360,15 +2360,30 @@ function setCallPhaseActive() {
   }
 }
 function attachRemoteAudio(id, stream) {
+  if (!stream) { etherLog("warn", "[audio] attachRemoteAudio: пустой stream, id=" + String(id).slice(0, 10) + "…"); return; }
   let audioEl = document.getElementById("remote-audio-" + id);
   if (!audioEl) {
     audioEl = document.createElement("audio");
     audioEl.id = "remote-audio-" + id;
-    audioEl.autoplay = true; audioEl.hidden = true;
+    audioEl.autoplay = true;
+    audioEl.setAttribute("playsinline", "");
+    audioEl.hidden = true;
     document.body.appendChild(audioEl);
   }
   audioEl.srcObject = stream;
-  audioEl.play().catch(() => {});
+  const p = audioEl.play();
+  if (p && typeof p.then === "function") {
+    p.then(() => {
+      etherLog("info", "[audio] attachRemoteAudio: play() ok, id=" + String(id).slice(0, 10) + "…, tracks=" + (stream.getAudioTracks ? stream.getAudioTracks().length : "?"));
+    }).catch((e) => {
+      etherLog("warn", "[audio] play() отклонён:", String(e));
+      const resume = () => { try { audioEl.play().catch(() => {}); } catch (e2) {} };
+      document.addEventListener("touchstart", resume, { once: true });
+      document.addEventListener("click", resume, { once: true });
+    });
+  } else {
+    etherLog("info", "[audio] attachRemoteAudio: play() без Promise, id=" + String(id).slice(0, 10) + "…");
+  }
 }
 function startCallTimer() {
   const started = Date.now();
@@ -2860,7 +2875,7 @@ function wireMeshEvents() {
         closeCallScreen(wasAnswered ? "completed" : "missed");
       }
       sendTypingStop(id);
-      // Правка 2: не пересоздаём сразу — даём PeerLink попытку restartIce().
+      // Не пересоздаём сразу — даём PeerLink попытку restartIce().
       // Если в течение 10 секунд link вернётся в "connected", ничего
       // не делаем. Иначе scheduleAutoConnect создаст новый.
       if (c.managed && c.online) {
@@ -2896,6 +2911,7 @@ function wireMeshEvents() {
   });
   mesh.addEventListener("remote-track", (ev) => {
     const { id, stream } = ev.detail;
+    etherLog("info", "[audio] remote-track id=" + String(id).slice(0, 10) + "…, callId=" + (state.callId ? String(state.callId).slice(0, 10) + "…" : "—") + ", phase=" + state.callPhase);
     if (state.callId === id && state.callPhase !== "active") { pendingRemoteStreams.set(id, stream); return; }
     attachRemoteAudio(id, stream);
   });

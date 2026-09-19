@@ -76,6 +76,7 @@ class PeerLink extends EventTarget {
     this.pc = new RTCPeerConnection({ iceServers: ICE_SERVERS, iceCandidatePoolSize: 4 });
     this.dc = null;
     this.localAudioTrack = null;
+    this.localStream = null;        // ← держим обёртку, чтобы трек ушёл в SDP с msid
     this._pendingNegotiation = false;
     this._renegotiationRetryTimer = null;
     this._pingTimer = null;
@@ -123,9 +124,8 @@ class PeerLink extends EventTarget {
       this.dispatchEvent(new CustomEvent("ice-gathering-state", { detail: { state: this.pc.iceGatheringState } }));
     });
 
-    // Правка 1: не выставляем "disconnected" сразу по ICE. При
-    // "disconnected" ждём 8 с — вдруг ICE сам восстановится. Если нет —
-    // принудительно restartIce(). При "failed" — restartIce() сразу.
+    // При "disconnected" ждём 8 с — вдруг ICE сам восстановится.
+    // Если нет — принудительно restartIce(). При "failed" — сразу.
     this.pc.addEventListener("iceconnectionstatechange", () => {
       const s = this.pc.iceConnectionState;
       this._log("info", "[webrtc]", id.slice(0, 10) + "…", "iceConnection:", s);
@@ -153,19 +153,42 @@ class PeerLink extends EventTarget {
       this.dispatchEvent(new CustomEvent("signaling-state", { detail: { state: this.pc.signalingState } }));
     });
 
+    // ФИКС: во время активного звонка renegotiation (addTrack аудио)
+    // кратковременно переводит connectionState в "connecting" и обратно
+    // в "connected". Раньше это затирало статус "in-call" — контакт на
+    // секунду показывал «соединяемся…» посреди разговора.
     this.pc.addEventListener("connectionstatechange", () => {
       const s = this.pc.connectionState;
       this._log("info", "[webrtc]", id.slice(0, 10) + "…", "connectionState:", s);
       this.dispatchEvent(new CustomEvent("pc-connection-state", { detail: { state: s } }));
       if (this._closed) return;
-      if (s === "connecting") this._setStatus("connecting");
-      if (s === "connected" && this.status !== "in-call") this._setStatus("connected");
-      if (s === "failed" || s === "disconnected" || s === "closed") this._setStatus("disconnected");
+
+      const inCall = this.status === "in-call";
+
+      if (s === "connecting") {
+        if (!inCall) this._setStatus("connecting");
+        return;
+      }
+      if (s === "connected") {
+        if (!inCall) this._setStatus("connected");
+        return;
+      }
+      if (s === "failed" || s === "disconnected" || s === "closed") {
+        this._setStatus("disconnected");
+      }
     });
 
+    // ГЛАВНЫЙ ФИКС ЗВУКА: addTrack() без stream на удалённой стороне
+    // даёт track-событие с пустым ev.streams. Раньше мы в этом случае
+    // молча ничего не делали — и attachRemoteAudio не вызывался.
+    // Теперь всегда диспатчим remote-track, при необходимости собирая
+    // MediaStream из одного трека руками.
     this.pc.addEventListener("track", (ev) => {
-      const [stream] = ev.streams;
-      if (stream) this.dispatchEvent(new CustomEvent("remote-track", { detail: { stream, track: ev.track } }));
+      let stream = (ev.streams && ev.streams[0]) || null;
+      if (!stream && ev.track) stream = new MediaStream([ev.track]);
+      if (!stream) return;
+      this._log("info", "[webrtc]", id.slice(0, 10) + "…", "remote track: kind=" + ev.track.kind + ", streams=" + (ev.streams ? ev.streams.length : 0));
+      this.dispatchEvent(new CustomEvent("remote-track", { detail: { stream, track: ev.track } }));
     });
 
     this.pc.addEventListener("negotiationneeded", () => this._renegotiateOverDataChannel());
@@ -196,7 +219,8 @@ class PeerLink extends EventTarget {
   _bindDataChannel() {
     this.dc.addEventListener("open", () => {
       this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "dataChannel open");
-      this._setStatus("connected");
+      // Если уже идёт звонок — не сбрасываем статус с in-call на connected.
+      if (this.status !== "in-call") this._setStatus("connected");
       clearInterval(this._pingTimer);
       this._pingTimer = setInterval(() => {
         if (this._closed) return;
@@ -329,8 +353,13 @@ class PeerLink extends EventTarget {
     if (!this.localAudioTrack) {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       this.localAudioTrack = stream.getAudioTracks()[0];
+      this.localStream = stream;
+    } else if (!this.localStream) {
+      this.localStream = new MediaStream([this.localAudioTrack]);
     }
-    this.pc.addTrack(this.localAudioTrack);
+    // Передаём поток вторым аргументом: тогда удалённая сторона получит
+    // track-событие с непустым ev.streams — и звук гарантированно привяжется.
+    this.pc.addTrack(this.localAudioTrack, this.localStream);
     this._setStatus("in-call");
     this.send({ kind: "call-state", state: "ringing" });
   }
@@ -340,8 +369,11 @@ class PeerLink extends EventTarget {
     if (!this.localAudioTrack) {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       this.localAudioTrack = stream.getAudioTracks()[0];
+      this.localStream = stream;
+    } else if (!this.localStream) {
+      this.localStream = new MediaStream([this.localAudioTrack]);
     }
-    this.pc.addTrack(this.localAudioTrack);
+    this.pc.addTrack(this.localAudioTrack, this.localStream);
     this._setStatus("in-call");
     this.send({ kind: "call-state", state: "accepted" });
   }
@@ -361,6 +393,7 @@ class PeerLink extends EventTarget {
       this.localAudioTrack.stop();
       this.localAudioTrack = null;
     }
+    this.localStream = null;
     this._setStatus(this.dc && this.dc.readyState === "open" ? "connected" : "disconnected");
     this.send({ kind: "call-state", state: "ended" });
   }
@@ -372,7 +405,13 @@ class PeerLink extends EventTarget {
     if (this._renegotiationRetryTimer) { clearTimeout(this._renegotiationRetryTimer); this._renegotiationRetryTimer = null; }
     if (this._iceDisconnectTimer) { clearTimeout(this._iceDisconnectTimer); this._iceDisconnectTimer = null; }
     try {
-      if (this.localAudioTrack) this.localAudioTrack.stop();
+      if (this.localStream) {
+        try { this.localStream.getTracks().forEach((t) => { try { t.stop(); } catch (e) {} }); } catch (e) {}
+        this.localStream = null;
+      } else if (this.localAudioTrack) {
+        this.localAudioTrack.stop();
+      }
+      this.localAudioTrack = null;
       if (this.dc) this.dc.close();
       this.pc.close();
     } catch (e) {}
