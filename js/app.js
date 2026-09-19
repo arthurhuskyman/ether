@@ -19,8 +19,8 @@ const P2P_FALLBACK_MS = 1500;
 const ONBOARDING_HINT_SHOWN = "ether.hintShown";
 const PIN_ITERATIONS = 120000;
 const DEBUG_KEY = "ether.debugHidden";
-const CONNECT_STUCK_MS = 25000;
-const WATCH_CONNECT_TIMEOUT_MS = 18000;
+const CONNECT_STUCK_MS = 30000;
+const WATCH_CONNECT_TIMEOUT_MS = 20000;
 const ACK_DEDUP_WINDOW_MS = 5000;
 
 function effectiveSignalingUrl() {
@@ -1572,6 +1572,14 @@ function wireSignalingEvents(sig) {
   subs.push(on("connected", () => {
     updateSignalingStatusUI("online", "Подключено");
     renderSignalingBanner();
+    // Правка 3: если линк был живой, но порвался из-за потери WS —
+    // пересоздаём принудительно, чтобы не ждать 25 сек таймаута.
+    for (const [id, link] of mesh.links) {
+      if (link.status === "disconnected" && link._closed !== true) {
+        etherLog("info", "[reconnect] dropping dead link to " + String(id).slice(0, 10) + "…");
+        mesh.remove(id);
+      }
+    }
     for (const id of Array.from(onlineSet)) scheduleAutoConnect(id);
     flushOutbox();
     for (const cid of Array.from(pendingNoKey.keys())) {
@@ -2851,8 +2859,16 @@ function wireMeshEvents() {
         const wasAnswered = state.currentCallRecord && state.currentCallRecord.answeredAt;
         closeCallScreen(wasAnswered ? "completed" : "missed");
       }
-      if (c.managed && c.online) scheduleAutoConnect(id);
       sendTypingStop(id);
+      // Правка 2: не пересоздаём сразу — даём PeerLink попытку restartIce().
+      // Если в течение 10 секунд link вернётся в "connected", ничего
+      // не делаем. Иначе scheduleAutoConnect создаст новый.
+      if (c.managed && c.online) {
+        setTimeout(() => {
+          const stillGone = !mesh.get(id) || mesh.get(id).status === "disconnected";
+          if (stillGone && state.contacts.get(id)) scheduleAutoConnect(id);
+        }, 10000);
+      }
     }
     if (state.chatId === id) renderChatThread();
     if (state.contactCardId === id) renderContactCard();

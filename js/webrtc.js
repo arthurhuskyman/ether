@@ -4,10 +4,9 @@
 const METERED_API_KEY = "aa111f28aa9541c01ac274e43e383bd7f685";
 const METERED_API_URL = `https://arthurhusky.metered.live/api/v1/turn/credentials?apiKey=${METERED_API_KEY}`;
 
-let ICE_SERVERS = [
-  { urls: "stun:stun.l.google.com:19302" },
-  { urls: "stun:stun1.l.google.com:19302" },
-];
+// Только Metered — Google STUN в российских сетях не работает и
+// только замедляет ICE discovery. Metered-серверы придут с API.
+let ICE_SERVERS = [];
 
 window.__etherIceReady = (async () => {
   try {
@@ -39,7 +38,7 @@ window.__etherIceReady = (async () => {
   }
 })();
 
-const ICE_GATHER_TIMEOUT_MS = 6000;
+const ICE_GATHER_TIMEOUT_MS = 3500;
 
 function waitForIceGathering(pc) {
   if (pc.iceGatheringState === "complete") return Promise.resolve();
@@ -80,6 +79,9 @@ class PeerLink extends EventTarget {
     this._pendingNegotiation = false;
     this._renegotiationRetryTimer = null;
     this._pingTimer = null;
+    // Таймер «щадящего» ожидания после ICE disconnected: даём WebRTC
+    // шанс самому восстановить маршрут, и только потом дёргаем restartIce().
+    this._iceDisconnectTimer = null;
 
     this._log("info", "[webrtc]", id.slice(0, 10) + "…", "создан PeerLink, role=" + role);
 
@@ -121,10 +123,26 @@ class PeerLink extends EventTarget {
       this.dispatchEvent(new CustomEvent("ice-gathering-state", { detail: { state: this.pc.iceGatheringState } }));
     });
 
+    // Правка 1: не выставляем "disconnected" сразу по ICE. При
+    // "disconnected" ждём 8 с — вдруг ICE сам восстановится. Если нет —
+    // принудительно restartIce(). При "failed" — restartIce() сразу.
     this.pc.addEventListener("iceconnectionstatechange", () => {
-      this._log("info", "[webrtc]", id.slice(0, 10) + "…", "iceConnection:", this.pc.iceConnectionState);
-      this.dispatchEvent(new CustomEvent("ice-connection-state", { detail: { state: this.pc.iceConnectionState } }));
-      if (this.pc.iceConnectionState === "failed") {
+      const s = this.pc.iceConnectionState;
+      this._log("info", "[webrtc]", id.slice(0, 10) + "…", "iceConnection:", s);
+      this.dispatchEvent(new CustomEvent("ice-connection-state", { detail: { state: s } }));
+      if (s === "disconnected") {
+        if (this._iceDisconnectTimer) clearTimeout(this._iceDisconnectTimer);
+        this._iceDisconnectTimer = setTimeout(() => {
+          this._iceDisconnectTimer = null;
+          if (this._closed) return;
+          if (this.pc.iceConnectionState === "disconnected" || this.pc.iceConnectionState === "failed") {
+            this._log("warn", "[webrtc]", id.slice(0, 10) + "…", "ICE still disconnected after 8s, restartIce()");
+            try { this.pc.restartIce(); } catch (e) {}
+          }
+        }, 8000);
+      } else if (s === "connected" || s === "completed") {
+        if (this._iceDisconnectTimer) { clearTimeout(this._iceDisconnectTimer); this._iceDisconnectTimer = null; }
+      } else if (s === "failed") {
         this._log("warn", "[webrtc]", id.slice(0, 10) + "…", "ICE failed, restartIce()");
         try { this.pc.restartIce(); } catch (e) {}
       }
@@ -352,6 +370,7 @@ class PeerLink extends EventTarget {
     this._closed = true;
     clearInterval(this._pingTimer);
     if (this._renegotiationRetryTimer) { clearTimeout(this._renegotiationRetryTimer); this._renegotiationRetryTimer = null; }
+    if (this._iceDisconnectTimer) { clearTimeout(this._iceDisconnectTimer); this._iceDisconnectTimer = null; }
     try {
       if (this.localAudioTrack) this.localAudioTrack.stop();
       if (this.dc) this.dc.close();
