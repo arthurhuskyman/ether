@@ -1,5 +1,6 @@
 // Слой P2P-связи. TURN-серверы подгружаются с аккаунта Metered; пока
-// они не загружены, ничего не создаётся — ждём window.__etherIceReady.
+// они не загружены — ничего не создаётся, ждём window.__etherIceReady.
+// Добавлена подробная диагностика ICE (см. Debug-вкладку).
 
 const METERED_API_KEY = "aa111f28aa9541c01ac274e43e383bd7f685";
 const METERED_API_URL = `https://arthurhusky.metered.live/api/v1/turn/credentials?apiKey=${METERED_API_KEY}`;
@@ -17,15 +18,18 @@ window.__etherIceReady = (async () => {
     if (Array.isArray(list) && list.length > 0) {
       ICE_SERVERS = ICE_SERVERS.concat(list);
       console.log("[webrtc] TURN Metered загружены:", list.length);
+      if (window.etherLog) window.etherLog("info", "[webrtc] TURN Metered загружены:", list.length, "серверов");
     } else {
       console.warn("[webrtc] Metered вернул пустой список");
+      if (window.etherLog) window.etherLog("warn", "[webrtc] Metered вернул пустой список TURN");
     }
   } catch (e) {
     console.warn("[webrtc] не удалось загрузить TURN Metered:", e);
+    if (window.etherLog) window.etherLog("error", "[webrtc] TURN Metered не загрузился:", String(e));
   }
 })();
 
-const ICE_GATHER_TIMEOUT_MS = 4000;
+const ICE_GATHER_TIMEOUT_MS = 6000;
 
 function waitForIceGathering(pc) {
   if (pc.iceGatheringState === "complete") return Promise.resolve();
@@ -41,6 +45,12 @@ function waitForIceGathering(pc) {
   });
 }
 
+function classifyCandidate(candidateStr) {
+  if (!candidateStr) return "unknown";
+  const m = candidateStr.match(/\b(host|srflx|prflx|relay)\b/);
+  return m ? m[1] : "unknown";
+}
+
 class PeerLink extends EventTarget {
   constructor({ id, localName, remoteName = "", role }) {
     super();
@@ -50,6 +60,10 @@ class PeerLink extends EventTarget {
     this.role = role;
     this.status = "new";
     this._closed = false;
+    this._iceCandidates = [];
+    this._iceErrors = [];
+    this._createdAt = Date.now();
+
     this.pc = new RTCPeerConnection({ iceServers: ICE_SERVERS, iceCandidatePoolSize: 4 });
     this.dc = null;
     this.localAudioTrack = null;
@@ -57,18 +71,67 @@ class PeerLink extends EventTarget {
     this._renegotiationRetryTimer = null;
     this._pingTimer = null;
 
-    this.pc.addEventListener("connectionstatechange", () => {
-      if (this._closed) return;
-      const s = this.pc.connectionState;
-      if (s === "connected" && this.status !== "in-call") this._setStatus("connected");
-      if (s === "failed" || s === "disconnected" || s === "closed") this._setStatus("disconnected");
+    this._log("info", "[webrtc]", id.slice(0, 10) + "…", "создан PeerLink, role=" + role);
+
+    this.pc.addEventListener("icecandidate", (ev) => {
+      if (ev.candidate) {
+        const c = ev.candidate;
+        const kind = c.type || classifyCandidate(c.candidate);
+        this._iceCandidates.push({
+          type: kind,
+          protocol: c.protocol || "?",
+          address: c.address || "?",
+          port: c.port || 0,
+          tcpType: c.tcpType || null,
+          ts: Date.now(),
+        });
+        this._log("info", "[webrtc]", id.slice(0, 10) + "…", "ICE " + kind + " " + (c.protocol || "?"), (c.address || "") + ":" + (c.port || ""));
+        this.dispatchEvent(new CustomEvent("ice-candidate", { detail: { candidate: c, type: kind } }));
+      } else {
+        this._log("info", "[webrtc]", id.slice(0, 10) + "…", "ICE gathering complete");
+        this.dispatchEvent(new CustomEvent("ice-gathering-complete"));
+      }
+    });
+
+    this.pc.addEventListener("icecandidateerror", (ev) => {
+      const err = {
+        url: ev.url,
+        errorCode: ev.errorCode,
+        errorText: ev.errorText,
+        address: ev.address,
+        port: ev.port,
+        ts: Date.now(),
+      };
+      this._iceErrors.push(err);
+      this._log("warn", "[webrtc]", id.slice(0, 10) + "…", "ICE error " + ev.errorCode, ev.errorText || "", ev.url || "");
+    });
+
+    this.pc.addEventListener("icegatheringstatechange", () => {
+      this._log("info", "[webrtc]", id.slice(0, 10) + "…", "gathering:", this.pc.iceGatheringState);
+      this.dispatchEvent(new CustomEvent("ice-gathering-state", { detail: { state: this.pc.iceGatheringState } }));
     });
 
     this.pc.addEventListener("iceconnectionstatechange", () => {
-      if (this._closed) return;
+      this._log("info", "[webrtc]", id.slice(0, 10) + "…", "iceConnection:", this.pc.iceConnectionState);
+      this.dispatchEvent(new CustomEvent("ice-connection-state", { detail: { state: this.pc.iceConnectionState } }));
       if (this.pc.iceConnectionState === "failed") {
+        this._log("warn", "[webrtc]", id.slice(0, 10) + "…", "ICE failed, restartIce()");
         try { this.pc.restartIce(); } catch (e) {}
       }
+    });
+
+    this.pc.addEventListener("signalingstatechange", () => {
+      this._log("info", "[webrtc]", id.slice(0, 10) + "…", "signaling:", this.pc.signalingState);
+      this.dispatchEvent(new CustomEvent("signaling-state", { detail: { state: this.pc.signalingState } }));
+    });
+
+    this.pc.addEventListener("connectionstatechange", () => {
+      const s = this.pc.connectionState;
+      this._log("info", "[webrtc]", id.slice(0, 10) + "…", "connectionState:", s);
+      this.dispatchEvent(new CustomEvent("pc-connection-state", { detail: { state: s } }));
+      if (this._closed) return;
+      if (s === "connected" && this.status !== "in-call") this._setStatus("connected");
+      if (s === "failed" || s === "disconnected" || s === "closed") this._setStatus("disconnected");
     });
 
     this.pc.addEventListener("track", (ev) => {
@@ -89,6 +152,11 @@ class PeerLink extends EventTarget {
     }
   }
 
+  _log(level, ...args) {
+    if (window.etherLog) window.etherLog(level, ...args);
+    else console[level] ? console[level].apply(console, args) : console.log.apply(console, args);
+  }
+
   _setStatus(status) {
     if (this._closed && status !== "disconnected") return;
     if (this.status === status) return;
@@ -98,6 +166,7 @@ class PeerLink extends EventTarget {
 
   _bindDataChannel() {
     this.dc.addEventListener("open", () => {
+      this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "dataChannel open");
       this._setStatus("connected");
       clearInterval(this._pingTimer);
       this._pingTimer = setInterval(() => {
@@ -106,8 +175,12 @@ class PeerLink extends EventTarget {
       }, 5000);
     });
     this.dc.addEventListener("close", () => {
+      this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "dataChannel close");
       clearInterval(this._pingTimer);
       this._setStatus("disconnected");
+    });
+    this.dc.addEventListener("error", (ev) => {
+      this._log("warn", "[webrtc]", this.id.slice(0, 10) + "…", "dataChannel error", String(ev));
     });
     this.dc.addEventListener("message", (ev) => {
       let payload;
@@ -116,7 +189,7 @@ class PeerLink extends EventTarget {
       if (payload.kind === "ping") { this.send({ kind: "pong", t: payload.t }); return; }
       if (payload.kind === "pong") return;
       if (payload.kind === "sdp") {
-        this._handleRemoteSdp(payload).catch((e) => console.warn("[webrtc] пересогласование:", e));
+        this._handleRemoteSdp(payload).catch((e) => this._log("warn", "[webrtc] пересогласование:", String(e)));
       } else {
         this.dispatchEvent(new CustomEvent("app-message", { detail: payload }));
       }
@@ -137,6 +210,7 @@ class PeerLink extends EventTarget {
       await this.pc.setLocalDescription(offer);
       await waitForIceGathering(this.pc);
       if (this._closed || this.pc.signalingState === "closed") return null;
+      this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "offer ready, candidates:", this._iceCandidates.length);
       return {
         t: "offer", n: this.localName, r: roomTag, x: crypto.randomUUID(),
         d: { type: this.pc.localDescription.type, sdp: this.pc.localDescription.sdp },
@@ -155,6 +229,7 @@ class PeerLink extends EventTarget {
       await this.pc.setLocalDescription(answer);
       await waitForIceGathering(this.pc);
       if (this._closed || this.pc.signalingState === "closed") return null;
+      this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "answer ready, candidates:", this._iceCandidates.length);
       return {
         t: "answer", n: this.localName, x: crypto.randomUUID(),
         d: { type: this.pc.localDescription.type, sdp: this.pc.localDescription.sdp },
@@ -192,7 +267,7 @@ class PeerLink extends EventTarget {
         return;
       }
     } catch (e) {
-      console.warn("[webrtc] пересогласование не удалось:", e);
+      this._log("warn", "[webrtc] пересогласование:", String(e));
     } finally {
       if (!this._renegotiationRetryTimer) this._pendingNegotiation = false;
     }
@@ -263,6 +338,26 @@ class PeerLink extends EventTarget {
     } catch (e) {}
     this._setStatus("disconnected");
   }
+
+  // Диагностика для Debug-вкладки
+  getDiagnostics() {
+    let pcState = "—", iceState = "—", iceGather = "—", signalingState = "—", dcState = "—";
+    try { pcState = this.pc.connectionState; } catch (e) {}
+    try { iceState = this.pc.iceConnectionState; } catch (e) {}
+    try { iceGather = this.pc.iceGatheringState; } catch (e) {}
+    try { signalingState = this.pc.signalingState; } catch (e) {}
+    try { dcState = this.dc ? this.dc.readyState : "—"; } catch (e) {}
+    return {
+      id: this.id,
+      role: this.role,
+      status: this.status,
+      pcState, iceState, iceGather, signalingState, dcState,
+      candidates: this._iceCandidates.slice(),
+      errors: this._iceErrors.slice(),
+      createdAt: this._createdAt,
+      closed: this._closed,
+    };
+  }
 }
 
 class MeshManager extends EventTarget {
@@ -294,6 +389,18 @@ class MeshManager extends EventTarget {
     link.addEventListener("remote-track", (ev) => {
       this.dispatchEvent(new CustomEvent("remote-track", { detail: { id: link.id, ...ev.detail } }));
     });
+    link.addEventListener("ice-candidate", (ev) => {
+      this.dispatchEvent(new CustomEvent("ice-candidate", { detail: { id: link.id, ...ev.detail } }));
+    });
+    link.addEventListener("ice-gathering-state", (ev) => {
+      this.dispatchEvent(new CustomEvent("ice-gathering-state", { detail: { id: link.id, ...ev.detail } }));
+    });
+    link.addEventListener("ice-connection-state", (ev) => {
+      this.dispatchEvent(new CustomEvent("ice-connection-state", { detail: { id: link.id, ...ev.detail } }));
+    });
+    link.addEventListener("pc-connection-state", (ev) => {
+      this.dispatchEvent(new CustomEvent("pc-connection-state", { detail: { id: link.id, ...ev.detail } }));
+    });
   }
   broadcast(payload, excludeId = null) {
     for (const [id, link] of this.links) { if (id === excludeId) continue; link.send(payload); }
@@ -309,4 +416,22 @@ class MeshManager extends EventTarget {
     for (const link of this.links.values()) if (link.status === "connected" || link.status === "in-call") n++;
     return n;
   }
+  allDiagnostics() {
+    const out = [];
+    for (const link of this.links.values()) out.push(link.getDiagnostics());
+    return out;
+  }
+}
+
+// Экспортируем etherLog глобально, чтобы webrtc.js мог его использовать
+// до загрузки app.js
+if (typeof window.etherLog !== "function") {
+  window.etherLog = function (level, ...args) {
+    window.__etherDiag = window.__etherDiag || [];
+    const line = args.map((a) => (typeof a === "string" ? a : safeJson(a))).join(" ");
+    window.__etherDiag.push({ ts: Date.now(), level, line });
+    if (window.__etherDiag.length > 500) window.__etherDiag.shift();
+    (console[level] || console.log).apply(console, args);
+  };
+  function safeJson(a) { try { return JSON.stringify(a); } catch (e) { return String(a); } }
 }

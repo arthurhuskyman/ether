@@ -19,6 +19,7 @@ const UNLOCK_ATTEMPTS_LIMIT = 5;
 const P2P_FALLBACK_MS = 1500;
 const ONBOARDING_HINT_SHOWN = "ether.hintShown";
 const PIN_ITERATIONS = 120000;
+const DEBUG_KEY = "ether.debugHidden";
 
 function effectiveSignalingUrl() {
   return (Store.signalingUrl || DEFAULT_SIGNALING_URL).trim();
@@ -31,7 +32,6 @@ const IDB = (() => {
   const DB_NAME = "ether-db";
   const STORE = "kv";
   let dbPromise = null;
-
   function open() {
     if (dbPromise) return dbPromise;
     dbPromise = new Promise((resolve, reject) => {
@@ -48,7 +48,6 @@ const IDB = (() => {
     });
     return dbPromise;
   }
-
   async function set(key, value) {
     try {
       const db = await open();
@@ -61,7 +60,6 @@ const IDB = (() => {
       });
     } catch (e) { return null; }
   }
-
   async function get(key) {
     try {
       const db = await open();
@@ -73,7 +71,6 @@ const IDB = (() => {
       });
     } catch (e) { return undefined; }
   }
-
   return { open, set, get };
 })();
 
@@ -94,7 +91,6 @@ async function backupToIDB() {
     if (v !== null) await IDB.set(k, v);
   }
 }
-
 async function restoreFromIDB() {
   for (const k of CRITICAL_LS_KEYS) {
     if (localStorage.getItem(k) !== null) continue;
@@ -102,7 +98,6 @@ async function restoreFromIDB() {
     if (v !== null && v !== undefined) localStorage.setItem(k, v);
   }
 }
-
 let _idbBackupTimer = null;
 function scheduleIDBBackup() {
   if (_idbBackupTimer) return;
@@ -157,8 +152,9 @@ const Store = {
   },
   get notifBannerDismissed() { return localStorage.getItem("ether.notifBannerDismissed") === "1"; },
   set notifBannerDismissed(v) { localStorage.setItem("ether.notifBannerDismissed", v ? "1" : "0"); },
-  get debugHidden() { return localStorage.getItem("ether.debugHidden") === "1"; },
-  set debugHidden(v) { localStorage.setItem("ether.debugHidden", v ? "1" : "0"); },
+  // debugHidden: по умолчанию СКРЫТ. Показываем только если явно записали "0".
+  get debugHidden() { return localStorage.getItem(DEBUG_KEY) !== "0"; },
+  set debugHidden(v) { localStorage.setItem(DEBUG_KEY, v ? "1" : "0"); },
   get myPrivateKeyJwk() { try { const v = localStorage.getItem("ether.privKey"); return v ? JSON.parse(v) : null; } catch (e) { return null; } },
   set myPrivateKeyJwk(v) { localStorage.setItem("ether.privKey", JSON.stringify(v)); scheduleIDBBackup(); },
   get myPublicKeyJwk() { try { const v = localStorage.getItem("ether.pubKey"); return v ? JSON.parse(v) : null; } catch (e) { return null; } },
@@ -168,6 +164,21 @@ const Store = {
   get theme() { return localStorage.getItem("ether.theme") || "auto"; },
   set theme(v) { localStorage.setItem("ether.theme", v); scheduleIDBBackup(); },
 };
+
+// =====================================================================
+// Логирование
+// =====================================================================
+window.__etherDiag = window.__etherDiag || [];
+if (typeof window.etherLog !== "function") {
+  window.etherLog = function (level, ...args) {
+    const line = args.map((a) => (typeof a === "string" ? a : safeJsonArg(a))).join(" ");
+    window.__etherDiag.push({ ts: Date.now(), level, line });
+    if (window.__etherDiag.length > 500) window.__etherDiag.shift();
+    (console[level] || console.log).apply(console, args);
+  };
+}
+function safeJsonArg(a) { try { return JSON.stringify(a); } catch (e) { return String(a); } }
+const etherLog = window.etherLog;
 
 // =====================================================================
 // Состояние
@@ -229,13 +240,12 @@ const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
 function safeCall(fn, label) {
   try { fn(); }
-  catch (e) { console.error("[wire] " + (label || "unknown"), e); }
+  catch (e) { etherLog("error", "[wire]", label || "unknown", String(e && e.message || e)); }
 }
 
 function escapeHtml(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
-
 function linkifyAndHighlight(text, query) {
   const esc = escapeHtml(text);
   const urlRegex = /(https?:\/\/[^\s<]+[^\s<.,;:!?)])/gi;
@@ -251,7 +261,6 @@ function linkifyAndHighlight(text, query) {
   if (lastIdx < esc.length) result += highlightRaw(esc.slice(lastIdx), query);
   return result;
 }
-
 function highlightRaw(escapedText, query) {
   if (!query) return escapedText;
   const q = query.toLowerCase();
@@ -267,7 +276,6 @@ function highlightRaw(escapedText, query) {
   }
   return result + escapedText.slice(i);
 }
-
 function truncate(s, n) { s = String(s == null ? "" : s); return s.length > n ? s.slice(0, n - 1) + "…" : s; }
 function initials(name) { return String(name || "?").trim().slice(0, 2).toUpperCase() || "?"; }
 
@@ -323,17 +331,11 @@ function randomSaltHex(len) {
   const a = crypto.getRandomValues(new Uint8Array(len));
   return bufToHex(a);
 }
-
 async function pbkdf2Hex(pin, saltHex, iterations) {
   const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw", enc.encode(pin), { name: "PBKDF2" }, false, ["deriveBits"]
-  );
+  const key = await crypto.subtle.importKey("raw", enc.encode(pin), { name: "PBKDF2" }, false, ["deriveBits"]);
   const salt = new Uint8Array(saltHex.match(/../g).map((h) => parseInt(h, 16)));
-  const bits = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", salt, iterations, hash: "SHA-256" },
-    key, 256
-  );
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations, hash: "SHA-256" }, key, 256);
   return bufToHex(bits);
 }
 
@@ -342,6 +344,41 @@ function isStandalone() {
       || (window.navigator && window.navigator.standalone === true);
 }
 function isIOS() { return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream; }
+
+// =====================================================================
+// Аудио-разогрев (iOS)
+// =====================================================================
+function initAudioWarmup() {
+  const warm = () => {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (!ringtoneCtx) ringtoneCtx = new (window.AudioContext || window.webkitAudioContext)();
+      [audioCtx, ringtoneCtx].forEach((ctx) => {
+        if (!ctx) return;
+        if (ctx.state === "suspended") ctx.resume().catch(() => {});
+        // Silent tone для полной разблокировки
+        try {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          gain.gain.value = 0.0001;
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.01);
+        } catch (e) {}
+      });
+      etherLog("info", "[audio] AudioContext warmed, state=" + (audioCtx && audioCtx.state));
+    } catch (e) {
+      etherLog("warn", "[audio] warmup failed:", String(e));
+    }
+    document.removeEventListener("touchstart", warm);
+    document.removeEventListener("click", warm);
+    document.removeEventListener("keydown", warm);
+  };
+  document.addEventListener("touchstart", warm, { passive: true });
+  document.addEventListener("click", warm);
+  document.addEventListener("keydown", warm);
+}
 
 // =====================================================================
 // Звуки и вибрация
@@ -368,11 +405,11 @@ function playMessageSound() {
     osc.connect(gain);
     gain.connect(ctx.destination);
     const t = ctx.currentTime;
-    gain.gain.exponentialRampToValueAtTime(0.12, t + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.2, t + 0.02);
     gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
     osc.start(t);
     osc.stop(t + 0.32);
-  } catch (e) {}
+  } catch (e) { etherLog("warn", "[sound] message:", String(e)); }
 }
 function playOutgoingSound() {
   if (!Store.soundsEnabled) return;
@@ -387,7 +424,7 @@ function playOutgoingSound() {
     osc.connect(gain);
     gain.connect(ctx.destination);
     const t = ctx.currentTime;
-    gain.gain.exponentialRampToValueAtTime(0.06, t + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.08, t + 0.01);
     gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.15);
     osc.start(t);
     osc.stop(t + 0.2);
@@ -395,6 +432,7 @@ function playOutgoingSound() {
 }
 function vibrate(pattern) {
   if (!Store.soundsEnabled) return;
+  // iOS не поддерживает navigator.vibrate — молча пропускаем
   if (navigator.vibrate) {
     try { navigator.vibrate(pattern); } catch (e) {}
   }
@@ -404,26 +442,42 @@ function playRingtone() {
   stopRingtone();
   try {
     if (!ringtoneCtx) ringtoneCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (ringtoneCtx.state === "suspended") ringtoneCtx.resume();
-    const beep = () => {
-      if (!ringtoneCtx) return;
-      const osc = ringtoneCtx.createOscillator();
-      const gain = ringtoneCtx.createGain();
+    if (ringtoneCtx.state === "suspended") ringtoneCtx.resume().catch(() => {});
+    etherLog("info", "[ringtone] start, ctx.state=" + ringtoneCtx.state);
+
+    const playTone = (freq, delay, dur, vol) => {
+      const ctx = ringtoneCtx;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
       osc.type = "sine";
-      osc.frequency.value = 480;
+      osc.frequency.value = freq;
       gain.gain.value = 0.0001;
-      osc.connect(gain); gain.connect(ringtoneCtx.destination);
-      const t = ringtoneCtx.currentTime;
-      gain.gain.exponentialRampToValueAtTime(0.18, t + 0.05);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
-      osc.start(t); osc.stop(t + 0.7);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      const t = ctx.currentTime + delay;
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(vol, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      osc.start(t);
+      osc.stop(t + dur + 0.05);
     };
-    beep();
-    ringtoneTimer = setInterval(beep, 1500);
-    if (Store.soundsEnabled && navigator.vibrate) {
-      try { navigator.vibrate([300, 200, 300, 200, 300]); } catch (e) {}
+
+    const ringCycle = () => {
+      // "Ring-ring": два тона вверх-вниз, потом пауза
+      playTone(880, 0, 0.18, 0.4);
+      playTone(660, 0.18, 0.18, 0.4);
+      playTone(880, 0.4, 0.18, 0.4);
+      playTone(660, 0.58, 0.18, 0.4);
+    };
+
+    ringCycle();
+    ringtoneTimer = setInterval(ringCycle, 2000);
+
+    // Вибрация (iOS не поддерживает, Android — да)
+    if (navigator.vibrate) {
+      try { navigator.vibrate([400, 200, 400, 200, 400, 1000]); } catch (e) {}
     }
-  } catch (e) { console.warn("ringtone:", e); }
+  } catch (e) { etherLog("error", "[ringtone] failed:", String(e)); }
 }
 function stopRingtone() {
   if (ringtoneTimer) { clearInterval(ringtoneTimer); ringtoneTimer = null; }
@@ -439,7 +493,6 @@ function showLockScreen() {
   const a = $("#app-shell"); if (a) a.classList.add("hidden");
   setTimeout(() => { const p = $("#lock-pin"); if (p) p.focus(); }, 100);
 }
-
 async function tryUnlock(pin) {
   if (!pin) return;
   if (!Store.pinSalt) {
@@ -461,7 +514,6 @@ async function tryUnlock(pin) {
     } else toast("Неверный пин-код");
   }
 }
-
 function wireLockScreen() {
   if (__lockWired) return;
   __lockWired = true;
@@ -484,7 +536,7 @@ function bootAfterUnlock() {
       window.__etherIceReady || Promise.resolve(),
     ]).then(() => {
       try { startApp(); }
-      catch (e) { console.error("[startApp] упал:", e); }
+      catch (e) { etherLog("error", "[startApp]", String(e)); }
     }).catch(() => {
       try { startApp(); } catch (e) {}
     });
@@ -493,7 +545,6 @@ function bootAfterUnlock() {
     wireOnboardingOnce();
   }
 }
-
 function initBoot() {
   wireLockScreen();
   if (Store.pinEnabled && Store.pinHash) { showLockScreen(); return; }
@@ -522,7 +573,7 @@ function wireOnboardingOnce() {
     await (window.__etherIceReady || Promise.resolve()).catch(() => {});
     await backupToIDB().catch(() => {});
     const o = $("#onboarding"); if (o) o.classList.add("hidden");
-    try { startApp(); } catch (e) { console.error("[startApp]", e); }
+    try { startApp(); } catch (e) { etherLog("error", "[startApp]", String(e)); }
   });
 }
 
@@ -532,7 +583,7 @@ async function ensureKeyPair() {
     const { publicKeyJwk, privateKeyJwk } = await CryptoHelper.generateKeyPair();
     Store.myPrivateKeyJwk = privateKeyJwk;
     Store.myPublicKeyJwk = publicKeyJwk;
-  } catch (e) { console.error("[crypto] key pair:", e); }
+  } catch (e) { etherLog("error", "[crypto] key pair:", String(e)); }
 }
 
 function startApp() {
@@ -547,9 +598,9 @@ function startApp() {
   const l = $("#lock-screen"); if (l) l.classList.add("hidden");
   const a = $("#app-shell"); if (a) a.classList.remove("hidden");
 
+  etherLog("info", "[startApp] init, id=" + (Store.myId ? Store.myId.slice(0, 10) + "…" : "(none)"));
   mesh = new MeshManager(Store.name);
 
-  // Каждая функция изолирована: падение одной не ломает остальные.
   safeCall(wireMeshEvents, "wireMeshEvents");
   safeCall(wireTabBar, "wireTabBar");
   safeCall(wireConnectScreen, "wireConnectScreen");
@@ -566,9 +617,10 @@ function startApp() {
   safeCall(wireContactCard, "wireContactCard");
   safeCall(wireNavTitleTaps, "wireNavTitleTaps");
   safeCall(wireKeyboardFix, "wireKeyboardFix");
+  safeCall(wireNetworkListeners, "wireNetworkListeners");
   safeCall(applyDebugTabVisibility, "applyDebugTabVisibility");
+  safeCall(initAudioWarmup, "initAudioWarmup");
 
-  // UI-инициализация
   try {
     applyGlassAlpha(Store.glassAlpha);
     applyTheme(Store.theme);
@@ -581,30 +633,38 @@ function startApp() {
     const snn = $("#settings-notifications"); if (snn) snn.checked = Store.notificationsEnabled;
     const ssn = $("#settings-sounds"); if (ssn) ssn.checked = Store.soundsEnabled;
     const spl = $("#settings-pinlock"); if (spl) spl.checked = Store.pinEnabled;
-  } catch (e) { console.error("[startApp] settings init:", e); }
+  } catch (e) { etherLog("error", "[startApp] settings init:", String(e)); }
 
-  // Данные
   try {
     loadContacts(); loadLastSeen(); loadDrafts();
     restoreOutbox(); restorePendingNoKey(); loadCallLog();
     migrateServerAckedFlags();
-  } catch (e) { console.error("[startApp] load data:", e); }
+  } catch (e) { etherLog("error", "[startApp] load data:", String(e)); }
 
-  // Ссылки
   try {
     const incoming = SignalingCodec.extractCodeFromLocation();
     history.replaceState(null, "", location.pathname + location.search);
     if (incoming) handleIncomingCode(incoming);
-  } catch (e) { console.error("[startApp] incoming code:", e); }
+  } catch (e) { etherLog("error", "[startApp] incoming code:", String(e)); }
 
-  // Рендер и сеть
-  try { renderTab(); } catch (e) { console.error("[startApp] renderTab:", e); }
-  try { initSignaling(); } catch (e) { console.error("[startApp] initSignaling:", e); }
-  try { startOutboxRetryLoop(); } catch (e) { console.error("[startApp] outbox loop:", e); }
+  try { renderTab(); } catch (e) { etherLog("error", "[startApp] renderTab:", String(e)); }
+  try { initSignaling(); } catch (e) { etherLog("error", "[startApp] initSignaling:", String(e)); }
+  try { startOutboxRetryLoop(); } catch (e) {}
   try { updateNotifBanner(); } catch (e) {}
   try { resumeUnsentMessages(); } catch (e) {}
   try { updateAppBadge(); } catch (e) {}
   try { maybeShowOnboardingHint(); } catch (e) {}
+}
+
+function wireNetworkListeners() {
+  window.addEventListener("online", () => etherLog("info", "[net] online"));
+  window.addEventListener("offline", () => etherLog("warn", "[net] offline"));
+  const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  if (conn) {
+    conn.addEventListener("change", () => {
+      etherLog("info", "[net] connection change: " + conn.effectiveType + ", downlink=" + conn.downlink);
+    });
+  }
 }
 
 function migrateServerAckedFlags() {
@@ -664,14 +724,13 @@ async function ensurePushSubscription() {
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(Store.vapidPublicKey),
       });
-    } catch (e) { console.warn("[push] не удалось подписаться:", e); return null; }
+    } catch (e) { etherLog("warn", "[push] subscribe failed:", String(e)); return null; }
   }
   const subJson = sub.toJSON ? sub.toJSON() : sub;
   Store.pushSubscriptionJson = JSON.stringify(subJson);
   if (signaling && signaling.connected) signaling.sendPushSubscription(subJson);
   return sub;
 }
-
 function showNotification(title, body, opts) {
   opts = opts || {};
   if (!Store.notificationsEnabled) return;
@@ -693,7 +752,6 @@ function showNotification(title, body, opts) {
   }
   try { new Notification(title, { body, tag: payload.tag }); } catch (e) {}
 }
-
 function wireNotificationPermission() {
   const el = $("#settings-notifications");
   if (!el) return;
@@ -719,7 +777,6 @@ function wireNotificationPermission() {
     }
   });
 }
-
 function wireNotifBanner() {
   const enableBtn = $("#notif-enable-btn");
   const dismissBtn = $("#notif-dismiss-btn");
@@ -738,7 +795,6 @@ function wireNotifBanner() {
     updateNotifBanner();
   });
 }
-
 function updateNotifBanner() {
   const banner = $("#notif-banner");
   if (!banner) return;
@@ -749,7 +805,6 @@ function updateNotifBanner() {
   if (!supported || enabled || dismissed) { banner.classList.add("hidden"); return; }
   banner.classList.remove("hidden");
 }
-
 function updateAppBadge() {
   try {
     if (!("setAppBadge" in navigator)) return;
@@ -830,7 +885,6 @@ function wireTabBar() {
     if (t.closest("#contact-back")) { ev.preventDefault(); closeContactCardSafely(); return; }
   });
 }
-
 function closeChatSafely() {
   const prevId = state.chatId;
   state.chatId = null;
@@ -841,13 +895,8 @@ function closeChatSafely() {
   try { closeChatSearch(); } catch (e) {}
   try { renderTab(); } catch (e) {}
 }
-
-function closeContactCardSafely() {
-  state.contactCardId = null;
-  try { renderTab(); } catch (e) {}
-}
-
-function renderTab() { try { renderTabInner(); } catch (e) { console.error("[renderTab] упал:", e); } }
+function closeContactCardSafely() { state.contactCardId = null; try { renderTab(); } catch (e) {} }
+function renderTab() { try { renderTabInner(); } catch (e) { etherLog("error", "[renderTab]", String(e)); } }
 function renderTabInner() {
   $$(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === state.tab));
   $$(".screen").forEach((s) => s.classList.add("hidden"));
@@ -858,14 +907,12 @@ function renderTabInner() {
     renderChatThread();
     return;
   }
-
   if (state.contactCardId) {
     const sc = $("#screen-contact"); if (sc) sc.classList.remove("hidden");
     const tb = $("#tab-bar"); if (tb) tb.classList.add("hidden");
     renderContactCard();
     return;
   }
-
   const tb = $("#tab-bar"); if (tb) tb.classList.remove("hidden");
   const map = { chats: "#screen-chats", calls: "#screen-calls", connect: "#screen-connect", settings: "#screen-settings", debug: "#screen-debug" };
   const el = $(map[state.tab]); if (el) el.classList.remove("hidden");
@@ -945,7 +992,6 @@ function renderChatsList() {
     list.appendChild(row);
   }
 }
-
 function avatarGradient(name) {
   const palettes = [
     "linear-gradient(160deg,#0A84FF,#5E5CE6)",
@@ -965,10 +1011,7 @@ function renderContactsList() {
   if (!wrap) return;
   wrap.innerHTML = "";
   const contacts = Array.from(state.contacts.values()).filter((c) => c.managed);
-  if (contacts.length === 0) {
-    if (empty) empty.classList.remove("hidden");
-    return;
-  }
+  if (contacts.length === 0) { if (empty) empty.classList.remove("hidden"); return; }
   if (empty) empty.classList.add("hidden");
   contacts.sort((a, b) => (b.lastActivity || 0) - (a.lastActivity || 0));
   for (const c of contacts) {
@@ -980,8 +1023,7 @@ function renderContactsList() {
         <div class="roster-name">${escapeHtml(c.name || "Без имени")}</div>
         <div class="fine muted">${escapeHtml(contactStatusLabel(c))}</div>
       </div>
-      <button type="button" class="roster-add-btn" data-action="card">Открыть</button>
-    `;
+      <button type="button" class="roster-add-btn" data-action="card">Открыть</button>`;
     row.addEventListener("click", (ev) => {
       if (ev.target.closest("[data-action]")) return;
       openContactCard(c.id);
@@ -994,15 +1036,7 @@ function renderContactsList() {
   }
 }
 
-// =====================================================================
-// Карточка контакта
-// =====================================================================
-function openContactCard(contactId) {
-  if (!state.contacts.has(contactId)) return;
-  state.contactCardId = contactId;
-  renderTab();
-}
-
+function openContactCard(contactId) { if (!state.contacts.has(contactId)) return; state.contactCardId = contactId; renderTab(); }
 function renderContactCard() {
   const c = state.contacts.get(state.contactCardId);
   if (!c) { state.contactCardId = null; renderTab(); return; }
@@ -1012,33 +1046,22 @@ function renderContactCard() {
   const st = $("#contact-status"); if (st) st.textContent = contactStatusLabel(c);
   const idEl = $("#contact-info-id"); if (idEl) idEl.textContent = c.raw || "—";
   const mutedEl = $("#contact-info-muted"); if (mutedEl) mutedEl.textContent = c.muted ? "без звука" : "со звуком";
-  const msgBtn = $("#contact-msg-btn"); if (msgBtn) msgBtn.disabled = false;
-  const callBtn = $("#contact-call-btn"); if (callBtn) callBtn.disabled = false;
   const blockBtn = $("#contact-block-btn"); if (blockBtn) blockBtn.textContent = c.blocked ? "Разблокировать" : "Заблокировать";
   const archBtn = $("#contact-archive-btn"); if (archBtn) archBtn.textContent = c.archived ? "Из архива" : "В архив";
   const muteBtn = $("#contact-mute-btn"); if (muteBtn) muteBtn.textContent = c.muted ? "Включить звук" : "Без звука";
 }
-
 function wireContactCard() {
   const msgBtn = $("#contact-msg-btn");
   if (msgBtn) msgBtn.addEventListener("click", () => {
-    const id = state.contactCardId;
-    if (!id) return;
-    state.contactCardId = null;
-    state.chatId = id;
-    renderTab();
+    const id = state.contactCardId; if (!id) return;
+    state.contactCardId = null; state.chatId = id; renderTab();
   });
   const callBtn = $("#contact-call-btn");
-  if (callBtn) callBtn.addEventListener("click", () => {
-    const id = state.contactCardId;
-    if (!id) return;
-    beginCall(id);
-  });
+  if (callBtn) callBtn.addEventListener("click", () => { const id = state.contactCardId; if (!id) return; beginCall(id); });
   const rename = $("#contact-rename-btn");
   if (rename) rename.addEventListener("click", () => {
     const id = state.contactCardId;
-    const c = state.contacts.get(id);
-    if (!c) return;
+    const c = state.contacts.get(id); if (!c) return;
     state.activeContactContext = id;
     const ri = $("#rename-input"); if (ri) ri.value = c.name || "";
     const rs = $("#rename-sheet"); if (rs) rs.classList.remove("hidden");
@@ -1046,22 +1069,19 @@ function wireContactCard() {
   });
   const mute = $("#contact-mute-btn");
   if (mute) mute.addEventListener("click", () => {
-    const c = state.contacts.get(state.contactCardId);
-    if (!c) return;
+    const c = state.contacts.get(state.contactCardId); if (!c) return;
     c.muted = !c.muted; persistContacts(); renderContactCard();
     toast(c.muted ? "Уведомления выключены" : "Уведомления включены");
   });
   const archive = $("#contact-archive-btn");
   if (archive) archive.addEventListener("click", () => {
-    const c = state.contacts.get(state.contactCardId);
-    if (!c) return;
+    const c = state.contacts.get(state.contactCardId); if (!c) return;
     c.archived = !c.archived; persistContacts(); renderContactCard();
     toast(c.archived ? "В архиве" : "Из архива");
   });
   const block = $("#contact-block-btn");
   if (block) block.addEventListener("click", () => {
-    const c = state.contacts.get(state.contactCardId);
-    if (!c) return;
+    const c = state.contacts.get(state.contactCardId); if (!c) return;
     c.blocked = !c.blocked; persistContacts(); renderContactCard();
     toast(c.blocked ? "Заблокирован" : "Разблокирован");
   });
@@ -1069,16 +1089,14 @@ function wireContactCard() {
   if (exportBtn) exportBtn.addEventListener("click", () => exportChat(state.contactCardId));
   const clear = $("#contact-clear-btn");
   if (clear) clear.addEventListener("click", () => {
-    const c = state.contacts.get(state.contactCardId);
-    if (!c) return;
+    const c = state.contacts.get(state.contactCardId); if (!c) return;
     if (!confirm(`Очистить всю переписку с «${c.name}»?`)) return;
     c.messages = []; c.lastActivity = Date.now(); persistContacts();
     toast("История очищена");
   });
   const del = $("#contact-delete-btn");
   if (del) del.addEventListener("click", () => {
-    const c = state.contacts.get(state.contactCardId);
-    if (!c) return;
+    const c = state.contacts.get(state.contactCardId); if (!c) return;
     if (!confirm(`Удалить контакт «${c.name}»?`)) return;
     deleteContact(state.contactCardId);
   });
@@ -1093,21 +1111,10 @@ function ackGlyph(ack) {
   if (ack === "delivered") return `<span class="ack-tick ack-delivered" title="Доставлено">✓</span>`;
   return `<span class="ack-tick ack-sent" title="Отправлено">✓</span>`;
 }
-
 const NEAR_BOTTOM_PX = 80;
-function isNearBottom(el) {
-  if (!el) return true;
-  return el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
-}
+function isNearBottom(el) { if (!el) return true; return el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX; }
 
-function renderChatThread() {
-  try { renderChatThreadInner(); }
-  catch (e) {
-    console.error("[renderChatThread] упал:", e);
-    const w = $("#chat-messages");
-    if (w) w.innerHTML = `<div class="empty-state"><p>Не удалось отрисовать переписку.</p></div>`;
-  }
-}
+function renderChatThread() { try { renderChatThreadInner(); } catch (e) { etherLog("error", "[renderChatThread]", String(e)); const w = $("#chat-messages"); if (w) w.innerHTML = `<div class="empty-state"><p>Не удалось отрисовать переписку.</p></div>`; } }
 
 function renderChatThreadInner() {
   const c = state.contacts.get(state.chatId);
@@ -1121,8 +1128,9 @@ function renderChatThreadInner() {
   }
   const canCall = isReachable(c) || (c.managed && c.online);
   const ccb = $("#chat-call-btn"); if (ccb) ccb.disabled = !canCall;
+
   const badge = $("#chat-transport-badge");
-  const link = mesh.get(c.id);
+  const link = mesh ? mesh.get(c.id) : null;
   if (badge) {
     if (link && (link.status === "connected" || link.status === "in-call")) {
       badge.textContent = "P2P"; badge.classList.remove("hidden", "via-server");
@@ -1177,7 +1185,6 @@ function renderChatThreadInner() {
   wrap.appendChild(frag);
   if (wasAtBottom) wrap.scrollTop = wrap.scrollHeight;
   updateScrollBottomButton();
-
   const input = $("#chat-input");
   if (input && state.drafts[c.id] && !state.editingMessageId) input.value = state.drafts[c.id];
   markThreadRead(c);
@@ -1212,10 +1219,7 @@ function attachSwipeReply(el, m, c) {
     if (swiping) {
       const m1 = tr && tr.match(/translateX\((\d+(?:\.\d+)?)px\)/);
       if (m1 && parseFloat(m1[1]) > 40) {
-        state.replyTo = {
-          msgId: m.id, text: m.text, from: m.from,
-          authorName: m.from === "me" ? (Store.name || "Вы") : (c.name || "Собеседник"),
-        };
+        state.replyTo = { msgId: m.id, text: m.text, from: m.from, authorName: m.from === "me" ? (Store.name || "Вы") : (c.name || "Собеседник") };
         showReplyBanner();
         const inp = $("#chat-input"); if (inp) inp.focus();
       }
@@ -1223,15 +1227,12 @@ function attachSwipeReply(el, m, c) {
     swiping = false;
   });
 }
-
 function updateScrollBottomButton() {
   const wrap = $("#chat-messages");
   const btn = $("#scroll-bottom-btn");
   if (!wrap || !btn) return;
-  const visible = !isNearBottom(wrap);
-  btn.classList.toggle("hidden", !visible);
+  btn.classList.toggle("hidden", isNearBottom(wrap));
 }
-
 function markThreadRead(c) {
   const toAck = [];
   for (const m of c.messages) if (m.from === "them" && !m.readAckSent) { m.readAckSent = true; toAck.push(m.id); }
@@ -1241,45 +1242,36 @@ function markThreadRead(c) {
   updateAppBadge();
   if (state.tab === "chats") renderChatsList();
 }
-
 function saveCurrentDraft() {
   if (!state.chatId) return;
-  const input = $("#chat-input");
-  if (!input) return;
+  const input = $("#chat-input"); if (!input) return;
   const v = input.value.trim();
   if (v) state.drafts[state.chatId] = v; else delete state.drafts[state.chatId];
   persistDrafts();
 }
 
-// =====================================================================
-// Клавиатура iOS
-// =====================================================================
 function wireKeyboardFix() {
   if (!window.visualViewport) return;
   const vv = window.visualViewport;
   function update() {
     const screen = document.getElementById("screen-chat");
     if (!screen || screen.classList.contains("hidden")) return;
-    const bar = document.querySelector(".chat-input-bar");
-    if (!bar) return;
+    const bar = document.querySelector(".chat-input-bar"); if (!bar) return;
     const kb = Math.max(0, window.innerHeight - vv.height);
     if (kb > 60) bar.style.transform = `translateY(-${kb}px)`;
     else bar.style.transform = "";
     const wrap = document.getElementById("chat-messages");
-    if (wrap) {
-      if (isNearBottom(wrap)) wrap.scrollTop = wrap.scrollHeight;
-    }
+    if (wrap) { if (isNearBottom(wrap)) wrap.scrollTop = wrap.scrollHeight; }
   }
   vv.addEventListener("resize", update);
   vv.addEventListener("scroll", update);
 }
 
 // =====================================================================
-// Отправка / редактирование / удаление
+// Отправка/редактирование/удаление
 // =====================================================================
 async function sendChatMessage(contactId, text, replyTo) {
-  const c = state.contacts.get(contactId);
-  if (!c) return;
+  const c = state.contacts.get(contactId); if (!c) return;
   if (c.blocked) { toast("Контакт заблокирован"); return; }
   if (text.length > MAX_MESSAGE_LENGTH) { text = text.slice(0, MAX_MESSAGE_LENGTH); toast("Сообщение обрезано"); }
   const msgId = crypto.randomUUID();
@@ -1292,8 +1284,7 @@ async function sendChatMessage(contactId, text, replyTo) {
   persistContacts();
   if (state.chatId === contactId) {
     renderChatThreadInner();
-    const wrap = $("#chat-messages");
-    if (wrap) wrap.scrollTop = wrap.scrollHeight;
+    const wrap = $("#chat-messages"); if (wrap) wrap.scrollTop = wrap.scrollHeight;
   }
   if (state.tab === "chats") renderChatsList();
   playOutgoingSound();
@@ -1301,14 +1292,11 @@ async function sendChatMessage(contactId, text, replyTo) {
   if (replyTo) payload.replyTo = { id: replyTo.msgId, text: replyTo.text, from: replyTo.from };
   await trySendOrQueue(c, msgId, payload);
 }
-
 function trimMessages(c) { if (c.messages.length <= MAX_MESSAGES_PER_CHAT) return; c.messages = c.messages.slice(-MAX_MESSAGES_PER_CHAT); }
 
 async function commitEdit(contactId, msgId, newText) {
-  const c = state.contacts.get(contactId);
-  if (!c) return;
-  const m = c.messages.find((x) => x.id === msgId);
-  if (!m) return;
+  const c = state.contacts.get(contactId); if (!c) return;
+  const m = c.messages.find((x) => x.id === msgId); if (!m) return;
   newText = String(newText).slice(0, MAX_MESSAGE_LENGTH);
   m.text = newText; m.edited = true; m.ts = Date.now();
   c.lastActivity = m.ts;
@@ -1318,30 +1306,24 @@ async function commitEdit(contactId, msgId, newText) {
   const payload = { kind: "edit", id: msgId, text: newText, ts: m.ts };
   await trySendOrQueue(c, actionId, payload);
 }
-
 function deleteMessageLocal(contactId, msgId) {
-  const c = state.contacts.get(contactId);
-  if (!c) return;
+  const c = state.contacts.get(contactId); if (!c) return;
   c.messages = c.messages.filter((x) => x.id !== msgId);
   persistContacts();
   if (state.chatId === contactId) renderChatThread();
   if (state.tab === "chats") renderChatsList();
 }
-
 async function deleteMessageForBoth(contactId, msgId) {
-  const c = state.contacts.get(contactId);
-  if (!c) return;
+  const c = state.contacts.get(contactId); if (!c) return;
   deleteMessageLocal(contactId, msgId);
   const actionId = crypto.randomUUID();
   const payload = { kind: "delete", id: msgId, ts: Date.now() };
   await trySendOrQueue(c, actionId, payload);
 }
-
 async function forwardMessage(msgId, fromContactId, toContactId) {
   const from = state.contacts.get(fromContactId), to = state.contacts.get(toContactId);
   if (!from || !to) return;
-  const m = from.messages.find((x) => x.id === msgId);
-  if (!m) return;
+  const m = from.messages.find((x) => x.id === msgId); if (!m) return;
   const text = m.text;
   const msgId2 = crypto.randomUUID();
   const ts = Date.now();
@@ -1353,7 +1335,6 @@ async function forwardMessage(msgId, fromContactId, toContactId) {
   const payload = { kind: "chat", id: msgId2, text, ts, forwarded: true };
   await trySendOrQueue(to, msgId2, payload);
 }
-
 async function trySendOrQueue(contact, msgId, payloadObj) {
   const link = mesh.get(contact.id);
   const p2pSent = link && link.status === "connected" && link.send(payloadObj);
@@ -1383,8 +1364,7 @@ function restoreOutbox() {
   }
 }
 async function flushOutboxItem(msgId) {
-  const entry = outbox.get(msgId);
-  if (!entry) return;
+  const entry = outbox.get(msgId); if (!entry) return;
   if (entry.serverAcked) { outbox.delete(msgId); persistOutbox(); return; }
   const contact = state.contacts.get(entry.to);
   if (!contact) { outbox.delete(msgId); persistOutbox(); return; }
@@ -1392,8 +1372,7 @@ async function flushOutboxItem(msgId) {
     if (!pendingNoKey.has(contact.id)) pendingNoKey.set(contact.id, []);
     const list = pendingNoKey.get(contact.id);
     if (!list.some((x) => x.msgId === msgId)) { list.push({ msgId, payload: entry.payload }); persistPendingNoKey(); }
-    outbox.delete(msgId); persistOutbox();
-    return;
+    outbox.delete(msgId); persistOutbox(); return;
   }
   try {
     const sharedKey = await CryptoHelper.deriveSharedKey(Store.myPrivateKeyJwk, contact.publicKey);
@@ -1410,7 +1389,7 @@ async function flushOutboxItem(msgId) {
       if (m && m.ack === "failed") m.ack = "sent";
       persistContacts();
     }
-  } catch (e) { console.error("[crypto] ошибка шифрования:", e); markMessageAck(entry.to, msgId, "failed"); }
+  } catch (e) { etherLog("error", "[crypto] ошибка шифрования:", String(e)); markMessageAck(entry.to, msgId, "failed"); }
 }
 async function flushOutbox() {
   if (!signaling || !signaling.connected) return;
@@ -1444,12 +1423,10 @@ function restorePendingNoKey() {
   for (const cid of Object.keys(obj)) { const list = obj[cid]; if (Array.isArray(list)) pendingNoKey.set(cid, list.filter((x) => x && x.msgId && x.payload)); }
 }
 function flushPendingNoKey(contactId) {
-  const list = pendingNoKey.get(contactId);
-  if (!list || list.length === 0) return;
+  const list = pendingNoKey.get(contactId); if (!list || list.length === 0) return;
   pendingNoKey.delete(contactId); persistPendingNoKey();
   for (const { msgId, payload } of list) { addToOutbox(msgId, contactId, payload); flushOutboxItem(msgId); }
 }
-
 function resumeUnsentMessages() {
   if (!Store.myPublicKeyJwk) return;
   const now = Date.now();
@@ -1466,21 +1443,17 @@ function resumeUnsentMessages() {
     }
   }
 }
-
 function sendAckBatch(contactId, originalMsgIds, ackState) {
   const link = mesh.get(contactId);
   const actionId = crypto.randomUUID();
   const payload = { kind: "ack-batch", ids: originalMsgIds.slice(), state: ackState };
   if (link && link.status === "connected" && link.send(payload)) return;
-  const c = state.contacts.get(contactId);
-  if (!c) return;
+  const c = state.contacts.get(contactId); if (!c) return;
   addToOutbox(actionId, contactId, payload);
   flushOutboxItem(actionId);
 }
-
 function markMessageAck(contactId, msgId, ack) {
-  const c = state.contacts.get(contactId);
-  if (!c) return;
+  const c = state.contacts.get(contactId); if (!c) return;
   const m = c.messages.find((mm) => mm.id === msgId && mm.from === "me");
   if (m) {
     const rank = { failed: -1, sent: 0, delivered: 1, read: 2 };
@@ -1530,7 +1503,6 @@ function handleIncomingTyping(contactId, active) {
   }
   if (state.chatId === contactId) renderChatThread();
 }
-
 async function toggleReaction(contactId, msgId, emoji) {
   const c = state.contacts.get(contactId); if (!c) return;
   const m = c.messages.find((x) => x.id === msgId); if (!m) return;
@@ -1573,7 +1545,6 @@ function renderSignalingBanner() {
     banner.classList.remove("hidden");
   } else banner.classList.add("hidden");
 }
-
 function initSignaling() {
   const url = effectiveSignalingUrl();
   if (signalingCleanup) { try { signalingCleanup(); } catch (e) {} signalingCleanup = null; }
@@ -1582,6 +1553,7 @@ function initSignaling() {
   for (const c of state.contacts.values()) c.online = false;
   if (!url) { updateSignalingStatusUI("off", "Сервер не настроен"); renderSignalingBanner(); renderChatsList(); renderOnlineRosterList(); return; }
   updateSignalingStatusUI("connecting", "Подключение…");
+  etherLog("info", "[signaling] connecting to " + url);
   signaling = new SignalingClient(url, Store.myId, { name: Store.name, visible: Store.discoverable, publicKey: Store.myPublicKeyJwk });
   signalingCleanup = wireSignalingEvents(signaling);
   signaling.start();
@@ -1609,7 +1581,6 @@ function wireSignalingEvents(sig) {
     } catch (e) {}
     setTimeout(() => { ensurePushSubscription().catch(() => {}); }, 500);
   }));
-
   subs.push(on("disconnected", () => {
     updateSignalingStatusUI("off", "Нет соединения — переподключаемся…");
     for (const c of state.contacts.values()) if (c.managed) {
@@ -1621,20 +1592,16 @@ function wireSignalingEvents(sig) {
     if (state.tab === "chats") renderChatsList();
     if (state.tab === "connect") renderOnlineRosterList();
   }));
-
   subs.push(on("replaced", () => {
     updateSignalingStatusUI("off", "Отключено — тот же id в другом месте");
     toast("Этот же контакт подключён в другой вкладке");
     renderSignalingBanner();
   }));
-
   subs.push(on("vapid-key", (ev) => {
     const { key } = ev.detail;
     if (key) { Store.vapidPublicKey = key; ensurePushSubscription().catch(() => {}); }
   }));
-
-  subs.push(on("push-subscribed", () => { console.log("[push] сервер подтвердил подписку"); }));
-
+  subs.push(on("push-subscribed", () => { etherLog("info", "[push] server confirmed subscription"); }));
   subs.push(on("online-list", (ev) => {
     for (const u of ev.detail.users) {
       onlineSet.add(u.id);
@@ -1649,7 +1616,6 @@ function wireSignalingEvents(sig) {
     if (state.tab === "chats") renderChatsList();
     if (state.tab === "connect") { renderContactsList(); renderOnlineRosterList(); }
   }));
-
   subs.push(on("presence", (ev) => {
     const { id, online, name, visible, publicKey } = ev.detail;
     if (online) { onlineSet.add(id); onlineRoster.set(id, { name, visible: visible !== false, publicKey: publicKey || null }); }
@@ -1665,12 +1631,12 @@ function wireSignalingEvents(sig) {
     if (state.tab === "chats") renderChatsList();
     if (state.tab === "connect") { renderContactsList(); renderOnlineRosterList(); }
   }));
-
   subs.push(on("signal", async (ev) => {
     const { from, data: packet } = ev.detail;
     if (!packet || !packet.t) return;
 
     if (packet.t === "call-invite") {
+      etherLog("info", "[call] incoming invite from " + String(from).slice(0, 10) + "…");
       ensureContactEntry(from, packet.n);
       if (state.callId !== from) {
         openCallScreen(from, "ringing");
@@ -1685,8 +1651,7 @@ function wireSignalingEvents(sig) {
     }
     if (packet.t === "call-invite-ack") {
       if (state.callId === from && state.callPhase === "calling") {
-        const p = $("#call-phase");
-        if (p) p.textContent = "Гудки…";
+        const p = $("#call-phase"); if (p) p.textContent = "Гудки…";
       }
       return;
     }
@@ -1707,7 +1672,6 @@ function wireSignalingEvents(sig) {
       if (state.callId === from) { stopRingtone(); closeCallScreen("completed"); }
       return;
     }
-
     if (isDuplicateSignal(from, packet)) return;
     if (packet.t === "offer") {
       const existing = mesh.get(from);
@@ -1716,9 +1680,12 @@ function wireSignalingEvents(sig) {
       if (existing) mesh.remove(from);
       ensureContactEntry(from, packet.n);
       const link = mesh.createIncomingLink(from);
-      try { const answer = await link.acceptOfferAndCreateAnswer(packet); if (!answer) return; sig.signal(from, answer); }
-      catch (e) {
-        console.error("[webrtc] ответ на offer:", e);
+      try {
+        const answer = await link.acceptOfferAndCreateAnswer(packet);
+        if (!answer) return;
+        sig.signal(from, answer);
+      } catch (e) {
+        etherLog("error", "[webrtc] answer failed:", String(e));
         mesh.remove(from);
         const c = state.contacts.get(from); if (c) c.status = "disconnected";
         if (state.chatId === from) renderChatThread();
@@ -1729,7 +1696,7 @@ function wireSignalingEvents(sig) {
       if (link) {
         try { await link.acceptAnswer(packet); }
         catch (e) {
-          console.error("[webrtc] accept answer:", e);
+          etherLog("error", "[webrtc] acceptAnswer failed:", String(e));
           mesh.remove(from);
           const c = state.contacts.get(from); if (c) c.status = "disconnected";
           if (state.chatId === from) renderChatThread();
@@ -1738,12 +1705,10 @@ function wireSignalingEvents(sig) {
       }
     }
   }));
-
   subs.push(on("unreachable", (ev) => {
     const c = state.contacts.get(ev.detail.to);
     if (c) { c.online = false; if (state.tab === "chats") renderChatsList(); }
   }));
-
   subs.push(on("deliver-ack", (ev) => {
     const { msgId } = ev.detail;
     const entry = outbox.get(msgId);
@@ -1756,7 +1721,6 @@ function wireSignalingEvents(sig) {
     outbox.delete(msgId);
     persistOutbox();
   }));
-
   subs.push(on("deliver", async (ev) => {
     const { from, msgId, envelope, fromPublicKey, kind, queued } = ev.detail;
     sig.mailboxAck(msgId);
@@ -1775,11 +1739,10 @@ function wireSignalingEvents(sig) {
         const c = state.contacts.get(from);
         if (c && keysDiffer(fromPublicKey, c.publicKey)) { c.publicKey = fromPublicKey; persistContacts(); }
       }
-    } catch (e) { console.error("[crypto] decrypt:", e); return; }
+    } catch (e) { etherLog("error", "[crypto] decrypt failed:", String(e)); return; }
     applyIncomingPayload(from, msgId, payload, true, kind);
     sendAckBatch(from, [msgId], "delivered");
   }));
-
   return () => { for (const s of subs) sig.removeEventListener(s.type, s.wrapped); };
 }
 
@@ -1794,11 +1757,8 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     if (payload.forwarded) rec.forwarded = true;
     c.messages.push(rec); trimMessages(c); c.lastActivity = Date.now();
     persistContacts();
-    if (isOpen) {
-      renderChatThread();
-      playMessageSound();
-      vibrate([80, 40, 80]);
-    } else {
+    if (isOpen) { renderChatThread(); playMessageSound(); vibrate([80, 40, 80]); }
+    else {
       toast(`${c.name}: ${truncate(payload.text, 40)}`);
       if (!c.muted) showNotification(c.name || "Эфир", truncate(payload.text, 80), { tag: "ether-msg-" + c.id, contactId: c.id, kind: "message" });
       playMessageSound();
@@ -1810,22 +1770,14 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
   } else if (kind === "edit") {
     const c = ensureContactEntry(from, null);
     const m = c.messages.find((x) => x.id === payload.id);
-    if (m) {
-      m.text = payload.text; m.edited = true; m.ts = payload.ts || m.ts;
-      c.lastActivity = Date.now();
-      persistContacts();
-      if (state.chatId === from) renderChatThread();
-      if (state.tab === "chats") renderChatsList();
-    }
+    if (m) { m.text = payload.text; m.edited = true; m.ts = payload.ts || m.ts; c.lastActivity = Date.now(); persistContacts();
+      if (state.chatId === from) renderChatThread(); if (state.tab === "chats") renderChatsList(); }
   } else if (kind === "delete") {
     const c = ensureContactEntry(from, null);
     const before = c.messages.length;
     c.messages = c.messages.filter((x) => x.id !== payload.id);
-    if (c.messages.length !== before) {
-      persistContacts();
-      if (state.chatId === from) renderChatThread();
-      if (state.tab === "chats") renderChatsList();
-    }
+    if (c.messages.length !== before) { persistContacts();
+      if (state.chatId === from) renderChatThread(); if (state.tab === "chats") renderChatsList(); }
   } else if (kind === "ack" || (kind === "ack-batch" && Array.isArray(payload.ids))) {
     const ids = Array.isArray(payload.ids) ? payload.ids : [payload.id];
     for (const id of ids) markMessageAck(from, id, payload.state);
@@ -1846,6 +1798,7 @@ function scheduleAutoConnect(id) {
   autoConnectTimers.set(id, setTimeout(() => { autoConnectTimers.delete(id); attemptConnect(id, { force: true }); }, 4000));
 }
 async function attemptConnect(id, { force = false } = {}) {
+  const tag = String(id).slice(0, 10) + "…";
   if (!signaling || !signaling.connected) return;
   const existing = mesh.get(id);
   if (existing && existing.status !== "disconnected") return;
@@ -1854,14 +1807,16 @@ async function attemptConnect(id, { force = false } = {}) {
   if (!force && !iShouldOffer) return;
   if (force && !iShouldOffer && existing && existing.role === "answerer") return;
   if (existing) mesh.remove(id);
+  etherLog("info", "[connect] " + tag, "creating offer" + (force ? " (force)" : ""));
   const link = mesh.createOutgoingLink(id);
   try {
     const packet = await link.createInitialOffer("");
     if (!packet) return;
     signaling.signal(id, packet);
+    etherLog("info", "[connect] " + tag, "offer sent");
     watchConnectionTimeout(id);
   } catch (e) {
-    console.error("[webrtc] create offer:", e);
+    etherLog("error", "[connect] " + tag, "offer failed:", String(e));
     mesh.remove(id);
     const c = state.contacts.get(id); if (c) c.status = "disconnected";
     if (state.chatId === id) renderChatThread();
@@ -1872,6 +1827,7 @@ function watchConnectionTimeout(id) {
   setTimeout(() => {
     const link = mesh.get(id);
     if (!link || link.status === "connected" || link.status === "in-call" || link.status === "disconnected") return;
+    etherLog("warn", "[connect] " + String(id).slice(0, 10) + "…", "connection timed out, resetting");
     mesh.remove(id);
     const c = state.contacts.get(id);
     if (c) {
@@ -1884,7 +1840,7 @@ function watchConnectionTimeout(id) {
 }
 
 // =====================================================================
-// Онлайн
+// Онлайн-список
 // =====================================================================
 function renderOnlineRosterList() {
   const wrap = $("#online-roster-list"), empty = $("#online-roster-empty");
@@ -1904,8 +1860,7 @@ function renderOnlineRosterList() {
       state.contacts.set(id, {
         id, name: u.name || "Без имени", raw: "", managed: true,
         publicKey: u.publicKey || null, online: true, status: "disconnected",
-        messages: [], lastActivity: Date.now(),
-        archived: false, muted: false, blocked: false,
+        messages: [], lastActivity: Date.now(), archived: false, muted: false, blocked: false,
       });
       persistContacts();
       toast("Контакт добавлен");
@@ -1945,7 +1900,6 @@ function wireConnectScreen() {
     $("#add-contact-value").value = "";
     state.tab = "chats"; renderTab();
   });
-
   const toggleManual = $("#toggle-manual-btn");
   if (toggleManual) toggleManual.addEventListener("click", () => {
     const sec = $("#manual-section");
@@ -1954,7 +1908,6 @@ function wireConnectScreen() {
       ? "Ручное подключение без сервера, по коду ›"
       : "Скрыть ручное подключение ‹";
   });
-
   const createBtn = $("#create-invite-btn");
   if (createBtn) createBtn.addEventListener("click", createInvite);
   const copyCode = $("#copy-code-btn");
@@ -1992,7 +1945,6 @@ function wireConnectScreen() {
   const answerCopy = $("#answer-copy-btn");
   if (answerCopy) answerCopy.addEventListener("click", () => { const el = $("#answer-out-code"); if (el) copyText(el.textContent, "Код скопирован"); });
 }
-
 function resetConnectScreen() {
   state.pendingOutgoing = null;
   const ii = $("#invite-idle"); if (ii) ii.classList.remove("hidden");
@@ -2001,7 +1953,6 @@ function resetConnectScreen() {
   const pc = $("#paste-code-in"); if (pc) pc.value = "";
   const ib = $("#incoming-banner"); if (ib) ib.classList.add("hidden");
 }
-
 async function createInvite() {
   const id = crypto.randomUUID();
   const link = mesh.createOutgoingLink(id);
@@ -2015,7 +1966,6 @@ async function createInvite() {
   const co = $("#invite-code-out"); if (co) co.textContent = code;
   const lo = $("#invite-link-out"); if (lo) lo.textContent = shareLink;
 }
-
 async function handleIncomingCode(code) {
   let packet;
   try { packet = await SignalingCodec.decode(code); }
@@ -2036,7 +1986,6 @@ async function handleIncomingCode(code) {
     const pcw = $("#paste-code-wrap"); if (pcw) pcw.classList.add("hidden");
   } else toast("Это приглашение, а не код ответа");
 }
-
 function copyText(text, msg) {
   if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => toast(msg)).catch(() => toast("Не удалось скопировать"));
   else {
@@ -2058,31 +2007,23 @@ function wireSheetBackdrops() {
     btn.addEventListener("click", () => { const id = btn.dataset.closeSheet; if (id) { const el = $("#" + id); if (el) el.classList.add("hidden"); } });
   });
 }
-
 function openMessageSheet(msgId, contactId) {
   state.activeMessageContext = { msgId, contactId };
   const c = state.contacts.get(contactId); if (!c) return;
   const m = c.messages.find((x) => x.id === msgId); if (!m) return;
-
   const bar = $("#reaction-bar");
   if (bar) {
     bar.innerHTML = "";
     for (const emoji of REACTION_EMOJIS) {
       const b = document.createElement("button");
       b.type = "button"; b.className = "reaction-emoji"; b.textContent = emoji;
-      b.addEventListener("click", () => {
-        const ms = $("#message-sheet"); if (ms) ms.classList.add("hidden");
-        toggleReaction(contactId, msgId, emoji);
-      });
+      b.addEventListener("click", () => { const ms = $("#message-sheet"); if (ms) ms.classList.add("hidden"); toggleReaction(contactId, msgId, emoji); });
       bar.appendChild(b);
     }
   }
-
   const isOwn = m.from === "me";
-  const body = $("#message-sheet-body");
-  if (!body) return;
+  const body = $("#message-sheet-body"); if (!body) return;
   const actions = [];
-
   actions.push(`<button type="button" class="sheet-action" data-action="reply"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/></svg>Ответить</button>`);
   actions.push(`<button type="button" class="sheet-action" data-action="forward"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M14 9V5l7 7-7 7v-4.1c-5 0-8.5 1.6-11 5.1 1-5 4-10 11-11z"/></svg>Переслать</button>`);
   actions.push(`<button type="button" class="sheet-action" data-action="copy"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z"/></svg>Копировать текст</button>`);
@@ -2104,7 +2045,6 @@ function openMessageSheet(msgId, contactId) {
   });
   const ms = $("#message-sheet"); if (ms) ms.classList.remove("hidden");
 }
-
 async function handleMessageAction(action, msgId, contactId) {
   const c = state.contacts.get(contactId); if (!c) return;
   const m = c.messages.find((x) => x.id === msgId); if (!m) return;
@@ -2125,7 +2065,6 @@ async function handleMessageAction(action, msgId, contactId) {
     else { addToOutbox(msgId, contactId, { kind: "chat", id: msgId, text: m.text, ts: m.ts }); flushOutboxItem(msgId); toast("Повторная отправка…"); }
   }
 }
-
 function startEditing(msgId) {
   const c = state.contacts.get(state.chatId); if (!c) return;
   const m = c.messages.find((x) => x.id === msgId); if (!m || m.from !== "me") return;
@@ -2134,10 +2073,7 @@ function startEditing(msgId) {
   const inp = $("#chat-input");
   if (inp) { inp.value = m.text; inp.focus(); try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch (e) {} }
 }
-function cancelEditing() {
-  state.editingMessageId = null;
-  const b = $("#edit-banner"); if (b) b.classList.add("hidden");
-}
+function cancelEditing() { state.editingMessageId = null; const b = $("#edit-banner"); if (b) b.classList.add("hidden"); }
 function showReplyBanner() {
   const b = $("#reply-banner"); if (!b) return;
   if (!state.replyTo) { b.classList.add("hidden"); return; }
@@ -2146,7 +2082,6 @@ function showReplyBanner() {
   const t = b.querySelector(".reply-banner-text"); if (t) t.textContent = truncate(state.replyTo.text, 60);
 }
 function cancelReply() { state.replyTo = null; const b = $("#reply-banner"); if (b) b.classList.add("hidden"); }
-
 function openForwardSheet(msgId, fromContactId) {
   const list = $("#forward-list"); if (!list) return;
   list.innerHTML = "";
@@ -2161,7 +2096,6 @@ function openForwardSheet(msgId, fromContactId) {
   }
   const fs = $("#forward-sheet"); if (fs) fs.classList.remove("hidden");
 }
-
 function wireRenameSheet() {
   const btn = $("#rename-save-btn"); if (!btn) return;
   btn.addEventListener("click", () => {
@@ -2179,7 +2113,6 @@ function wireRenameSheet() {
     toast("Имя обновлено");
   });
 }
-
 function deleteContact(id) {
   clearAutoConnectTimer(id);
   mesh.remove(id);
@@ -2196,7 +2129,6 @@ function deleteContact(id) {
   renderTab();
   toast("Контакт удалён");
 }
-
 function exportChat(contactId) {
   const c = state.contacts.get(contactId); if (!c) return;
   const lines = c.messages.map((m) => {
@@ -2209,7 +2141,6 @@ function exportChat(contactId) {
   downloadBlob(new Blob([text], { type: "text/plain;charset=utf-8" }), `ether-${contactId.slice(0, 8)}-${Date.now()}.txt`);
   toast("Экспортировано");
 }
-
 function downloadBlob(blob, name) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -2246,16 +2177,13 @@ function updateCallRecordStatus(status) {
   persistCallLog();
 }
 function endCallRecord(finalStatus) {
-  const rec = state.currentCallRecord;
-  if (!rec) return;
+  const rec = state.currentCallRecord; if (!rec) return;
   rec.endedAt = Date.now();
   if (rec.answeredAt) {
     rec.durationMs = rec.endedAt - rec.answeredAt;
     rec.status = finalStatus === "failed" ? "failed" : "completed";
   } else {
-    if (!finalStatus || finalStatus === "completed") {
-      finalStatus = rec.direction === "in" ? "missed" : "cancelled";
-    }
+    if (!finalStatus || finalStatus === "completed") finalStatus = rec.direction === "in" ? "missed" : "cancelled";
     rec.status = finalStatus;
   }
   state.currentCallRecord = null;
@@ -2270,7 +2198,6 @@ function callStatusLabel(rec) {
   if (rec.status === "ringing") return "Не принят";
   return "Звонок";
 }
-
 function renderCallsList() {
   const list = $("#calls-list"), empty = $("#calls-empty");
   if (!list) return;
@@ -2302,13 +2229,13 @@ function renderCallsList() {
     list.appendChild(row);
   }
 }
-
 function clearPendingCall() { if (pendingCall.timer) clearTimeout(pendingCall.timer); pendingCall.timer = null; pendingCall.contactId = null; }
 
 async function beginCall(id) {
   const c = state.contacts.get(id);
   if (!c) return;
   if (c.blocked) { toast("Контакт заблокирован"); return; }
+  etherLog("info", "[call] beginCall to " + String(id).slice(0, 10) + "…");
   openCallScreen(id, "calling");
   if (signaling && signaling.connected) {
     signaling.signal(id, { t: "call-invite", n: Store.name });
@@ -2336,7 +2263,6 @@ async function beginCall(id) {
     closeCallScreen("failed");
   }, PENDING_CALL_TIMEOUT_MS);
 }
-
 function openCallScreen(id, phase) {
   state.callId = id;
   state.callPhase = phase;
@@ -2399,7 +2325,6 @@ function closeCallScreen(reason) {
   state.callPhase = null;
   if (state.tab === "calls") renderCallsList();
 }
-
 function wireCallScreen() {
   const hangup = $("#call-hangup-btn");
   if (hangup) hangup.addEventListener("click", () => {
@@ -2429,9 +2354,8 @@ function wireCallScreen() {
       const waitTimer = setTimeout(() => {
         if (state.callId !== cid) return;
         const l2 = mesh.get(cid);
-        if (l2 && isReachable(state.contacts.get(cid))) {
-          l2.answerCall().then(setCallPhaseActive).catch(() => {});
-        } else {
+        if (l2 && isReachable(state.contacts.get(cid))) l2.answerCall().then(setCallPhaseActive).catch(() => {});
+        else {
           toast("Не удалось установить связь");
           if (signaling && signaling.connected) signaling.signal(cid, { t: "call-ended" });
           closeCallScreen("failed");
@@ -2471,11 +2395,7 @@ function wireSearchHandlers() {
   const csc = $("#chat-search-close");
   if (csc) csc.addEventListener("click", closeChatSearch);
   const csi = $("#chat-search-input");
-  if (csi) csi.addEventListener("input", (e) => {
-    state.chatSearchQuery = e.target.value.trim();
-    renderChatThread();
-    updateSearchCounter();
-  });
+  if (csi) csi.addEventListener("input", (e) => { state.chatSearchQuery = e.target.value.trim(); renderChatThread(); updateSearchCounter(); });
 }
 function closeChatSearch() {
   state.chatSearchQuery = "";
@@ -2587,7 +2507,6 @@ function applyDebugTabVisibility() {
   if (toggle) toggle.checked = hidden;
   if (hidden && state.tab === "debug") { state.tab = "chats"; renderTab(); }
 }
-
 function wireNavTitleTaps() {
   const el = document.getElementById("nav-title");
   if (!el) return;
@@ -2614,6 +2533,15 @@ function wireDebugScreen() {
   const diagC = $("#diagnostics-copy-btn");
   if (diagC) diagC.addEventListener("click", () => copyText(buildDiagnosticsText(), "Диагностика скопирована"));
 
+  const webrtcBtn = $("#webrtc-debug-btn");
+  if (webrtcBtn) webrtcBtn.addEventListener("click", () => { renderWebRtcSheet(); const el = $("#webrtc-sheet"); if (el) el.classList.remove("hidden"); });
+  const webrtcClose = $("#webrtc-close");
+  if (webrtcClose) webrtcClose.addEventListener("click", () => { const el = $("#webrtc-sheet"); if (el) el.classList.add("hidden"); });
+  const webrtcRefresh = $("#webrtc-refresh-btn");
+  if (webrtcRefresh) webrtcRefresh.addEventListener("click", renderWebRtcSheet);
+  const webrtcCopy = $("#webrtc-copy-btn");
+  if (webrtcCopy) webrtcCopy.addEventListener("click", () => copyText(buildWebRtcText(), "Скопировано"));
+
   const logsBtn = $("#debug-logs-btn");
   if (logsBtn) logsBtn.addEventListener("click", () => { renderLogsSheet(); const el = $("#logs-sheet"); if (el) el.classList.remove("hidden"); });
   const logsClose = $("#logs-close");
@@ -2621,11 +2549,7 @@ function wireDebugScreen() {
   const logsCopy = $("#logs-copy-btn");
   if (logsCopy) logsCopy.addEventListener("click", () => copyText(buildLogsText(), "Журнал скопирован"));
   const logsClear = $("#logs-clear-btn");
-  if (logsClear) logsClear.addEventListener("click", () => {
-    window.__etherDiag = [];
-    renderLogsSheet();
-    toast("Журнал очищен");
-  });
+  if (logsClear) logsClear.addEventListener("click", () => { window.__etherDiag = []; renderLogsSheet(); toast("Журнал очищен"); });
 
   const storageBtn = $("#debug-storage-btn");
   if (storageBtn) storageBtn.addEventListener("click", () => { renderStorageSheet(); const el = $("#storage-sheet"); if (el) el.classList.remove("hidden"); });
@@ -2653,7 +2577,6 @@ function wireDebugScreen() {
     resetConnectScreen(); renderTab();
     toast("Все данные удалены");
   });
-
   const hard = $("#debug-hard-reset-btn");
   if (hard) hard.addEventListener("click", () => {
     if (!confirm("Полный сброс: удалит аккаунт, пин-код, ключи шифрования и все данные. Продолжить?")) return;
@@ -2663,7 +2586,6 @@ function wireDebugScreen() {
     if ("indexedDB" in window) try { indexedDB.deleteDatabase("ether-db"); } catch (e) {}
     location.reload();
   });
-
   const hideToggle = $("#debug-hide-toggle");
   if (hideToggle) hideToggle.addEventListener("change", (e) => {
     Store.debugHidden = e.target.checked;
@@ -2672,14 +2594,11 @@ function wireDebugScreen() {
   });
 }
 
-function renderLogsSheet() {
-  const el = $("#logs-content");
-  if (el) el.textContent = buildLogsText();
-}
+function renderLogsSheet() { const el = $("#logs-content"); if (el) el.textContent = buildLogsText(); }
 function buildLogsText() {
   const log = window.__etherDiag || [];
   const lines = [];
-  for (const entry of log.slice(-200)) {
+  for (const entry of log.slice(-300)) {
     const d = new Date(entry.ts);
     const stamp = `${d.toLocaleTimeString("ru-RU")}.${String(d.getMilliseconds()).padStart(3, "0")}`;
     lines.push(`[${stamp}] [${entry.level}] ${entry.line}`);
@@ -2699,12 +2618,35 @@ function renderStorageSheet() {
   }
   items.sort((a, b) => b.size - a.size);
   const totalBytes = items.reduce((s, x) => s + x.size, 0);
-  let html = `<div><b>Всего в localStorage:</b> ${(totalBytes / 1024).toFixed(1)} КБ</div>`;
-  html += `<div><b>Ключей:</b> ${items.length}</div><hr style="border:none;border-top:1px solid var(--hairline);margin:10px 0;">`;
-  for (const it of items) {
-    html += `<div style="display:flex;justify-content:space-between;gap:8px;"><span>${escapeHtml(it.key)}</span><span class="muted">${(it.size / 1024).toFixed(1)} КБ</span></div>`;
+  let html = `<div><b>localStorage:</b> ${(totalBytes / 1024).toFixed(1)} КБ, ${items.length} ключей</div>`;
+  if (navigator.storage && navigator.storage.estimate) {
+    navigator.storage.estimate().then((est) => {
+      el.innerHTML = html + `<div><b>Storage API:</b> использовано ${(est.usage / 1024 / 1024).toFixed(2)} МБ из ${(est.quota / 1024 / 1024).toFixed(0)} МБ</div>` +
+        `<hr style="border:none;border-top:1px solid var(--hairline);margin:10px 0;">` +
+        items.map((it) => `<div style="display:flex;justify-content:space-between;gap:8px;"><span>${escapeHtml(it.key)}</span><span class="muted">${(it.size / 1024).toFixed(1)} КБ</span></div>`).join("") +
+        buildEnvText();
+    });
+  } else {
+    el.innerHTML = html + `<hr style="border:none;border-top:1px solid var(--hairline);margin:10px 0;">` +
+      items.map((it) => `<div style="display:flex;justify-content:space-between;gap:8px;"><span>${escapeHtml(it.key)}</span><span class="muted">${(it.size / 1024).toFixed(1)} КБ</span></div>`).join("") +
+      buildEnvText();
   }
-  el.innerHTML = html;
+}
+function buildEnvText() {
+  const lines = [];
+  const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  lines.push(`<hr style="border:none;border-top:1px solid var(--hairline);margin:10px 0;">`);
+  lines.push(`<div><b>User agent:</b> <span class="fine muted">${escapeHtml(navigator.userAgent)}</span></div>`);
+  lines.push(`<div><b>Платформа:</b> ${escapeHtml(navigator.platform || "—")}</div>`);
+  lines.push(`<div><b>Язык:</b> ${escapeHtml(navigator.language || "—")}</div>`);
+  lines.push(`<div><b>Online:</b> ${navigator.onLine ? "да" : "нет"}</div>`);
+  lines.push(`<div><b>PWA standalone:</b> ${isStandalone() ? "да" : "нет"}</div>`);
+  lines.push(`<div><b>iOS:</b> ${isIOS() ? "да" : "нет"}</div>`);
+  lines.push(`<div><b>Vibration API:</b> ${navigator.vibrate ? "есть" : "НЕТ (iOS не поддерживает)"}</div>`);
+  if (conn) {
+    lines.push(`<div><b>Сеть:</b> ${conn.effectiveType || "?"}, downlink ${conn.downlink || "?"} Мбит/с, RTT ${conn.rtt || "?"} мс</div>`);
+  }
+  return lines.join("");
 }
 
 function buildDiagnosticsText() {
@@ -2716,15 +2658,13 @@ function buildDiagnosticsText() {
   lines.push("Статус: " + (signaling ? (signaling.connected ? "подключён" : "не подключён") : "не инициализирован"));
   lines.push("Онлайн: " + onlineSet.size + " (roster: " + onlineRoster.size + ")");
   lines.push("outbox: " + outbox.size + ", pendingAcks: " + pendingAcks.size + ", pendingNoKey: " + pendingNoKey.size);
-  lines.push("Звонков: " + state.callLog.length);
   lines.push("");
   lines.push("--- Push ---");
-  lines.push("PWA (standalone): " + (isStandalone() ? "да" : "нет"));
+  lines.push("PWA: " + (isStandalone() ? "да" : "нет"));
   lines.push("Notification API: " + (("Notification" in window) ? "есть" : "нет"));
   lines.push("Разрешение: " + (("Notification" in window) ? Notification.permission : "—"));
   lines.push("PushManager: " + (("PushManager" in window) ? "есть" : "нет"));
   lines.push("VAPID-ключ: " + (Store.vapidPublicKey ? Store.vapidPublicKey.slice(0, 16) + "…" : "(не получен)"));
-  lines.push("Подписка в localStorage: " + (Store.pushSubscriptionJson ? "есть" : "нет"));
   lines.push("");
   lines.push("--- ICE-серверы ---");
   try {
@@ -2746,24 +2686,54 @@ function buildDiagnosticsText() {
 }
 function renderDiagnostics() {
   const idShort = Store.myId ? escapeHtml(String(Store.myId).slice(0, 16)) + "…" : "не задан";
-  const turnCount = (typeof ICE_SERVERS !== "undefined")
-    ? ICE_SERVERS.filter((s) => (s.urls || "").toString().startsWith("turn")).length
-    : 0;
+  const turnCount = (typeof ICE_SERVERS !== "undefined") ? ICE_SERVERS.filter((s) => (s.urls || "").toString().startsWith("turn")).length : 0;
   const summary = $("#diagnostics-summary");
   if (summary) summary.innerHTML = `
     <div><b>Мой id:</b> ${idShort}</div>
     <div><b>Сервер:</b> ${escapeHtml(effectiveSignalingUrl())}</div>
-    <div><b>Сигналинг:</b> ${signaling ? (signaling.connected ? "✅ подключён" : "⚠️ не подключён") : "⚠️ не инициализирован"}</div>
+    <div><b>Сигналинг:</b> ${signaling ? (signaling.connected ? "✅ подключён" : "⚠️ не подключён") : "⚠️"}</div>
     <div><b>Онлайн:</b> ${onlineSet.size}</div>
     <div><b>Контактов:</b> ${state.contacts.size}</div>
+    <div><b>P2P links:</b> ${mesh ? mesh.links.size : 0}</div>
     <div><b>В очереди:</b> ${outbox.size}</div>
-    <div><b>TURN-серверов:</b> ${turnCount} ${turnCount > 0 ? "✅" : "⚠️"}</div>
-    <div><b>Уведомления:</b> ${("Notification" in window && Notification.permission === "granted" && Store.notificationsEnabled) ? "✅" : "⚠️"}</div>
-    <div><b>Звук/вибро:</b> ${Store.soundsEnabled ? "✅" : "⚠️"}</div>
-    <div><b>PWA:</b> ${isStandalone() ? "✅ установлено" : "не на домашний экран"}</div>
-    <div><b>VAPID:</b> ${Store.vapidPublicKey ? "✅ получен" : "⚠️ нет"}</div>
-    <div><b>Пин-код:</b> ${Store.pinEnabled ? "✅ включён" : "⚠️ выключен"}</div>`;
+    <div><b>TURN-серверов:</b> ${turnCount} ${turnCount > 0 ? "✅" : "⚠️"}</div>`;
   const log = $("#diagnostics-log"); if (log) log.textContent = buildDiagnosticsText();
+}
+
+function renderWebRtcSheet() {
+  const el = $("#webrtc-content");
+  if (el) el.textContent = buildWebRtcText();
+}
+function buildWebRtcText() {
+  const lines = [];
+  lines.push("=== WebRTC соединения ===");
+  if (!mesh || mesh.links.size === 0) {
+    lines.push("(нет активных PeerLink)");
+    return lines.join("\n");
+  }
+  for (const link of mesh.links.values()) {
+    const d = link.getDiagnostics();
+    lines.push("");
+    lines.push("--- " + String(d.id).slice(0, 14) + "… ---");
+    lines.push("role: " + d.role);
+    lines.push("status: " + d.status);
+    lines.push("pc.connectionState: " + d.pcState);
+    lines.push("iceConnectionState: " + d.iceState);
+    lines.push("iceGatheringState: " + d.iceGather);
+    lines.push("signalingState: " + d.signalingState);
+    lines.push("dataChannel: " + d.dcState);
+    lines.push("candidates (" + d.candidates.length + "):");
+    for (const c of d.candidates) {
+      lines.push(`  • ${c.type} ${c.protocol} ${c.address}:${c.port}${c.tcpType ? " tcpType=" + c.tcpType : ""}`);
+    }
+    if (d.errors.length > 0) {
+      lines.push("ICE errors (" + d.errors.length + "):");
+      for (const e of d.errors.slice(0, 10)) {
+        lines.push(`  ! code=${e.errorCode} ${e.errorText || ""} url=${e.url || ""}`);
+      }
+    }
+  }
+  return lines.join("\n");
 }
 
 // =====================================================================
@@ -2807,6 +2777,7 @@ function wireMeshEvents() {
     const c = state.contacts.get(id); if (!c) return;
     const wasConnected = c.status === "connected" || c.status === "in-call";
     c.status = status;
+    etherLog("info", "[link] " + String(id).slice(0, 10) + "…", "status=" + status);
     if (status === "connected" && !wasConnected) {
       const link = mesh.get(id);
       if (link && link.remoteName) c.name = link.remoteName;
@@ -2863,17 +2834,15 @@ function wireMeshEvents() {
 }
 
 // =====================================================================
-// wireChatScreen — форма отправки и обработчики инпута
+// Форма чата
 // =====================================================================
 function wireChatScreen() {
   if (__chatWired) return;
   __chatWired = true;
-
   const form = $("#chat-form");
   if (form) form.addEventListener("submit", (e) => {
     e.preventDefault();
-    const input = $("#chat-input");
-    if (!input) return;
+    const input = $("#chat-input"); if (!input) return;
     const text = input.value.trim();
     if (!text || !state.chatId) return;
     if (state.editingMessageId) { commitEdit(state.chatId, state.editingMessageId, text); cancelEditing(); }
@@ -2883,7 +2852,6 @@ function wireChatScreen() {
     persistDrafts();
     sendTypingStop(state.chatId);
   });
-
   const input = $("#chat-input");
   if (input) {
     let typingSendTimer = null;
@@ -2898,40 +2866,24 @@ function wireChatScreen() {
     });
     input.addEventListener("blur", () => { if (state.chatId) sendTypingStop(state.chatId); });
   }
-
   const callBtn = $("#chat-call-btn");
   if (callBtn) callBtn.addEventListener("click", () => beginCall(state.chatId));
-
   const moreBtn = $("#chat-more-btn");
-  if (moreBtn) moreBtn.addEventListener("click", () => {
-    const id = state.chatId;
-    if (!id) return;
-    openContactCard(id);
-  });
-
+  if (moreBtn) moreBtn.addEventListener("click", () => { const id = state.chatId; if (id) openContactCard(id); });
   const peerTap = $("#chat-peer-tap");
-  if (peerTap) peerTap.addEventListener("click", () => {
-    const id = state.chatId;
-    if (!id) return;
-    openContactCard(id);
-  });
-
+  if (peerTap) peerTap.addEventListener("click", () => { const id = state.chatId; if (id) openContactCard(id); });
   const editCancel = $("#edit-cancel-btn");
   if (editCancel) editCancel.addEventListener("click", () => {
     const id = state.chatId;
     cancelEditing();
-    const inp = $("#chat-input");
-    if (!inp) return;
+    const inp = $("#chat-input"); if (!inp) return;
     if (id && state.drafts[id]) inp.value = state.drafts[id]; else inp.value = "";
   });
-
   const replyCancel = $("#reply-cancel-btn");
   if (replyCancel) replyCancel.addEventListener("click", () => cancelReply());
-
   const scrollBtn = $("#scroll-bottom-btn");
   if (scrollBtn) scrollBtn.addEventListener("click", () => {
-    const wrap = $("#chat-messages");
-    if (wrap) wrap.scrollTo({ top: wrap.scrollHeight, behavior: "smooth" });
+    const wrap = $("#chat-messages"); if (wrap) wrap.scrollTo({ top: wrap.scrollHeight, behavior: "smooth" });
   });
   const wrap = $("#chat-messages");
   if (wrap) wrap.addEventListener("scroll", () => updateScrollBottomButton());
@@ -2952,11 +2904,8 @@ function bootDidNotRender() {
   const lk = document.getElementById("lock-screen");
   const rc = document.getElementById("boot-recovery");
   if (!on || !ap || !lk || !rc) return false;
-  const onH = on.classList.contains("hidden");
-  const apH = ap.classList.contains("hidden");
-  const lkH = lk.classList.contains("hidden");
-  const rcH = rc.classList.contains("hidden");
-  return onH && apH && lkH && rcH;
+  return on.classList.contains("hidden") && ap.classList.contains("hidden")
+      && lk.classList.contains("hidden") && rc.classList.contains("hidden");
 }
 const bootWatchdog = setTimeout(() => { if (bootDidNotRender()) showBootRecovery(); }, 10000);
 window.addEventListener("error", () => { if (bootDidNotRender()) { clearTimeout(bootWatchdog); showBootRecovery(); } });
@@ -2967,7 +2916,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     await restoreFromIDB().catch(() => {});
     initBoot();
     clearTimeout(bootWatchdog);
-  } catch (e) { console.error("[boot]", e); showBootRecovery(); }
+  } catch (e) { etherLog("error", "[boot]", String(e)); showBootRecovery(); }
 });
 
 const brReset = document.getElementById("boot-recovery-reset");
@@ -2986,9 +2935,11 @@ window.addEventListener("beforeunload", () => {
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
     try { updateAppBadge(); } catch (e) {}
-    if (state.chatId) {
-      const c = state.contacts.get(state.chatId);
-      if (c) markThreadRead(c);
-    }
+    // Возобновить AudioContext после возврата из фона
+    try {
+      if (audioCtx && audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+      if (ringtoneCtx && ringtoneCtx.state === "suspended") ringtoneCtx.resume().catch(() => {});
+    } catch (e) {}
+    if (state.chatId) { const c = state.contacts.get(state.chatId); if (c) markThreadRead(c); }
   }
 });
