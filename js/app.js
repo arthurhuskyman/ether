@@ -227,6 +227,9 @@ const outbox = new Map();
 const pendingNoKey = new Map();
 const seenDeliverIds = new Set();
 
+// Защита от одновременного создания двух PeerLink для одного и того же id.
+const _connectInFlight = new Set();
+
 const pendingCall = { contactId: null, timer: null };
 const pendingRemoteStreams = new Map();
 let callTimerInterval = null;
@@ -1639,6 +1642,7 @@ function wireSignalingEvents(sig) {
     etherLog("info", "[signal] from " + String(from).slice(0, 10) + "…", "t=" + packet.t);
 
     if (packet.t === "call-invite") {
+      if (isDuplicateSignal(from, packet)) return;
       etherLog("info", "[call] incoming invite from " + String(from).slice(0, 10) + "…");
       ensureContactEntry(from, packet.n);
       if (state.callId !== from) {
@@ -1675,19 +1679,34 @@ function wireSignalingEvents(sig) {
       if (state.callId === from) { stopRingtone(); closeCallScreen("completed"); }
       return;
     }
-    if (isDuplicateSignal(from, packet)) return;
+    // Для offer/answer фильтр дубликатов НЕ применяем: SDP-машина сама
+    // отбросит невалидные повторы через setRemoteDescription.
     if (packet.t === "offer") {
+      etherLog("info", "[offer] processing — from=" + String(from).slice(0, 10) + "…");
       const existing = mesh.get(from);
-      if (existing && existing.role === "answerer" && existing.status === "connected") return;
-      if (existing) mesh.remove(from);
+      if (existing && existing.role === "answerer" && existing.status === "connected") {
+        etherLog("info", "[offer] ignoring, already connected as answerer");
+        return;
+      }
+      if (existing) {
+        etherLog("warn", "[offer] removing existing link before creating new one");
+        mesh.remove(from);
+      }
       ensureContactEntry(from, packet.n);
+      etherLog("info", "[offer] creating incoming link");
       const link = mesh.createIncomingLink(from);
       try {
+        etherLog("info", "[offer] calling acceptOfferAndCreateAnswer");
         const answer = await link.acceptOfferAndCreateAnswer(packet);
-        if (!answer) return;
-        sig.signal(from, answer);
+        if (!answer) {
+          etherLog("warn", "[offer] acceptOfferAndCreateAnswer returned null");
+          return;
+        }
+        etherLog("info", "[offer] answer created, sending back");
+        const sent = sig.signal(from, answer);
+        etherLog("info", "[offer] answer sent, result=" + sent);
       } catch (e) {
-        etherLog("error", "[webrtc] answer failed:", String(e));
+        etherLog("error", "[offer] answer FAILED:", String(e && e.message || e));
         mesh.remove(from);
         const c = state.contacts.get(from); if (c) c.status = "disconnected";
         if (state.chatId === from) renderChatThread();
@@ -1815,40 +1834,50 @@ async function attemptConnect(id) {
   if (!signaling || !signaling.connected) return;
   if (!onlineSet.has(id)) return;
 
-  // КРИТИЧНО: offer создаёт ТОЛЬКО сторона с меньшим id. Обходить это
-  // правило нельзя ни при каких условиях — иначе коллизия offer/offer.
+  // КРИТИЧНО: offer создаёт ТОЛЬКО сторона с меньшим id.
   const iShouldOffer = Store.myId < id;
   if (!iShouldOffer) {
     etherLog("info", "[connect] " + tag, "not my turn — waiting for peer's offer");
     return;
   }
 
-  const existing = mesh.get(id);
-  if (existing) {
-    const age = Date.now() - (existing._createdAt || 0);
-    if (existing.status === "connected" || existing.status === "in-call") return;
-    if (existing.status === "connecting" && age < CONNECT_STUCK_MS) {
-      etherLog("info", "[connect] " + tag, "waiting — link connecting, age=" + Math.round(age / 1000) + "s");
-      return;
-    }
-    etherLog("warn", "[connect] " + tag, "resetting stuck link (age=" + Math.round(age / 1000) + "s, status=" + existing.status + ")");
-    mesh.remove(id);
+  // Защита от гонки: пока в процессе первый PeerLink, второй не создаём.
+  if (_connectInFlight.has(id)) {
+    etherLog("info", "[connect] " + tag, "already in flight — skipping");
+    return;
   }
+  _connectInFlight.add(id);
 
-  etherLog("info", "[connect] " + tag, "creating offer");
-  const link = mesh.createOutgoingLink(id);
   try {
-    const packet = await link.createInitialOffer("");
-    if (!packet) return;
-    signaling.signal(id, packet);
-    etherLog("info", "[connect] " + tag, "offer sent");
-    watchConnectionTimeout(id);
-  } catch (e) {
-    etherLog("error", "[connect] " + tag, "offer failed:", String(e));
-    mesh.remove(id);
-    const c = state.contacts.get(id); if (c) c.status = "disconnected";
-    if (state.chatId === id) renderChatThread();
-    if (state.tab === "chats") renderChatsList();
+    const existing = mesh.get(id);
+    if (existing) {
+      const age = Date.now() - (existing._createdAt || 0);
+      if (existing.status === "connected" || existing.status === "in-call") return;
+      if (existing.status === "connecting" && age < CONNECT_STUCK_MS) {
+        etherLog("info", "[connect] " + tag, "waiting — link connecting, age=" + Math.round(age / 1000) + "s");
+        return;
+      }
+      etherLog("warn", "[connect] " + tag, "resetting stuck link (age=" + Math.round(age / 1000) + "s, status=" + existing.status + ")");
+      mesh.remove(id);
+    }
+
+    etherLog("info", "[connect] " + tag, "creating offer");
+    const link = mesh.createOutgoingLink(id);
+    try {
+      const packet = await link.createInitialOffer("");
+      if (!packet) return;
+      signaling.signal(id, packet);
+      etherLog("info", "[connect] " + tag, "offer sent");
+      watchConnectionTimeout(id);
+    } catch (e) {
+      etherLog("error", "[connect] " + tag, "offer failed:", String(e));
+      mesh.remove(id);
+      const c = state.contacts.get(id); if (c) c.status = "disconnected";
+      if (state.chatId === id) renderChatThread();
+      if (state.tab === "chats") renderChatsList();
+    }
+  } finally {
+    _connectInFlight.delete(id);
   }
 }
 function watchConnectionTimeout(id) {
@@ -2279,8 +2308,6 @@ async function beginCall(id) {
   }
   clearPendingCall();
   pendingCall.contactId = id;
-  // Не форсируем — правило offerer определяется id. Если мы не offerer,
-  // собеседник сам создаст offer через scheduleAutoConnect.
   attemptConnect(id);
   pendingCall.timer = setTimeout(() => {
     if (pendingCall.contactId !== id) return;

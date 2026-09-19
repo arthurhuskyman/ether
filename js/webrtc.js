@@ -15,9 +15,20 @@ window.__etherIceReady = (async () => {
     if (!r.ok) throw new Error("HTTP " + r.status);
     const list = await r.json();
     if (Array.isArray(list) && list.length > 0) {
-      ICE_SERVERS = ICE_SERVERS.concat(list);
-      console.log("[webrtc] TURN Metered загружены:", list.length);
-      if (window.etherLog) window.etherLog("info", "[webrtc] TURN Metered загружены:", list.length, "серверов");
+      // Берём только 1 UDP TURN и 1 TCP TURN. Остальные серверы Metered
+      // через тот же релей — лишние только тормозят ICE discovery.
+      const filtered = [];
+      const seen = new Set();
+      for (const s of list) {
+        const url = (s.urls || "").toString();
+        const key = url.includes("transport=tcp") ? "tcp" : "udp";
+        if (seen.has(key)) continue;
+        seen.add(key);
+        filtered.push(s);
+      }
+      ICE_SERVERS = ICE_SERVERS.concat(filtered.slice(0, 2));
+      if (window.etherLog) window.etherLog("info", "[webrtc] TURN Metered: используем", filtered.slice(0, 2).length, "сервера (1 UDP + 1 TCP)");
+      console.log("[webrtc] TURN Metered: используем", filtered.slice(0, 2).length, "сервера");
     } else {
       console.warn("[webrtc] Metered вернул пустой список");
       if (window.etherLog) window.etherLog("warn", "[webrtc] Metered вернул пустой список TURN");
@@ -225,18 +236,26 @@ class PeerLink extends EventTarget {
   async acceptOfferAndCreateAnswer(packet) {
     this._setStatus("connecting");
     this.remoteName = (packet && packet.n) || this.remoteName;
+    this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "acceptOffer: setRemoteDescription start");
     try {
       await this.pc.setRemoteDescription(packet.d);
+      this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "acceptOffer: setRemoteDescription OK");
       const answer = await this.pc.createAnswer();
+      this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "acceptOffer: createAnswer OK");
       await this.pc.setLocalDescription(answer);
+      this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "acceptOffer: setLocalDescription OK");
       await waitForIceGathering(this.pc);
-      if (this._closed || this.pc.signalingState === "closed") return null;
+      if (this._closed || this.pc.signalingState === "closed") {
+        this._log("warn", "[webrtc]", this.id.slice(0, 10) + "…", "acceptOffer: closed before return");
+        return null;
+      }
       this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "answer ready, candidates:", this._iceCandidates.length);
       return {
         t: "answer", n: this.localName, x: crypto.randomUUID(),
         d: { type: this.pc.localDescription.type, sdp: this.pc.localDescription.sdp },
       };
     } catch (e) {
+      this._log("error", "[webrtc]", this.id.slice(0, 10) + "…", "acceptOffer FAILED:", String(e && e.message || e));
       if (this._closed || this.pc.signalingState === "closed") return null;
       throw e;
     }
