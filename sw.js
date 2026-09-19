@@ -109,7 +109,7 @@ self.addEventListener("notificationclick", (event) => {
           return c.focus();
         }
       }
-      if (self.clients.openWindows) return self.clients.openWindow("./");
+      if (self.clients.openWindow) return self.clients.openWindow("./");
     })
   );
 });

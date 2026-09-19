@@ -152,7 +152,6 @@ const Store = {
   },
   get notifBannerDismissed() { return localStorage.getItem("ether.notifBannerDismissed") === "1"; },
   set notifBannerDismissed(v) { localStorage.setItem("ether.notifBannerDismissed", v ? "1" : "0"); },
-  // debugHidden: по умолчанию СКРЫТ. Показываем только если явно записали "0".
   get debugHidden() { return localStorage.getItem(DEBUG_KEY) !== "0"; },
   set debugHidden(v) { localStorage.setItem(DEBUG_KEY, v ? "1" : "0"); },
   get myPrivateKeyJwk() { try { const v = localStorage.getItem("ether.privKey"); return v ? JSON.parse(v) : null; } catch (e) { return null; } },
@@ -168,9 +167,8 @@ const Store = {
 // =====================================================================
 // Логирование
 // =====================================================================
-// etherLog уже определён в signaling-client.js (он загружается раньше).
-// Используем var, а не const: const в глобальной области падает с
-// SyntaxError при повторном объявлении имени, а var — нет.
+// etherLog определён в signaling-client.js (загружается раньше). var, а не
+// const: повторное объявление const в глобальной области = SyntaxError.
 window.__etherDiag = window.__etherDiag || [];
 if (typeof window.etherLog !== "function") {
   window.etherLog = function (level, ...args) {
@@ -359,7 +357,6 @@ function initAudioWarmup() {
       [audioCtx, ringtoneCtx].forEach((ctx) => {
         if (!ctx) return;
         if (ctx.state === "suspended") ctx.resume().catch(() => {});
-        // Silent tone для полной разблокировки
         try {
           const osc = ctx.createOscillator();
           const gain = ctx.createGain();
@@ -435,19 +432,16 @@ function playOutgoingSound() {
 }
 function vibrate(pattern) {
   if (!Store.soundsEnabled) return;
-  // iOS не поддерживает navigator.vibrate — молча пропускаем
   if (navigator.vibrate) {
     try { navigator.vibrate(pattern); } catch (e) {}
   }
 }
-
 function playRingtone() {
   stopRingtone();
   try {
     if (!ringtoneCtx) ringtoneCtx = new (window.AudioContext || window.webkitAudioContext)();
     if (ringtoneCtx.state === "suspended") ringtoneCtx.resume().catch(() => {});
     etherLog("info", "[ringtone] start, ctx.state=" + ringtoneCtx.state);
-
     const playTone = (freq, delay, dur, vol) => {
       const ctx = ringtoneCtx;
       const osc = ctx.createOscillator();
@@ -464,19 +458,14 @@ function playRingtone() {
       osc.start(t);
       osc.stop(t + dur + 0.05);
     };
-
     const ringCycle = () => {
-      // "Ring-ring": два тона вверх-вниз, потом пауза
       playTone(880, 0, 0.18, 0.4);
       playTone(660, 0.18, 0.18, 0.4);
       playTone(880, 0.4, 0.18, 0.4);
       playTone(660, 0.58, 0.18, 0.4);
     };
-
     ringCycle();
     ringtoneTimer = setInterval(ringCycle, 2000);
-
-    // Вибрация (iOS не поддерживает, Android — да)
     if (navigator.vibrate) {
       try { navigator.vibrate([400, 200, 400, 200, 400, 1000]); } catch (e) {}
     }
@@ -553,7 +542,6 @@ function initBoot() {
   if (Store.pinEnabled && Store.pinHash) { showLockScreen(); return; }
   bootAfterUnlock();
 }
-
 let __onboardingWired = false;
 function wireOnboardingOnce() {
   if (__onboardingWired) return;
@@ -579,7 +567,6 @@ function wireOnboardingOnce() {
     try { startApp(); } catch (e) { etherLog("error", "[startApp]", String(e)); }
   });
 }
-
 async function ensureKeyPair() {
   try {
     if (Store.myPrivateKeyJwk && Store.myPublicKeyJwk) return;
@@ -1137,6 +1124,8 @@ function renderChatThreadInner() {
   if (badge) {
     if (link && (link.status === "connected" || link.status === "in-call")) {
       badge.textContent = "P2P"; badge.classList.remove("hidden", "via-server");
+    } else if (link && link.status === "connecting") {
+      badge.textContent = "соединяемся…"; badge.classList.add("via-server"); badge.classList.remove("hidden");
     } else if (c.managed && c.online) {
       badge.textContent = "через сервер"; badge.classList.add("via-server"); badge.classList.remove("hidden");
     } else badge.classList.add("hidden");
@@ -1200,7 +1189,6 @@ function renderChatThreadInner() {
     }, 200);
   }
 }
-
 function attachSwipeReply(el, m, c) {
   let startX = 0, startY = 0, swiping = false;
   el.addEventListener("touchstart", (e) => {
@@ -1252,7 +1240,6 @@ function saveCurrentDraft() {
   if (v) state.drafts[state.chatId] = v; else delete state.drafts[state.chatId];
   persistDrafts();
 }
-
 function wireKeyboardFix() {
   if (!window.visualViewport) return;
   const vv = window.visualViewport;
@@ -1296,7 +1283,6 @@ async function sendChatMessage(contactId, text, replyTo) {
   await trySendOrQueue(c, msgId, payload);
 }
 function trimMessages(c) { if (c.messages.length <= MAX_MESSAGES_PER_CHAT) return; c.messages = c.messages.slice(-MAX_MESSAGES_PER_CHAT); }
-
 async function commitEdit(contactId, msgId, newText) {
   const c = state.contacts.get(contactId); if (!c) return;
   const m = c.messages.find((x) => x.id === msgId); if (!m) return;
@@ -1348,7 +1334,6 @@ async function trySendOrQueue(contact, msgId, payloadObj) {
   }
   await flushOutboxItem(msgId);
 }
-
 function addToOutbox(msgId, to, payload) {
   if (outbox.has(msgId)) return;
   outbox.set(msgId, { msgId, to, payload, sentAt: Date.now(), attempts: 0, serverAcked: false });
@@ -1414,7 +1399,6 @@ function pruneOutbox() {
   if (changed) persistOutbox();
 }
 function trimMap(map, max) { while (map.size > max) map.delete(map.keys().next().value); }
-
 function persistPendingNoKey() {
   const obj = {};
   for (const [cid, list] of pendingNoKey) { if (!list || list.length === 0) continue; obj[cid] = list.map((x) => ({ msgId: x.msgId, payload: x.payload })); }
@@ -1466,7 +1450,6 @@ function markMessageAck(contactId, msgId, ack) {
   persistContacts();
   if (state.chatId === contactId) renderChatThread();
 }
-
 function sendTypingStart(contactId) {
   if (state.typingSendingState.get(contactId)) return;
   state.typingSendingState.set(contactId, true);
@@ -1562,7 +1545,6 @@ function initSignaling() {
   signaling.start();
   renderSignalingBanner();
 }
-
 function wireSignalingEvents(sig) {
   const on = (type, fn) => { const wrapped = (ev) => fn(ev); sig.addEventListener(type, wrapped); return { type, wrapped }; };
   const subs = [];
@@ -1637,6 +1619,7 @@ function wireSignalingEvents(sig) {
   subs.push(on("signal", async (ev) => {
     const { from, data: packet } = ev.detail;
     if (!packet || !packet.t) return;
+    etherLog("info", "[signal] from " + String(from).slice(0, 10) + "…", "t=" + packet.t);
 
     if (packet.t === "call-invite") {
       etherLog("info", "[call] incoming invite from " + String(from).slice(0, 10) + "…");
@@ -1748,7 +1731,6 @@ function wireSignalingEvents(sig) {
   }));
   return () => { for (const s of subs) sig.removeEventListener(s.type, s.wrapped); };
 }
-
 function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind) {
   const kind = (payload && payload.kind) || openKind || "chat";
   if (kind === "chat") {
@@ -1804,7 +1786,16 @@ async function attemptConnect(id, { force = false } = {}) {
   const tag = String(id).slice(0, 10) + "…";
   if (!signaling || !signaling.connected) return;
   const existing = mesh.get(id);
-  if (existing && existing.status !== "disconnected") return;
+  if (existing) {
+    const age = Date.now() - (existing._createdAt || 0);
+    if (existing.status === "connected" || existing.status === "in-call") return;
+    if (existing.status === "connecting" && age < 15000) {
+      etherLog("info", "[connect] " + tag, "waiting — link connecting, age=" + Math.round(age / 1000) + "s");
+      return;
+    }
+    etherLog("warn", "[connect] " + tag, "resetting stuck link (age=" + Math.round(age / 1000) + "s, status=" + existing.status + ")");
+    mesh.remove(id);
+  }
   if (!onlineSet.has(id)) return;
   const iShouldOffer = Store.myId < id;
   if (!force && !iShouldOffer) return;
@@ -1839,7 +1830,7 @@ function watchConnectionTimeout(id) {
       if (state.tab === "chats") renderChatsList();
       if (c.managed && c.online) scheduleAutoConnect(id);
     }
-  }, 20000);
+  }, 18000);
 }
 
 // =====================================================================
@@ -2233,7 +2224,6 @@ function renderCallsList() {
   }
 }
 function clearPendingCall() { if (pendingCall.timer) clearTimeout(pendingCall.timer); pendingCall.timer = null; pendingCall.contactId = null; }
-
 async function beginCall(id) {
   const c = state.contacts.get(id);
   if (!c) return;
@@ -2525,7 +2515,6 @@ function wireNavTitleTaps() {
     }
   });
 }
-
 function wireDebugScreen() {
   const diag = $("#diagnostics-btn");
   if (diag) diag.addEventListener("click", () => { renderDiagnostics(); const el = $("#diagnostics-sheet"); if (el) el.classList.remove("hidden"); });
@@ -2596,7 +2585,6 @@ function wireDebugScreen() {
     toast(e.target.checked ? "Вкладка скрыта" : "Вкладка показана");
   });
 }
-
 function renderLogsSheet() { const el = $("#logs-content"); if (el) el.textContent = buildLogsText(); }
 function buildLogsText() {
   const log = window.__etherDiag || [];
@@ -2608,7 +2596,6 @@ function buildLogsText() {
   }
   return lines.join("\n");
 }
-
 function renderStorageSheet() {
   const el = $("#storage-summary");
   if (!el) return;
@@ -2651,7 +2638,6 @@ function buildEnvText() {
   }
   return lines.join("");
 }
-
 function buildDiagnosticsText() {
   const lines = [];
   lines.push("=== Эфир — диагностика ===");
@@ -2702,11 +2688,7 @@ function renderDiagnostics() {
     <div><b>TURN-серверов:</b> ${turnCount} ${turnCount > 0 ? "✅" : "⚠️"}</div>`;
   const log = $("#diagnostics-log"); if (log) log.textContent = buildDiagnosticsText();
 }
-
-function renderWebRtcSheet() {
-  const el = $("#webrtc-content");
-  if (el) el.textContent = buildWebRtcText();
-}
+function renderWebRtcSheet() { const el = $("#webrtc-content"); if (el) el.textContent = buildWebRtcText(); }
 function buildWebRtcText() {
   const lines = [];
   lines.push("=== WebRTC соединения ===");
@@ -2938,7 +2920,6 @@ window.addEventListener("beforeunload", () => {
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
     try { updateAppBadge(); } catch (e) {}
-    // Возобновить AudioContext после возврата из фона
     try {
       if (audioCtx && audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
       if (ringtoneCtx && ringtoneCtx.state === "suspended") ringtoneCtx.resume().catch(() => {});

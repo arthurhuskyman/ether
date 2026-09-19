@@ -28,13 +28,9 @@ const PORT = process.env.PORT || 8787;
 const MAX_MAILBOX_PER_USER = 500;
 const MAX_PAYLOAD = 128 * 1024;
 
-// Throttling push: минимальный интервал между уведомлениями одному
-// получателю от одного отправителя.
 const PUSH_THROTTLE_MS = 30 * 1000;
-
-// Дедупликация push по msgId — TTL 10 минут.
 const PUSH_DEDUP_TTL_MS = 10 * 60 * 1000;
-const pushSentForMsgId = new Map(); // msgId -> ts
+const pushSentForMsgId = new Map();
 
 const PUSH_SUBS_FILE = path.join("/tmp", "ether-push-subs.json");
 
@@ -56,11 +52,9 @@ if (PUSH_ENABLED) {
 
 const wss = new WebSocketServer({ port: PORT, maxPayload: MAX_PAYLOAD });
 
-const clients = new Map();     // id -> { ws, name, visible, publicKey }
-const mailbox = new Map();     // id -> Map(msgId -> { from, envelope, fromPublicKey, kind, ts })
-const pushSubs = new Map();    // id -> PushSubscription JSON
-
-// pushThrottle: ключ `recipientId:senderId` -> { lastAt, count, timer }
+const clients = new Map();
+const mailbox = new Map();
+const pushSubs = new Map();
 const pushThrottle = new Map();
 
 // ---------- Персистентность push-подписок ----------
@@ -105,13 +99,11 @@ async function actuallySendPush(sub, payload) {
   }
 }
 
-// ---------- Отправка с throttling ----------
 async function sendPushTo(recipientId, senderId, payload, opts = {}) {
   if (!PUSH_ENABLED) return;
   const sub = pushSubs.get(recipientId);
   if (!sub) return;
 
-  // Звонки — приоритетные, без throttling.
   if (opts.force || payload.kind === "call") {
     const res = await actuallySendPush(sub, payload);
     if (res === "gone") { pushSubs.delete(recipientId); savePushSubs(); }
@@ -137,15 +129,10 @@ async function sendPushTo(recipientId, senderId, payload, opts = {}) {
       const cur = pushThrottle.get(key);
       if (!cur) return;
       cur.timer = null;
-
-      // Если получатель уже подключён — все сообщения у него в приложении,
-      // отдельный агрегат не нужен. Это устраняет случай «пришло после того,
-      // как прочитал».
       if (clients.has(recipientId)) {
         pushThrottle.delete(key);
         return;
       }
-
       const subNow = pushSubs.get(recipientId);
       if (!subNow) { pushThrottle.delete(key); return; }
       const n = cur.count + 1;
@@ -158,9 +145,6 @@ async function sendPushTo(recipientId, senderId, payload, opts = {}) {
   }
 }
 
-// При подключении получателя — сбрасываем накопленные для него throttle,
-// чтобы не отправить агрегат «N новых» через 30 секунд после того, как он
-// уже всё прочитал.
 function clearThrottleForRecipient(recipientId) {
   const prefix = recipientId + ":";
   for (const key of Array.from(pushThrottle.keys())) {
@@ -208,6 +192,7 @@ function isValidEnvelope(env) {
   return env && typeof env.iv === "string" && typeof env.ct === "string"
     && env.iv.length < 200 && env.ct.length < 96 * 1024;
 }
+function shortId(s) { return String(s || "").slice(0, 10) + "…"; }
 
 // ---------- Соединения ----------
 wss.on("connection", (ws) => {
@@ -219,6 +204,12 @@ wss.on("connection", (ws) => {
     let msg;
     try { msg = JSON.parse(raw); } catch (e) { return; }
     if (!msg || typeof msg.type !== "string") return;
+
+    // ---------- Heartbeat ----------
+    if (msg.type === "ping") {
+      safeSend(ws, { type: "pong", t: msg.t });
+      return;
+    }
 
     // ---------- Регистрация ----------
     if (msg.type === "register" && typeof msg.id === "string" && msg.id) {
@@ -236,13 +227,13 @@ wss.on("connection", (ws) => {
         visible: msg.visible !== false,
         publicKey: msg.publicKey || null,
       });
+      console.log("[reg] " + shortId(myId) + " name=" + (msg.name || "").slice(0, 20) + " visible=" + (msg.visible !== false) + " clients=" + clients.size);
       const online = Array.from(clients.keys())
         .filter((i) => i !== myId)
         .map((i) => rosterEntry(i))
         .filter(Boolean);
       safeSend(ws, { type: "registered", id: myId, online });
       if (PUSH_ENABLED) safeSend(ws, { type: "vapid-key", key: VAPID_PUBLIC });
-      // Онлайн — сбрасываем накопленные для него агрегаты push.
       clearThrottleForRecipient(myId);
       flushMailbox(myId, ws);
       broadcastPresence(myId, true);
@@ -255,7 +246,7 @@ wss.on("connection", (ws) => {
         pushSubs.set(myId, msg.subscription);
         savePushSubs();
         safeSend(ws, { type: "push-subscribed" });
-        console.log("[push] подписка сохранена для", myId.slice(0, 10) + "…");
+        console.log("[push] подписка сохранена для", shortId(myId));
       } catch (e) {}
       return;
     }
@@ -270,9 +261,13 @@ wss.on("connection", (ws) => {
     if (msg.type === "signal" && myId && typeof msg.to === "string") {
       const target = clients.get(msg.to);
       const payload = { type: "signal", from: myId, data: msg.data };
-      if (target) safeSend(target.ws, payload);
-      else safeSend(ws, { type: "unreachable", to: msg.to });
-
+      if (target) {
+        safeSend(target.ws, payload);
+        console.log("[sig] " + shortId(myId) + " → " + shortId(msg.to) + " t=" + (msg.data && msg.data.t));
+      } else {
+        safeSend(ws, { type: "unreachable", to: msg.to });
+        console.log("[sig] " + shortId(myId) + " → UNREACHABLE " + shortId(msg.to) + " t=" + (msg.data && msg.data.t));
+      }
       if (msg.data && msg.data.t === "call-invite") {
         const me = clients.get(myId);
         const myName = (me && me.name) || "Звонок";
@@ -295,6 +290,7 @@ wss.on("connection", (ws) => {
       }
       const kind = typeof msg.kind === "string" ? msg.kind : "chat";
       const target = clients.get(msg.to);
+      console.log("[deliver] " + shortId(myId) + " → " + shortId(msg.to) + " msgId=" + String(msg.msgId).slice(0, 8) + "… kind=" + kind + " queue=" + !target);
       const payload = {
         from: myId,
         msgId: msg.msgId,
@@ -304,16 +300,10 @@ wss.on("connection", (ws) => {
       };
 
       if (target) {
-        // Получатель онлайн — переслали, push не нужен.
         safeSend(target.ws, { type: "deliver", ...payload, queued: false });
       } else {
-        // Получатель офлайн — кладём в ящик.
         if (!mailbox.has(msg.to)) mailbox.set(msg.to, new Map());
         mailbox.get(msg.to).set(msg.msgId, { ...payload, ts: Date.now() });
-
-        // Push — только для реальных chat-сообщений, и только один раз
-        // на msgId. Служебные (ack-batch, edit, delete, reaction, typing)
-        // push не вызывают.
         if (kind === "chat" && !pushSentForMsgId.has(msg.msgId)) {
           pushSentForMsgId.set(msg.msgId, Date.now());
           const me = clients.get(myId);
@@ -327,7 +317,6 @@ wss.on("connection", (ws) => {
           }).catch(() => {});
         }
       }
-
       safeSend(ws, { type: "deliver-ack", msgId: msg.msgId });
       return;
     }
@@ -344,6 +333,7 @@ wss.on("connection", (ws) => {
     if (myId && clients.get(myId) && clients.get(myId).ws === ws) {
       clients.delete(myId);
       broadcastPresence(myId, false);
+      console.log("[reg] " + shortId(myId) + " disconnected, clients=" + clients.size);
     }
   });
 

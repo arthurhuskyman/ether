@@ -1,11 +1,11 @@
 // Клиент к сигнальному серверу: presence, сигнальные пакеты, доставка
-// зашифрованных конвертов, Web Push подписка.
+// зашифрованных конвертов, Web Push подписка, heartbeat.
 
 window.__etherDiag = window.__etherDiag || [];
 function etherLog(level, ...args) {
   const line = args.map((a) => (typeof a === "string" ? a : safeJson(a))).join(" ");
   window.__etherDiag.push({ ts: Date.now(), level, line });
-  if (window.__etherDiag.length > 300) window.__etherDiag.shift();
+  if (window.__etherDiag.length > 500) window.__etherDiag.shift();
   (console[level] || console.log).call(console, ...args);
 }
 function safeJson(a) {
@@ -34,18 +34,22 @@ class SignalingClient extends EventTarget {
     this.connected = false;
     this._stopped = false;
     this._pushSubscription = null;
+    this._pingTimer = null;
+    this._lastPongAt = 0;
   }
 
   start() {
     if (this._stopped) return;
     this.shouldRun = true;
     this._connect();
+    this._startHeartbeat();
   }
 
   stop() {
     this.shouldRun = false;
     this._stopped = true;
     this.connected = false;
+    this._stopHeartbeat();
     if (this._retryTimer) { clearTimeout(this._retryTimer); this._retryTimer = null; }
     if (this.ws) {
       try {
@@ -67,6 +71,7 @@ class SignalingClient extends EventTarget {
       if (this.ws !== ws) return;
       this._retryDelay = 1000;
       this.connected = true;
+      this._lastPongAt = Date.now();
       etherLog("info", "[signaling] соединение открыто, регистрируюсь как", String(this.myId).slice(0, 10) + "…");
       ws.send(JSON.stringify({
         type: "register",
@@ -83,6 +88,11 @@ class SignalingClient extends EventTarget {
       let msg;
       try { msg = JSON.parse(ev.data); } catch (e) { return; }
       if (!msg || typeof msg.type !== "string") return;
+
+      if (msg.type === "pong") {
+        this._lastPongAt = Date.now();
+        return;
+      }
 
       if (msg.type === "registered") {
         const users = (Array.isArray(msg.online) ? msg.online : []).map(normalizeRosterEntry).filter(Boolean);
@@ -152,6 +162,29 @@ class SignalingClient extends EventTarget {
     this._retryDelay = Math.min(this._retryDelay * 1.6, 20000);
   }
 
+  _startHeartbeat() {
+    this._stopHeartbeat();
+    this._pingTimer = setInterval(() => {
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+      const sincePong = this._lastPongAt ? (Date.now() - this._lastPongAt) : 0;
+      if (this._lastPongAt && sincePong > 45000) {
+        etherLog("warn", "[signaling] no pong for " + Math.round(sincePong / 1000) + "s, force-reconnect");
+        try { this.ws.close(); } catch (e) {}
+        this._lastPongAt = 0;
+        return;
+      }
+      try {
+        this.ws.send(JSON.stringify({ type: "ping", t: Date.now() }));
+      } catch (e) {
+        etherLog("warn", "[signaling] ping send failed:", String(e));
+      }
+    }, 15000);
+  }
+
+  _stopHeartbeat() {
+    if (this._pingTimer) { clearInterval(this._pingTimer); this._pingTimer = null; }
+  }
+
   send(type, payload) {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return false;
     try {
@@ -165,9 +198,6 @@ class SignalingClient extends EventTarget {
 
   signal(to, data) { return this.send("signal", { to, data }); }
 
-  // kind — открытая метка для сервера: "chat" | "ack-batch" | "edit" |
-  // "delete" | "reaction" | "typing". Сервер использует её, чтобы решить,
-  // слать ли push получателю. Само содержимое по-прежнему зашифровано.
   deliver(to, msgId, envelope, fromPublicKey, kind) {
     if (!envelope || typeof envelope.iv !== "string" || typeof envelope.ct !== "string") return false;
     return this.send("deliver", {
