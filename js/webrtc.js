@@ -129,6 +129,7 @@ class PeerLink extends EventTarget {
       this._log("info", "[webrtc]", id.slice(0, 10) + "…", "connectionState:", s);
       this.dispatchEvent(new CustomEvent("pc-connection-state", { detail: { state: s } }));
       if (this._closed) return;
+      if (s === "connecting") this._setStatus("connecting");
       if (s === "connected" && this.status !== "in-call") this._setStatus("connected");
       if (s === "failed" || s === "disconnected" || s === "closed") this._setStatus("disconnected");
     });
@@ -204,6 +205,7 @@ class PeerLink extends EventTarget {
   }
 
   async createInitialOffer(roomTag) {
+    this._setStatus("connecting");
     try {
       const offer = await this.pc.createOffer();
       await this.pc.setLocalDescription(offer);
@@ -221,6 +223,7 @@ class PeerLink extends EventTarget {
   }
 
   async acceptOfferAndCreateAnswer(packet) {
+    this._setStatus("connecting");
     this.remoteName = (packet && packet.n) || this.remoteName;
     try {
       await this.pc.setRemoteDescription(packet.d);

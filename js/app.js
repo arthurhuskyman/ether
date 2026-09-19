@@ -1839,7 +1839,7 @@ function watchConnectionTimeout(id) {
       if (state.tab === "chats") renderChatsList();
       if (c.managed && c.online) scheduleAutoConnect(id);
     }
-  }, 10000);
+  }, 20000);
 }
 
 // =====================================================================
