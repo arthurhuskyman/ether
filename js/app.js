@@ -20,6 +20,9 @@ const P2P_FALLBACK_MS = 1500;
 const ONBOARDING_HINT_SHOWN = "ether.hintShown";
 const PIN_ITERATIONS = 120000;
 const DEBUG_KEY = "ether.debugHidden";
+const CONNECT_STUCK_MS = 25000;
+const WATCH_CONNECT_TIMEOUT_MS = 18000;
+const ACK_DEDUP_WINDOW_MS = 5000;
 
 function effectiveSignalingUrl() {
   return (Store.signalingUrl || DEFAULT_SIGNALING_URL).trim();
@@ -167,8 +170,6 @@ const Store = {
 // =====================================================================
 // Логирование
 // =====================================================================
-// etherLog определён в signaling-client.js (загружается раньше). var, а не
-// const: повторное объявление const в глобальной области = SyntaxError.
 window.__etherDiag = window.__etherDiag || [];
 if (typeof window.etherLog !== "function") {
   window.etherLog = function (level, ...args) {
@@ -1430,7 +1431,22 @@ function resumeUnsentMessages() {
     }
   }
 }
+
+// --- sendAckBatch с защитой от лавины ---
+const _recentAckSent = new Map();
 function sendAckBatch(contactId, originalMsgIds, ackState) {
+  const key = contactId + ":" + ackState + ":" + originalMsgIds.slice(0, 3).join(",");
+  const now = Date.now();
+  const last = _recentAckSent.get(key);
+  if (last && now - last < ACK_DEDUP_WINDOW_MS) {
+    return;
+  }
+  _recentAckSent.set(key, now);
+  if (_recentAckSent.size > 200) {
+    const first = _recentAckSent.keys().next().value;
+    _recentAckSent.delete(first);
+  }
+
   const link = mesh.get(contactId);
   const actionId = crypto.randomUUID();
   const payload = { kind: "ack-batch", ids: originalMsgIds.slice(), state: ackState };
@@ -1439,6 +1455,7 @@ function sendAckBatch(contactId, originalMsgIds, ackState) {
   addToOutbox(actionId, contactId, payload);
   flushOutboxItem(actionId);
 }
+
 function markMessageAck(contactId, msgId, ack) {
   const c = state.contacts.get(contactId); if (!c) return;
   const m = c.messages.find((mm) => mm.id === msgId && mm.from === "me");
@@ -1661,8 +1678,7 @@ function wireSignalingEvents(sig) {
     if (isDuplicateSignal(from, packet)) return;
     if (packet.t === "offer") {
       const existing = mesh.get(from);
-      const iAmSupposedToOffer = Store.myId < from;
-      if (existing && existing.role === "offerer" && iAmSupposedToOffer && existing.status !== "disconnected") return;
+      if (existing && existing.role === "answerer" && existing.status === "connected") return;
       if (existing) mesh.remove(from);
       ensureContactEntry(from, packet.n);
       const link = mesh.createIncomingLink(from);
@@ -1711,8 +1727,14 @@ function wireSignalingEvents(sig) {
     const { from, msgId, envelope, fromPublicKey, kind, queued } = ev.detail;
     sig.mailboxAck(msgId);
     const sender = state.contacts.get(from);
-    if (sender && sender.blocked) { sendAckBatch(from, [msgId], "delivered"); return; }
-    if (seenDeliverIds.has(msgId)) { sendAckBatch(from, [msgId], "delivered"); return; }
+    if (sender && sender.blocked) {
+      if (kind === "chat") sendAckBatch(from, [msgId], "delivered");
+      return;
+    }
+    if (seenDeliverIds.has(msgId)) {
+      if (kind === "chat") sendAckBatch(from, [msgId], "delivered");
+      return;
+    }
     seenDeliverIds.add(msgId);
     if (seenDeliverIds.size > SEEN_DELIVER_LIMIT) seenDeliverIds.delete(seenDeliverIds.values().next().value);
     let payload;
@@ -1726,8 +1748,14 @@ function wireSignalingEvents(sig) {
         if (c && keysDiffer(fromPublicKey, c.publicKey)) { c.publicKey = fromPublicKey; persistContacts(); }
       }
     } catch (e) { etherLog("error", "[crypto] decrypt failed:", String(e)); return; }
+
     applyIncomingPayload(from, msgId, payload, true, kind);
-    sendAckBatch(from, [msgId], "delivered");
+
+    // Квитанцию "delivered" отправляем ТОЛЬКО на chat. Ни на ack-batch,
+    // ни на typing/edit/delete/reaction — иначе лавина.
+    if (kind === "chat") {
+      sendAckBatch(from, [msgId], "delivered");
+    }
   }));
   return () => { for (const s of subs) sig.removeEventListener(s.type, s.wrapped); };
 }
@@ -1780,28 +1808,34 @@ function clearAutoConnectTimer(id) { const t = autoConnectTimers.get(id); if (t)
 function scheduleAutoConnect(id) {
   attemptConnect(id);
   if (autoConnectTimers.has(id)) return;
-  autoConnectTimers.set(id, setTimeout(() => { autoConnectTimers.delete(id); attemptConnect(id, { force: true }); }, 4000));
+  autoConnectTimers.set(id, setTimeout(() => { autoConnectTimers.delete(id); attemptConnect(id); }, 4000));
 }
-async function attemptConnect(id, { force = false } = {}) {
+async function attemptConnect(id) {
   const tag = String(id).slice(0, 10) + "…";
   if (!signaling || !signaling.connected) return;
+  if (!onlineSet.has(id)) return;
+
+  // КРИТИЧНО: offer создаёт ТОЛЬКО сторона с меньшим id. Обходить это
+  // правило нельзя ни при каких условиях — иначе коллизия offer/offer.
+  const iShouldOffer = Store.myId < id;
+  if (!iShouldOffer) {
+    etherLog("info", "[connect] " + tag, "not my turn — waiting for peer's offer");
+    return;
+  }
+
   const existing = mesh.get(id);
   if (existing) {
     const age = Date.now() - (existing._createdAt || 0);
     if (existing.status === "connected" || existing.status === "in-call") return;
-    if (existing.status === "connecting" && age < 15000) {
+    if (existing.status === "connecting" && age < CONNECT_STUCK_MS) {
       etherLog("info", "[connect] " + tag, "waiting — link connecting, age=" + Math.round(age / 1000) + "s");
       return;
     }
     etherLog("warn", "[connect] " + tag, "resetting stuck link (age=" + Math.round(age / 1000) + "s, status=" + existing.status + ")");
     mesh.remove(id);
   }
-  if (!onlineSet.has(id)) return;
-  const iShouldOffer = Store.myId < id;
-  if (!force && !iShouldOffer) return;
-  if (force && !iShouldOffer && existing && existing.role === "answerer") return;
-  if (existing) mesh.remove(id);
-  etherLog("info", "[connect] " + tag, "creating offer" + (force ? " (force)" : ""));
+
+  etherLog("info", "[connect] " + tag, "creating offer");
   const link = mesh.createOutgoingLink(id);
   try {
     const packet = await link.createInitialOffer("");
@@ -1830,7 +1864,7 @@ function watchConnectionTimeout(id) {
       if (state.tab === "chats") renderChatsList();
       if (c.managed && c.online) scheduleAutoConnect(id);
     }
-  }, 18000);
+  }, WATCH_CONNECT_TIMEOUT_MS);
 }
 
 // =====================================================================
@@ -2245,7 +2279,9 @@ async function beginCall(id) {
   }
   clearPendingCall();
   pendingCall.contactId = id;
-  attemptConnect(id, { force: true });
+  // Не форсируем — правило offerer определяется id. Если мы не offerer,
+  // собеседник сам создаст offer через scheduleAutoConnect.
+  attemptConnect(id);
   pendingCall.timer = setTimeout(() => {
     if (pendingCall.contactId !== id) return;
     const cur = state.contacts.get(id);
@@ -2343,7 +2379,7 @@ function wireCallScreen() {
     if (!link || !isReachable(state.contacts.get(cid))) {
       toast("Соединяемся — говорите, как только услышите");
       pendingCall.contactId = cid;
-      attemptConnect(cid, { force: true });
+      attemptConnect(cid);
       const waitTimer = setTimeout(() => {
         if (state.callId !== cid) return;
         const l2 = mesh.get(cid);
