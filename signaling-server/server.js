@@ -10,6 +10,11 @@
 //
 // Push работает только если заданы переменные окружения VAPID_PUBLIC и
 // VAPID_PRIVATE (см. README). Без них сервер работает как обычный релей.
+//
+// ВАЖНО: конверт зашифрован end-to-end, сервер не видит содержимого.
+// Но для маршрутизации и решений о push он получает открытое поле `kind`
+// ("chat" | "ack-batch" | "edit" | "delete" | "reaction" | "typing").
+// Push отправляется ТОЛЬКО для kind === "chat".
 
 const fs = require("fs");
 const path = require("path");
@@ -24,18 +29,13 @@ const MAX_MAILBOX_PER_USER = 500;
 const MAX_PAYLOAD = 128 * 1024;
 
 // Throttling push: минимальный интервал между уведомлениями одному
-// получателю от одного отправителя. Работает поверх дедупликации — если
-// за окно пришло несколько разных сообщений, они собираются в одно.
+// получателю от одного отправителя.
 const PUSH_THROTTLE_MS = 30 * 1000;
 
-// Дедупликация push по msgId: если то же самое сообщение отправитель
-// прислал повторно (потому что не получил deliver-ack или сработал его
-// локальный retry-loop), не шлём push второй раз. TTL — 10 минут.
+// Дедупликация push по msgId — TTL 10 минут.
 const PUSH_DEDUP_TTL_MS = 10 * 60 * 1000;
 const pushSentForMsgId = new Map(); // msgId -> ts
 
-// Файл, куда сохраняются push-подписки. На Render путь "/tmp" — единственная
-// writable-директория. Переживает graceful-restart, но не redeploy.
 const PUSH_SUBS_FILE = path.join("/tmp", "ether-push-subs.json");
 
 const VAPID_PUBLIC = process.env.VAPID_PUBLIC || "";
@@ -57,7 +57,7 @@ if (PUSH_ENABLED) {
 const wss = new WebSocketServer({ port: PORT, maxPayload: MAX_PAYLOAD });
 
 const clients = new Map();     // id -> { ws, name, visible, publicKey }
-const mailbox = new Map();     // id -> Map(msgId -> { from, envelope, fromPublicKey, ts })
+const mailbox = new Map();     // id -> Map(msgId -> { from, envelope, fromPublicKey, kind, ts })
 const pushSubs = new Map();    // id -> PushSubscription JSON
 
 // pushThrottle: ключ `recipientId:senderId` -> { lastAt, count, timer }
@@ -137,6 +137,15 @@ async function sendPushTo(recipientId, senderId, payload, opts = {}) {
       const cur = pushThrottle.get(key);
       if (!cur) return;
       cur.timer = null;
+
+      // Если получатель уже подключён — все сообщения у него в приложении,
+      // отдельный агрегат не нужен. Это устраняет случай «пришло после того,
+      // как прочитал».
+      if (clients.has(recipientId)) {
+        pushThrottle.delete(key);
+        return;
+      }
+
       const subNow = pushSubs.get(recipientId);
       if (!subNow) { pushThrottle.delete(key); return; }
       const n = cur.count + 1;
@@ -146,6 +155,20 @@ async function sendPushTo(recipientId, senderId, payload, opts = {}) {
       const res = await actuallySendPush(subNow, aggregated);
       if (res === "gone") { pushSubs.delete(recipientId); savePushSubs(); }
     }, delay);
+  }
+}
+
+// При подключении получателя — сбрасываем накопленные для него throttle,
+// чтобы не отправить агрегат «N новых» через 30 секунд после того, как он
+// уже всё прочитал.
+function clearThrottleForRecipient(recipientId) {
+  const prefix = recipientId + ":";
+  for (const key of Array.from(pushThrottle.keys())) {
+    if (key.startsWith(prefix)) {
+      const entry = pushThrottle.get(key);
+      if (entry && entry.timer) clearTimeout(entry.timer);
+      pushThrottle.delete(key);
+    }
   }
 }
 
@@ -176,6 +199,7 @@ function flushMailbox(id, ws) {
       msgId,
       envelope: entry.envelope,
       fromPublicKey: entry.fromPublicKey || null,
+      kind: entry.kind || "chat",
       queued: true,
     });
   }
@@ -218,6 +242,8 @@ wss.on("connection", (ws) => {
         .filter(Boolean);
       safeSend(ws, { type: "registered", id: myId, online });
       if (PUSH_ENABLED) safeSend(ws, { type: "vapid-key", key: VAPID_PUBLIC });
+      // Онлайн — сбрасываем накопленные для него агрегаты push.
+      clearThrottleForRecipient(myId);
       flushMailbox(myId, ws);
       broadcastPresence(myId, true);
       return;
@@ -247,7 +273,6 @@ wss.on("connection", (ws) => {
       if (target) safeSend(target.ws, payload);
       else safeSend(ws, { type: "unreachable", to: msg.to });
 
-      // Входящий звонок — push немедленно, без throttling и дедупа.
       if (msg.data && msg.data.t === "call-invite") {
         const me = clients.get(myId);
         const myName = (me && me.name) || "Звонок";
@@ -268,27 +293,28 @@ wss.on("connection", (ws) => {
         safeSend(ws, { type: "deliver-ack", msgId: msg.msgId, error: "invalid-envelope" });
         return;
       }
+      const kind = typeof msg.kind === "string" ? msg.kind : "chat";
       const target = clients.get(msg.to);
       const payload = {
         from: myId,
         msgId: msg.msgId,
         envelope: msg.envelope,
         fromPublicKey: msg.fromPublicKey || null,
+        kind,
       };
 
       if (target) {
         // Получатель онлайн — переслали, push не нужен.
         safeSend(target.ws, { type: "deliver", ...payload, queued: false });
       } else {
-        // Получатель офлайн — кладём в ящик (перезапись по msgId
-        // безопасна: одно и то же сообщение не дублируется).
+        // Получатель офлайн — кладём в ящик.
         if (!mailbox.has(msg.to)) mailbox.set(msg.to, new Map());
         mailbox.get(msg.to).set(msg.msgId, { ...payload, ts: Date.now() });
 
-        // Push шлём ТОЛЬКО если для этого msgId ещё не отправляли.
-        // Это устраняет дубли уведомлений при повторных попытках
-        // отправки с клиента (retry-loop, P2P-фолбэк и т.д.).
-        if (!pushSentForMsgId.has(msg.msgId)) {
+        // Push — только для реальных chat-сообщений, и только один раз
+        // на msgId. Служебные (ack-batch, edit, delete, reaction, typing)
+        // push не вызывают.
+        if (kind === "chat" && !pushSentForMsgId.has(msg.msgId)) {
           pushSentForMsgId.set(msg.msgId, Date.now());
           const me = clients.get(myId);
           const myName = (me && me.name) || "Новое сообщение";
@@ -302,8 +328,6 @@ wss.on("connection", (ws) => {
         }
       }
 
-      // Отправителю — подтверждение приёма. Всегда, независимо от того,
-      // слали push или нет: клиент по этому ack чистит свою очередь.
       safeSend(ws, { type: "deliver-ack", msgId: msg.msgId });
       return;
     }

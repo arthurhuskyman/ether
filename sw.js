@@ -1,7 +1,4 @@
-// Service worker: кеш оболочки, показ уведомлений (в том числе из push),
-// обработка клика по уведомлению.
-
-const CACHE_VERSION = "ether-shell-v14";
+const CACHE_VERSION = "ether-shell-v15";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -50,34 +47,30 @@ self.addEventListener("fetch", (event) => {
   );
 });
 
-// -------- Показ уведомления по запросу из страницы --------
-// (для iOS Safari — единственный рабочий способ показать уведомление из JS)
 self.addEventListener("message", (event) => {
   const data = event.data || {};
-  if (data.type !== "show-notification") return;
-  const title = String(data.title || "Эфир").slice(0, 60);
-  const body = String(data.body || "").slice(0, 200);
-  const tag = String(data.tag || "ether");
-  self.registration.showNotification(title, {
-    body,
-    tag,
-    badge: "./icons/icon-192.png",
-    icon: "./icons/icon-192.png",
-    data: { contactId: data.contactId || null, kind: data.kind || "message" },
-    silent: false,
-  });
+  if (data.type === "show-notification") {
+    const title = String(data.title || "Эфир").slice(0, 60);
+    const body = String(data.body || "").slice(0, 200);
+    const tag = String(data.tag || "ether");
+    self.registration.showNotification(title, {
+      body,
+      tag,
+      badge: "./icons/icon-192.png",
+      icon: "./icons/icon-192.png",
+      data: { contactId: data.contactId || null, kind: data.kind || "message" },
+      silent: !!data.silent,
+      vibrate: data.kind === "call" ? [300, 150, 300, 150, 300] : [100, 50, 100],
+      requireInteraction: data.kind === "call",
+    });
+  }
 });
 
-// -------- Push из сервера --------
 self.addEventListener("push", (event) => {
   let data = { title: "Эфир", body: "", contactId: null, kind: "message", tag: "ether" };
   if (event.data) {
-    try {
-      const parsed = event.data.json();
-      data = { ...data, ...parsed };
-    } catch (e) {
-      data.body = event.data.text() || "";
-    }
+    try { data = { ...data, ...event.data.json() }; }
+    catch (e) { data.body = event.data.text() || ""; }
   }
   event.waitUntil(
     self.registration.showNotification(data.title || "Эфир", {
@@ -92,7 +85,6 @@ self.addEventListener("push", (event) => {
   );
 });
 
-// -------- Обновление подписки на push --------
 self.addEventListener("pushsubscriptionchange", (event) => {
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
@@ -101,7 +93,6 @@ self.addEventListener("pushsubscriptionchange", (event) => {
   );
 });
 
-// -------- Клик по уведомлению --------
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const data = event.notification.data || {};

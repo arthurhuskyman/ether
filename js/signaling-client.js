@@ -59,12 +59,8 @@ class SignalingClient extends EventTarget {
   _connect() {
     if (!this.shouldRun || !this.url || this._stopped) return;
     let ws;
-    try {
-      ws = new WebSocket(this.url);
-    } catch (e) {
-      this._scheduleRetry();
-      return;
-    }
+    try { ws = new WebSocket(this.url); }
+    catch (e) { this._scheduleRetry(); return; }
     this.ws = ws;
 
     ws.addEventListener("open", () => {
@@ -112,13 +108,14 @@ class SignalingClient extends EventTarget {
         etherLog("info", "[signaling] недоступен:", msg.to.slice(0, 10) + "…");
         this.dispatchEvent(new CustomEvent("unreachable", { detail: { to: msg.to } }));
       } else if (msg.type === "deliver" && typeof msg.from === "string" && typeof msg.msgId === "string") {
-        etherLog("info", "[mailbox] конверт от", msg.from.slice(0, 10) + "…", msg.queued ? "(из очереди)" : "(напрямую)");
+        etherLog("info", "[mailbox] конверт от", msg.from.slice(0, 10) + "…", msg.queued ? "(из очереди)" : "(напрямую)", "kind:", msg.kind);
         this.dispatchEvent(new CustomEvent("deliver", {
           detail: {
             from: msg.from,
             msgId: msg.msgId,
             envelope: msg.envelope,
             fromPublicKey: msg.fromPublicKey,
+            kind: msg.kind || "chat",
             queued: !!msg.queued,
           },
         }));
@@ -168,9 +165,18 @@ class SignalingClient extends EventTarget {
 
   signal(to, data) { return this.send("signal", { to, data }); }
 
-  deliver(to, msgId, envelope, fromPublicKey) {
+  // kind — открытая метка для сервера: "chat" | "ack-batch" | "edit" |
+  // "delete" | "reaction" | "typing". Сервер использует её, чтобы решить,
+  // слать ли push получателю. Само содержимое по-прежнему зашифровано.
+  deliver(to, msgId, envelope, fromPublicKey, kind) {
     if (!envelope || typeof envelope.iv !== "string" || typeof envelope.ct !== "string") return false;
-    return this.send("deliver", { to, msgId, envelope, fromPublicKey });
+    return this.send("deliver", {
+      to,
+      msgId,
+      envelope,
+      fromPublicKey,
+      kind: typeof kind === "string" ? kind : "chat",
+    });
   }
 
   mailboxAck(msgId) { return this.send("mailbox-ack", { msgId }); }

@@ -9,6 +9,7 @@ const PENDING_CALL_TIMEOUT_MS = 20000;
 const OUTBOX_RETRY_INTERVAL_MS = 15000;
 const OUTBOX_MAX_AGE_MS = 7 * 24 * 3600 * 1000;
 const RECEIPT_MAX_AGE_MS = 24 * 3600 * 1000;
+const RESUME_MAX_AGE_MS = 24 * 3600 * 1000;
 const MAX_CALL_LOG = 500;
 const MAX_MESSAGES_PER_CHAT = 5000;
 const TYPING_DEBOUNCE_MS = 1200;
@@ -16,64 +17,162 @@ const TYPING_AUTO_CLEAR_MS = 4000;
 const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 const UNLOCK_ATTEMPTS_LIMIT = 5;
 const P2P_FALLBACK_MS = 1500;
+const ONBOARDING_HINT_SHOWN = "ether.hintShown";
+const PIN_ITERATIONS = 120000;
 
 function effectiveSignalingUrl() {
   return (Store.signalingUrl || DEFAULT_SIGNALING_URL).trim();
 }
 
-// ---------- Хранилище ----------
+// =====================================================================
+// IndexedDB — страховка для iOS PWA.
+// =====================================================================
+const IDB = (() => {
+  const DB_NAME = "ether-db";
+  const STORE = "kv";
+  let dbPromise = null;
+
+  function open() {
+    if (dbPromise) return dbPromise;
+    dbPromise = new Promise((resolve, reject) => {
+      if (!("indexedDB" in window)) return reject(new Error("no idb"));
+      const req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    return dbPromise;
+  }
+
+  async function set(key, value) {
+    try {
+      const db = await open();
+      return new Promise((res, rej) => {
+        const tx = db.transaction(STORE, "readwrite");
+        tx.objectStore(STORE).put(value, key);
+        tx.oncomplete = () => res();
+        tx.onerror = () => rej(tx.error);
+      });
+    } catch (e) { return null; }
+  }
+
+  async function get(key) {
+    try {
+      const db = await open();
+      return new Promise((res, rej) => {
+        const tx = db.transaction(STORE, "readonly");
+        const r = tx.objectStore(STORE).get(key);
+        r.onsuccess = () => res(r.result);
+        r.onerror = () => rej(r.error);
+      });
+    } catch (e) { return null; }
+  }
+
+  return { open, set, get };
+})();
+
+const CRITICAL_LS_KEYS = [
+  "ether.name", "ether.identityRaw", "ether.myId",
+  "ether.privKey", "ether.pubKey",
+  "ether.pinHash", "ether.pinSalt", "ether.pinEnabled",
+  "ether.contacts",
+  "ether.theme", "ether.glassAlpha",
+  "ether.notifications", "ether.sounds",
+  "ether.vapidPublicKey", "ether.pushSubscription",
+  "ether.callLog", "ether.lastSeen", "ether.drafts",
+];
+
+async function backupToIDB() {
+  for (const k of CRITICAL_LS_KEYS) {
+    const v = localStorage.getItem(k);
+    if (v !== null) await IDB.set(k, v);
+  }
+}
+
+async function restoreFromIDB() {
+  for (const k of CRITICAL_LS_KEYS) {
+    if (localStorage.getItem(k) !== null) continue;
+    const v = await IDB.get(k);
+    if (v !== null && v !== undefined) localStorage.setItem(k, v);
+  }
+}
+
+let _idbBackupTimer = null;
+function scheduleIDBBackup() {
+  if (_idbBackupTimer) return;
+  _idbBackupTimer = setTimeout(() => {
+    _idbBackupTimer = null;
+    backupToIDB().catch(() => {});
+  }, 1500);
+}
+
+// =====================================================================
+// Store
+// =====================================================================
 const Store = {
   get name() { return localStorage.getItem("ether.name") || ""; },
-  set name(v) { localStorage.setItem("ether.name", v); },
+  set name(v) { localStorage.setItem("ether.name", v); scheduleIDBBackup(); },
   get myIdentityRaw() { return localStorage.getItem("ether.identityRaw") || ""; },
-  set myIdentityRaw(v) { localStorage.setItem("ether.identityRaw", v); },
+  set myIdentityRaw(v) { localStorage.setItem("ether.identityRaw", v); scheduleIDBBackup(); },
   get myId() { return localStorage.getItem("ether.myId") || ""; },
-  set myId(v) { localStorage.setItem("ether.myId", v); },
+  set myId(v) { localStorage.setItem("ether.myId", v); scheduleIDBBackup(); },
   get signalingUrl() { return localStorage.getItem("ether.signalingUrl") || ""; },
   set signalingUrl(v) { localStorage.setItem("ether.signalingUrl", v); },
   get discoverable() { return localStorage.getItem("ether.discoverable") !== "0"; },
   set discoverable(v) { localStorage.setItem("ether.discoverable", v ? "1" : "0"); },
   get contactsJson() { return localStorage.getItem("ether.contacts") || "[]"; },
-  set contactsJson(v) { localStorage.setItem("ether.contacts", v); },
+  set contactsJson(v) { localStorage.setItem("ether.contacts", v); scheduleIDBBackup(); },
   get outboxJson() { return localStorage.getItem("ether.outbox") || "[]"; },
   set outboxJson(v) { localStorage.setItem("ether.outbox", v); },
   get pendingNoKeyJson() { return localStorage.getItem("ether.pendingNoKey") || "{}"; },
   set pendingNoKeyJson(v) { localStorage.setItem("ether.pendingNoKey", v); },
   get callLogJson() { return localStorage.getItem("ether.callLog") || "[]"; },
-  set callLogJson(v) { localStorage.setItem("ether.callLog", v); },
+  set callLogJson(v) { localStorage.setItem("ether.callLog", v); scheduleIDBBackup(); },
   get lastSeenJson() { return localStorage.getItem("ether.lastSeen") || "{}"; },
-  set lastSeenJson(v) { localStorage.setItem("ether.lastSeen", v); },
+  set lastSeenJson(v) { localStorage.setItem("ether.lastSeen", v); scheduleIDBBackup(); },
   get draftsJson() { return localStorage.getItem("ether.drafts") || "{}"; },
-  set draftsJson(v) { localStorage.setItem("ether.drafts", v); },
+  set draftsJson(v) { localStorage.setItem("ether.drafts", v); scheduleIDBBackup(); },
   get pinHash() { return localStorage.getItem("ether.pinHash") || ""; },
-  set pinHash(v) { localStorage.setItem("ether.pinHash", v); },
+  set pinHash(v) { localStorage.setItem("ether.pinHash", v); scheduleIDBBackup(); },
+  get pinSalt() { return localStorage.getItem("ether.pinSalt") || ""; },
+  set pinSalt(v) { localStorage.setItem("ether.pinSalt", v); scheduleIDBBackup(); },
   get pinEnabled() { return localStorage.getItem("ether.pinEnabled") === "1"; },
-  set pinEnabled(v) { localStorage.setItem("ether.pinEnabled", v ? "1" : "0"); },
+  set pinEnabled(v) { localStorage.setItem("ether.pinEnabled", v ? "1" : "0"); scheduleIDBBackup(); },
   get notificationsEnabled() { return localStorage.getItem("ether.notifications") === "1"; },
-  set notificationsEnabled(v) { localStorage.setItem("ether.notifications", v ? "1" : "0"); },
+  set notificationsEnabled(v) { localStorage.setItem("ether.notifications", v ? "1" : "0"); scheduleIDBBackup(); },
+  get soundsEnabled() { return localStorage.getItem("ether.sounds") !== "0"; },
+  set soundsEnabled(v) { localStorage.setItem("ether.sounds", v ? "1" : "0"); scheduleIDBBackup(); },
   get vapidPublicKey() { return localStorage.getItem("ether.vapidPublicKey") || ""; },
-  set vapidPublicKey(v) { if (v) localStorage.setItem("ether.vapidPublicKey", v); },
+  set vapidPublicKey(v) { if (v) { localStorage.setItem("ether.vapidPublicKey", v); scheduleIDBBackup(); } },
   get pushSubscriptionJson() { return localStorage.getItem("ether.pushSubscription") || ""; },
   set pushSubscriptionJson(v) {
-    if (v) localStorage.setItem("ether.pushSubscription", v);
+    if (v) { localStorage.setItem("ether.pushSubscription", v); scheduleIDBBackup(); }
     else localStorage.removeItem("ether.pushSubscription");
   },
   get notifBannerDismissed() { return localStorage.getItem("ether.notifBannerDismissed") === "1"; },
   set notifBannerDismissed(v) { localStorage.setItem("ether.notifBannerDismissed", v ? "1" : "0"); },
+  get debugHidden() { return localStorage.getItem("ether.debugHidden") === "1"; },
+  set debugHidden(v) { localStorage.setItem("ether.debugHidden", v ? "1" : "0"); },
   get myPrivateKeyJwk() { try { const v = localStorage.getItem("ether.privKey"); return v ? JSON.parse(v) : null; } catch (e) { return null; } },
-  set myPrivateKeyJwk(v) { localStorage.setItem("ether.privKey", JSON.stringify(v)); },
+  set myPrivateKeyJwk(v) { localStorage.setItem("ether.privKey", JSON.stringify(v)); scheduleIDBBackup(); },
   get myPublicKeyJwk() { try { const v = localStorage.getItem("ether.pubKey"); return v ? JSON.parse(v) : null; } catch (e) { return null; } },
-  set myPublicKeyJwk(v) { localStorage.setItem("ether.pubKey", JSON.stringify(v)); },
+  set myPublicKeyJwk(v) { localStorage.setItem("ether.pubKey", JSON.stringify(v)); scheduleIDBBackup(); },
   get glassAlpha() { const raw = parseFloat(localStorage.getItem("ether.glassAlpha") || "0.5"); if (!Number.isFinite(raw)) return 0.5; return Math.min(0.85, Math.max(0.18, raw)); },
-  set glassAlpha(v) { if (!Number.isFinite(v)) return; localStorage.setItem("ether.glassAlpha", String(Math.min(0.85, Math.max(0.18, v)))); },
+  set glassAlpha(v) { if (!Number.isFinite(v)) return; localStorage.setItem("ether.glassAlpha", String(Math.min(0.85, Math.max(0.18, v)))); scheduleIDBBackup(); },
   get theme() { return localStorage.getItem("ether.theme") || "auto"; },
-  set theme(v) { localStorage.setItem("ether.theme", v); },
+  set theme(v) { localStorage.setItem("ether.theme", v); scheduleIDBBackup(); },
 };
 
-// ---------- Состояние ----------
+// =====================================================================
+// Состояние
+// =====================================================================
 const state = {
   tab: "chats",
   chatId: null,
+  contactCardId: null,
   callId: null,
   callPhase: null,
   pendingOutgoing: null,
@@ -81,7 +180,6 @@ const state = {
   editingMessageId: null,
   replyTo: null,
   activeMessageContext: null,
-  activeContactContext: null,
   callLog: [],
   currentCallRecord: null,
   showArchived: false,
@@ -101,6 +199,8 @@ let outboxRetryTimer = null;
 let swRegistration = null;
 let __lockWired = false;
 let __appStarted = false;
+let __navTitleTaps = [];
+let __chatSearchScrollTimer = null;
 const onlineSet = new Set();
 const onlineRoster = new Map();
 const autoConnectTimers = new Map();
@@ -115,37 +215,58 @@ const pendingRemoteStreams = new Map();
 let callTimerInterval = null;
 let ringtoneCtx = null;
 let ringtoneTimer = null;
+let audioCtx = null;
 
-function isDuplicateSignal(from, packet) {
-  if (!packet || !packet.x) return false;
-  const key = from + ":" + packet.x;
-  if (recentSignalNonces.has(key)) return true;
-  recentSignalNonces.add(key);
-  if (recentSignalNonces.size > 200) recentSignalNonces.delete(recentSignalNonces.values().next().value);
-  return false;
-}
-
-// ---------- Утилиты ----------
+// =====================================================================
+// Утилиты
+// =====================================================================
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
 function escapeHtml(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
-function linkify(text) {
+
+// Возвращает HTML, в котором:
+//   * обычные URL обёрнуты в <a>
+//   * вхождения query подсвечены <mark>
+//   * текст экранирован, подстановка в HTML безопасна
+function linkifyAndHighlight(text, query) {
   const esc = escapeHtml(text);
-  return esc.replace(/(https?:\/\/[^\s<]+[^\s<.,;:!?)])/gi, (url) => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`);
-}
-function highlight(text, query) {
-  if (!query) return text;
-  const q = query.toLowerCase(), lower = text.toLowerCase();
-  let result = "", i = 0, idx = lower.indexOf(q, i);
-  while (idx !== -1) {
-    result += text.slice(i, idx) + `<mark class="search-hit">` + text.slice(idx, idx + q.length) + `</mark>`;
-    i = idx + q.length; idx = lower.indexOf(q, i);
+  const urlRegex = /(https?:\/\/[^\s<]+[^\s<.,;:!?)])/gi;
+  let result = "";
+  let lastIdx = 0;
+  let m;
+  urlRegex.lastIndex = 0;
+  while ((m = urlRegex.exec(esc)) !== null) {
+    if (m.index > lastIdx) {
+      result += highlightRaw(esc.slice(lastIdx, m.index), query);
+    }
+    result += `<a href="${m[1]}" target="_blank" rel="noopener noreferrer">${highlightRaw(m[1], query)}</a>`;
+    lastIdx = m.index + m[1].length;
   }
-  return result + text.slice(i);
+  if (lastIdx < esc.length) {
+    result += highlightRaw(esc.slice(lastIdx), query);
+  }
+  return result;
 }
+
+function highlightRaw(escapedText, query) {
+  if (!query) return escapedText;
+  const q = query.toLowerCase();
+  const lower = escapedText.toLowerCase();
+  let result = "";
+  let i = 0;
+  let idx = lower.indexOf(q, i);
+  if (idx === -1) return escapedText;
+  while (idx !== -1) {
+    result += escapedText.slice(i, idx) + `<mark class="search-hit">` + escapedText.slice(idx, idx + q.length) + `</mark>`;
+    i = idx + q.length;
+    idx = lower.indexOf(q, i);
+  }
+  return result + escapedText.slice(i);
+}
+
 function truncate(s, n) { s = String(s == null ? "" : s); return s.length > n ? s.slice(0, n - 1) + "…" : s; }
 function initials(name) { return String(name || "?").trim().slice(0, 2).toUpperCase() || "?"; }
 
@@ -154,8 +275,21 @@ function toast(message) {
   el.textContent = message; el.classList.add("show");
   clearTimeout(toast._t); toast._t = setTimeout(() => el.classList.remove("show"), 2600);
 }
+
 function formatTime(ts) { try { return new Date(ts).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }); } catch (e) { return ""; } }
 function formatDay(ts) { try { return new Date(ts).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit" }); } catch (e) { return ""; } }
+function formatDayGroup(ts) {
+  try {
+    const d = new Date(ts);
+    const now = new Date();
+    const yest = new Date(now);
+    yest.setDate(yest.getDate() - 1);
+    if (d.toDateString() === now.toDateString()) return "Сегодня";
+    if (d.toDateString() === yest.toDateString()) return "Вчера";
+    if (d.getFullYear() === now.getFullYear()) return d.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
+    return d.toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
+  } catch (e) { return ""; }
+}
 function formatDuration(ms) { const s = Math.max(0, Math.floor(ms / 1000)), mm = Math.floor(s / 60), ss = s % 60; return mm === 0 ? `${ss} сек` : `${mm}:${String(ss).padStart(2, "0")}`; }
 function timeAgo(ts) {
   if (!ts) return "";
@@ -173,13 +307,6 @@ function applyGlassAlpha(v) {
 }
 function applyTheme(theme) { document.documentElement.dataset.theme = theme; }
 
-async function sha256Hex(text) {
-  const bytes = new TextEncoder().encode(text);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-async function hashPin(pin) { return sha256Hex("ether:pin:" + pin); }
-
 function urlBase64ToUint8Array(base64String) {
   const padding = "=".repeat((4 - base64String.length % 4) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
@@ -188,6 +315,26 @@ function urlBase64ToUint8Array(base64String) {
   for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
   return outputArray;
 }
+function bufToHex(buf) {
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+function randomSaltHex(len) {
+  const a = crypto.getRandomValues(new Uint8Array(len));
+  return bufToHex(a);
+}
+
+async function pbkdf2Hex(pin, saltHex, iterations) {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw", enc.encode(pin), { name: "PBKDF2" }, false, ["deriveBits"]
+  );
+  const salt = new Uint8Array(saltHex.match(/../g).map((h) => parseInt(h, 16)));
+  const bits = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", salt, iterations, hash: "SHA-256" },
+    key, 256
+  );
+  return bufToHex(bits);
+}
 
 function isStandalone() {
   return (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches)
@@ -195,7 +342,96 @@ function isStandalone() {
 }
 function isIOS() { return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream; }
 
-// ---------- Пин-код ----------
+// =====================================================================
+// Звуки и вибрация
+// =====================================================================
+function ensureAudioCtx() {
+  if (!audioCtx) {
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+  }
+  if (audioCtx && audioCtx.state === "suspended") {
+    audioCtx.resume().catch(() => {});
+  }
+  return audioCtx;
+}
+function playMessageSound() {
+  if (!Store.soundsEnabled) return;
+  const ctx = ensureAudioCtx();
+  if (!ctx) return;
+  try {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = 900;
+    gain.gain.value = 0.0001;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    const t = ctx.currentTime;
+    gain.gain.exponentialRampToValueAtTime(0.12, t + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+    osc.start(t);
+    osc.stop(t + 0.32);
+  } catch (e) {}
+}
+function playOutgoingSound() {
+  if (!Store.soundsEnabled) return;
+  const ctx = ensureAudioCtx();
+  if (!ctx) return;
+  try {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = 600;
+    gain.gain.value = 0.0001;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    const t = ctx.currentTime;
+    gain.gain.exponentialRampToValueAtTime(0.06, t + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.15);
+    osc.start(t);
+    osc.stop(t + 0.2);
+  } catch (e) {}
+}
+function vibrate(pattern) {
+  if (!Store.soundsEnabled) return;
+  if (navigator.vibrate) {
+    try { navigator.vibrate(pattern); } catch (e) {}
+  }
+}
+
+function playRingtone() {
+  stopRingtone();
+  try {
+    if (!ringtoneCtx) ringtoneCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ringtoneCtx.state === "suspended") ringtoneCtx.resume();
+    const beep = () => {
+      if (!ringtoneCtx) return;
+      const osc = ringtoneCtx.createOscillator();
+      const gain = ringtoneCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = 480;
+      gain.gain.value = 0.0001;
+      osc.connect(gain); gain.connect(ringtoneCtx.destination);
+      const t = ringtoneCtx.currentTime;
+      gain.gain.exponentialRampToValueAtTime(0.18, t + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
+      osc.start(t); osc.stop(t + 0.7);
+    };
+    beep();
+    ringtoneTimer = setInterval(beep, 1500);
+    if (Store.soundsEnabled && navigator.vibrate) {
+      try { navigator.vibrate([300, 200, 300, 200, 300]); } catch (e) {}
+    }
+  } catch (e) { console.warn("ringtone:", e); }
+}
+function stopRingtone() {
+  if (ringtoneTimer) { clearInterval(ringtoneTimer); ringtoneTimer = null; }
+  if (navigator.vibrate) { try { navigator.vibrate(0); } catch (e) {} }
+}
+
+// =====================================================================
+// Пин-код
+// =====================================================================
 function showLockScreen() {
   $("#lock-screen").classList.remove("hidden");
   $("#onboarding").classList.add("hidden");
@@ -204,7 +440,8 @@ function showLockScreen() {
 }
 async function tryUnlock(pin) {
   if (!pin) return;
-  const h = await hashPin(pin);
+  if (!Store.pinSalt) { toast("Пин-код повреждён"); return; }
+  const h = await pbkdf2Hex(pin, Store.pinSalt, PIN_ITERATIONS);
   if (h === Store.pinHash) {
     state.unlockAttempts = 0;
     $("#lock-pin").value = "";
@@ -230,7 +467,9 @@ function wireLockScreen() {
   });
 }
 
-// ---------- Онбординг и запуск ----------
+// =====================================================================
+// Онбординг и запуск
+// =====================================================================
 function bootAfterUnlock() {
   if (__appStarted) return;
   if (Store.name && Store.myId) {
@@ -268,6 +507,7 @@ function wireOnboardingOnce() {
     Store.myId = identity.id;
     await ensureKeyPair();
     await (window.__etherIceReady || Promise.resolve());
+    await backupToIDB().catch(() => {});
     $("#onboarding").classList.add("hidden");
     startApp();
   });
@@ -300,12 +540,17 @@ function startApp() {
   wireChatScreen();
   wireCallScreen();
   wireSettingsScreen();
+  wireDebugScreen();
   wireSheetBackdrops();
   wireSearchHandlers();
   wireNotificationPermission();
   wireServiceWorker();
   wireRenameSheet();
   wireNotifBanner();
+  wireContactCard();
+  wireNavTitleTaps();
+  wireKeyboardFix();
+  applyDebugTabVisibility();
 
   applyGlassAlpha(Store.glassAlpha);
   applyTheme(Store.theme);
@@ -316,10 +561,12 @@ function startApp() {
   $("#settings-signaling-url").value = Store.signalingUrl || DEFAULT_SIGNALING_URL;
   $("#settings-discoverable").checked = Store.discoverable;
   $("#settings-notifications").checked = Store.notificationsEnabled;
+  $("#settings-sounds").checked = Store.soundsEnabled;
   $("#settings-pinlock").checked = Store.pinEnabled;
 
   loadContacts(); loadLastSeen(); loadDrafts();
   restoreOutbox(); restorePendingNoKey(); loadCallLog();
+  migrateServerAckedFlags();
 
   const incoming = SignalingCodec.extractCodeFromLocation();
   history.replaceState(null, "", location.pathname + location.search);
@@ -329,6 +576,30 @@ function startApp() {
   initSignaling();
   startOutboxRetryLoop();
   updateNotifBanner();
+  resumeUnsentMessages();
+  updateAppBadge();
+  maybeShowOnboardingHint();
+}
+
+function migrateServerAckedFlags() {
+  let touched = false;
+  for (const c of state.contacts.values()) {
+    for (const m of c.messages) {
+      if (m.from !== "me") continue;
+      if (m.serverAcked) continue;
+      if (m.ack === "delivered" || m.ack === "read") {
+        m.serverAcked = true;
+        touched = true;
+      }
+    }
+  }
+  if (touched) persistContacts();
+}
+
+function maybeShowOnboardingHint() {
+  if (localStorage.getItem(ONBOARDING_HINT_SHOWN) === "1") return;
+  localStorage.setItem(ONBOARDING_HINT_SHOWN, "1");
+  setTimeout(() => toast("Долгое нажатие на сообщение — меню действий"), 1200);
 }
 
 function wireServiceWorker() {
@@ -341,8 +612,14 @@ function wireServiceWorker() {
     const data = ev.data || {};
     if (data.type === "open-contact" && data.contactId) {
       window.focus();
-      state.chatId = data.contactId;
-      renderTab();
+      if (data.kind === "call") {
+        state.chatId = data.contactId;
+        renderTab();
+        toast("Входящий звонок был пропущен");
+      } else {
+        state.chatId = data.contactId;
+        renderTab();
+      }
     }
     if (data.type === "push-subscription-changed") {
       ensurePushSubscription().catch(() => {});
@@ -350,7 +627,9 @@ function wireServiceWorker() {
   });
 }
 
-// ---------- Web Push ----------
+// =====================================================================
+// Web Push
+// =====================================================================
 async function ensurePushSubscription() {
   if (!Store.notificationsEnabled) return null;
   if (!("serviceWorker" in navigator) || !("PushManager" in window)) return null;
@@ -385,6 +664,7 @@ function showNotification(title, body, opts) {
     tag: opts.tag || "ether",
     contactId: opts.contactId || null,
     kind: opts.kind || "message",
+    silent: !Store.soundsEnabled,
   };
   if (navigator.serviceWorker && navigator.serviceWorker.controller) {
     navigator.serviceWorker.controller.postMessage(payload); return;
@@ -448,7 +728,22 @@ function updateNotifBanner() {
   banner.classList.remove("hidden");
 }
 
-// ---------- Контакты ----------
+// =====================================================================
+// App Badge
+// =====================================================================
+function updateAppBadge() {
+  try {
+    if (!("setAppBadge" in navigator)) return;
+    let total = 0;
+    for (const c of state.contacts.values()) total += unreadCount(c);
+    if (total > 0) navigator.setAppBadge(total);
+    else if ("clearAppBadge" in navigator) navigator.clearAppBadge();
+  } catch (e) {}
+}
+
+// =====================================================================
+// Контакты
+// =====================================================================
 function loadContacts() {
   let arr = [];
   try { arr = JSON.parse(Store.contactsJson) || []; } catch (e) { arr = []; }
@@ -497,21 +792,26 @@ function ensureContactEntry(id, suggestedName) {
   return c;
 }
 
-// ---------- Навигация ----------
+// =====================================================================
+// Навигация
+// =====================================================================
 function wireTabBar() {
   $$(".tab-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       state.tab = btn.dataset.tab;
       state.chatId = null;
+      state.contactCardId = null;
       renderTab();
     });
   });
   document.addEventListener("click", (ev) => {
     const t = ev.target;
     if (!t || !t.closest) return;
-    if (t.closest("#chat-back")) { ev.preventDefault(); closeChatSafely(); }
+    if (t.closest("#chat-back")) { ev.preventDefault(); closeChatSafely(); return; }
+    if (t.closest("#contact-back")) { ev.preventDefault(); closeContactCardSafely(); return; }
   });
 }
+
 function closeChatSafely() {
   const prevId = state.chatId;
   state.chatId = null;
@@ -522,27 +822,49 @@ function closeChatSafely() {
   try { closeChatSearch(); } catch (e) {}
   try { renderTab(); } catch (e) {}
 }
-function renderTab() { try { renderTabInner(); } catch (e) { console.error("[renderTab] упал:", e); } }
+
+function closeContactCardSafely() {
+  state.contactCardId = null;
+  try { renderTab(); } catch (e) {}
+}
+
+function renderTab() {
+  try { renderTabInner(); }
+  catch (e) { console.error("[renderTab] упал:", e); }
+}
+
 function renderTabInner() {
   $$(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === state.tab));
   $$(".screen").forEach((s) => s.classList.add("hidden"));
+
   if (state.chatId) {
     $("#screen-chat").classList.remove("hidden");
     $("#tab-bar").classList.add("hidden");
     renderChatThread();
     return;
   }
+
+  if (state.contactCardId) {
+    $("#screen-contact").classList.remove("hidden");
+    $("#tab-bar").classList.add("hidden");
+    renderContactCard();
+    return;
+  }
+
   $("#tab-bar").classList.remove("hidden");
-  const map = { chats: "#screen-chats", calls: "#screen-calls", connect: "#screen-connect", settings: "#screen-settings" };
+  const map = { chats: "#screen-chats", calls: "#screen-calls", connect: "#screen-connect", settings: "#screen-settings", debug: "#screen-debug" };
   const el = $(map[state.tab]);
   if (el) el.classList.remove("hidden");
-  const titles = { chats: "Чаты", calls: "Звонки", connect: "Контакты", settings: "Настройки" };
+  const titles = { chats: "Чаты", calls: "Звонки", connect: "Контакты", settings: "Настройки", debug: "Отладка" };
   $("#nav-title").textContent = titles[state.tab] || "Эфир";
   if (state.tab === "chats") renderChatsList();
   if (state.tab === "calls") renderCallsList();
-  if (state.tab === "connect") { renderSignalingBanner(); renderOnlineRosterList(); }
+  if (state.tab === "connect") { renderContactsList(); renderOnlineRosterList(); }
 }
 
+// =====================================================================
+// Статусы
+// =====================================================================
 function contactStatusLabel(c) {
   if (c.status === "in-call") return "разговор";
   if (c.status === "connected") return "на связи";
@@ -564,6 +886,9 @@ function contactStatusClass(c) {
 function isReachable(c) { return c.status === "connected" || c.status === "in-call"; }
 function unreadCount(c) { let n = 0; for (const m of c.messages) if (m.from === "them" && !m.readAckSent) n++; return n; }
 
+// =====================================================================
+// Список чатов
+// =====================================================================
 function renderChatsList() {
   const list = $("#chats-list"), empty = $("#chats-empty"), archivedToggle = $("#chats-archived-toggle");
   if (!list) return;
@@ -598,7 +923,7 @@ function renderChatsList() {
     const muteIcon = c.muted ? `<span class="muted-icon" title="Без звука">🔕</span>` : "";
     const blockIcon = c.blocked ? `<span class="muted-icon" title="Заблокирован">🚫</span>` : "";
     let preview = last ? escapeHtml(truncate(last.text, 42)) : escapeHtml(contactStatusLabel(c));
-    if (query && last && (last.text || "").toLowerCase().includes(query)) preview = highlight(escapeHtml(truncate(last.text, 42)), state.searchQuery);
+    if (query && last && (last.text || "").toLowerCase().includes(query)) preview = highlightRaw(escapeHtml(truncate(last.text, 42)), state.searchQuery);
     row.innerHTML = `
       <div class="avatar" style="background:${avatarGradient(c.name)}">${escapeHtml(initials(c.name))}</div>
       <div class="chat-row-body">
@@ -626,11 +951,149 @@ function avatarGradient(name) {
   return palettes[h];
 }
 
+// =====================================================================
+// Список всех контактов (в разделе «Контакты»)
+// =====================================================================
+function renderContactsList() {
+  const wrap = $("#contacts-list");
+  const empty = $("#contacts-empty");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+  const contacts = Array.from(state.contacts.values()).filter((c) => c.managed);
+  if (contacts.length === 0) {
+    empty.classList.remove("hidden");
+    return;
+  }
+  empty.classList.add("hidden");
+  contacts.sort((a, b) => (b.lastActivity || 0) - (a.lastActivity || 0));
+  for (const c of contacts) {
+    const row = document.createElement("div");
+    row.className = "roster-row";
+    row.innerHTML = `
+      <div class="avatar avatar-sm" style="background:${avatarGradient(c.name)}">${escapeHtml(initials(c.name))}</div>
+      <div class="roster-name-block" style="flex:1; min-width:0;">
+        <div class="roster-name">${escapeHtml(c.name || "Без имени")}</div>
+        <div class="fine muted">${escapeHtml(contactStatusLabel(c))}</div>
+      </div>
+      <button type="button" class="roster-add-btn" data-action="card">Открыть</button>
+    `;
+    row.addEventListener("click", (ev) => {
+      if (ev.target.closest("[data-action]")) return;
+      openContactCard(c.id);
+    });
+    row.querySelector('[data-action="card"]').addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      openContactCard(c.id);
+    });
+    wrap.appendChild(row);
+  }
+}
+
+// =====================================================================
+// Карточка контакта
+// =====================================================================
+function openContactCard(contactId) {
+  if (!state.contacts.has(contactId)) return;
+  state.contactCardId = contactId;
+  renderTab();
+}
+
+function renderContactCard() {
+  const c = state.contacts.get(state.contactCardId);
+  if (!c) { state.contactCardId = null; renderTab(); return; }
+  const av = $("#contact-avatar");
+  av.style.background = avatarGradient(c.name);
+  av.textContent = initials(c.name);
+  $("#contact-name").textContent = c.name || "Без имени";
+  $("#contact-status").textContent = contactStatusLabel(c);
+  $("#contact-info-id").textContent = c.raw || "—";
+  $("#contact-info-muted").textContent = c.muted ? "без звука" : "со звуком";
+  $("#contact-msg-btn").disabled = false;
+  $("#contact-call-btn").disabled = false;
+  $("#contact-block-btn").textContent = c.blocked ? "Разблокировать" : "Заблокировать";
+  $("#contact-archive-btn").textContent = c.archived ? "Из архива" : "В архив";
+  $("#contact-mute-btn").textContent = c.muted ? "Включить звук" : "Без звука";
+}
+
+function wireContactCard() {
+  const msgBtn = $("#contact-msg-btn");
+  if (msgBtn) msgBtn.addEventListener("click", () => {
+    const id = state.contactCardId;
+    if (!id) return;
+    state.contactCardId = null;
+    state.chatId = id;
+    renderTab();
+  });
+  const callBtn = $("#contact-call-btn");
+  if (callBtn) callBtn.addEventListener("click", () => {
+    const id = state.contactCardId;
+    if (!id) return;
+    beginCall(id);
+  });
+  const rename = $("#contact-rename-btn");
+  if (rename) rename.addEventListener("click", () => {
+    const id = state.contactCardId;
+    const c = state.contacts.get(id);
+    if (!c) return;
+    state.activeContactContext = id;
+    $("#rename-input").value = c.name || "";
+    $("#rename-sheet").classList.remove("hidden");
+    setTimeout(() => $("#rename-input").focus(), 50);
+  });
+  const mute = $("#contact-mute-btn");
+  if (mute) mute.addEventListener("click", () => {
+    const c = state.contacts.get(state.contactCardId);
+    if (!c) return;
+    c.muted = !c.muted; persistContacts(); renderContactCard();
+    toast(c.muted ? "Уведомления выключены" : "Уведомления включены");
+  });
+  const archive = $("#contact-archive-btn");
+  if (archive) archive.addEventListener("click", () => {
+    const c = state.contacts.get(state.contactCardId);
+    if (!c) return;
+    c.archived = !c.archived; persistContacts(); renderContactCard();
+    toast(c.archived ? "В архиве" : "Из архива");
+  });
+  const block = $("#contact-block-btn");
+  if (block) block.addEventListener("click", () => {
+    const c = state.contacts.get(state.contactCardId);
+    if (!c) return;
+    c.blocked = !c.blocked; persistContacts(); renderContactCard();
+    toast(c.blocked ? "Заблокирован" : "Разблокирован");
+  });
+  const exportBtn = $("#contact-export-btn");
+  if (exportBtn) exportBtn.addEventListener("click", () => exportChat(state.contactCardId));
+  const clear = $("#contact-clear-btn");
+  if (clear) clear.addEventListener("click", () => {
+    const c = state.contacts.get(state.contactCardId);
+    if (!c) return;
+    if (!confirm(`Очистить всю переписку с «${c.name}»?`)) return;
+    c.messages = []; c.lastActivity = Date.now(); persistContacts();
+    toast("История очищена");
+  });
+  const del = $("#contact-delete-btn");
+  if (del) del.addEventListener("click", () => {
+    const c = state.contacts.get(state.contactCardId);
+    if (!c) return;
+    if (!confirm(`Удалить контакт «${c.name}»?`)) return;
+    deleteContact(state.contactCardId);
+  });
+}
+
+// =====================================================================
+// Тред
+// =====================================================================
 function ackGlyph(ack) {
   if (ack === "failed") return `<span class="ack-tick ack-failed" title="Не доставлено">✓</span>`;
   if (ack === "read") return `<span class="ack-tick ack-read" title="Прочитано">✓</span>`;
   if (ack === "delivered") return `<span class="ack-tick ack-delivered" title="Доставлено">✓</span>`;
   return `<span class="ack-tick ack-sent" title="Отправлено">✓</span>`;
+}
+
+const NEAR_BOTTOM_PX = 80;
+function isNearBottom(el) {
+  if (!el) return true;
+  return el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
 }
 
 function renderChatThread() {
@@ -641,6 +1104,7 @@ function renderChatThread() {
     if (w) w.innerHTML = `<div class="empty-state"><p>Не удалось отрисовать переписку.</p></div>`;
   }
 }
+
 function renderChatThreadInner() {
   const c = state.contacts.get(state.chatId);
   if (!c) { state.chatId = null; renderTab(); return; }
@@ -658,19 +1122,31 @@ function renderChatThreadInner() {
   } else if (c.managed && c.online) {
     badge.textContent = "через сервер"; badge.classList.add("via-server"); badge.classList.remove("hidden");
   } else badge.classList.add("hidden");
+
   const wrap = $("#chat-messages");
+  const wasAtBottom = isNearBottom(wrap);
   wrap.innerHTML = "";
   const frag = document.createDocumentFragment();
   const q = state.chatSearchQuery.toLowerCase();
+  let lastDay = "";
   for (const m of c.messages) {
+    const dayStr = formatDayGroup(m.ts);
+    if (dayStr && dayStr !== lastDay) {
+      const sep = document.createElement("div");
+      sep.className = "date-sep";
+      const inner = document.createElement("span");
+      inner.textContent = dayStr;
+      sep.appendChild(inner);
+      frag.appendChild(sep);
+      lastDay = dayStr;
+    }
     const bubble = document.createElement("div");
     bubble.className = "bubble-row " + (m.from === "me" ? "mine" : "theirs");
     const tick = m.from === "me" ? ackGlyph(m.ack) : "";
     const editedMark = m.edited ? `<span class="bubble-edited">изм.</span>` : "";
     const inner = document.createElement("div");
     inner.className = "bubble " + (m.from === "me" ? "" : "glass-content");
-    let body = linkify(m.text);
-    if (q && (m.text || "").toLowerCase().includes(q)) body = highlight(body, state.chatSearchQuery);
+    const body = linkifyAndHighlight(m.text, q);
     let replyHtml = "";
     if (m.replyTo) replyHtml = `<div class="bubble-reply"><div class="bubble-reply-author">${escapeHtml(m.replyTo.authorName || "Ответ")}</div><div class="bubble-reply-text">${escapeHtml(truncate(m.replyTo.text || "", 80))}</div></div>`;
     const fwdMark = m.forwarded ? `<div class="bubble-forwarded">Переслано</div>` : "";
@@ -680,15 +1156,75 @@ function renderChatThreadInner() {
       if (chips.length > 0) reactionsHtml = `<div class="bubble-reactions">` + chips.map(([emoji, users]) => `<span class="bubble-reaction-chip">${escapeHtml(emoji)} ${users.length}</span>`).join("") + `</div>`;
     }
     inner.innerHTML = `${fwdMark}${replyHtml}${body}<span class="bubble-time">${formatTime(m.ts)}${editedMark}${tick}</span>${reactionsHtml}`;
-    inner.addEventListener("click", () => { const sel = window.getSelection(); if (sel && sel.toString().length > 0) return; openMessageSheet(m.id, c.id); });
+    inner.addEventListener("click", () => {
+      const sel = window.getSelection();
+      if (sel && sel.toString().length > 0) return;
+      openMessageSheet(m.id, c.id);
+    });
+    attachSwipeReply(inner, m, c);
     bubble.appendChild(inner);
     frag.appendChild(bubble);
   }
   wrap.appendChild(frag);
-  wrap.scrollTop = wrap.scrollHeight;
+  if (wasAtBottom) wrap.scrollTop = wrap.scrollHeight;
+  updateScrollBottomButton();
+
   const input = $("#chat-input");
   if (state.drafts[c.id] && !state.editingMessageId) input.value = state.drafts[c.id];
   markThreadRead(c);
+
+  if (state.chatSearchQuery) {
+    if (__chatSearchScrollTimer) clearTimeout(__chatSearchScrollTimer);
+    __chatSearchScrollTimer = setTimeout(() => {
+      const marks = wrap.querySelectorAll(".search-hit");
+      if (marks.length > 0) {
+        marks[0].scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }, 200);
+  }
+}
+
+function attachSwipeReply(el, m, c) {
+  let startX = 0, startY = 0, swiping = false;
+  el.addEventListener("touchstart", (e) => {
+    const t = e.touches[0];
+    startX = t.clientX; startY = t.clientY; swiping = false;
+    el.style.transition = "none";
+  }, { passive: true });
+  el.addEventListener("touchmove", (e) => {
+    const t = e.touches[0];
+    const dx = t.clientX - startX;
+    const dy = Math.abs(t.clientY - startY);
+    if (!swiping && Math.abs(dx) > 12 && Math.abs(dx) > dy) swiping = true;
+    if (swiping && dx > 0) {
+      el.style.transform = `translateX(${Math.min(dx * 0.5, 60)}px)`;
+    }
+  }, { passive: true });
+  el.addEventListener("touchend", () => {
+    el.style.transition = "";
+    const tr = el.style.transform;
+    el.style.transform = "";
+    if (swiping) {
+      const m1 = tr && tr.match(/translateX\((\d+(?:\.\d+)?)px\)/);
+      if (m1 && parseFloat(m1[1]) > 40) {
+        state.replyTo = {
+          msgId: m.id, text: m.text, from: m.from,
+          authorName: m.from === "me" ? (Store.name || "Вы") : (c.name || "Собеседник"),
+        };
+        showReplyBanner();
+        const inp = $("#chat-input"); if (inp) inp.focus();
+      }
+    }
+    swiping = false;
+  });
+}
+
+function updateScrollBottomButton() {
+  const wrap = $("#chat-messages");
+  const btn = $("#scroll-bottom-btn");
+  if (!wrap || !btn) return;
+  const visible = !isNearBottom(wrap);
+  btn.classList.toggle("hidden", !visible);
 }
 
 function markThreadRead(c) {
@@ -697,7 +1233,10 @@ function markThreadRead(c) {
   if (toAck.length === 0) return;
   persistContacts();
   sendAckBatch(c.id, toAck, "read");
+  updateAppBadge();
+  if (state.tab === "chats") renderChatsList();
 }
+
 function saveCurrentDraft() {
   if (!state.chatId) return;
   const input = $("#chat-input");
@@ -707,49 +1246,37 @@ function saveCurrentDraft() {
   persistDrafts();
 }
 
-function wireChatScreen() {
-  const form = $("#chat-form");
-  if (form) form.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const input = $("#chat-input");
-    const text = input.value.trim();
-    if (!text || !state.chatId) return;
-    if (state.editingMessageId) { commitEdit(state.chatId, state.editingMessageId, text); cancelEditing(); }
-    else { sendChatMessage(state.chatId, text, state.replyTo); cancelReply(); }
-    input.value = "";
-    delete state.drafts[state.chatId];
-    persistDrafts();
-    sendTypingStop(state.chatId);
-  });
-  const input = $("#chat-input");
-  if (input) {
-    let typingSendTimer = null;
-    input.addEventListener("input", () => {
-      if (!state.chatId) return;
-      const v = input.value.trim();
-      if (v) state.drafts[state.chatId] = v; else delete state.drafts[state.chatId];
-      persistDrafts();
-      sendTypingStart(state.chatId);
-      clearTimeout(typingSendTimer);
-      typingSendTimer = setTimeout(() => sendTypingStop(state.chatId), TYPING_DEBOUNCE_MS);
-    });
-    input.addEventListener("blur", () => { if (state.chatId) sendTypingStop(state.chatId); });
+// =====================================================================
+// Клавиатура iOS + ширина строки ввода
+// =====================================================================
+function wireKeyboardFix() {
+  if (!window.visualViewport) return;
+  const vv = window.visualViewport;
+  function update() {
+    const screen = $("#screen-chat");
+    if (!screen || screen.classList.contains("hidden")) return;
+    const isKeyboardOpen = window.innerHeight - vv.height > 100;
+    document.documentElement.style.setProperty("--kb-h", isKeyboardOpen ? (window.innerHeight - vv.height) + "px" : "0px");
+    const bar = $(".chat-input-bar");
+    if (bar) {
+      if (isKeyboardOpen) {
+        bar.style.transform = `translateY(-${window.innerHeight - vv.height - vv.offsetTop}px)`;
+      } else {
+        bar.style.transform = "";
+      }
+    }
+    const wrap = $("#chat-messages");
+    if (wrap) {
+      if (isNearBottom(wrap)) wrap.scrollTop = wrap.scrollHeight;
+    }
   }
-  const callBtn = $("#chat-call-btn");
-  if (callBtn) callBtn.addEventListener("click", () => beginCall(state.chatId));
-  const moreBtn = $("#chat-more-btn");
-  if (moreBtn) moreBtn.addEventListener("click", () => openContactSheet(state.chatId));
-  const editCancel = $("#edit-cancel-btn");
-  if (editCancel) editCancel.addEventListener("click", () => {
-    const id = state.chatId;
-    cancelEditing();
-    const inp = $("#chat-input");
-    if (id && state.drafts[id]) inp.value = state.drafts[id]; else inp.value = "";
-  });
-  const replyCancel = $("#reply-cancel-btn");
-  if (replyCancel) replyCancel.addEventListener("click", () => cancelReply());
+  vv.addEventListener("resize", update);
+  vv.addEventListener("scroll", update);
 }
 
+// =====================================================================
+// Отправка / редактирование / удаление / пересылка
+// =====================================================================
 async function sendChatMessage(contactId, text, replyTo) {
   const c = state.contacts.get(contactId);
   if (!c) return;
@@ -763,8 +1290,13 @@ async function sendChatMessage(contactId, text, replyTo) {
   trimMessages(c);
   c.lastActivity = ts;
   persistContacts();
-  if (state.chatId === contactId) renderChatThread();
+  if (state.chatId === contactId) {
+    renderChatThreadInner();
+    const wrap = $("#chat-messages");
+    if (wrap) wrap.scrollTop = wrap.scrollHeight;
+  }
   if (state.tab === "chats") renderChatsList();
+  playOutgoingSound();
   const payload = { kind: "chat", id: msgId, text, ts };
   if (replyTo) payload.replyTo = { id: replyTo.msgId, text: replyTo.text, from: replyTo.from };
   await trySendOrQueue(c, msgId, payload);
@@ -833,7 +1365,9 @@ async function trySendOrQueue(contact, msgId, payloadObj) {
   await flushOutboxItem(msgId);
 }
 
-// ---------- Outbox ----------
+// =====================================================================
+// Outbox
+// =====================================================================
 function addToOutbox(msgId, to, payload) {
   if (outbox.has(msgId)) return;
   outbox.set(msgId, { msgId, to, payload, sentAt: Date.now(), attempts: 0, serverAcked: false });
@@ -854,7 +1388,6 @@ function restoreOutbox() {
 async function flushOutboxItem(msgId) {
   const entry = outbox.get(msgId);
   if (!entry) return;
-  // Если сервер уже подтвердил приём — повторно не отправляем.
   if (entry.serverAcked) { outbox.delete(msgId); persistOutbox(); return; }
   const contact = state.contacts.get(entry.to);
   if (!contact) { outbox.delete(msgId); persistOutbox(); return; }
@@ -871,9 +1404,10 @@ async function flushOutboxItem(msgId) {
     entry.attempts = (entry.attempts || 0) + 1;
     entry.lastAttemptAt = Date.now();
     persistOutbox();
-    const sent = signaling && signaling.deliver(entry.to, entry.msgId, envelope, Store.myPublicKeyJwk);
+    const kind = (entry.payload && entry.payload.kind) || "chat";
+    const sent = signaling && signaling.deliver(entry.to, entry.msgId, envelope, Store.myPublicKeyJwk, kind);
     if (!sent) markMessageAck(entry.to, msgId, "failed");
-    else if (entry.payload.kind === "chat") {
+    else if (kind === "chat") {
       const c = state.contacts.get(entry.to);
       const m = c && c.messages.find((x) => x.id === msgId);
       if (m && m.ack === "failed") m.ack = "sent";
@@ -919,6 +1453,23 @@ function flushPendingNoKey(contactId) {
   for (const { msgId, payload } of list) { addToOutbox(msgId, contactId, payload); flushOutboxItem(msgId); }
 }
 
+function resumeUnsentMessages() {
+  if (!Store.myPublicKeyJwk) return;
+  const now = Date.now();
+  for (const c of state.contacts.values()) {
+    for (const m of c.messages) {
+      if (m.from !== "me") continue;
+      if (m.serverAcked) continue;
+      if (m.ack !== "failed") continue;
+      if (outbox.has(m.id)) continue;
+      if (now - m.ts > RESUME_MAX_AGE_MS) continue;
+      const payload = { kind: "chat", id: m.id, text: m.text, ts: m.ts };
+      addToOutbox(m.id, c.id, payload);
+      flushOutboxItem(m.id);
+    }
+  }
+}
+
 function sendAckBatch(contactId, originalMsgIds, ackState) {
   const link = mesh.get(contactId);
   const actionId = crypto.randomUUID();
@@ -953,7 +1504,7 @@ function sendTypingStart(contactId) {
   if (c.publicKey && signaling && signaling.connected) {
     CryptoHelper.deriveSharedKey(Store.myPrivateKeyJwk, c.publicKey)
       .then((k) => CryptoHelper.encryptJson(k, payload))
-      .then((envelope) => signaling.deliver(contactId, crypto.randomUUID(), envelope, Store.myPublicKeyJwk))
+      .then((envelope) => signaling.deliver(contactId, crypto.randomUUID(), envelope, Store.myPublicKeyJwk, "typing"))
       .catch(() => {});
   }
 }
@@ -967,7 +1518,7 @@ function sendTypingStop(contactId) {
   if (c.publicKey && signaling && signaling.connected) {
     CryptoHelper.deriveSharedKey(Store.myPrivateKeyJwk, c.publicKey)
       .then((k) => CryptoHelper.encryptJson(k, payload))
-      .then((envelope) => signaling.deliver(contactId, crypto.randomUUID(), envelope, Store.myPublicKeyJwk))
+      .then((envelope) => signaling.deliver(contactId, crypto.randomUUID(), envelope, Store.myPublicKeyJwk, "typing"))
       .catch(() => {});
   }
 }
@@ -1010,7 +1561,9 @@ function applyReaction(contactId, payload) {
   if (state.chatId === contactId) renderChatThread();
 }
 
-// ---------- Сигналинг ----------
+// =====================================================================
+// Сигналинг
+// =====================================================================
 function updateSignalingStatusUI(kind, text) {
   const dot = $("#signaling-status-dot"), label = $("#signaling-status-text");
   if (dot) dot.className = "status-dot " + kind;
@@ -1097,7 +1650,7 @@ function wireSignalingEvents(sig) {
       }
     }
     if (state.tab === "chats") renderChatsList();
-    if (state.tab === "connect") renderOnlineRosterList();
+    if (state.tab === "connect") { renderContactsList(); renderOnlineRosterList(); }
   }));
 
   subs.push(on("presence", (ev) => {
@@ -1110,9 +1663,10 @@ function wireSignalingEvents(sig) {
       if (online && publicKey && keysDiffer(publicKey, c.publicKey)) { c.publicKey = publicKey; persistContacts(); flushPendingNoKey(id); }
       if (online) scheduleAutoConnect(id); else clearAutoConnectTimer(id);
       if (state.chatId === id) renderChatThread();
+      if (state.contactCardId === id) renderContactCard();
     }
     if (state.tab === "chats") renderChatsList();
-    if (state.tab === "connect") renderOnlineRosterList();
+    if (state.tab === "connect") { renderContactsList(); renderOnlineRosterList(); }
   }));
 
   subs.push(on("signal", async (ev) => {
@@ -1193,10 +1747,6 @@ function wireSignalingEvents(sig) {
     if (c) { c.online = false; if (state.tab === "chats") renderChatsList(); }
   }));
 
-  // Ключевой обработчик: сервер подтвердил приём конверта.
-  // Помечаем сообщение serverAcked и убираем из очереди — иначе
-  // локальный retry-loop будет переотправлять его каждые 15 секунд,
-  // а сервер на каждую переотправку слал бы новый push.
   subs.push(on("deliver-ack", (ev) => {
     const { msgId } = ev.detail;
     const entry = outbox.get(msgId);
@@ -1211,7 +1761,7 @@ function wireSignalingEvents(sig) {
   }));
 
   subs.push(on("deliver", async (ev) => {
-    const { from, msgId, envelope, fromPublicKey, queued } = ev.detail;
+    const { from, msgId, envelope, fromPublicKey, kind, queued } = ev.detail;
     sig.mailboxAck(msgId);
     const sender = state.contacts.get(from);
     if (sender && sender.blocked) { sendAckBatch(from, [msgId], "delivered"); return; }
@@ -1229,15 +1779,16 @@ function wireSignalingEvents(sig) {
         if (c && keysDiffer(fromPublicKey, c.publicKey)) { c.publicKey = fromPublicKey; persistContacts(); }
       }
     } catch (e) { console.error("[crypto] decrypt:", e); return; }
-    applyIncomingPayload(from, msgId, payload, true);
+    applyIncomingPayload(from, msgId, payload, true, kind);
     sendAckBatch(from, [msgId], "delivered");
   }));
 
   return () => { for (const s of subs) sig.removeEventListener(s.type, s.wrapped); };
 }
 
-function applyIncomingPayload(from, envelopeMsgId, payload, fromServer) {
-  if (payload.kind === "chat") {
+function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind) {
+  const kind = (payload && payload.kind) || openKind || "chat";
+  if (kind === "chat") {
     const c = ensureContactEntry(from, null);
     if (c.messages.some((m) => m.id === payload.id)) return;
     const isOpen = state.chatId === from;
@@ -1246,14 +1797,22 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer) {
     if (payload.forwarded) rec.forwarded = true;
     c.messages.push(rec); trimMessages(c); c.lastActivity = Date.now();
     persistContacts();
-    if (isOpen) renderChatThread();
-    else {
+    if (isOpen) {
+      renderChatThread();
+      playMessageSound();
+      vibrate([80, 40, 80]);
+    } else {
       toast(`${c.name}: ${truncate(payload.text, 40)}`);
-      if (!c.muted) showNotification(c.name || "Эфир", truncate(payload.text, 80), { tag: "ether-msg-" + c.id, contactId: c.id, kind: "message" });
+      if (!c.muted) {
+        showNotification(c.name || "Эфир", truncate(payload.text, 80), { tag: "ether-msg-" + c.id, contactId: c.id, kind: "message" });
+      }
+      playMessageSound();
+      vibrate([80, 40, 80]);
     }
     if (state.tab === "chats") renderChatsList();
     if (isOpen) sendAckBatch(from, [payload.id], "read");
-  } else if (payload.kind === "edit") {
+    updateAppBadge();
+  } else if (kind === "edit") {
     const c = ensureContactEntry(from, null);
     const m = c.messages.find((x) => x.id === payload.id);
     if (m) {
@@ -1263,7 +1822,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer) {
       if (state.chatId === from) renderChatThread();
       if (state.tab === "chats") renderChatsList();
     }
-  } else if (payload.kind === "delete") {
+  } else if (kind === "delete") {
     const c = ensureContactEntry(from, null);
     const before = c.messages.length;
     c.messages = c.messages.filter((x) => x.id !== payload.id);
@@ -1272,18 +1831,19 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer) {
       if (state.chatId === from) renderChatThread();
       if (state.tab === "chats") renderChatsList();
     }
-  } else if (payload.kind === "ack") {
-    markMessageAck(from, payload.id, payload.state);
-  } else if (payload.kind === "ack-batch" && Array.isArray(payload.ids)) {
-    for (const id of payload.ids) markMessageAck(from, id, payload.state);
-  } else if (payload.kind === "typing") {
+  } else if (kind === "ack" || (kind === "ack-batch" && Array.isArray(payload.ids))) {
+    const ids = Array.isArray(payload.ids) ? payload.ids : [payload.id];
+    for (const id of ids) markMessageAck(from, id, payload.state);
+  } else if (kind === "typing") {
     handleIncomingTyping(from, !!payload.active);
-  } else if (payload.kind === "reaction") {
+  } else if (kind === "reaction") {
     applyReaction(from, payload);
   }
 }
 
-// ---------- Автоподключение ----------
+// =====================================================================
+// Автоподключение
+// =====================================================================
 function clearAutoConnectTimer(id) { const t = autoConnectTimers.get(id); if (t) clearTimeout(t); autoConnectTimers.delete(id); }
 function scheduleAutoConnect(id) {
   attemptConnect(id);
@@ -1328,7 +1888,9 @@ function watchConnectionTimeout(id) {
   }, 10000);
 }
 
-// ---------- Экран контактов ----------
+// =====================================================================
+// Список онлайн (в разделе Контакты)
+// =====================================================================
 function renderOnlineRosterList() {
   const wrap = $("#online-roster-list"), empty = $("#online-roster-empty");
   if (!wrap) return;
@@ -1354,6 +1916,7 @@ function renderOnlineRosterList() {
       toast("Контакт добавлен");
       scheduleAutoConnect(id);
       renderOnlineRosterList();
+      renderContactsList();
       state.tab = "chats";
       renderTab();
     });
@@ -1488,7 +2051,9 @@ function copyText(text, msg) {
   }
 }
 
-// ---------- Шиты ----------
+// =====================================================================
+// Шиты
+// =====================================================================
 function wireSheetBackdrops() {
   $$(".sheet-backdrop").forEach((el) => {
     el.addEventListener("click", () => { const s = el.closest(".sheet"); if (s) s.classList.add("hidden"); });
@@ -1597,53 +2162,6 @@ function openForwardSheet(msgId, fromContactId) {
   $("#forward-sheet").classList.remove("hidden");
 }
 
-function openContactSheet(contactId) {
-  state.activeContactContext = contactId;
-  const c = state.contacts.get(contactId); if (!c) return;
-  const body = $("#contact-sheet-body");
-  body.innerHTML = `
-    <button type="button" class="sheet-action" data-action="rename"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z"/></svg>Переименовать</button>
-    <button type="button" class="sheet-action" data-action="archive"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M20.54 5.23 19.15 3.55A1.5 1.5 0 0 0 18 3H6a1.5 1.5 0 0 0-1.16.55L3.46 5.23A2 2 0 0 0 3 6.5V19a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6.5a2 2 0 0 0-.46-1.27z"/></svg>${c.archived ? "Разархивировать" : "В архив"}</button>
-    <button type="button" class="sheet-action" data-action="mute"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M16.5 12A4.5 4.5 0 0 0 14 7.97V2.5a2.5 2.5 0 0 0-5 0v5.47A4.5 4.5 0 0 0 7 12v4.5h9.5V12z"/></svg>${c.muted ? "Включить звук" : "Без звука"}</button>
-    <button type="button" class="sheet-action ${c.blocked ? "" : "destructive"}" data-action="block"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM5.7 7.1l9.2 9.2a8 8 0 0 1-9.2-9.2zm12.6 9.8L9.1 7.7a8 8 0 0 1 9.2 9.2z"/></svg>${c.blocked ? "Разблокировать" : "Заблокировать"}</button>
-    <button type="button" class="sheet-action" data-action="export"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>Экспорт переписки</button>
-    <button type="button" class="sheet-action" data-action="clear"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>Очистить историю</button>
-    <button type="button" class="sheet-action destructive" data-action="delete"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M6 7h12l-1 13.1a2 2 0 0 1-2 1.9H9a2 2 0 0 1-2-1.9L6 7z"/></svg>Удалить контакт</button>`;
-  body.querySelectorAll(".sheet-action").forEach((btn) => {
-    btn.addEventListener("click", () => { const action = btn.dataset.action; $("#contact-sheet").classList.add("hidden"); handleContactAction(action, contactId); });
-  });
-  $("#contact-sheet").classList.remove("hidden");
-}
-
-function handleContactAction(action, contactId) {
-  const c = state.contacts.get(contactId); if (!c) return;
-  if (action === "rename") {
-    state.activeContactContext = contactId;
-    $("#rename-input").value = c.name || "";
-    $("#rename-sheet").classList.remove("hidden");
-    setTimeout(() => $("#rename-input").focus(), 50);
-  } else if (action === "archive") {
-    c.archived = !c.archived; persistContacts(); renderChatsList();
-    toast(c.archived ? "В архиве" : "Из архива");
-  } else if (action === "mute") {
-    c.muted = !c.muted; persistContacts(); renderChatsList();
-    toast(c.muted ? "Уведомления выключены" : "Уведомления включены");
-  } else if (action === "block") {
-    c.blocked = !c.blocked; persistContacts(); renderChatsList();
-    toast(c.blocked ? "Заблокирован" : "Разблокирован");
-  } else if (action === "export") exportChat(contactId);
-  else if (action === "clear") {
-    if (!confirm(`Очистить всю переписку с «${c.name}»?`)) return;
-    c.messages = []; c.lastActivity = Date.now(); persistContacts();
-    if (state.chatId === contactId) renderChatThread();
-    if (state.tab === "chats") renderChatsList();
-    toast("История очищена");
-  } else if (action === "delete") {
-    if (!confirm(`Удалить контакт «${c.name}»?`)) return;
-    deleteContact(contactId);
-  }
-}
-
 function wireRenameSheet() {
   const btn = $("#rename-save-btn"); if (!btn) return;
   btn.addEventListener("click", () => {
@@ -1655,6 +2173,7 @@ function wireRenameSheet() {
     persistContacts();
     $("#rename-sheet").classList.add("hidden");
     if (state.chatId === id) renderChatThread();
+    if (state.contactCardId === id) renderContactCard();
     renderChatsList();
     toast("Имя обновлено");
   });
@@ -1672,6 +2191,7 @@ function deleteContact(id) {
   persistContacts();
   if (state.callId === id) closeCallScreen();
   if (state.chatId === id) state.chatId = null;
+  if (state.contactCardId === id) state.contactCardId = null;
   renderTab();
   toast("Контакт удалён");
 }
@@ -1697,7 +2217,9 @@ function downloadBlob(blob, name) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-// ---------- Звонки ----------
+// =====================================================================
+// Звонки
+// =====================================================================
 function loadCallLog() {
   let arr = [];
   try { arr = JSON.parse(Store.callLogJson) || []; } catch (e) { arr = []; }
@@ -1723,10 +2245,18 @@ function updateCallRecordStatus(status) {
   persistCallLog();
 }
 function endCallRecord(finalStatus) {
-  const rec = state.currentCallRecord; if (!rec) return;
+  const rec = state.currentCallRecord;
+  if (!rec) return;
   rec.endedAt = Date.now();
-  if (rec.answeredAt) { rec.durationMs = rec.endedAt - rec.answeredAt; rec.status = finalStatus || "completed"; }
-  else { if (!finalStatus) finalStatus = rec.direction === "in" ? "missed" : "cancelled"; rec.status = finalStatus; }
+  if (rec.answeredAt) {
+    rec.durationMs = rec.endedAt - rec.answeredAt;
+    rec.status = finalStatus === "failed" ? "failed" : "completed";
+  } else {
+    if (!finalStatus || finalStatus === "completed") {
+      finalStatus = rec.direction === "in" ? "missed" : "cancelled";
+    }
+    rec.status = finalStatus;
+  }
   state.currentCallRecord = null;
   persistCallLog();
 }
@@ -1773,30 +2303,6 @@ function renderCallsList() {
 }
 
 function clearPendingCall() { if (pendingCall.timer) clearTimeout(pendingCall.timer); pendingCall.timer = null; pendingCall.contactId = null; }
-
-function playRingtone() {
-  stopRingtone();
-  try {
-    if (!ringtoneCtx) ringtoneCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (ringtoneCtx.state === "suspended") ringtoneCtx.resume();
-    const beep = () => {
-      if (!ringtoneCtx) return;
-      const osc = ringtoneCtx.createOscillator();
-      const gain = ringtoneCtx.createGain();
-      osc.type = "sine";
-      osc.frequency.value = 480;
-      gain.gain.value = 0.0001;
-      osc.connect(gain); gain.connect(ringtoneCtx.destination);
-      const t = ringtoneCtx.currentTime;
-      gain.gain.exponentialRampToValueAtTime(0.15, t + 0.05);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
-      osc.start(t); osc.stop(t + 0.7);
-    };
-    beep();
-    ringtoneTimer = setInterval(beep, 1500);
-  } catch (e) { console.warn("ringtone:", e); }
-}
-function stopRingtone() { if (ringtoneTimer) { clearInterval(ringtoneTimer); ringtoneTimer = null; } }
 
 async function beginCall(id) {
   const c = state.contacts.get(id);
@@ -1947,7 +2453,9 @@ function wireCallScreen() {
   });
 }
 
-// ---------- Поиск ----------
+// =====================================================================
+// Поиск
+// =====================================================================
 function wireSearchHandlers() {
   const gs = $("#global-search");
   if (gs) gs.addEventListener("input", (e) => { state.searchQuery = e.target.value.trim(); renderChatsList(); });
@@ -1963,7 +2471,11 @@ function wireSearchHandlers() {
   const csc = $("#chat-search-close");
   if (csc) csc.addEventListener("click", closeChatSearch);
   const csi = $("#chat-search-input");
-  if (csi) csi.addEventListener("input", (e) => { state.chatSearchQuery = e.target.value.trim(); renderChatThread(); updateSearchCounter(); });
+  if (csi) csi.addEventListener("input", (e) => {
+    state.chatSearchQuery = e.target.value.trim();
+    renderChatThread();
+    updateSearchCounter();
+  });
 }
 function closeChatSearch() {
   state.chatSearchQuery = "";
@@ -1980,7 +2492,9 @@ function updateSearchCounter() {
   if (el) el.textContent = n > 0 ? `${n} найдено` : "нет совпадений";
 }
 
-// ---------- Настройки ----------
+// =====================================================================
+// Настройки
+// =====================================================================
 function wireSettingsScreen() {
   const nameEl = $("#settings-name");
   if (nameEl) nameEl.addEventListener("change", (e) => {
@@ -2008,6 +2522,11 @@ function wireSettingsScreen() {
     Store.discoverable = e.target.checked; initSignaling();
     toast(e.target.checked ? "Вы видны в списке" : "Вы скрыты");
   });
+  const sounds = $("#settings-sounds");
+  if (sounds) sounds.addEventListener("change", (e) => {
+    Store.soundsEnabled = e.target.checked;
+    toast(e.target.checked ? "Звук и вибрация включены" : "Звук и вибрация выключены");
+  });
   const pinlock = $("#settings-pinlock");
   if (pinlock) pinlock.addEventListener("change", (e) => {
     if (e.target.checked) {
@@ -2029,21 +2548,23 @@ function wireSettingsScreen() {
     if (!/^\d+$/.test(v)) { toast("Только цифры"); return; }
     if ($("#settings-pinlock").checked) {
       if (Store.pinHash) {
-        const h = await hashPin(v);
+        const h = await pbkdf2Hex(v, Store.pinSalt, PIN_ITERATIONS);
         if (h !== Store.pinHash) { toast("Неверный пин-код"); return; }
         $("#set-pin-title").textContent = "Новый пин-код";
         $("#set-pin-input").value = "";
         return;
       }
-      Store.pinHash = await hashPin(v);
+      Store.pinSalt = randomSaltHex(16);
+      Store.pinHash = await pbkdf2Hex(v, Store.pinSalt, PIN_ITERATIONS);
       Store.pinEnabled = true;
       $("#set-pin-sheet").classList.add("hidden");
       toast("Пин-код включён");
     } else {
-      const h = await hashPin(v);
+      const h = await pbkdf2Hex(v, Store.pinSalt, PIN_ITERATIONS);
       if (h !== Store.pinHash) { toast("Неверный пин-код"); return; }
       Store.pinEnabled = false;
       Store.pinHash = "";
+      Store.pinSalt = "";
       $("#settings-pinlock").checked = false;
       $("#set-pin-sheet").classList.add("hidden");
       toast("Пин-код отключён");
@@ -2058,6 +2579,77 @@ function wireSettingsScreen() {
       $$(".theme-seg button").forEach((b) => b.classList.toggle("active", b === btn));
     });
   });
+}
+
+// =====================================================================
+// Вкладка Отладка
+// =====================================================================
+function applyDebugTabVisibility() {
+  const hidden = Store.debugHidden;
+  const tab = document.getElementById("tab-debug");
+  if (tab) tab.classList.toggle("hidden", hidden);
+  const toggle = document.getElementById("debug-hide-toggle");
+  if (toggle) toggle.checked = hidden;
+  if (hidden && state.tab === "debug") { state.tab = "chats"; renderTab(); }
+}
+
+function wireNavTitleTaps() {
+  const el = document.getElementById("nav-title");
+  if (!el) return;
+  el.addEventListener("click", () => {
+    const now = Date.now();
+    __navTitleTaps = __navTitleTaps.filter((t) => now - t < 2000);
+    __navTitleTaps.push(now);
+    if (__navTitleTaps.length >= 5) {
+      __navTitleTaps = [];
+      Store.debugHidden = false;
+      applyDebugTabVisibility();
+      toast("Вкладка «Отладка» включена");
+    }
+  });
+}
+
+function wireDebugScreen() {
+  const diag = $("#diagnostics-btn");
+  if (diag) diag.addEventListener("click", () => { renderDiagnostics(); $("#diagnostics-sheet").classList.remove("hidden"); });
+  const diagClose = $("#diagnostics-close");
+  if (diagClose) diagClose.addEventListener("click", () => $("#diagnostics-sheet").classList.add("hidden"));
+  const diagR = $("#diagnostics-refresh-btn");
+  if (diagR) diagR.addEventListener("click", renderDiagnostics);
+  const diagC = $("#diagnostics-copy-btn");
+  if (diagC) diagC.addEventListener("click", () => copyText(buildDiagnosticsText(), "Диагностика скопирована"));
+
+  const logsBtn = $("#debug-logs-btn");
+  if (logsBtn) logsBtn.addEventListener("click", () => {
+    renderLogsSheet();
+    $("#logs-sheet").classList.remove("hidden");
+  });
+  const logsClose = $("#logs-close");
+  if (logsClose) logsClose.addEventListener("click", () => $("#logs-sheet").classList.add("hidden"));
+  const logsCopy = $("#logs-copy-btn");
+  if (logsCopy) logsCopy.addEventListener("click", () => copyText(buildLogsText(), "Журнал скопирован"));
+  const logsClear = $("#logs-clear-btn");
+  if (logsClear) logsClear.addEventListener("click", () => {
+    window.__etherDiag = [];
+    renderLogsSheet();
+    toast("Журнал очищен");
+  });
+
+  const storageBtn = $("#debug-storage-btn");
+  if (storageBtn) storageBtn.addEventListener("click", () => {
+    renderStorageSheet();
+    $("#storage-sheet").classList.remove("hidden");
+  });
+  const storageClose = $("#storage-close");
+  if (storageClose) storageClose.addEventListener("click", () => $("#storage-sheet").classList.add("hidden"));
+
+  const expBackup = $("#export-backup-btn");
+  if (expBackup) expBackup.addEventListener("click", exportBackup);
+  const impBackup = $("#import-backup-btn");
+  if (impBackup) impBackup.addEventListener("click", () => $("#import-backup-input").click());
+  const impInput = $("#import-backup-input");
+  if (impInput) impInput.addEventListener("change", importBackup);
+
   const reset = $("#reset-all-btn");
   if (reset) reset.addEventListener("click", () => {
     if (!confirm("Разорвать все соединения и удалить контакты? История звонков тоже будет удалена.")) return;
@@ -2072,51 +2664,63 @@ function wireSettingsScreen() {
     resetConnectScreen(); renderTab();
     toast("Все данные удалены");
   });
-  const expBackup = $("#export-backup-btn");
-  if (expBackup) expBackup.addEventListener("click", exportBackup);
-  const impBackup = $("#import-backup-btn");
-  if (impBackup) impBackup.addEventListener("click", () => $("#import-backup-input").click());
-  const impInput = $("#import-backup-input");
-  if (impInput) impInput.addEventListener("change", importBackup);
-  const diag = $("#diagnostics-btn");
-  if (diag) diag.addEventListener("click", () => { renderDiagnostics(); $("#diagnostics-sheet").classList.remove("hidden"); });
-  const diagClose = $("#diagnostics-close");
-  if (diagClose) diagClose.addEventListener("click", () => $("#diagnostics-sheet").classList.add("hidden"));
-  const diagR = $("#diagnostics-refresh-btn");
-  if (diagR) diagR.addEventListener("click", renderDiagnostics);
-  const diagC = $("#diagnostics-copy-btn");
-  if (diagC) diagC.addEventListener("click", () => copyText(buildDiagnosticsText(), "Диагностика скопирована"));
+
+  const hard = $("#debug-hard-reset-btn");
+  if (hard) hard.addEventListener("click", () => {
+    if (!confirm("Полный сброс: удалит аккаунт, пин-код, ключи шифрования и все данные. Продолжить?")) return;
+    if (!confirm("Точно? Восстановить не получится.")) return;
+    localStorage.clear();
+    if ("caches" in window) caches.keys().then((names) => names.forEach((n) => caches.delete(n)));
+    if ("indexedDB" in window) try { indexedDB.deleteDatabase("ether-db"); } catch (e) {}
+    location.reload();
+  });
+
+  const hideToggle = $("#debug-hide-toggle");
+  if (hideToggle) hideToggle.addEventListener("change", (e) => {
+    Store.debugHidden = e.target.checked;
+    applyDebugTabVisibility();
+    toast(e.target.checked ? "Вкладка скрыта" : "Вкладка показана");
+  });
 }
 
-function exportBackup() {
-  const data = {};
+function renderLogsSheet() {
+  const el = $("#logs-content");
+  if (el) el.textContent = buildLogsText();
+}
+function buildLogsText() {
+  const log = window.__etherDiag || [];
+  const lines = [];
+  for (const entry of log.slice(-200)) {
+    const d = new Date(entry.ts);
+    const stamp = `${d.toLocaleTimeString("ru-RU")}.${String(d.getMilliseconds()).padStart(3, "0")}`;
+    lines.push(`[${stamp}] [${entry.level}] ${entry.line}`);
+  }
+  return lines.join("\n");
+}
+
+function renderStorageSheet() {
+  const el = $("#storage-summary");
+  if (!el) return;
+  const items = [];
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
-    if (k && k.startsWith("ether.")) data[k] = localStorage.getItem(k);
+    if (!k || !k.startsWith("ether.")) continue;
+    const v = localStorage.getItem(k) || "";
+    items.push({ key: k, size: v.length });
   }
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-  downloadBlob(blob, `ether-backup-${new Date().toISOString().slice(0, 10)}.json`);
-  toast("Резервная копия сохранена");
-}
-async function importBackup(ev) {
-  const file = ev.target.files && ev.target.files[0];
-  ev.target.value = "";
-  if (!file) return;
-  try {
-    const text = await file.text();
-    const data = JSON.parse(text);
-    if (!data || typeof data !== "object") throw new Error("Неверный формат");
-    if (!confirm("Импорт заменит все текущие данные. Продолжить?")) return;
-    for (let i = localStorage.length - 1; i >= 0; i--) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith("ether.")) localStorage.removeItem(k);
-    }
-    for (const k of Object.keys(data)) if (k.startsWith("ether.")) localStorage.setItem(k, data[k]);
-    toast("Данные импортированы — перезагрузка");
-    setTimeout(() => location.reload(), 800);
-  } catch (e) { toast("Не удалось импортировать: " + e.message); }
+  items.sort((a, b) => b.size - a.size);
+  const totalBytes = items.reduce((s, x) => s + x.size, 0);
+  let html = `<div><b>Всего в localStorage:</b> ${(totalBytes / 1024).toFixed(1)} КБ</div>`;
+  html += `<div><b>Ключей:</b> ${items.length}</div><hr style="border:none;border-top:1px solid var(--hairline);margin:10px 0;">`;
+  for (const it of items) {
+    html += `<div style="display:flex;justify-content:space-between;gap:8px;"><span>${escapeHtml(it.key)}</span><span class="muted">${(it.size / 1024).toFixed(1)} КБ</span></div>`;
+  }
+  el.innerHTML = html;
 }
 
+// =====================================================================
+// Диагностика
+// =====================================================================
 function buildDiagnosticsText() {
   const lines = [];
   lines.push("=== Эфир — диагностика ===");
@@ -2152,14 +2756,6 @@ function buildDiagnosticsText() {
     const link = mesh && mesh.get(c.id);
     lines.push(`${c.name} | id=${String(c.id).slice(0, 10)}… | online=${c.online} | status=${c.status} | link=${link ? link.status : "—"} | сообщений=${c.messages.length}`);
   }
-  lines.push("");
-  lines.push("--- Журнал ---");
-  const log = window.__etherDiag || [];
-  for (const entry of log.slice(-80)) {
-    const d = new Date(entry.ts);
-    const stamp = `${d.toLocaleTimeString("ru-RU")}.${String(d.getMilliseconds()).padStart(3, "0")}`;
-    lines.push(`[${stamp}] [${entry.level}] ${entry.line}`);
-  }
   return lines.join("\n");
 }
 function renderDiagnostics() {
@@ -2177,12 +2773,48 @@ function renderDiagnostics() {
     <div><b>В очереди:</b> ${outbox.size}</div>
     <div><b>TURN-серверов:</b> ${turnCount} ${turnCount > 0 ? "✅" : "⚠️"}</div>
     <div><b>Уведомления:</b> ${("Notification" in window && Notification.permission === "granted" && Store.notificationsEnabled) ? "✅" : "⚠️"}</div>
+    <div><b>Звук/вибро:</b> ${Store.soundsEnabled ? "✅" : "⚠️"}</div>
     <div><b>PWA:</b> ${isStandalone() ? "✅ установлено" : "не на домашний экран"}</div>
-    <div><b>VAPID:</b> ${Store.vapidPublicKey ? "✅ получен" : "⚠️ нет"}</div>`;
+    <div><b>VAPID:</b> ${Store.vapidPublicKey ? "✅ получен" : "⚠️ нет"}</div>
+    <div><b>Пин-код:</b> ${Store.pinEnabled ? "✅ включён" : "⚠️ выключен"}</div>`;
   const log = $("#diagnostics-log"); if (log) log.textContent = buildDiagnosticsText();
 }
 
-// ---------- События mesh ----------
+// =====================================================================
+// Экспорт/импорт бэкапа
+// =====================================================================
+function exportBackup() {
+  const data = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith("ether.")) data[k] = localStorage.getItem(k);
+  }
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  downloadBlob(blob, `ether-backup-${new Date().toISOString().slice(0, 10)}.json`);
+  toast("Резервная копия сохранена");
+}
+async function importBackup(ev) {
+  const file = ev.target.files && ev.target.files[0];
+  ev.target.value = "";
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    if (!data || typeof data !== "object") throw new Error("Неверный формат");
+    if (!confirm("Импорт заменит все текущие данные. Продолжить?")) return;
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith("ether.")) localStorage.removeItem(k);
+    }
+    for (const k of Object.keys(data)) if (k.startsWith("ether.")) localStorage.setItem(k, data[k]);
+    toast("Данные импортированы — перезагрузка");
+    setTimeout(() => location.reload(), 800);
+  } catch (e) { toast("Не удалось импортировать: " + e.message); }
+}
+
+// =====================================================================
+// События mesh
+// =====================================================================
 function wireMeshEvents() {
   mesh.addEventListener("link-status", (ev) => {
     const { id, status } = ev.detail;
@@ -2206,11 +2838,15 @@ function wireMeshEvents() {
       flushOutbox();
     }
     if (status === "disconnected") {
-      if (state.callId === id) closeCallScreen("missed");
+      if (state.callId === id) {
+        const wasAnswered = state.currentCallRecord && state.currentCallRecord.answeredAt;
+        closeCallScreen(wasAnswered ? "completed" : "missed");
+      }
       if (c.managed && c.online) scheduleAutoConnect(id);
       sendTypingStop(id);
     }
     if (state.chatId === id) renderChatThread();
+    if (state.contactCardId === id) renderContactCard();
     if (state.tab === "chats" && !state.chatId) renderChatsList();
   });
   mesh.addEventListener("message", (ev) => {
@@ -2231,7 +2867,7 @@ function wireMeshEvents() {
       if (payload.state === "ended" && state.callId === id) closeCallScreen("completed");
       return;
     }
-    applyIncomingPayload(id, payload && payload.id, payload, false);
+    applyIncomingPayload(id, payload && payload.id, payload, false, payload && payload.kind);
   });
   mesh.addEventListener("remote-track", (ev) => {
     const { id, stream } = ev.detail;
@@ -2240,7 +2876,9 @@ function wireMeshEvents() {
   });
 }
 
-// ---------- Boot-recovery ----------
+// =====================================================================
+// Boot-recovery
+// =====================================================================
 function showBootRecovery() {
   document.getElementById("onboarding").classList.add("hidden");
   document.getElementById("app-shell").classList.add("hidden");
@@ -2258,15 +2896,104 @@ const bootWatchdog = setTimeout(() => { if (bootDidNotRender()) showBootRecovery
 window.addEventListener("error", () => { if (bootDidNotRender()) { clearTimeout(bootWatchdog); showBootRecovery(); } });
 window.addEventListener("unhandledrejection", () => { if (bootDidNotRender()) { clearTimeout(bootWatchdog); showBootRecovery(); } });
 
-document.addEventListener("DOMContentLoaded", () => {
-  try { initBoot(); clearTimeout(bootWatchdog); }
-  catch (e) { console.error("[boot]", e); showBootRecovery(); }
+document.addEventListener("DOMContentLoaded", async () => {
+  try {
+    await restoreFromIDB().catch(() => {});
+    initBoot();
+    clearTimeout(bootWatchdog);
+  } catch (e) { console.error("[boot]", e); showBootRecovery(); }
 });
 
 document.getElementById("boot-recovery-reset")?.addEventListener("click", () => {
   localStorage.clear();
   if ("caches" in window) caches.keys().then((names) => names.forEach((n) => caches.delete(n)));
+  if ("indexedDB" in window) try { indexedDB.deleteDatabase("ether-db"); } catch (e) {}
   location.reload();
 });
 
-window.addEventListener("beforeunload", () => { try { saveCurrentDraft(); } catch (e) {} });
+window.addEventListener("beforeunload", () => {
+  try { saveCurrentDraft(); } catch (e) {}
+  try { backupToIDB(); } catch (e) {}
+});
+
+// Обновляем бейдж при возврате фокуса
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    updateAppBadge();
+    if (state.chatId) markThreadRead(state.contacts.get(state.chatId));
+  }
+});
+
+// Кнопка «вниз»
+document.addEventListener("DOMContentLoaded", () => {
+  const btn = document.getElementById("scroll-bottom-btn");
+  if (!btn) return;
+  btn.addEventListener("click", () => {
+    const wrap = document.getElementById("chat-messages");
+    if (wrap) wrap.scrollTo({ top: wrap.scrollHeight, behavior: "smooth" });
+  });
+  const wrap = document.getElementById("chat-messages");
+  if (wrap) {
+    wrap.addEventListener("scroll", () => { updateScrollBottomButton(); });
+  }
+});
+
+// Обработчики формы чата (привязываются один раз)
+document.addEventListener("DOMContentLoaded", () => {
+  const form = document.getElementById("chat-form");
+  if (form) form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const input = document.getElementById("chat-input");
+    const text = input.value.trim();
+    if (!text || !state.chatId) return;
+    if (state.editingMessageId) { commitEdit(state.chatId, state.editingMessageId, text); cancelEditing(); }
+    else { sendChatMessage(state.chatId, text, state.replyTo); cancelReply(); }
+    input.value = "";
+    delete state.drafts[state.chatId];
+    persistDrafts();
+    sendTypingStop(state.chatId);
+  });
+
+  const input = document.getElementById("chat-input");
+  if (input) {
+    let typingSendTimer = null;
+    input.addEventListener("input", () => {
+      if (!state.chatId) return;
+      const v = input.value.trim();
+      if (v) state.drafts[state.chatId] = v; else delete state.drafts[state.chatId];
+      persistDrafts();
+      sendTypingStart(state.chatId);
+      clearTimeout(typingSendTimer);
+      typingSendTimer = setTimeout(() => sendTypingStop(state.chatId), TYPING_DEBOUNCE_MS);
+    });
+    input.addEventListener("blur", () => { if (state.chatId) sendTypingStop(state.chatId); });
+  }
+
+  const callBtn = document.getElementById("chat-call-btn");
+  if (callBtn) callBtn.addEventListener("click", () => beginCall(state.chatId));
+
+  const moreBtn = document.getElementById("chat-more-btn");
+  if (moreBtn) moreBtn.addEventListener("click", () => {
+    const id = state.chatId;
+    if (!id) return;
+    openContactCard(id);
+  });
+
+  const peerTap = document.getElementById("chat-peer-tap");
+  if (peerTap) peerTap.addEventListener("click", () => {
+    const id = state.chatId;
+    if (!id) return;
+    openContactCard(id);
+  });
+
+  const editCancel = document.getElementById("edit-cancel-btn");
+  if (editCancel) editCancel.addEventListener("click", () => {
+    const id = state.chatId;
+    cancelEditing();
+    const inp = document.getElementById("chat-input");
+    if (id && state.drafts[id]) inp.value = state.drafts[id]; else inp.value = "";
+  });
+
+  const replyCancel = document.getElementById("reply-cancel-btn");
+  if (replyCancel) replyCancel.addEventListener("click", () => cancelReply());
+});
