@@ -2,7 +2,6 @@
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 const MAX_MESSAGE_LENGTH = 4000;
-const PENDING_ACKS_LIMIT = 1000;
 const OUTBOX_LIMIT = 500;
 const SEEN_DELIVER_LIMIT = 500;
 const PENDING_CALL_TIMEOUT_MS = 20000;
@@ -196,6 +195,7 @@ const state = {
   editingMessageId: null,
   replyTo: null,
   activeMessageContext: null,
+  activeContactContext: null,
   callLog: [],
   currentCallRecord: null,
   showArchived: false,
@@ -222,7 +222,6 @@ const onlineSet = new Set();
 const onlineRoster = new Map();
 const autoConnectTimers = new Map();
 const recentSignalNonces = new Set();
-const pendingAcks = new Map();
 const outbox = new Map();
 const pendingNoKey = new Map();
 const seenDeliverIds = new Set();
@@ -1438,6 +1437,7 @@ function resumeUnsentMessages() {
 // --- sendAckBatch с защитой от лавины ---
 const _recentAckSent = new Map();
 function sendAckBatch(contactId, originalMsgIds, ackState) {
+  if (!Array.isArray(originalMsgIds) || originalMsgIds.length === 0) return;
   const key = contactId + ":" + ackState + ":" + originalMsgIds.slice(0, 3).join(",");
   const now = Date.now();
   const last = _recentAckSent.get(key);
@@ -1986,6 +1986,7 @@ function wireConnectScreen() {
       const packet = await SignalingCodec.decode(code);
       if (packet.t !== "answer") throw new Error("Это не код ответа");
       const link = mesh.get(state.pendingOutgoing.id);
+      if (!link) { toast("Соединение потеряно — начните заново"); resetConnectScreen(); return; }
       await link.acceptAnswer(packet);
       $("#answer-code-in").value = "";
       toast("Код принят — соединяемся…");
@@ -2176,7 +2177,9 @@ function deleteContact(id) {
   pendingNoKey.delete(id); persistPendingNoKey();
   for (const [msgId, entry] of outbox) if (entry.to === id) outbox.delete(msgId);
   persistOutbox();
-  for (const [msgId, cid] of pendingAcks) if (cid === id) pendingAcks.delete(msgId);
+  delete state.lastSeen[id]; persistLastSeen();
+  delete state.drafts[id]; persistDrafts();
+  if (state.activeContactContext === id) state.activeContactContext = null;
   const audioEl = document.getElementById("remote-audio-" + id); if (audioEl) audioEl.remove();
   state.contacts.delete(id);
   persistContacts();
@@ -2624,7 +2627,7 @@ function wireDebugScreen() {
     for (const id of Array.from(state.contacts.keys())) mesh.remove(id);
     for (const t of autoConnectTimers.values()) clearTimeout(t);
     autoConnectTimers.clear();
-    onlineSet.clear(); pendingAcks.clear(); outbox.clear(); pendingNoKey.clear(); seenDeliverIds.clear();
+    onlineSet.clear(); outbox.clear(); pendingNoKey.clear(); seenDeliverIds.clear();
     state.contacts.clear(); state.callLog = []; state.currentCallRecord = null;
     state.lastSeen = {}; state.drafts = {};
     Store.contactsJson = "[]"; Store.outboxJson = "[]"; Store.pendingNoKeyJson = "{}";
@@ -2671,18 +2674,19 @@ function renderStorageSheet() {
   }
   items.sort((a, b) => b.size - a.size);
   const totalBytes = items.reduce((s, x) => s + x.size, 0);
-  let html = `<div><b>localStorage:</b> ${(totalBytes / 1024).toFixed(1)} КБ, ${items.length} ключей</div>`;
+  const listHtml = items.map((it) => `<div style="display:flex;justify-content:space-between;gap:8px;"><span>${escapeHtml(it.key)}</span><span class="muted">${(it.size / 1024).toFixed(1)} КБ</span></div>`).join("");
+  const baseHtml = `<div><b>localStorage:</b> ${(totalBytes / 1024).toFixed(1)} КБ, ${items.length} ключей</div>`
+    + `<hr style="border:none;border-top:1px solid var(--hairline);margin:10px 0;">`
+    + listHtml
+    + buildEnvText();
   if (navigator.storage && navigator.storage.estimate) {
     navigator.storage.estimate().then((est) => {
-      el.innerHTML = html + `<div><b>Storage API:</b> использовано ${(est.usage / 1024 / 1024).toFixed(2)} МБ из ${(est.quota / 1024 / 1024).toFixed(0)} МБ</div>` +
-        `<hr style="border:none;border-top:1px solid var(--hairline);margin:10px 0;">` +
-        items.map((it) => `<div style="display:flex;justify-content:space-between;gap:8px;"><span>${escapeHtml(it.key)}</span><span class="muted">${(it.size / 1024).toFixed(1)} КБ</span></div>`).join("") +
-        buildEnvText();
-    });
+      const usage = Number.isFinite(est && est.usage) ? (est.usage / 1024 / 1024).toFixed(2) + " МБ" : "?";
+      const quota = Number.isFinite(est && est.quota) ? (est.quota / 1024 / 1024).toFixed(0) + " МБ" : "?";
+      el.innerHTML = `<div><b>Storage API:</b> использовано ${usage} из ${quota}</div>` + baseHtml;
+    }).catch(() => { el.innerHTML = baseHtml; });
   } else {
-    el.innerHTML = html + `<hr style="border:none;border-top:1px solid var(--hairline);margin:10px 0;">` +
-      items.map((it) => `<div style="display:flex;justify-content:space-between;gap:8px;"><span>${escapeHtml(it.key)}</span><span class="muted">${(it.size / 1024).toFixed(1)} КБ</span></div>`).join("") +
-      buildEnvText();
+    el.innerHTML = baseHtml;
   }
 }
 function buildEnvText() {
@@ -2709,7 +2713,7 @@ function buildDiagnosticsText() {
   lines.push("Сигнальный сервер: " + effectiveSignalingUrl());
   lines.push("Статус: " + (signaling ? (signaling.connected ? "подключён" : "не подключён") : "не инициализирован"));
   lines.push("Онлайн: " + onlineSet.size + " (roster: " + onlineRoster.size + ")");
-  lines.push("outbox: " + outbox.size + ", pendingAcks: " + pendingAcks.size + ", pendingNoKey: " + pendingNoKey.size);
+  lines.push("outbox: " + outbox.size + ", pendingNoKey: " + pendingNoKey.size);
   lines.push("");
   lines.push("--- Push ---");
   lines.push("PWA: " + (isStandalone() ? "да" : "нет"));
