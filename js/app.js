@@ -168,6 +168,9 @@ const Store = {
 // =====================================================================
 // Логирование
 // =====================================================================
+// etherLog уже определён в signaling-client.js (он загружается раньше).
+// Используем var, а не const: const в глобальной области падает с
+// SyntaxError при повторном объявлении имени, а var — нет.
 window.__etherDiag = window.__etherDiag || [];
 if (typeof window.etherLog !== "function") {
   window.etherLog = function (level, ...args) {
@@ -178,7 +181,7 @@ if (typeof window.etherLog !== "function") {
   };
 }
 function safeJsonArg(a) { try { return JSON.stringify(a); } catch (e) { return String(a); } }
-const etherLog = window.etherLog;
+var etherLog = window.etherLog;
 
 // =====================================================================
 // Состояние

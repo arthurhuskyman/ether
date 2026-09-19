@@ -1,6 +1,5 @@
 // Слой P2P-связи. TURN-серверы подгружаются с аккаунта Metered; пока
 // они не загружены — ничего не создаётся, ждём window.__etherIceReady.
-// Добавлена подробная диагностика ICE (см. Debug-вкладку).
 
 const METERED_API_KEY = "aa111f28aa9541c01ac274e43e383bd7f685";
 const METERED_API_URL = `https://arthurhusky.metered.live/api/v1/turn/credentials?apiKey=${METERED_API_KEY}`;
@@ -154,7 +153,7 @@ class PeerLink extends EventTarget {
 
   _log(level, ...args) {
     if (window.etherLog) window.etherLog(level, ...args);
-    else console[level] ? console[level].apply(console, args) : console.log.apply(console, args);
+    else (console[level] || console.log).apply(console, args);
   }
 
   _setStatus(status) {
@@ -339,7 +338,6 @@ class PeerLink extends EventTarget {
     this._setStatus("disconnected");
   }
 
-  // Диагностика для Debug-вкладки
   getDiagnostics() {
     let pcState = "—", iceState = "—", iceGather = "—", signalingState = "—", dcState = "—";
     try { pcState = this.pc.connectionState; } catch (e) {}
@@ -421,17 +419,4 @@ class MeshManager extends EventTarget {
     for (const link of this.links.values()) out.push(link.getDiagnostics());
     return out;
   }
-}
-
-// Экспортируем etherLog глобально, чтобы webrtc.js мог его использовать
-// до загрузки app.js
-if (typeof window.etherLog !== "function") {
-  window.etherLog = function (level, ...args) {
-    window.__etherDiag = window.__etherDiag || [];
-    const line = args.map((a) => (typeof a === "string" ? a : safeJson(a))).join(" ");
-    window.__etherDiag.push({ ts: Date.now(), level, line });
-    if (window.__etherDiag.length > 500) window.__etherDiag.shift();
-    (console[level] || console.log).apply(console, args);
-  };
-  function safeJson(a) { try { return JSON.stringify(a); } catch (e) { return String(a); } }
 }
