@@ -193,7 +193,6 @@ function isStandalone() {
   return (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches)
       || (window.navigator && window.navigator.standalone === true);
 }
-
 function isIOS() { return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream; }
 
 // ---------- Пин-код ----------
@@ -203,7 +202,6 @@ function showLockScreen() {
   $("#app-shell").classList.add("hidden");
   setTimeout(() => { const p = $("#lock-pin"); if (p) p.focus(); }, 100);
 }
-
 async function tryUnlock(pin) {
   if (!pin) return;
   const h = await hashPin(pin);
@@ -216,15 +214,11 @@ async function tryUnlock(pin) {
     state.unlockAttempts++;
     $("#lock-pin").value = "";
     if (state.unlockAttempts >= UNLOCK_ATTEMPTS_LIMIT) {
-      if (confirm("Слишком много неудачных попыток ввода пин-кода. Очистить все данные приложения?")) {
-        localStorage.clear();
-        location.reload();
-      }
+      if (confirm("Слишком много неудачных попыток. Очистить все данные?")) { localStorage.clear(); location.reload(); }
       state.unlockAttempts = 0;
     } else toast("Неверный пин-код");
   }
 }
-
 function wireLockScreen() {
   if (__lockWired) return;
   __lockWired = true;
@@ -236,7 +230,7 @@ function wireLockScreen() {
   });
 }
 
-// ---------- Онбординг ----------
+// ---------- Онбординг и запуск ----------
 function bootAfterUnlock() {
   if (__appStarted) return;
   if (Store.name && Store.myId) {
@@ -249,13 +243,11 @@ function bootAfterUnlock() {
     wireOnboardingOnce();
   }
 }
-
 function initBoot() {
   wireLockScreen();
   if (Store.pinEnabled && Store.pinHash) { showLockScreen(); return; }
   bootAfterUnlock();
 }
-
 let __onboardingWired = false;
 function wireOnboardingOnce() {
   if (__onboardingWired) return;
@@ -280,7 +272,6 @@ function wireOnboardingOnce() {
     startApp();
   });
 }
-
 async function ensureKeyPair() {
   try {
     if (Store.myPrivateKeyJwk && Store.myPublicKeyJwk) return;
@@ -290,7 +281,6 @@ async function ensureKeyPair() {
   } catch (e) { console.error("[crypto] key pair:", e); }
 }
 
-// ---------- Запуск ----------
 function startApp() {
   if (__appStarted) {
     $("#onboarding").classList.add("hidden");
@@ -299,7 +289,6 @@ function startApp() {
     return;
   }
   __appStarted = true;
-
   $("#onboarding").classList.add("hidden");
   $("#lock-screen").classList.add("hidden");
   $("#app-shell").classList.remove("hidden");
@@ -346,7 +335,6 @@ function wireServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
   navigator.serviceWorker.register("./sw.js").then((reg) => {
     swRegistration = reg;
-    // Автоматически проверяем/восстанавливаем push subscription
     setTimeout(() => { ensurePushSubscription().catch(() => {}); }, 1000);
   }).catch(() => {});
   navigator.serviceWorker.addEventListener("message", (ev) => {
@@ -367,64 +355,45 @@ async function ensurePushSubscription() {
   if (!Store.notificationsEnabled) return null;
   if (!("serviceWorker" in navigator) || !("PushManager" in window)) return null;
   if (!Store.vapidPublicKey) return null;
-
   let reg;
   try { reg = await navigator.serviceWorker.ready; }
   catch (e) { return null; }
-
   let sub = null;
   try { sub = await reg.pushManager.getSubscription(); }
   catch (e) { sub = null; }
-
   if (!sub) {
     try {
       sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(Store.vapidPublicKey),
       });
-    } catch (e) {
-      console.warn("[push] не удалось подписаться:", e);
-      return null;
-    }
+    } catch (e) { console.warn("[push] не удалось подписаться:", e); return null; }
   }
-
   const subJson = sub.toJSON ? sub.toJSON() : sub;
   Store.pushSubscriptionJson = JSON.stringify(subJson);
-
-  if (signaling && signaling.connected) {
-    signaling.sendPushSubscription(subJson);
-  }
+  if (signaling && signaling.connected) signaling.sendPushSubscription(subJson);
   return sub;
 }
-
 function showNotification(title, body, opts) {
   opts = opts || {};
   if (!Store.notificationsEnabled) return;
   if (!("Notification" in window)) return;
   if (Notification.permission !== "granted") return;
-  // Если вкладка видима и это не звонок — не показываем баннер,
-  // потому что пользователь и так видит чат.
   if (document.visibilityState === "visible" && !opts.force) return;
-
   const payload = {
-    type: "show-notification",
-    title,
-    body,
+    type: "show-notification", title, body,
     tag: opts.tag || "ether",
     contactId: opts.contactId || null,
     kind: opts.kind || "message",
   };
   if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-    navigator.serviceWorker.controller.postMessage(payload);
-    return;
+    navigator.serviceWorker.controller.postMessage(payload); return;
   }
   if (swRegistration && swRegistration.active) {
-    swRegistration.active.postMessage(payload);
-    return;
+    swRegistration.active.postMessage(payload); return;
   }
   try { new Notification(title, { body, tag: payload.tag }); } catch (e) {}
 }
-
 function wireNotificationPermission() {
   const el = $("#settings-notifications");
   if (!el) return;
@@ -434,13 +403,11 @@ function wireNotificationPermission() {
       const perm = await Notification.requestPermission();
       if (perm !== "granted") { toast("Разрешение не выдано"); e.target.checked = false; return; }
       Store.notificationsEnabled = true;
-      // Автоматическая подписка на push
       ensurePushSubscription().catch(() => {});
       toast("Уведомления включены");
       updateNotifBanner();
     } else {
       Store.notificationsEnabled = false;
-      // Отписываемся
       try {
         const reg = await navigator.serviceWorker.ready;
         const sub = await reg.pushManager.getSubscription();
@@ -452,7 +419,6 @@ function wireNotificationPermission() {
     }
   });
 }
-
 function wireNotifBanner() {
   const enableBtn = $("#notif-enable-btn");
   const dismissBtn = $("#notif-dismiss-btn");
@@ -471,7 +437,6 @@ function wireNotifBanner() {
     updateNotifBanner();
   });
 }
-
 function updateNotifBanner() {
   const banner = $("#notif-banner");
   if (!banner) return;
@@ -479,10 +444,7 @@ function updateNotifBanner() {
   const granted = supported && Notification.permission === "granted";
   const enabled = Store.notificationsEnabled && granted;
   const dismissed = Store.notifBannerDismissed;
-  if (!supported || enabled || dismissed) {
-    banner.classList.add("hidden");
-    return;
-  }
+  if (!supported || enabled || dismissed) { banner.classList.add("hidden"); return; }
   banner.classList.remove("hidden");
 }
 
@@ -547,13 +509,9 @@ function wireTabBar() {
   document.addEventListener("click", (ev) => {
     const t = ev.target;
     if (!t || !t.closest) return;
-    if (t.closest("#chat-back")) {
-      ev.preventDefault();
-      closeChatSafely();
-    }
+    if (t.closest("#chat-back")) { ev.preventDefault(); closeChatSafely(); }
   });
 }
-
 function closeChatSafely() {
   const prevId = state.chatId;
   state.chatId = null;
@@ -564,11 +522,7 @@ function closeChatSafely() {
   try { closeChatSearch(); } catch (e) {}
   try { renderTab(); } catch (e) {}
 }
-
-function renderTab() {
-  try { renderTabInner(); }
-  catch (e) { console.error("[renderTab] упал:", e); }
-}
+function renderTab() { try { renderTabInner(); } catch (e) { console.error("[renderTab] упал:", e); } }
 function renderTabInner() {
   $$(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === state.tab));
   $$(".screen").forEach((s) => s.classList.add("hidden"));
@@ -744,7 +698,6 @@ function markThreadRead(c) {
   persistContacts();
   sendAckBatch(c.id, toAck, "read");
 }
-
 function saveCurrentDraft() {
   if (!state.chatId) return;
   const input = $("#chat-input");
@@ -804,7 +757,7 @@ async function sendChatMessage(contactId, text, replyTo) {
   if (text.length > MAX_MESSAGE_LENGTH) { text = text.slice(0, MAX_MESSAGE_LENGTH); toast("Сообщение обрезано"); }
   const msgId = crypto.randomUUID();
   const ts = Date.now();
-  const rec = { id: msgId, from: "me", text, ts, ack: "sent" };
+  const rec = { id: msgId, from: "me", text, ts, ack: "sent", serverAcked: false };
   if (replyTo) rec.replyTo = { id: replyTo.msgId, text: replyTo.text, authorName: replyTo.authorName };
   c.messages.push(rec);
   trimMessages(c);
@@ -860,7 +813,7 @@ async function forwardMessage(msgId, fromContactId, toContactId) {
   const text = m.text;
   const msgId2 = crypto.randomUUID();
   const ts = Date.now();
-  const rec = { id: msgId2, from: "me", text, ts, ack: "sent", forwarded: true };
+  const rec = { id: msgId2, from: "me", text, ts, ack: "sent", forwarded: true, serverAcked: false };
   to.messages.push(rec); trimMessages(to); to.lastActivity = ts; persistContacts();
   if (state.chatId === toContactId) renderChatThread();
   if (state.tab === "chats") renderChatsList();
@@ -901,6 +854,8 @@ function restoreOutbox() {
 async function flushOutboxItem(msgId) {
   const entry = outbox.get(msgId);
   if (!entry) return;
+  // Если сервер уже подтвердил приём — повторно не отправляем.
+  if (entry.serverAcked) { outbox.delete(msgId); persistOutbox(); return; }
   const contact = state.contacts.get(entry.to);
   if (!contact) { outbox.delete(msgId); persistOutbox(); return; }
   if (!contact.publicKey) {
@@ -939,6 +894,7 @@ function startOutboxRetryLoop() {
 function pruneOutbox() {
   const now = Date.now(); let changed = false;
   for (const [msgId, entry] of outbox) {
+    if (entry.serverAcked) { outbox.delete(msgId); changed = true; continue; }
     if (now - entry.sentAt > OUTBOX_MAX_AGE_MS) { outbox.delete(msgId); changed = true; markMessageAck(entry.to, msgId, "failed"); }
     else if (entry.payload && entry.payload.kind === "ack-batch" && now - entry.sentAt > RECEIPT_MAX_AGE_MS) { outbox.delete(msgId); changed = true; }
   }
@@ -1095,14 +1051,12 @@ function wireSignalingEvents(sig) {
       const c = state.contacts.get(cid);
       if (c && c.publicKey) flushPendingNoKey(cid);
     }
-    // Отправляем сохранённую push-подписку, если она есть
     try {
       if (Store.pushSubscriptionJson) {
         const sub = JSON.parse(Store.pushSubscriptionJson);
         sig.sendPushSubscription(sub);
       }
     } catch (e) {}
-    // И попробуем обновить/создать подписку, если VAPID уже известен
     setTimeout(() => { ensurePushSubscription().catch(() => {}); }, 500);
   }));
 
@@ -1126,15 +1080,10 @@ function wireSignalingEvents(sig) {
 
   subs.push(on("vapid-key", (ev) => {
     const { key } = ev.detail;
-    if (key) {
-      Store.vapidPublicKey = key;
-      ensurePushSubscription().catch(() => {});
-    }
+    if (key) { Store.vapidPublicKey = key; ensurePushSubscription().catch(() => {}); }
   }));
 
-  subs.push(on("push-subscribed", () => {
-    console.log("[push] сервер подтвердил подписку");
-  }));
+  subs.push(on("push-subscribed", () => { console.log("[push] сервер подтвердил подписку"); }));
 
   subs.push(on("online-list", (ev) => {
     for (const u of ev.detail.users) {
@@ -1170,7 +1119,6 @@ function wireSignalingEvents(sig) {
     const { from, data: packet } = ev.detail;
     if (!packet || !packet.t) return;
 
-    // Звонковые сигналы — обрабатываем без anti-duplicate, они идемпотентны
     if (packet.t === "call-invite") {
       ensureContactEntry(from, packet.n);
       if (state.callId !== from) {
@@ -1209,7 +1157,6 @@ function wireSignalingEvents(sig) {
       return;
     }
 
-    // Остальные сигналы — обычные WebRTC SDP
     if (isDuplicateSignal(from, packet)) return;
     if (packet.t === "offer") {
       const existing = mesh.get(from);
@@ -1246,10 +1193,21 @@ function wireSignalingEvents(sig) {
     if (c) { c.online = false; if (state.tab === "chats") renderChatsList(); }
   }));
 
+  // Ключевой обработчик: сервер подтвердил приём конверта.
+  // Помечаем сообщение serverAcked и убираем из очереди — иначе
+  // локальный retry-loop будет переотправлять его каждые 15 секунд,
+  // а сервер на каждую переотправку слал бы новый push.
   subs.push(on("deliver-ack", (ev) => {
     const { msgId } = ev.detail;
     const entry = outbox.get(msgId);
-    if (entry) { entry.serverAcked = true; persistOutbox(); }
+    if (!entry) return;
+    const c = state.contacts.get(entry.to);
+    if (c) {
+      const m = c.messages.find((x) => x.id === msgId && x.from === "me");
+      if (m) { m.serverAcked = true; persistContacts(); }
+    }
+    outbox.delete(msgId);
+    persistOutbox();
   }));
 
   subs.push(on("deliver", async (ev) => {
@@ -1598,6 +1556,7 @@ async function handleMessageAction(action, msgId, contactId) {
     const inp = $("#chat-input"); if (inp) inp.focus();
   } else if (action === "forward") openForwardSheet(msgId, contactId);
   else if (action === "retry") {
+    m.serverAcked = false;
     if (outbox.has(msgId)) { flushOutboxItem(msgId); toast("Повторная отправка…"); }
     else { addToOutbox(msgId, contactId, { kind: "chat", id: msgId, text: m.text, ts: m.ts }); flushOutboxItem(msgId); toast("Повторная отправка…"); }
   }
@@ -1611,12 +1570,10 @@ function startEditing(msgId) {
   const inp = $("#chat-input");
   if (inp) { inp.value = m.text; inp.focus(); try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch (e) {} }
 }
-
 function cancelEditing() {
   state.editingMessageId = null;
   const b = $("#edit-banner"); if (b) b.classList.add("hidden");
 }
-
 function showReplyBanner() {
   const b = $("#reply-banner"); if (!b) return;
   if (!state.replyTo) { b.classList.add("hidden"); return; }
@@ -1839,21 +1796,13 @@ function playRingtone() {
     ringtoneTimer = setInterval(beep, 1500);
   } catch (e) { console.warn("ringtone:", e); }
 }
-
-function stopRingtone() {
-  if (ringtoneTimer) { clearInterval(ringtoneTimer); ringtoneTimer = null; }
-}
+function stopRingtone() { if (ringtoneTimer) { clearInterval(ringtoneTimer); ringtoneTimer = null; } }
 
 async function beginCall(id) {
   const c = state.contacts.get(id);
   if (!c) return;
   if (c.blocked) { toast("Контакт заблокирован"); return; }
-
-  // Локально показываем экран вызова сразу
   openCallScreen(id, "calling");
-
-  // Отправляем приглашение через сигнальный сервер — так собеседник
-  // узнает о звонке, даже если P2P ещё не поднят.
   if (signaling && signaling.connected) {
     signaling.signal(id, { t: "call-invite", n: Store.name });
   } else {
@@ -1861,16 +1810,12 @@ async function beginCall(id) {
     closeCallScreen("failed");
     return;
   }
-
-  // Если P2P уже есть — сразу стартуем передачу звука
   const link = mesh.get(id);
   if (link && isReachable(c)) {
     try { await link.startCall(); }
     catch (e) { toast("Нет доступа к микрофону"); closeCallScreen("failed"); return; }
     return;
   }
-
-  // Иначе — пытаемся поднять P2P, а когда он поднимется, стартуем звонок.
   clearPendingCall();
   pendingCall.contactId = id;
   attemptConnect(id, { force: true });
@@ -1904,7 +1849,6 @@ function openCallScreen(id, phase) {
     else if (phase === "ringing") startCallRecord(id, "in");
   }
 }
-
 function setCallPhaseActive() {
   state.callPhase = "active";
   $("#call-controls-incoming").classList.add("hidden");
@@ -1916,7 +1860,6 @@ function setCallPhaseActive() {
     pendingRemoteStreams.delete(state.callId);
   }
 }
-
 function attachRemoteAudio(id, stream) {
   let audioEl = document.getElementById("remote-audio-" + id);
   if (!audioEl) {
@@ -1960,7 +1903,6 @@ function wireCallScreen() {
     stopRingtone();
     closeCallScreen(state.currentCallRecord && state.currentCallRecord.answeredAt ? "completed" : "cancelled");
   });
-
   const mute = $("#call-mute-btn");
   if (mute) mute.addEventListener("click", () => {
     const link = mesh.get(state.callId);
@@ -1968,13 +1910,11 @@ function wireCallScreen() {
     if (link) link.setMuted(muted);
     mute.classList.toggle("active", muted);
   });
-
   const accept = $("#call-accept-btn");
   if (accept) accept.addEventListener("click", async () => {
     const cid = state.callId;
     stopRingtone();
     if (signaling && signaling.connected && cid) signaling.signal(cid, { t: "call-accepted" });
-
     const link = mesh.get(cid);
     if (!link || !isReachable(state.contacts.get(cid))) {
       toast("Соединяемся — говорите, как только услышите");
@@ -1997,7 +1937,6 @@ function wireCallScreen() {
     try { await link.answerCall(); setCallPhaseActive(); }
     catch (e) { toast("Нет доступа к микрофону"); link.declineCall(); closeCallScreen("failed"); }
   });
-
   const decline = $("#call-decline-btn");
   if (decline) decline.addEventListener("click", () => {
     const cid = state.callId;
@@ -2026,14 +1965,12 @@ function wireSearchHandlers() {
   const csi = $("#chat-search-input");
   if (csi) csi.addEventListener("input", (e) => { state.chatSearchQuery = e.target.value.trim(); renderChatThread(); updateSearchCounter(); });
 }
-
 function closeChatSearch() {
   state.chatSearchQuery = "";
   const input = $("#chat-search-input"); if (input) input.value = "";
   const bar = $("#chat-search-bar"); if (bar) bar.classList.add("hidden");
   const counter = $("#chat-search-counter"); if (counter) counter.textContent = "";
 }
-
 function updateSearchCounter() {
   const c = state.contacts.get(state.chatId); if (!c) return;
   const q = state.chatSearchQuery.toLowerCase();
@@ -2161,7 +2098,6 @@ function exportBackup() {
   downloadBlob(blob, `ether-backup-${new Date().toISOString().slice(0, 10)}.json`);
   toast("Резервная копия сохранена");
 }
-
 async function importBackup(ev) {
   const file = ev.target.files && ev.target.files[0];
   ev.target.value = "";
@@ -2226,7 +2162,6 @@ function buildDiagnosticsText() {
   }
   return lines.join("\n");
 }
-
 function renderDiagnostics() {
   const idShort = Store.myId ? escapeHtml(String(Store.myId).slice(0, 16)) + "…" : "не задан";
   const turnCount = (typeof ICE_SERVERS !== "undefined")
@@ -2261,12 +2196,10 @@ function wireMeshEvents() {
       toast(`«${c.name}» на связи`);
       clearAutoConnectTimer(id);
       if (state.pendingOutgoing && state.pendingOutgoing.id === id) resetConnectScreen();
-      // Отложенный звонок: если мы ждали соединения, стартуем передачу звука
       if (pendingCall.contactId === id && link) {
         clearPendingCall();
         link.startCall().catch(() => { toast("Нет доступа к микрофону"); closeCallScreen("failed"); });
       }
-      // Или если мы приняли вызов и ждали P2P
       if (state.callId === id && state.callPhase !== "active" && link) {
         link.answerCall().then(setCallPhaseActive).catch(() => {});
       }
@@ -2280,13 +2213,11 @@ function wireMeshEvents() {
     if (state.chatId === id) renderChatThread();
     if (state.tab === "chats" && !state.chatId) renderChatsList();
   });
-
   mesh.addEventListener("message", (ev) => {
     const { id, payload } = ev.detail;
     const c = state.contacts.get(id); if (!c) return;
     if (c.blocked) return;
     if (payload && payload.kind === "call-state") {
-      // P2P-сигнал о звонке. Но основной канал звонка — через signaling.
       if (payload.state === "ringing" && state.callId !== id && state.callPhase !== "ringing") {
         openCallScreen(id, "ringing");
         playRingtone();
@@ -2302,7 +2233,6 @@ function wireMeshEvents() {
     }
     applyIncomingPayload(id, payload && payload.id, payload, false);
   });
-
   mesh.addEventListener("remote-track", (ev) => {
     const { id, stream } = ev.detail;
     if (state.callId === id && state.callPhase !== "active") { pendingRemoteStreams.set(id, stream); return; }
@@ -2329,10 +2259,8 @@ window.addEventListener("error", () => { if (bootDidNotRender()) { clearTimeout(
 window.addEventListener("unhandledrejection", () => { if (bootDidNotRender()) { clearTimeout(bootWatchdog); showBootRecovery(); } });
 
 document.addEventListener("DOMContentLoaded", () => {
-  try {
-    initBoot();
-    clearTimeout(bootWatchdog);
-  } catch (e) { console.error("[boot]", e); showBootRecovery(); }
+  try { initBoot(); clearTimeout(bootWatchdog); }
+  catch (e) { console.error("[boot]", e); showBootRecovery(); }
 });
 
 document.getElementById("boot-recovery-reset")?.addEventListener("click", () => {
