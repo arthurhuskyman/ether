@@ -238,11 +238,19 @@ html[data-theme="auto"] .glass-content {
 .status-disconnected { color: var(--ink-faint); }
 .status-connecting, .status-new, .status-awaiting-answer { color: var(--orange); }
 
+/* === Список звонков: цвет стрелки зависит только от того, состоялся
+       ли разговор. Успешный входящий — зелёный. Успешный исходящий —
+       синий. Любой неуспешный (пропущен/отменён/не принят/сбой) —
+       красный, независимо от направления. === */
 .calls-list { display: flex; flex-direction: column; gap: 8px; }
 .call-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--radius-l); cursor: pointer; }
-.call-direction-icon { width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: var(--input-bg); }
-.call-direction-icon.in { color: var(--green); }
-.call-direction-icon.out { color: var(--accent); }
+.call-direction-icon {
+  width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--input-bg);
+}
+.call-direction-icon.in     { color: var(--green); }
+.call-direction-icon.out    { color: var(--accent); }
 .call-direction-icon.missed { color: var(--red); }
 .call-body { flex: 1; min-width: 0; }
 .call-name { font-size: 16px; font-weight: 600; }
@@ -479,12 +487,57 @@ input.switch:checked::before { transform: translateX(18px); }
 .call-avatar { width: 120px; height: 120px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 40px; font-weight: 700; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2), 0 20px 50px rgba(0, 0, 0, 0.4); }
 #call-peer-name { font-size: 26px; font-weight: 700; margin: 0; }
 .call-phase { font-size: 16px; color: rgba(255, 255, 255, 0.7); margin: 0; }
-.call-controls { display: flex; gap: 30px; align-items: center; }
-.call-btn { display: flex; flex-direction: column; align-items: center; gap: 8px; border: none; background: none; color: #fff; cursor: pointer; font-size: 12px; }
-.call-btn svg { width: 62px; height: 62px; padding: 18px; border-radius: 50%; background: rgba(255, 255, 255, 0.16); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); box-sizing: border-box; }
-.call-btn.active svg { background: #fff; color: #000; }
+
+/* === Единый формат кнопок звонка: одинаковый размер, выровнены
+       по верхнему краю, у каждой есть подпись. Круг 64×64 у всех
+       одной формы и одного шрифта у подписи. Различие — только цвет
+       действия. === */
+.call-controls { display: flex; gap: 30px; align-items: flex-start; justify-content: center; }
+.call-btn {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  border: none; background: none; color: #fff; cursor: pointer;
+  font-size: 12px; min-width: 64px;
+  padding: 0;
+}
+.call-btn > span {
+  line-height: 1.15;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.85);
+  text-align: center;
+  white-space: nowrap;
+}
+.call-btn svg {
+  width: 64px; height: 64px; padding: 20px;
+  border-radius: 50%; box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  transition: background 0.15s ease, color 0.15s ease, transform 0.12s ease;
+}
+.call-btn:active svg { transform: scale(0.95); }
 .call-btn.hangup svg { background: var(--red); color: #fff; }
 .call-btn.accept svg { background: var(--green); color: #fff; }
+
+/* Заглушенный микрофон: красный фон + белая перечёркивающая линия
+   поверх значка. Плюс подпись меняется на «Микрофон выкл» (в JS). */
+#call-mute-btn.active svg {
+  background: rgba(255, 69, 58, 0.9);
+  color: #fff;
+}
+#call-mute-btn.active::after {
+  content: "";
+  position: absolute;
+  top: 32px;                /* центр иконки: SVG 64 px, центр на 32 px */
+  left: 50%;
+  width: 44px; height: 3px;
+  background: #fff;
+  border-radius: 2px;
+  transform: translate(-50%, -50%) rotate(-45deg);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
 
 .sheet { position: fixed; inset: 0; z-index: 70; display: flex; align-items: flex-end; }
 .sheet-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.45); }
@@ -550,7 +603,14 @@ input.switch:checked::before { transform: translateX(18px); }
   }
   #onboarding, #lock-screen { position: fixed; }
   #screen-chat.screen { position: absolute; inset: 0; border-radius: 44px; }
-  #call-screen, .sheet { max-width: 420px; margin: 0 auto; }
+  #call-screen {
+    max-width: 420px;
+    margin: 0 auto;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+  }
+  .sheet { max-width: 420px; margin: 0 auto; }
 }
 @media (prefers-reduced-motion: reduce) {
   .onboarding-glow { animation: none; }

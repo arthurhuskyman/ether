@@ -8,9 +8,6 @@
 //   (3) Web Push — послать системное уведомление через Apple Push Service,
 //       когда приложение адресата закрыто.
 //
-// Push работает только если заданы переменные окружения VAPID_PUBLIC и
-// VAPID_PRIVATE (см. README). Без них сервер работает как обычный релей.
-//
 // ВАЖНО: конверт зашифрован end-to-end, сервер не видит содержимого.
 // Но для маршрутизации и решений о push он получает открытое поле `kind`
 // ("chat" | "ack-batch" | "edit" | "delete" | "reaction" | "typing").
@@ -30,9 +27,12 @@ const MAX_PAYLOAD = 128 * 1024;
 
 const PUSH_THROTTLE_MS = 30 * 1000;
 const PUSH_DEDUP_TTL_MS = 10 * 60 * 1000;
+const PUSH_AFTER_MS = 5000; // сколько ждать mailbox-ack, прежде чем шлём push
 const pushSentForMsgId = new Map();
 
-const PUSH_SUBS_FILE = path.join("/tmp", "ether-push-subs.json");
+// Постоянный файл (не /tmp — на Render free tier /tmp эфемерный и при
+// «засыпании» сервиса подписки теряются).
+const PUSH_SUBS_FILE = path.join(__dirname, ".ether-push-subs.json");
 
 const VAPID_PUBLIC = process.env.VAPID_PUBLIC || "";
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE || "";
@@ -205,13 +205,11 @@ wss.on("connection", (ws) => {
     try { msg = JSON.parse(raw); } catch (e) { return; }
     if (!msg || typeof msg.type !== "string") return;
 
-    // ---------- Heartbeat ----------
     if (msg.type === "ping") {
       safeSend(ws, { type: "pong", t: msg.t });
       return;
     }
 
-    // ---------- Регистрация ----------
     if (msg.type === "register" && typeof msg.id === "string" && msg.id) {
       if (clients.has(msg.id) && clients.get(msg.id).ws !== ws) {
         try {
@@ -240,13 +238,12 @@ wss.on("connection", (ws) => {
       return;
     }
 
-    // ---------- Подписка на push ----------
     if (msg.type === "push-subscribe" && myId && msg.subscription) {
       try {
         pushSubs.set(myId, msg.subscription);
         savePushSubs();
         safeSend(ws, { type: "push-subscribed" });
-        console.log("[push] подписка сохранена для", shortId(myId));
+        console.log("[push] подписка сохранена для", shortId(myId), "всего=" + pushSubs.size);
       } catch (e) {}
       return;
     }
@@ -257,7 +254,6 @@ wss.on("connection", (ws) => {
       return;
     }
 
-    // ---------- Пересылка сигналов ----------
     if (msg.type === "signal" && myId && typeof msg.to === "string") {
       const target = clients.get(msg.to);
       const payload = { type: "signal", from: myId, data: msg.data };
@@ -290,7 +286,7 @@ wss.on("connection", (ws) => {
       }
       const kind = typeof msg.kind === "string" ? msg.kind : "chat";
       const target = clients.get(msg.to);
-      console.log("[deliver] " + shortId(myId) + " → " + shortId(msg.to) + " msgId=" + String(msg.msgId).slice(0, 8) + "… kind=" + kind + " queue=" + !target);
+      console.log("[deliver] " + shortId(myId) + " → " + shortId(msg.to) + " msgId=" + String(msg.msgId).slice(0, 8) + "… kind=" + kind + " online=" + !!target);
       const payload = {
         from: myId,
         msgId: msg.msgId,
@@ -299,13 +295,26 @@ wss.on("connection", (ws) => {
         kind,
       };
 
-      if (target) {
+      // ВСЕГДА кладём в mailbox. Если получатель онлайн — параллельно
+      // пробуем отдать через WS. Удаляется из mailbox только по mailbox-ack.
+      if (!mailbox.has(msg.to)) mailbox.set(msg.to, new Map());
+      mailbox.get(msg.to).set(msg.msgId, { ...payload, ts: Date.now() });
+
+      if (target && target.ws.readyState === WebSocket.OPEN) {
         safeSend(target.ws, { type: "deliver", ...payload, queued: false });
-      } else {
-        if (!mailbox.has(msg.to)) mailbox.set(msg.to, new Map());
-        mailbox.get(msg.to).set(msg.msgId, { ...payload, ts: Date.now() });
-        if (kind === "chat" && !pushSentForMsgId.has(msg.msgId)) {
-          pushSentForMsgId.set(msg.msgId, Date.now());
+      }
+
+      safeSend(ws, { type: "deliver-ack", msgId: msg.msgId });
+
+      // Push с задержкой: если за PUSH_AFTER_MS получатель не подтвердил
+      // mailbox-ack, значит он не получил — шлём push.
+      if (kind === "chat" && !pushSentForMsgId.has(msg.msgId)) {
+        const mid = msg.msgId;
+        setTimeout(() => {
+          const box = mailbox.get(msg.to);
+          if (!box || !box.has(mid)) return; // уже забрали
+          if (pushSentForMsgId.has(mid)) return;
+          pushSentForMsgId.set(mid, Date.now());
           const me = clients.get(myId);
           const myName = (me && me.name) || "Новое сообщение";
           sendPushTo(msg.to, myId, {
@@ -315,13 +324,11 @@ wss.on("connection", (ws) => {
             contactId: myId,
             kind: "message",
           }).catch(() => {});
-        }
+        }, PUSH_AFTER_MS);
       }
-      safeSend(ws, { type: "deliver-ack", msgId: msg.msgId });
       return;
     }
 
-    // ---------- Подтверждение приёма из ящика ----------
     if (msg.type === "mailbox-ack" && myId && typeof msg.msgId === "string") {
       const box = mailbox.get(myId);
       if (box) box.delete(msg.msgId);
@@ -340,7 +347,6 @@ wss.on("connection", (ws) => {
   ws.on("error", () => {});
 });
 
-// ---------- Heartbeat ----------
 setInterval(() => {
   for (const ws of wss.clients) {
     if (ws.isAlive === false) { ws.terminate(); continue; }
@@ -349,7 +355,6 @@ setInterval(() => {
   }
 }, 30000);
 
-// ---------- Ограничение размеров ящика ----------
 setInterval(() => {
   for (const box of mailbox.values()) {
     if (box.size <= MAX_MAILBOX_PER_USER) continue;
@@ -358,7 +363,6 @@ setInterval(() => {
   }
 }, 60000);
 
-// ---------- Очистка дедуп-таблицы ----------
 setInterval(() => {
   const now = Date.now();
   for (const [msgId, ts] of pushSentForMsgId) {
@@ -366,7 +370,6 @@ setInterval(() => {
   }
 }, 60 * 1000);
 
-// ---------- Graceful shutdown ----------
 function shutdown() {
   console.log("Завершаем работу…");
   try { savePushSubs(); } catch (e) {}

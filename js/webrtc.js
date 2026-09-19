@@ -14,8 +14,6 @@ window.__etherIceReady = (async () => {
     if (!r.ok) throw new Error("HTTP " + r.status);
     const list = await r.json();
     if (Array.isArray(list) && list.length > 0) {
-      // Берём только 1 UDP TURN и 1 TCP TURN. Остальные серверы Metered
-      // через тот же релей — лишние только тормозят ICE discovery.
       const filtered = [];
       const seen = new Set();
       for (const s of list) {
@@ -39,6 +37,8 @@ window.__etherIceReady = (async () => {
 })();
 
 const ICE_GATHER_TIMEOUT_MS = 3500;
+// Если за это время не пришёл pong — считаем link мёртвым.
+const HEARTBEAT_TIMEOUT_MS = 20000;
 
 function waitForIceGathering(pc) {
   if (pc.iceGatheringState === "complete") return Promise.resolve();
@@ -76,13 +76,12 @@ class PeerLink extends EventTarget {
     this.pc = new RTCPeerConnection({ iceServers: ICE_SERVERS, iceCandidatePoolSize: 4 });
     this.dc = null;
     this.localAudioTrack = null;
-    this.localStream = null;        // ← держим обёртку, чтобы трек ушёл в SDP с msid
+    this.localStream = null;
     this._pendingNegotiation = false;
     this._renegotiationRetryTimer = null;
     this._pingTimer = null;
-    // Таймер «щадящего» ожидания после ICE disconnected: даём WebRTC
-    // шанс самому восстановить маршрут, и только потом дёргаем restartIce().
     this._iceDisconnectTimer = null;
+    this._lastPongAt = 0;
 
     this._log("info", "[webrtc]", id.slice(0, 10) + "…", "создан PeerLink, role=" + role);
 
@@ -124,8 +123,6 @@ class PeerLink extends EventTarget {
       this.dispatchEvent(new CustomEvent("ice-gathering-state", { detail: { state: this.pc.iceGatheringState } }));
     });
 
-    // При "disconnected" ждём 8 с — вдруг ICE сам восстановится.
-    // Если нет — принудительно restartIce(). При "failed" — сразу.
     this.pc.addEventListener("iceconnectionstatechange", () => {
       const s = this.pc.iceConnectionState;
       this._log("info", "[webrtc]", id.slice(0, 10) + "…", "iceConnection:", s);
@@ -153,10 +150,6 @@ class PeerLink extends EventTarget {
       this.dispatchEvent(new CustomEvent("signaling-state", { detail: { state: this.pc.signalingState } }));
     });
 
-    // ФИКС: во время активного звонка renegotiation (addTrack аудио)
-    // кратковременно переводит connectionState в "connecting" и обратно
-    // в "connected". Раньше это затирало статус "in-call" — контакт на
-    // секунду показывал «соединяемся…» посреди разговора.
     this.pc.addEventListener("connectionstatechange", () => {
       const s = this.pc.connectionState;
       this._log("info", "[webrtc]", id.slice(0, 10) + "…", "connectionState:", s);
@@ -178,11 +171,9 @@ class PeerLink extends EventTarget {
       }
     });
 
-    // ГЛАВНЫЙ ФИКС ЗВУКА: addTrack() без stream на удалённой стороне
-    // даёт track-событие с пустым ev.streams. Раньше мы в этом случае
-    // молча ничего не делали — и attachRemoteAudio не вызывался.
-    // Теперь всегда диспатчим remote-track, при необходимости собирая
-    // MediaStream из одного трека руками.
+    // addTrack() без stream на удалённой стороне даёт track-событие с
+    // пустым ev.streams. Всегда диспатчим remote-track, при
+    // необходимости собирая MediaStream из одного трека руками.
     this.pc.addEventListener("track", (ev) => {
       let stream = (ev.streams && ev.streams[0]) || null;
       if (!stream && ev.track) stream = new MediaStream([ev.track]);
@@ -219,11 +210,16 @@ class PeerLink extends EventTarget {
   _bindDataChannel() {
     this.dc.addEventListener("open", () => {
       this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "dataChannel open");
-      // Если уже идёт звонок — не сбрасываем статус с in-call на connected.
       if (this.status !== "in-call") this._setStatus("connected");
       clearInterval(this._pingTimer);
+      this._lastPongAt = Date.now();
       this._pingTimer = setInterval(() => {
         if (this._closed) return;
+        if (this._lastPongAt && Date.now() - this._lastPongAt > HEARTBEAT_TIMEOUT_MS) {
+          this._log("warn", "[webrtc]", this.id.slice(0, 10) + "…", "no pong for " + Math.round((Date.now() - this._lastPongAt) / 1000) + "s — closing");
+          this._setStatus("disconnected");
+          return;
+        }
         this.send({ kind: "ping", t: Date.now() });
       }, 5000);
     });
@@ -240,7 +236,7 @@ class PeerLink extends EventTarget {
       try { payload = JSON.parse(ev.data); } catch (e) { return; }
       if (!payload) return;
       if (payload.kind === "ping") { this.send({ kind: "pong", t: payload.t }); return; }
-      if (payload.kind === "pong") return;
+      if (payload.kind === "pong") { this._lastPongAt = Date.now(); return; }
       if (payload.kind === "sdp") {
         this._handleRemoteSdp(payload).catch((e) => this._log("warn", "[webrtc] пересогласование:", String(e)));
       } else {
@@ -357,8 +353,6 @@ class PeerLink extends EventTarget {
     } else if (!this.localStream) {
       this.localStream = new MediaStream([this.localAudioTrack]);
     }
-    // Передаём поток вторым аргументом: тогда удалённая сторона получит
-    // track-событие с непустым ev.streams — и звук гарантированно привяжется.
     this.pc.addTrack(this.localAudioTrack, this.localStream);
     this._setStatus("in-call");
     this.send({ kind: "call-state", state: "ringing" });

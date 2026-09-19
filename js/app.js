@@ -206,6 +206,7 @@ const state = {
   typingTimers: new Map(),
   typingSendingState: new Map(),
   unlockAttempts: 0,
+  _callRecoveryTimer: null,
 };
 
 let mesh = null;
@@ -232,9 +233,12 @@ const _connectInFlight = new Set();
 const pendingCall = { contactId: null, timer: null };
 const pendingRemoteStreams = new Map();
 let callTimerInterval = null;
-let ringtoneCtx = null;
+// Один общий AudioContext: iOS плохо относится к нескольким параллельным.
+let globalAudioCtx = null;
 let ringtoneTimer = null;
-let audioCtx = null;
+// Резервный HTMLAudio-элемент для рингтона — на iOS Web Audio может
+// не разбудиться, если пользователь ещё ни разу не тапал по экрану.
+let ringtoneAudioEl = null;
 
 // =====================================================================
 // Утилиты
@@ -352,48 +356,52 @@ function isIOS() { return /iPad|iPhone|iPod/.test(navigator.userAgent) && !windo
 // =====================================================================
 // Аудио-разогрев (iOS)
 // =====================================================================
+function ensureGlobalAudioCtx() {
+  if (!globalAudioCtx) {
+    try { globalAudioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch (e) { globalAudioCtx = null; }
+  }
+  return globalAudioCtx;
+}
 function initAudioWarmup() {
   const warm = () => {
     try {
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      if (!ringtoneCtx) ringtoneCtx = new (window.AudioContext || window.webkitAudioContext)();
-      [audioCtx, ringtoneCtx].forEach((ctx) => {
-        if (!ctx) return;
-        if (ctx.state === "suspended") ctx.resume().catch(() => {});
-        try {
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          gain.gain.value = 0.0001;
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-          osc.start();
-          osc.stop(ctx.currentTime + 0.01);
-        } catch (e) {}
-      });
-      etherLog("info", "[audio] AudioContext warmed, state=" + (audioCtx && audioCtx.state));
+      const ctx = ensureGlobalAudioCtx();
+      if (!ctx) return;
+      if (ctx.state === "suspended") {
+        ctx.resume().then(() => {
+          etherLog("info", "[audio] ctx resumed, state=" + ctx.state);
+        }).catch(() => {});
+      }
+      // Короткий beep — «прописка» аудио-разрешения в iOS.
+      try {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        gain.gain.value = 0.0001;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.01);
+      } catch (e) {}
     } catch (e) {
       etherLog("warn", "[audio] warmup failed:", String(e));
     }
-    document.removeEventListener("touchstart", warm);
-    document.removeEventListener("click", warm);
-    document.removeEventListener("keydown", warm);
   };
+  // Не снимаем обработчики — пусть буждит контекст при каждом тапе.
   document.addEventListener("touchstart", warm, { passive: true });
   document.addEventListener("click", warm);
   document.addEventListener("keydown", warm);
+  // Плюс сразу пробуем создать (в standalone PWA может уже быть разрешено).
+  warm();
 }
 
 // =====================================================================
 // Звуки и вибрация
 // =====================================================================
 function ensureAudioCtx() {
-  if (!audioCtx) {
-    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
-  }
-  if (audioCtx && audioCtx.state === "suspended") {
-    audioCtx.resume().catch(() => {});
-  }
-  return audioCtx;
+  const ctx = ensureGlobalAudioCtx();
+  if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {});
+  return ctx;
 }
 function playMessageSound() {
   if (!Store.soundsEnabled) return;
@@ -441,41 +449,65 @@ function vibrate(pattern) {
 }
 function playRingtone() {
   stopRingtone();
+  // 1) Пробуем Web Audio (основной путь).
   try {
-    if (!ringtoneCtx) ringtoneCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (ringtoneCtx.state === "suspended") ringtoneCtx.resume().catch(() => {});
-    etherLog("info", "[ringtone] start, ctx.state=" + ringtoneCtx.state);
-    const playTone = (freq, delay, dur, vol) => {
-      const ctx = ringtoneCtx;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.value = freq;
-      gain.gain.value = 0.0001;
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      const t = ctx.currentTime + delay;
-      gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.exponentialRampToValueAtTime(vol, t + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-      osc.start(t);
-      osc.stop(t + dur + 0.05);
-    };
-    const ringCycle = () => {
-      playTone(880, 0, 0.18, 0.4);
-      playTone(660, 0.18, 0.18, 0.4);
-      playTone(880, 0.4, 0.18, 0.4);
-      playTone(660, 0.58, 0.18, 0.4);
-    };
-    ringCycle();
-    ringtoneTimer = setInterval(ringCycle, 2000);
-    if (navigator.vibrate) {
-      try { navigator.vibrate([400, 200, 400, 200, 400, 1000]); } catch (e) {}
+    const ctx = ensureAudioCtx();
+    if (ctx) {
+      if (ctx.state === "suspended") ctx.resume().catch(() => {});
+      etherLog("info", "[ringtone] start, ctx.state=" + ctx.state);
+      const playTone = (freq, delay, dur, vol) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        gain.gain.value = 0.0001;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        const t = ctx.currentTime + delay;
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.exponentialRampToValueAtTime(vol, t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        osc.start(t);
+        osc.stop(t + dur + 0.05);
+      };
+      const ringCycle = () => {
+        playTone(880, 0, 0.18, 0.4);
+        playTone(660, 0.18, 0.18, 0.4);
+        playTone(880, 0.4, 0.18, 0.4);
+        playTone(660, 0.58, 0.18, 0.4);
+      };
+      ringCycle();
+      ringtoneTimer = setInterval(ringCycle, 2000);
     }
-  } catch (e) { etherLog("error", "[ringtone] failed:", String(e)); }
+  } catch (e) { etherLog("error", "[ringtone] Web Audio failed:", String(e)); }
+
+  // 2) Резервный HTMLAudio — на iOS часто звучит даже когда Web Audio молчит.
+  try {
+    if (!ringtoneAudioEl) {
+      ringtoneAudioEl = document.createElement("audio");
+      ringtoneAudioEl.setAttribute("playsinline", "");
+      ringtoneAudioEl.loop = true;
+      ringtoneAudioEl.preload = "auto";
+      // Простой рингтон: два коротких бипа через data URI (WAV 8 kHz).
+      ringtoneAudioEl.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+      document.body.appendChild(ringtoneAudioEl);
+    }
+    // HTMLAudio-элемент с data URI практически пустой — Web Audio основной,
+    // но сам факт play() на iOS «прописывает» разрешение. Поэтому пробуем.
+    const pp = ringtoneAudioEl.play();
+    if (pp && pp.catch) pp.catch(() => {});
+  } catch (e) {}
+
+  // 3) Вибрация, если поддерживается (Android; на iOS её нет).
+  if (navigator.vibrate) {
+    try { navigator.vibrate([400, 200, 400, 200, 400, 1000]); } catch (e) {}
+  }
 }
 function stopRingtone() {
   if (ringtoneTimer) { clearInterval(ringtoneTimer); ringtoneTimer = null; }
+  if (ringtoneAudioEl) {
+    try { ringtoneAudioEl.pause(); ringtoneAudioEl.currentTime = 0; } catch (e) {}
+  }
   if (navigator.vibrate) { try { navigator.vibrate(0); } catch (e) {} }
 }
 
@@ -647,6 +679,7 @@ function startApp() {
   try { resumeUnsentMessages(); } catch (e) {}
   try { updateAppBadge(); } catch (e) {}
   try { maybeShowOnboardingHint(); } catch (e) {}
+  try { state.callId = null; state.callPhase = null; state._callRecoveryTimer = null; } catch (e) {}
 }
 
 function wireNetworkListeners() {
@@ -1572,8 +1605,8 @@ function wireSignalingEvents(sig) {
   subs.push(on("connected", () => {
     updateSignalingStatusUI("online", "Подключено");
     renderSignalingBanner();
-    // Правка 3: если линк был живой, но порвался из-за потери WS —
-    // пересоздаём принудительно, чтобы не ждать 25 сек таймаута.
+    // Если линк был живой, но порвался из-за потери WS — пересоздаём
+    // принудительно, чтобы не ждать 25 сек таймаута.
     for (const [id, link] of mesh.links) {
       if (link.status === "disconnected" && link._closed !== true) {
         etherLog("info", "[reconnect] dropping dead link to " + String(id).slice(0, 10) + "…");
@@ -1655,6 +1688,8 @@ function wireSignalingEvents(sig) {
       ensureContactEntry(from, packet.n);
       if (state.callId !== from) {
         openCallScreen(from, "ringing");
+        // iOS: пробуем разбудить аудио-контекст немедленно, до playRingtone().
+        try { ensureAudioCtx(); } catch (e) {}
         playRingtone();
         const c = state.contacts.get(from);
         if (c && !c.muted && Store.notificationsEnabled) {
@@ -2276,7 +2311,11 @@ function renderCallsList() {
   for (const rec of items) {
     const c = state.contacts.get(rec.contactId);
     const name = (c && c.name) || rec.contactName || "Без имени";
-    const dirIcon = rec.direction === "in" ? (rec.status === "missed" ? "missed" : "in") : "out";
+    // Успешный звонок — только "completed". Всё остальное (missed,
+    // cancelled, declined, failed, ringing — «не ответил») считается
+    // несостоявшимся и рисуется красным, независимо от направления.
+    const isFailed = rec.status !== "completed";
+    const dirIcon = isFailed ? "missed" : (rec.direction === "in" ? "in" : "out");
     const arrowSvg = rec.direction === "in"
       ? `<svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>`
       : `<svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M4 11h12.17l-5.59-5.59L12 4l8 8-8 8-1.41-1.41L16.17 13H4v-2z"/></svg>`;
@@ -2333,6 +2372,15 @@ async function beginCall(id) {
 function openCallScreen(id, phase) {
   state.callId = id;
   state.callPhase = phase;
+  try { ensureAudioCtx(); } catch (e) {}
+  // Сброс состояния микрофона — иначе «Микрофон выкл» переедет со
+  // прошлого звонка.
+  const muteBtn = $("#call-mute-btn");
+  if (muteBtn) {
+    muteBtn.classList.remove("active");
+    const lbl = $("#call-mute-label");
+    if (lbl) lbl.textContent = "Микрофон";
+  }
   const c = state.contacts.get(id); if (!c) return;
   const cs = $("#call-screen"); if (cs) cs.classList.remove("hidden");
   const pn = $("#call-peer-name"); if (pn) pn.textContent = c.name || "Без имени";
@@ -2402,9 +2450,11 @@ function closeCallScreen(reason) {
   endCallRecord(reason);
   const cs = $("#call-screen"); if (cs) cs.classList.add("hidden");
   const cm = $("#call-mute-btn"); if (cm) cm.classList.remove("active");
+  const lbl = $("#call-mute-label"); if (lbl) lbl.textContent = "Микрофон";
   if (state.callId) pendingRemoteStreams.delete(state.callId);
   state.callId = null;
   state.callPhase = null;
+  if (state._callRecoveryTimer) { clearTimeout(state._callRecoveryTimer); state._callRecoveryTimer = null; }
   if (state.tab === "calls") renderCallsList();
 }
 function wireCallScreen() {
@@ -2422,6 +2472,8 @@ function wireCallScreen() {
     const muted = !mute.classList.contains("active");
     if (link) link.setMuted(muted);
     mute.classList.toggle("active", muted);
+    const lbl = $("#call-mute-label");
+    if (lbl) lbl.textContent = muted ? "Микрофон выкл" : "Микрофон";
   });
   const accept = $("#call-accept-btn");
   if (accept) accept.addEventListener("click", async () => {
@@ -2854,6 +2906,7 @@ function wireMeshEvents() {
     c.status = status;
     etherLog("info", "[link] " + String(id).slice(0, 10) + "…", "status=" + status);
     if (status === "connected" && !wasConnected) {
+      if (state._callRecoveryTimer) { clearTimeout(state._callRecoveryTimer); state._callRecoveryTimer = null; }
       const link = mesh.get(id);
       if (link && link.remoteName) c.name = link.remoteName;
       if (c.managed) persistContacts();
@@ -2870,14 +2923,22 @@ function wireMeshEvents() {
       flushOutbox();
     }
     if (status === "disconnected") {
-      if (state.callId === id) {
-        const wasAnswered = state.currentCallRecord && state.currentCallRecord.answeredAt;
-        closeCallScreen(wasAnswered ? "completed" : "missed");
-      }
       sendTypingStop(id);
-      // Не пересоздаём сразу — даём PeerLink попытку restartIce().
-      // Если в течение 10 секунд link вернётся в "connected", ничего
-      // не делаем. Иначе scheduleAutoConnect создаст новый.
+      if (state.callId === id) {
+        // На время активного звонка даём ICE шанс на восстановление
+        // (звонок идёт по WebRTC, WS не при чём). 30 секунд — с запасом.
+        if (!state._callRecoveryTimer) {
+          state._callRecoveryTimer = setTimeout(() => {
+            state._callRecoveryTimer = null;
+            if (state.callId !== id) return; // уже разобрались
+            const cur = mesh.get(id);
+            if (cur && (cur.status === "connected" || cur.status === "in-call")) return; // восстановилось
+            const wasAnswered = state.currentCallRecord && state.currentCallRecord.answeredAt;
+            closeCallScreen(wasAnswered ? "completed" : "missed");
+          }, 30000);
+        }
+      }
+      // Не пересоздаём P2P сразу — даём PeerLink попытку restartIce().
       if (c.managed && c.online) {
         setTimeout(() => {
           const stillGone = !mesh.get(id) || mesh.get(id).status === "disconnected";
@@ -3011,17 +3072,38 @@ if (brReset) brReset.addEventListener("click", () => {
   location.reload();
 });
 
+function shutdownCallIfActive() {
+  try {
+    const cid = state.callId;
+    if (!cid) return;
+    // Скажем собеседнику, что мы ушли.
+    if (signaling && signaling.connected) {
+      try { signaling.signal(cid, { t: "call-ended" }); } catch (e) {}
+    }
+    // Локально тоже приберёмся.
+    try {
+      const link = mesh && mesh.get(cid);
+      if (link) link.endCall();
+    } catch (e) {}
+    try { closeCallScreen("completed"); } catch (e) {}
+  } catch (e) {}
+}
 window.addEventListener("beforeunload", () => {
   try { saveCurrentDraft(); } catch (e) {}
   try { backupToIDB(); } catch (e) {}
+  shutdownCallIfActive();
+});
+window.addEventListener("pagehide", () => {
+  try { saveCurrentDraft(); } catch (e) {}
+  try { backupToIDB(); } catch (e) {}
+  shutdownCallIfActive();
 });
 
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
     try { updateAppBadge(); } catch (e) {}
     try {
-      if (audioCtx && audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
-      if (ringtoneCtx && ringtoneCtx.state === "suspended") ringtoneCtx.resume().catch(() => {});
+      if (globalAudioCtx && globalAudioCtx.state === "suspended") globalAudioCtx.resume().catch(() => {});
     } catch (e) {}
     if (state.chatId) { const c = state.contacts.get(state.chatId); if (c) markThreadRead(c); }
   }
