@@ -36,13 +36,15 @@ const IDB = (() => {
     if (dbPromise) return dbPromise;
     dbPromise = new Promise((resolve, reject) => {
       if (!("indexedDB" in window)) return reject(new Error("no idb"));
-      const req = indexedDB.open(DB_NAME, 1);
-      req.onupgradeneeded = () => {
-        const db = req.result;
-        if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
-      };
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
+      try {
+        const req = indexedDB.open(DB_NAME, 1);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      } catch (e) { reject(e); }
     });
     return dbPromise;
   }
@@ -50,11 +52,12 @@ const IDB = (() => {
   async function set(key, value) {
     try {
       const db = await open();
-      return new Promise((res, rej) => {
+      return new Promise((res) => {
         const tx = db.transaction(STORE, "readwrite");
         tx.objectStore(STORE).put(value, key);
         tx.oncomplete = () => res();
-        tx.onerror = () => rej(tx.error);
+        tx.onerror = () => res();
+        tx.onabort = () => res();
       });
     } catch (e) { return null; }
   }
@@ -62,13 +65,13 @@ const IDB = (() => {
   async function get(key) {
     try {
       const db = await open();
-      return new Promise((res, rej) => {
+      return new Promise((res) => {
         const tx = db.transaction(STORE, "readonly");
         const r = tx.objectStore(STORE).get(key);
         r.onsuccess = () => res(r.result);
-        r.onerror = () => rej(r.error);
+        r.onerror = () => res(undefined);
       });
-    } catch (e) { return null; }
+    } catch (e) { return undefined; }
   }
 
   return { open, set, get };
@@ -199,6 +202,7 @@ let outboxRetryTimer = null;
 let swRegistration = null;
 let __lockWired = false;
 let __appStarted = false;
+let __chatWired = false;
 let __navTitleTaps = [];
 let __chatSearchScrollTimer = null;
 const onlineSet = new Set();
@@ -223,14 +227,15 @@ let audioCtx = null;
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
+function safeCall(fn, label) {
+  try { fn(); }
+  catch (e) { console.error("[wire] " + (label || "unknown"), e); }
+}
+
 function escapeHtml(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
-// Возвращает HTML, в котором:
-//   * обычные URL обёрнуты в <a>
-//   * вхождения query подсвечены <mark>
-//   * текст экранирован, подстановка в HTML безопасна
 function linkifyAndHighlight(text, query) {
   const esc = escapeHtml(text);
   const urlRegex = /(https?:\/\/[^\s<]+[^\s<.,;:!?)])/gi;
@@ -239,15 +244,11 @@ function linkifyAndHighlight(text, query) {
   let m;
   urlRegex.lastIndex = 0;
   while ((m = urlRegex.exec(esc)) !== null) {
-    if (m.index > lastIdx) {
-      result += highlightRaw(esc.slice(lastIdx, m.index), query);
-    }
+    if (m.index > lastIdx) result += highlightRaw(esc.slice(lastIdx, m.index), query);
     result += `<a href="${m[1]}" target="_blank" rel="noopener noreferrer">${highlightRaw(m[1], query)}</a>`;
     lastIdx = m.index + m[1].length;
   }
-  if (lastIdx < esc.length) {
-    result += highlightRaw(esc.slice(lastIdx), query);
-  }
+  if (lastIdx < esc.length) result += highlightRaw(esc.slice(lastIdx), query);
   return result;
 }
 
@@ -433,29 +434,34 @@ function stopRingtone() {
 // Пин-код
 // =====================================================================
 function showLockScreen() {
-  $("#lock-screen").classList.remove("hidden");
-  $("#onboarding").classList.add("hidden");
-  $("#app-shell").classList.add("hidden");
+  const l = $("#lock-screen"); if (l) l.classList.remove("hidden");
+  const o = $("#onboarding"); if (o) o.classList.add("hidden");
+  const a = $("#app-shell"); if (a) a.classList.add("hidden");
   setTimeout(() => { const p = $("#lock-pin"); if (p) p.focus(); }, 100);
 }
+
 async function tryUnlock(pin) {
   if (!pin) return;
-  if (!Store.pinSalt) { toast("Пин-код повреждён"); return; }
+  if (!Store.pinSalt) {
+    if (confirm("Пин-код повреждён. Сбросить все данные приложения?")) { localStorage.clear(); location.reload(); }
+    return;
+  }
   const h = await pbkdf2Hex(pin, Store.pinSalt, PIN_ITERATIONS);
   if (h === Store.pinHash) {
     state.unlockAttempts = 0;
-    $("#lock-pin").value = "";
-    $("#lock-screen").classList.add("hidden");
+    const p = $("#lock-pin"); if (p) p.value = "";
+    const l = $("#lock-screen"); if (l) l.classList.add("hidden");
     bootAfterUnlock();
   } else {
     state.unlockAttempts++;
-    $("#lock-pin").value = "";
+    const p = $("#lock-pin"); if (p) p.value = "";
     if (state.unlockAttempts >= UNLOCK_ATTEMPTS_LIMIT) {
       if (confirm("Слишком много неудачных попыток. Очистить все данные?")) { localStorage.clear(); location.reload(); }
       state.unlockAttempts = 0;
     } else toast("Неверный пин-код");
   }
 }
+
 function wireLockScreen() {
   if (__lockWired) return;
   __lockWired = true;
@@ -476,17 +482,24 @@ function bootAfterUnlock() {
     Promise.all([
       ensureKeyPair().catch(() => {}),
       window.__etherIceReady || Promise.resolve(),
-    ]).then(startApp).catch(() => startApp());
+    ]).then(() => {
+      try { startApp(); }
+      catch (e) { console.error("[startApp] упал:", e); }
+    }).catch(() => {
+      try { startApp(); } catch (e) {}
+    });
   } else {
-    $("#onboarding").classList.remove("hidden");
+    const o = $("#onboarding"); if (o) o.classList.remove("hidden");
     wireOnboardingOnce();
   }
 }
+
 function initBoot() {
   wireLockScreen();
   if (Store.pinEnabled && Store.pinHash) { showLockScreen(); return; }
   bootAfterUnlock();
 }
+
 let __onboardingWired = false;
 function wireOnboardingOnce() {
   if (__onboardingWired) return;
@@ -505,13 +518,14 @@ function wireOnboardingOnce() {
     Store.name = nameVal;
     Store.myIdentityRaw = identity.normalized;
     Store.myId = identity.id;
-    await ensureKeyPair();
-    await (window.__etherIceReady || Promise.resolve());
+    await ensureKeyPair().catch(() => {});
+    await (window.__etherIceReady || Promise.resolve()).catch(() => {});
     await backupToIDB().catch(() => {});
-    $("#onboarding").classList.add("hidden");
-    startApp();
+    const o = $("#onboarding"); if (o) o.classList.add("hidden");
+    try { startApp(); } catch (e) { console.error("[startApp]", e); }
   });
 }
+
 async function ensureKeyPair() {
   try {
     if (Store.myPrivateKeyJwk && Store.myPublicKeyJwk) return;
@@ -523,62 +537,74 @@ async function ensureKeyPair() {
 
 function startApp() {
   if (__appStarted) {
-    $("#onboarding").classList.add("hidden");
-    $("#lock-screen").classList.add("hidden");
-    $("#app-shell").classList.remove("hidden");
+    const o = $("#onboarding"); if (o) o.classList.add("hidden");
+    const l = $("#lock-screen"); if (l) l.classList.add("hidden");
+    const a = $("#app-shell"); if (a) a.classList.remove("hidden");
     return;
   }
   __appStarted = true;
-  $("#onboarding").classList.add("hidden");
-  $("#lock-screen").classList.add("hidden");
-  $("#app-shell").classList.remove("hidden");
+  const o = $("#onboarding"); if (o) o.classList.add("hidden");
+  const l = $("#lock-screen"); if (l) l.classList.add("hidden");
+  const a = $("#app-shell"); if (a) a.classList.remove("hidden");
 
   mesh = new MeshManager(Store.name);
-  wireMeshEvents();
-  wireTabBar();
-  wireConnectScreen();
-  wireChatScreen();
-  wireCallScreen();
-  wireSettingsScreen();
-  wireDebugScreen();
-  wireSheetBackdrops();
-  wireSearchHandlers();
-  wireNotificationPermission();
-  wireServiceWorker();
-  wireRenameSheet();
-  wireNotifBanner();
-  wireContactCard();
-  wireNavTitleTaps();
-  wireKeyboardFix();
-  applyDebugTabVisibility();
 
-  applyGlassAlpha(Store.glassAlpha);
-  applyTheme(Store.theme);
-  $("#glass-slider").value = Store.glassAlpha;
-  $$(".theme-seg button").forEach((b) => b.classList.toggle("active", b.dataset.theme === Store.theme));
-  $("#settings-name").value = Store.name;
-  $("#settings-identity").value = Store.myIdentityRaw;
-  $("#settings-signaling-url").value = Store.signalingUrl || DEFAULT_SIGNALING_URL;
-  $("#settings-discoverable").checked = Store.discoverable;
-  $("#settings-notifications").checked = Store.notificationsEnabled;
-  $("#settings-sounds").checked = Store.soundsEnabled;
-  $("#settings-pinlock").checked = Store.pinEnabled;
+  // Каждая функция изолирована: падение одной не ломает остальные.
+  safeCall(wireMeshEvents, "wireMeshEvents");
+  safeCall(wireTabBar, "wireTabBar");
+  safeCall(wireConnectScreen, "wireConnectScreen");
+  safeCall(wireChatScreen, "wireChatScreen");
+  safeCall(wireCallScreen, "wireCallScreen");
+  safeCall(wireSettingsScreen, "wireSettingsScreen");
+  safeCall(wireDebugScreen, "wireDebugScreen");
+  safeCall(wireSheetBackdrops, "wireSheetBackdrops");
+  safeCall(wireSearchHandlers, "wireSearchHandlers");
+  safeCall(wireNotificationPermission, "wireNotificationPermission");
+  safeCall(wireServiceWorker, "wireServiceWorker");
+  safeCall(wireRenameSheet, "wireRenameSheet");
+  safeCall(wireNotifBanner, "wireNotifBanner");
+  safeCall(wireContactCard, "wireContactCard");
+  safeCall(wireNavTitleTaps, "wireNavTitleTaps");
+  safeCall(wireKeyboardFix, "wireKeyboardFix");
+  safeCall(applyDebugTabVisibility, "applyDebugTabVisibility");
 
-  loadContacts(); loadLastSeen(); loadDrafts();
-  restoreOutbox(); restorePendingNoKey(); loadCallLog();
-  migrateServerAckedFlags();
+  // UI-инициализация
+  try {
+    applyGlassAlpha(Store.glassAlpha);
+    applyTheme(Store.theme);
+    const slider = $("#glass-slider"); if (slider) slider.value = Store.glassAlpha;
+    $$(".theme-seg button").forEach((b) => b.classList.toggle("active", b.dataset.theme === Store.theme));
+    const sn = $("#settings-name"); if (sn) sn.value = Store.name;
+    const si = $("#settings-identity"); if (si) si.value = Store.myIdentityRaw;
+    const ss = $("#settings-signaling-url"); if (ss) ss.value = Store.signalingUrl || DEFAULT_SIGNALING_URL;
+    const sd = $("#settings-discoverable"); if (sd) sd.checked = Store.discoverable;
+    const snn = $("#settings-notifications"); if (snn) snn.checked = Store.notificationsEnabled;
+    const ssn = $("#settings-sounds"); if (ssn) ssn.checked = Store.soundsEnabled;
+    const spl = $("#settings-pinlock"); if (spl) spl.checked = Store.pinEnabled;
+  } catch (e) { console.error("[startApp] settings init:", e); }
 
-  const incoming = SignalingCodec.extractCodeFromLocation();
-  history.replaceState(null, "", location.pathname + location.search);
-  if (incoming) handleIncomingCode(incoming);
+  // Данные
+  try {
+    loadContacts(); loadLastSeen(); loadDrafts();
+    restoreOutbox(); restorePendingNoKey(); loadCallLog();
+    migrateServerAckedFlags();
+  } catch (e) { console.error("[startApp] load data:", e); }
 
-  renderTab();
-  initSignaling();
-  startOutboxRetryLoop();
-  updateNotifBanner();
-  resumeUnsentMessages();
-  updateAppBadge();
-  maybeShowOnboardingHint();
+  // Ссылки
+  try {
+    const incoming = SignalingCodec.extractCodeFromLocation();
+    history.replaceState(null, "", location.pathname + location.search);
+    if (incoming) handleIncomingCode(incoming);
+  } catch (e) { console.error("[startApp] incoming code:", e); }
+
+  // Рендер и сеть
+  try { renderTab(); } catch (e) { console.error("[startApp] renderTab:", e); }
+  try { initSignaling(); } catch (e) { console.error("[startApp] initSignaling:", e); }
+  try { startOutboxRetryLoop(); } catch (e) { console.error("[startApp] outbox loop:", e); }
+  try { updateNotifBanner(); } catch (e) {}
+  try { resumeUnsentMessages(); } catch (e) {}
+  try { updateAppBadge(); } catch (e) {}
+  try { maybeShowOnboardingHint(); } catch (e) {}
 }
 
 function migrateServerAckedFlags() {
@@ -587,10 +613,7 @@ function migrateServerAckedFlags() {
     for (const m of c.messages) {
       if (m.from !== "me") continue;
       if (m.serverAcked) continue;
-      if (m.ack === "delivered" || m.ack === "read") {
-        m.serverAcked = true;
-        touched = true;
-      }
+      if (m.ack === "delivered" || m.ack === "read") { m.serverAcked = true; touched = true; }
     }
   }
   if (touched) persistContacts();
@@ -612,14 +635,9 @@ function wireServiceWorker() {
     const data = ev.data || {};
     if (data.type === "open-contact" && data.contactId) {
       window.focus();
-      if (data.kind === "call") {
-        state.chatId = data.contactId;
-        renderTab();
-        toast("Входящий звонок был пропущен");
-      } else {
-        state.chatId = data.contactId;
-        renderTab();
-      }
+      state.chatId = data.contactId;
+      renderTab();
+      if (data.kind === "call") toast("Входящий звонок был пропущен");
     }
     if (data.type === "push-subscription-changed") {
       ensurePushSubscription().catch(() => {});
@@ -653,6 +671,7 @@ async function ensurePushSubscription() {
   if (signaling && signaling.connected) signaling.sendPushSubscription(subJson);
   return sub;
 }
+
 function showNotification(title, body, opts) {
   opts = opts || {};
   if (!Store.notificationsEnabled) return;
@@ -674,6 +693,7 @@ function showNotification(title, body, opts) {
   }
   try { new Notification(title, { body, tag: payload.tag }); } catch (e) {}
 }
+
 function wireNotificationPermission() {
   const el = $("#settings-notifications");
   if (!el) return;
@@ -699,6 +719,7 @@ function wireNotificationPermission() {
     }
   });
 }
+
 function wireNotifBanner() {
   const enableBtn = $("#notif-enable-btn");
   const dismissBtn = $("#notif-dismiss-btn");
@@ -717,6 +738,7 @@ function wireNotifBanner() {
     updateNotifBanner();
   });
 }
+
 function updateNotifBanner() {
   const banner = $("#notif-banner");
   if (!banner) return;
@@ -728,9 +750,6 @@ function updateNotifBanner() {
   banner.classList.remove("hidden");
 }
 
-// =====================================================================
-// App Badge
-// =====================================================================
 function updateAppBadge() {
   try {
     if (!("setAppBadge" in navigator)) return;
@@ -828,43 +847,35 @@ function closeContactCardSafely() {
   try { renderTab(); } catch (e) {}
 }
 
-function renderTab() {
-  try { renderTabInner(); }
-  catch (e) { console.error("[renderTab] упал:", e); }
-}
-
+function renderTab() { try { renderTabInner(); } catch (e) { console.error("[renderTab] упал:", e); } }
 function renderTabInner() {
   $$(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === state.tab));
   $$(".screen").forEach((s) => s.classList.add("hidden"));
 
   if (state.chatId) {
-    $("#screen-chat").classList.remove("hidden");
-    $("#tab-bar").classList.add("hidden");
+    const sc = $("#screen-chat"); if (sc) sc.classList.remove("hidden");
+    const tb = $("#tab-bar"); if (tb) tb.classList.add("hidden");
     renderChatThread();
     return;
   }
 
   if (state.contactCardId) {
-    $("#screen-contact").classList.remove("hidden");
-    $("#tab-bar").classList.add("hidden");
+    const sc = $("#screen-contact"); if (sc) sc.classList.remove("hidden");
+    const tb = $("#tab-bar"); if (tb) tb.classList.add("hidden");
     renderContactCard();
     return;
   }
 
-  $("#tab-bar").classList.remove("hidden");
+  const tb = $("#tab-bar"); if (tb) tb.classList.remove("hidden");
   const map = { chats: "#screen-chats", calls: "#screen-calls", connect: "#screen-connect", settings: "#screen-settings", debug: "#screen-debug" };
-  const el = $(map[state.tab]);
-  if (el) el.classList.remove("hidden");
+  const el = $(map[state.tab]); if (el) el.classList.remove("hidden");
   const titles = { chats: "Чаты", calls: "Звонки", connect: "Контакты", settings: "Настройки", debug: "Отладка" };
-  $("#nav-title").textContent = titles[state.tab] || "Эфир";
+  const nt = $("#nav-title"); if (nt) nt.textContent = titles[state.tab] || "Эфир";
   if (state.tab === "chats") renderChatsList();
   if (state.tab === "calls") renderCallsList();
   if (state.tab === "connect") { renderContactsList(); renderOnlineRosterList(); }
 }
 
-// =====================================================================
-// Статусы
-// =====================================================================
 function contactStatusLabel(c) {
   if (c.status === "in-call") return "разговор";
   if (c.status === "connected") return "на связи";
@@ -886,9 +897,6 @@ function contactStatusClass(c) {
 function isReachable(c) { return c.status === "connected" || c.status === "in-call"; }
 function unreadCount(c) { let n = 0; for (const m of c.messages) if (m.from === "them" && !m.readAckSent) n++; return n; }
 
-// =====================================================================
-// Список чатов
-// =====================================================================
 function renderChatsList() {
   const list = $("#chats-list"), empty = $("#chats-empty"), archivedToggle = $("#chats-archived-toggle");
   if (!list) return;
@@ -901,13 +909,13 @@ function renderChatsList() {
     ? visible.filter((c) => (c.name || "").toLowerCase().includes(query) || c.messages.some((m) => (m.text || "").toLowerCase().includes(query)))
     : visible;
   if (filtered.length === 0) {
-    empty.classList.toggle("hidden", query.length > 0);
-    archivedToggle.classList.toggle("hidden", !withArchived);
+    if (empty) empty.classList.toggle("hidden", query.length > 0);
+    if (archivedToggle) archivedToggle.classList.toggle("hidden", !withArchived);
     return;
   }
-  empty.classList.add("hidden");
-  archivedToggle.classList.toggle("hidden", !withArchived);
-  $("#toggle-archived").textContent = state.showArchived ? "Скрыть архив ‹" : "Показать архив ›";
+  if (empty) empty.classList.add("hidden");
+  if (archivedToggle) archivedToggle.classList.toggle("hidden", !withArchived);
+  const ta = $("#toggle-archived"); if (ta) ta.textContent = state.showArchived ? "Скрыть архив ‹" : "Показать архив ›";
   const items = filtered.sort((a, b) => {
     const aLive = isReachable(a) || a.online ? 1 : 0, bLive = isReachable(b) || b.online ? 1 : 0;
     if (aLive !== bLive) return bLive - aLive;
@@ -951,9 +959,6 @@ function avatarGradient(name) {
   return palettes[h];
 }
 
-// =====================================================================
-// Список всех контактов (в разделе «Контакты»)
-// =====================================================================
 function renderContactsList() {
   const wrap = $("#contacts-list");
   const empty = $("#contacts-empty");
@@ -961,10 +966,10 @@ function renderContactsList() {
   wrap.innerHTML = "";
   const contacts = Array.from(state.contacts.values()).filter((c) => c.managed);
   if (contacts.length === 0) {
-    empty.classList.remove("hidden");
+    if (empty) empty.classList.remove("hidden");
     return;
   }
-  empty.classList.add("hidden");
+  if (empty) empty.classList.add("hidden");
   contacts.sort((a, b) => (b.lastActivity || 0) - (a.lastActivity || 0));
   for (const c of contacts) {
     const row = document.createElement("div");
@@ -1002,17 +1007,16 @@ function renderContactCard() {
   const c = state.contacts.get(state.contactCardId);
   if (!c) { state.contactCardId = null; renderTab(); return; }
   const av = $("#contact-avatar");
-  av.style.background = avatarGradient(c.name);
-  av.textContent = initials(c.name);
-  $("#contact-name").textContent = c.name || "Без имени";
-  $("#contact-status").textContent = contactStatusLabel(c);
-  $("#contact-info-id").textContent = c.raw || "—";
-  $("#contact-info-muted").textContent = c.muted ? "без звука" : "со звуком";
-  $("#contact-msg-btn").disabled = false;
-  $("#contact-call-btn").disabled = false;
-  $("#contact-block-btn").textContent = c.blocked ? "Разблокировать" : "Заблокировать";
-  $("#contact-archive-btn").textContent = c.archived ? "Из архива" : "В архив";
-  $("#contact-mute-btn").textContent = c.muted ? "Включить звук" : "Без звука";
+  if (av) { av.style.background = avatarGradient(c.name); av.textContent = initials(c.name); }
+  const n = $("#contact-name"); if (n) n.textContent = c.name || "Без имени";
+  const st = $("#contact-status"); if (st) st.textContent = contactStatusLabel(c);
+  const idEl = $("#contact-info-id"); if (idEl) idEl.textContent = c.raw || "—";
+  const mutedEl = $("#contact-info-muted"); if (mutedEl) mutedEl.textContent = c.muted ? "без звука" : "со звуком";
+  const msgBtn = $("#contact-msg-btn"); if (msgBtn) msgBtn.disabled = false;
+  const callBtn = $("#contact-call-btn"); if (callBtn) callBtn.disabled = false;
+  const blockBtn = $("#contact-block-btn"); if (blockBtn) blockBtn.textContent = c.blocked ? "Разблокировать" : "Заблокировать";
+  const archBtn = $("#contact-archive-btn"); if (archBtn) archBtn.textContent = c.archived ? "Из архива" : "В архив";
+  const muteBtn = $("#contact-mute-btn"); if (muteBtn) muteBtn.textContent = c.muted ? "Включить звук" : "Без звука";
 }
 
 function wireContactCard() {
@@ -1036,9 +1040,9 @@ function wireContactCard() {
     const c = state.contacts.get(id);
     if (!c) return;
     state.activeContactContext = id;
-    $("#rename-input").value = c.name || "";
-    $("#rename-sheet").classList.remove("hidden");
-    setTimeout(() => $("#rename-input").focus(), 50);
+    const ri = $("#rename-input"); if (ri) ri.value = c.name || "";
+    const rs = $("#rename-sheet"); if (rs) rs.classList.remove("hidden");
+    setTimeout(() => { const ri2 = $("#rename-input"); if (ri2) ri2.focus(); }, 50);
   });
   const mute = $("#contact-mute-btn");
   if (mute) mute.addEventListener("click", () => {
@@ -1108,22 +1112,27 @@ function renderChatThread() {
 function renderChatThreadInner() {
   const c = state.contacts.get(state.chatId);
   if (!c) { state.chatId = null; renderTab(); return; }
-  $("#chat-peer-name").textContent = c.name || "Без имени";
+  const nm = $("#chat-peer-name"); if (nm) nm.textContent = c.name || "Без имени";
   const statusEl = $("#chat-peer-status");
   const typing = state.typingTimers.has(c.id);
-  statusEl.textContent = typing ? "печатает…" : contactStatusLabel(c);
-  statusEl.classList.toggle("typing", typing);
+  if (statusEl) {
+    statusEl.textContent = typing ? "печатает…" : contactStatusLabel(c);
+    statusEl.classList.toggle("typing", typing);
+  }
   const canCall = isReachable(c) || (c.managed && c.online);
-  $("#chat-call-btn").disabled = !canCall;
+  const ccb = $("#chat-call-btn"); if (ccb) ccb.disabled = !canCall;
   const badge = $("#chat-transport-badge");
   const link = mesh.get(c.id);
-  if (link && (link.status === "connected" || link.status === "in-call")) {
-    badge.textContent = "P2P"; badge.classList.remove("hidden", "via-server");
-  } else if (c.managed && c.online) {
-    badge.textContent = "через сервер"; badge.classList.add("via-server"); badge.classList.remove("hidden");
-  } else badge.classList.add("hidden");
+  if (badge) {
+    if (link && (link.status === "connected" || link.status === "in-call")) {
+      badge.textContent = "P2P"; badge.classList.remove("hidden", "via-server");
+    } else if (c.managed && c.online) {
+      badge.textContent = "через сервер"; badge.classList.add("via-server"); badge.classList.remove("hidden");
+    } else badge.classList.add("hidden");
+  }
 
   const wrap = $("#chat-messages");
+  if (!wrap) return;
   const wasAtBottom = isNearBottom(wrap);
   wrap.innerHTML = "";
   const frag = document.createDocumentFragment();
@@ -1170,16 +1179,14 @@ function renderChatThreadInner() {
   updateScrollBottomButton();
 
   const input = $("#chat-input");
-  if (state.drafts[c.id] && !state.editingMessageId) input.value = state.drafts[c.id];
+  if (input && state.drafts[c.id] && !state.editingMessageId) input.value = state.drafts[c.id];
   markThreadRead(c);
 
   if (state.chatSearchQuery) {
     if (__chatSearchScrollTimer) clearTimeout(__chatSearchScrollTimer);
     __chatSearchScrollTimer = setTimeout(() => {
       const marks = wrap.querySelectorAll(".search-hit");
-      if (marks.length > 0) {
-        marks[0].scrollIntoView({ behavior: "smooth", block: "center" });
-      }
+      if (marks.length > 0) marks[0].scrollIntoView({ behavior: "smooth", block: "center" });
     }, 200);
   }
 }
@@ -1196,9 +1203,7 @@ function attachSwipeReply(el, m, c) {
     const dx = t.clientX - startX;
     const dy = Math.abs(t.clientY - startY);
     if (!swiping && Math.abs(dx) > 12 && Math.abs(dx) > dy) swiping = true;
-    if (swiping && dx > 0) {
-      el.style.transform = `translateX(${Math.min(dx * 0.5, 60)}px)`;
-    }
+    if (swiping && dx > 0) el.style.transform = `translateX(${Math.min(dx * 0.5, 60)}px)`;
   }, { passive: true });
   el.addEventListener("touchend", () => {
     el.style.transition = "";
@@ -1247,25 +1252,20 @@ function saveCurrentDraft() {
 }
 
 // =====================================================================
-// Клавиатура iOS + ширина строки ввода
+// Клавиатура iOS
 // =====================================================================
 function wireKeyboardFix() {
   if (!window.visualViewport) return;
   const vv = window.visualViewport;
   function update() {
-    const screen = $("#screen-chat");
+    const screen = document.getElementById("screen-chat");
     if (!screen || screen.classList.contains("hidden")) return;
-    const isKeyboardOpen = window.innerHeight - vv.height > 100;
-    document.documentElement.style.setProperty("--kb-h", isKeyboardOpen ? (window.innerHeight - vv.height) + "px" : "0px");
-    const bar = $(".chat-input-bar");
-    if (bar) {
-      if (isKeyboardOpen) {
-        bar.style.transform = `translateY(-${window.innerHeight - vv.height - vv.offsetTop}px)`;
-      } else {
-        bar.style.transform = "";
-      }
-    }
-    const wrap = $("#chat-messages");
+    const bar = document.querySelector(".chat-input-bar");
+    if (!bar) return;
+    const kb = Math.max(0, window.innerHeight - vv.height);
+    if (kb > 60) bar.style.transform = `translateY(-${kb}px)`;
+    else bar.style.transform = "";
+    const wrap = document.getElementById("chat-messages");
     if (wrap) {
       if (isNearBottom(wrap)) wrap.scrollTop = wrap.scrollHeight;
     }
@@ -1275,7 +1275,7 @@ function wireKeyboardFix() {
 }
 
 // =====================================================================
-// Отправка / редактирование / удаление / пересылка
+// Отправка / редактирование / удаление
 // =====================================================================
 async function sendChatMessage(contactId, text, replyTo) {
   const c = state.contacts.get(contactId);
@@ -1365,9 +1365,6 @@ async function trySendOrQueue(contact, msgId, payloadObj) {
   await flushOutboxItem(msgId);
 }
 
-// =====================================================================
-// Outbox
-// =====================================================================
 function addToOutbox(msgId, to, payload) {
   if (outbox.has(msgId)) return;
   outbox.set(msgId, { msgId, to, payload, sentAt: Date.now(), attempts: 0, serverAcked: false });
@@ -1572,7 +1569,7 @@ function updateSignalingStatusUI(kind, text) {
 function renderSignalingBanner() {
   const banner = $("#signaling-banner"); if (!banner) return;
   if (!signaling || !signaling.connected) {
-    $("#signaling-banner-text").textContent = "Нет связи с сигнальным сервером — переподключаемся…";
+    const t = $("#signaling-banner-text"); if (t) t.textContent = "Нет связи с сигнальным сервером — переподключаемся…";
     banner.classList.remove("hidden");
   } else banner.classList.add("hidden");
 }
@@ -1803,9 +1800,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
       vibrate([80, 40, 80]);
     } else {
       toast(`${c.name}: ${truncate(payload.text, 40)}`);
-      if (!c.muted) {
-        showNotification(c.name || "Эфир", truncate(payload.text, 80), { tag: "ether-msg-" + c.id, contactId: c.id, kind: "message" });
-      }
+      if (!c.muted) showNotification(c.name || "Эфир", truncate(payload.text, 80), { tag: "ether-msg-" + c.id, contactId: c.id, kind: "message" });
       playMessageSound();
       vibrate([80, 40, 80]);
     }
@@ -1889,15 +1884,15 @@ function watchConnectionTimeout(id) {
 }
 
 // =====================================================================
-// Список онлайн (в разделе Контакты)
+// Онлайн
 // =====================================================================
 function renderOnlineRosterList() {
   const wrap = $("#online-roster-list"), empty = $("#online-roster-empty");
   if (!wrap) return;
   wrap.innerHTML = "";
   const rows = Array.from(onlineRoster.entries()).filter(([id, u]) => id !== Store.myId && u.visible !== false && !state.contacts.has(id));
-  if (rows.length === 0) { empty.classList.remove("hidden"); return; }
-  empty.classList.add("hidden");
+  if (rows.length === 0) { if (empty) empty.classList.remove("hidden"); return; }
+  if (empty) empty.classList.add("hidden");
   for (const [id, u] of rows) {
     const row = document.createElement("div");
     row.className = "roster-row";
@@ -1963,12 +1958,13 @@ function wireConnectScreen() {
   const createBtn = $("#create-invite-btn");
   if (createBtn) createBtn.addEventListener("click", createInvite);
   const copyCode = $("#copy-code-btn");
-  if (copyCode) copyCode.addEventListener("click", () => copyText($("#invite-code-out").textContent, "Код скопирован"));
+  if (copyCode) copyCode.addEventListener("click", () => { const el = $("#invite-code-out"); if (el) copyText(el.textContent, "Код скопирован"); });
   const copyLink = $("#copy-link-btn");
-  if (copyLink) copyLink.addEventListener("click", () => copyText($("#invite-link-out").textContent, "Ссылка скопирована"));
+  if (copyLink) copyLink.addEventListener("click", () => { const el = $("#invite-link-out"); if (el) copyText(el.textContent, "Ссылка скопирована"); });
   const share = $("#share-link-btn");
   if (share) share.addEventListener("click", async () => {
-    const url = $("#invite-link-out").textContent;
+    const el = $("#invite-link-out"); if (!el) return;
+    const url = el.textContent;
     if (navigator.share) { try { await navigator.share({ title: "Приглашение в Эфир", url }); } catch (e) {} }
     else copyText(url, "Ссылка скопирована");
   });
@@ -1994,16 +1990,16 @@ function wireConnectScreen() {
   const newInvite = $("#new-invite-again");
   if (newInvite) newInvite.addEventListener("click", resetConnectScreen);
   const answerCopy = $("#answer-copy-btn");
-  if (answerCopy) answerCopy.addEventListener("click", () => copyText($("#answer-out-code").textContent, "Код скопирован"));
+  if (answerCopy) answerCopy.addEventListener("click", () => { const el = $("#answer-out-code"); if (el) copyText(el.textContent, "Код скопирован"); });
 }
 
 function resetConnectScreen() {
   state.pendingOutgoing = null;
-  $("#invite-idle").classList.remove("hidden");
-  $("#invite-active").classList.add("hidden");
-  $("#answer-code-in").value = "";
-  $("#paste-code-in").value = "";
-  $("#incoming-banner").classList.add("hidden");
+  const ii = $("#invite-idle"); if (ii) ii.classList.remove("hidden");
+  const ia = $("#invite-active"); if (ia) ia.classList.add("hidden");
+  const ac = $("#answer-code-in"); if (ac) ac.value = "";
+  const pc = $("#paste-code-in"); if (pc) pc.value = "";
+  const ib = $("#incoming-banner"); if (ib) ib.classList.add("hidden");
 }
 
 async function createInvite() {
@@ -2014,10 +2010,10 @@ async function createInvite() {
   const shareLink = SignalingCodec.buildShareLink(code);
   state.pendingOutgoing = { id, code, shareLink };
   state.contacts.set(id, { id, name: "Приглашение…", raw: "", managed: false, online: false, status: "awaiting-answer", messages: [], lastActivity: Date.now(), archived: false, muted: false, blocked: false });
-  $("#invite-idle").classList.add("hidden");
-  $("#invite-active").classList.remove("hidden");
-  $("#invite-code-out").textContent = code;
-  $("#invite-link-out").textContent = shareLink;
+  const ii = $("#invite-idle"); if (ii) ii.classList.add("hidden");
+  const ia = $("#invite-active"); if (ia) ia.classList.remove("hidden");
+  const co = $("#invite-code-out"); if (co) co.textContent = code;
+  const lo = $("#invite-link-out"); if (lo) lo.textContent = shareLink;
 }
 
 async function handleIncomingCode(code) {
@@ -2031,13 +2027,13 @@ async function handleIncomingCode(code) {
     const answerCode = await SignalingCodec.encode(answerPacket);
     state.contacts.set(id, { id, name: packet.n || "Собеседник", raw: "", managed: false, online: false, status: "connecting", messages: [], lastActivity: Date.now(), archived: false, muted: false, blocked: false });
     state.tab = "connect"; renderTab();
-    $("#manual-section").classList.remove("hidden");
-    $("#toggle-manual-btn").textContent = "Скрыть ручное подключение ‹";
-    $("#incoming-banner").classList.remove("hidden");
-    $("#incoming-banner-text").textContent = `Приглашение от «${packet.n || "без имени"}» принято`;
-    $("#answer-out-code").textContent = answerCode;
-    $("#answer-out-wrap").classList.remove("hidden");
-    $("#paste-code-wrap").classList.add("hidden");
+    const ms = $("#manual-section"); if (ms) ms.classList.remove("hidden");
+    const tm = $("#toggle-manual-btn"); if (tm) tm.textContent = "Скрыть ручное подключение ‹";
+    const ib = $("#incoming-banner"); if (ib) ib.classList.remove("hidden");
+    const ibt = $("#incoming-banner-text"); if (ibt) ibt.textContent = `Приглашение от «${packet.n || "без имени"}» принято`;
+    const aoc = $("#answer-out-code"); if (aoc) aoc.textContent = answerCode;
+    const aow = $("#answer-out-wrap"); if (aow) aow.classList.remove("hidden");
+    const pcw = $("#paste-code-wrap"); if (pcw) pcw.classList.add("hidden");
   } else toast("Это приглашение, а не код ответа");
 }
 
@@ -2059,7 +2055,7 @@ function wireSheetBackdrops() {
     el.addEventListener("click", () => { const s = el.closest(".sheet"); if (s) s.classList.add("hidden"); });
   });
   $$(".sheet-cancel").forEach((btn) => {
-    btn.addEventListener("click", () => { const id = btn.dataset.closeSheet; if (id) $("#" + id).classList.add("hidden"); });
+    btn.addEventListener("click", () => { const id = btn.dataset.closeSheet; if (id) { const el = $("#" + id); if (el) el.classList.add("hidden"); } });
   });
 }
 
@@ -2069,19 +2065,22 @@ function openMessageSheet(msgId, contactId) {
   const m = c.messages.find((x) => x.id === msgId); if (!m) return;
 
   const bar = $("#reaction-bar");
-  bar.innerHTML = "";
-  for (const emoji of REACTION_EMOJIS) {
-    const b = document.createElement("button");
-    b.type = "button"; b.className = "reaction-emoji"; b.textContent = emoji;
-    b.addEventListener("click", () => {
-      $("#message-sheet").classList.add("hidden");
-      toggleReaction(contactId, msgId, emoji);
-    });
-    bar.appendChild(b);
+  if (bar) {
+    bar.innerHTML = "";
+    for (const emoji of REACTION_EMOJIS) {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "reaction-emoji"; b.textContent = emoji;
+      b.addEventListener("click", () => {
+        const ms = $("#message-sheet"); if (ms) ms.classList.add("hidden");
+        toggleReaction(contactId, msgId, emoji);
+      });
+      bar.appendChild(b);
+    }
   }
 
   const isOwn = m.from === "me";
   const body = $("#message-sheet-body");
+  if (!body) return;
   const actions = [];
 
   actions.push(`<button type="button" class="sheet-action" data-action="reply"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/></svg>Ответить</button>`);
@@ -2099,11 +2098,11 @@ function openMessageSheet(msgId, contactId) {
   body.querySelectorAll(".sheet-action").forEach((btn) => {
     btn.addEventListener("click", () => {
       const action = btn.dataset.action;
-      $("#message-sheet").classList.add("hidden");
+      const ms = $("#message-sheet"); if (ms) ms.classList.add("hidden");
       handleMessageAction(action, msgId, contactId);
     });
   });
-  $("#message-sheet").classList.remove("hidden");
+  const ms = $("#message-sheet"); if (ms) ms.classList.remove("hidden");
 }
 
 async function handleMessageAction(action, msgId, contactId) {
@@ -2149,29 +2148,31 @@ function showReplyBanner() {
 function cancelReply() { state.replyTo = null; const b = $("#reply-banner"); if (b) b.classList.add("hidden"); }
 
 function openForwardSheet(msgId, fromContactId) {
-  const list = $("#forward-list"); list.innerHTML = "";
+  const list = $("#forward-list"); if (!list) return;
+  list.innerHTML = "";
   const contacts = Array.from(state.contacts.values()).filter((c) => c.managed);
   if (contacts.length === 0) list.innerHTML = `<p class="muted">Нет других контактов</p>`;
   for (const c of contacts) {
     const btn = document.createElement("button");
     btn.type = "button"; btn.className = "forward-row";
     btn.innerHTML = `<div class="avatar avatar-sm" style="background:${avatarGradient(c.name)}">${escapeHtml(initials(c.name))}</div><span class="forward-name">${escapeHtml(c.name || "Без имени")}</span>`;
-    btn.addEventListener("click", async () => { $("#forward-sheet").classList.add("hidden"); await forwardMessage(msgId, fromContactId, c.id); });
+    btn.addEventListener("click", async () => { const fs = $("#forward-sheet"); if (fs) fs.classList.add("hidden"); await forwardMessage(msgId, fromContactId, c.id); });
     list.appendChild(btn);
   }
-  $("#forward-sheet").classList.remove("hidden");
+  const fs = $("#forward-sheet"); if (fs) fs.classList.remove("hidden");
 }
 
 function wireRenameSheet() {
   const btn = $("#rename-save-btn"); if (!btn) return;
   btn.addEventListener("click", () => {
     const id = state.activeContactContext;
-    const v = $("#rename-input").value.trim();
+    const ri = $("#rename-input"); if (!ri) return;
+    const v = ri.value.trim();
     if (!id || !v) return;
     const c = state.contacts.get(id); if (!c) return;
     c.name = v.slice(0, 40);
     persistContacts();
-    $("#rename-sheet").classList.add("hidden");
+    const rs = $("#rename-sheet"); if (rs) rs.classList.add("hidden");
     if (state.chatId === id) renderChatThread();
     if (state.contactCardId === id) renderContactCard();
     renderChatsList();
@@ -2274,8 +2275,8 @@ function renderCallsList() {
   const list = $("#calls-list"), empty = $("#calls-empty");
   if (!list) return;
   list.innerHTML = "";
-  if (state.callLog.length === 0) { empty.classList.remove("hidden"); return; }
-  empty.classList.add("hidden");
+  if (state.callLog.length === 0) { if (empty) empty.classList.remove("hidden"); return; }
+  if (empty) empty.classList.add("hidden");
   const items = state.callLog.slice().sort((a, b) => b.startedAt - a.startedAt);
   for (const rec of items) {
     const c = state.contacts.get(rec.contactId);
@@ -2340,14 +2341,13 @@ function openCallScreen(id, phase) {
   state.callId = id;
   state.callPhase = phase;
   const c = state.contacts.get(id); if (!c) return;
-  $("#call-screen").classList.remove("hidden");
-  $("#call-peer-name").textContent = c.name || "Без имени";
-  $("#call-peer-avatar").style.background = avatarGradient(c.name);
-  $("#call-peer-avatar").textContent = initials(c.name);
-  $("#call-phase").textContent = phase === "calling" ? "Вызов…" : phase === "ringing" ? "Входящий вызов" : "На связи";
+  const cs = $("#call-screen"); if (cs) cs.classList.remove("hidden");
+  const pn = $("#call-peer-name"); if (pn) pn.textContent = c.name || "Без имени";
+  const pa = $("#call-peer-avatar"); if (pa) { pa.style.background = avatarGradient(c.name); pa.textContent = initials(c.name); }
+  const cp = $("#call-phase"); if (cp) cp.textContent = phase === "calling" ? "Вызов…" : phase === "ringing" ? "Входящий вызов" : "На связи";
   const incoming = phase === "ringing";
-  $("#call-controls-incoming").classList.toggle("hidden", !incoming);
-  $("#call-controls-active").classList.toggle("hidden", incoming);
+  const ci = $("#call-controls-incoming"); if (ci) ci.classList.toggle("hidden", !incoming);
+  const ca = $("#call-controls-active"); if (ca) ca.classList.toggle("hidden", incoming);
   clearInterval(callTimerInterval);
   if (phase === "active") startCallTimer();
   if (!state.currentCallRecord) {
@@ -2357,8 +2357,8 @@ function openCallScreen(id, phase) {
 }
 function setCallPhaseActive() {
   state.callPhase = "active";
-  $("#call-controls-incoming").classList.add("hidden");
-  $("#call-controls-active").classList.remove("hidden");
+  const ci = $("#call-controls-incoming"); if (ci) ci.classList.add("hidden");
+  const ca = $("#call-controls-active"); if (ca) ca.classList.remove("hidden");
   startCallTimer();
   updateCallRecordStatus("active");
   if (state.callId && pendingRemoteStreams.has(state.callId)) {
@@ -2384,7 +2384,7 @@ function startCallTimer() {
     const secs = Math.floor((Date.now() - started) / 1000);
     const mm = String(Math.floor(secs / 60)).padStart(2, "0");
     const ss = String(secs % 60).padStart(2, "0");
-    $("#call-phase").textContent = `${mm}:${ss}`;
+    const cp = $("#call-phase"); if (cp) cp.textContent = `${mm}:${ss}`;
   }, 1000);
 }
 function closeCallScreen(reason) {
@@ -2392,8 +2392,8 @@ function closeCallScreen(reason) {
   clearPendingCall();
   stopRingtone();
   endCallRecord(reason);
-  $("#call-screen").classList.add("hidden");
-  $("#call-mute-btn").classList.remove("active");
+  const cs = $("#call-screen"); if (cs) cs.classList.add("hidden");
+  const cm = $("#call-mute-btn"); if (cm) cm.classList.remove("active");
   if (state.callId) pendingRemoteStreams.delete(state.callId);
   state.callId = null;
   state.callPhase = null;
@@ -2463,9 +2463,9 @@ function wireSearchHandlers() {
   if (ta) ta.addEventListener("click", () => { state.showArchived = !state.showArchived; renderChatsList(); });
   const csb = $("#chat-search-btn");
   if (csb) csb.addEventListener("click", () => {
-    const bar = $("#chat-search-bar");
+    const bar = $("#chat-search-bar"); if (!bar) return;
     bar.classList.toggle("hidden");
-    if (!bar.classList.contains("hidden")) setTimeout(() => $("#chat-search-input").focus(), 50);
+    if (!bar.classList.contains("hidden")) setTimeout(() => { const i = $("#chat-search-input"); if (i) i.focus(); }, 50);
     else closeChatSearch();
   });
   const csc = $("#chat-search-close");
@@ -2486,10 +2486,10 @@ function closeChatSearch() {
 function updateSearchCounter() {
   const c = state.contacts.get(state.chatId); if (!c) return;
   const q = state.chatSearchQuery.toLowerCase();
-  if (!q) { const el = $("#chat-search-counter"); if (el) el.textContent = ""; return; }
+  const el = $("#chat-search-counter"); if (!el) return;
+  if (!q) { el.textContent = ""; return; }
   const n = c.messages.filter((m) => (m.text || "").toLowerCase().includes(q)).length;
-  const el = $("#chat-search-counter");
-  if (el) el.textContent = n > 0 ? `${n} найдено` : "нет совпадений";
+  el.textContent = n > 0 ? `${n} найдено` : "нет совпадений";
 }
 
 // =====================================================================
@@ -2514,7 +2514,8 @@ function wireSettingsScreen() {
   });
   const save = $("#save-signaling-btn");
   if (save) save.addEventListener("click", () => {
-    Store.signalingUrl = $("#settings-signaling-url").value.trim();
+    const el = $("#settings-signaling-url");
+    if (el) Store.signalingUrl = el.value.trim();
     initSignaling(); toast("Сохранено");
   });
   const disc = $("#settings-discoverable");
@@ -2529,35 +2530,29 @@ function wireSettingsScreen() {
   });
   const pinlock = $("#settings-pinlock");
   if (pinlock) pinlock.addEventListener("change", (e) => {
-    if (e.target.checked) {
-      $("#set-pin-title").textContent = Store.pinHash ? "Введите текущий пин-код" : "Новый пин-код (4-8 цифр)";
-      $("#set-pin-input").value = "";
-      $("#set-pin-sheet").classList.remove("hidden");
-      setTimeout(() => $("#set-pin-input").focus(), 50);
-    } else {
-      $("#set-pin-title").textContent = "Введите текущий пин-код";
-      $("#set-pin-input").value = "";
-      $("#set-pin-sheet").classList.remove("hidden");
-      setTimeout(() => $("#set-pin-input").focus(), 50);
-    }
+    const st = $("#set-pin-title"); if (st) st.textContent = Store.pinHash ? "Введите текущий пин-код" : "Новый пин-код (4-8 цифр)";
+    const si = $("#set-pin-input"); if (si) si.value = "";
+    const ss = $("#set-pin-sheet"); if (ss) ss.classList.remove("hidden");
+    setTimeout(() => { const i = $("#set-pin-input"); if (i) i.focus(); }, 50);
   });
   const pinSave = $("#set-pin-save-btn");
   if (pinSave) pinSave.addEventListener("click", async () => {
-    const v = $("#set-pin-input").value.trim();
+    const inp = $("#set-pin-input"); if (!inp) return;
+    const v = inp.value.trim();
     if (!v || v.length < 4) { toast("Минимум 4 цифры"); return; }
     if (!/^\d+$/.test(v)) { toast("Только цифры"); return; }
     if ($("#settings-pinlock").checked) {
       if (Store.pinHash) {
         const h = await pbkdf2Hex(v, Store.pinSalt, PIN_ITERATIONS);
         if (h !== Store.pinHash) { toast("Неверный пин-код"); return; }
-        $("#set-pin-title").textContent = "Новый пин-код";
-        $("#set-pin-input").value = "";
+        const st = $("#set-pin-title"); if (st) st.textContent = "Новый пин-код";
+        inp.value = "";
         return;
       }
       Store.pinSalt = randomSaltHex(16);
       Store.pinHash = await pbkdf2Hex(v, Store.pinSalt, PIN_ITERATIONS);
       Store.pinEnabled = true;
-      $("#set-pin-sheet").classList.add("hidden");
+      const ss = $("#set-pin-sheet"); if (ss) ss.classList.add("hidden");
       toast("Пин-код включён");
     } else {
       const h = await pbkdf2Hex(v, Store.pinSalt, PIN_ITERATIONS);
@@ -2565,8 +2560,8 @@ function wireSettingsScreen() {
       Store.pinEnabled = false;
       Store.pinHash = "";
       Store.pinSalt = "";
-      $("#settings-pinlock").checked = false;
-      $("#set-pin-sheet").classList.add("hidden");
+      const pl = $("#settings-pinlock"); if (pl) pl.checked = false;
+      const ss = $("#set-pin-sheet"); if (ss) ss.classList.add("hidden");
       toast("Пин-код отключён");
     }
   });
@@ -2582,7 +2577,7 @@ function wireSettingsScreen() {
 }
 
 // =====================================================================
-// Вкладка Отладка
+// Отладка
 // =====================================================================
 function applyDebugTabVisibility() {
   const hidden = Store.debugHidden;
@@ -2611,21 +2606,18 @@ function wireNavTitleTaps() {
 
 function wireDebugScreen() {
   const diag = $("#diagnostics-btn");
-  if (diag) diag.addEventListener("click", () => { renderDiagnostics(); $("#diagnostics-sheet").classList.remove("hidden"); });
+  if (diag) diag.addEventListener("click", () => { renderDiagnostics(); const el = $("#diagnostics-sheet"); if (el) el.classList.remove("hidden"); });
   const diagClose = $("#diagnostics-close");
-  if (diagClose) diagClose.addEventListener("click", () => $("#diagnostics-sheet").classList.add("hidden"));
+  if (diagClose) diagClose.addEventListener("click", () => { const el = $("#diagnostics-sheet"); if (el) el.classList.add("hidden"); });
   const diagR = $("#diagnostics-refresh-btn");
   if (diagR) diagR.addEventListener("click", renderDiagnostics);
   const diagC = $("#diagnostics-copy-btn");
   if (diagC) diagC.addEventListener("click", () => copyText(buildDiagnosticsText(), "Диагностика скопирована"));
 
   const logsBtn = $("#debug-logs-btn");
-  if (logsBtn) logsBtn.addEventListener("click", () => {
-    renderLogsSheet();
-    $("#logs-sheet").classList.remove("hidden");
-  });
+  if (logsBtn) logsBtn.addEventListener("click", () => { renderLogsSheet(); const el = $("#logs-sheet"); if (el) el.classList.remove("hidden"); });
   const logsClose = $("#logs-close");
-  if (logsClose) logsClose.addEventListener("click", () => $("#logs-sheet").classList.add("hidden"));
+  if (logsClose) logsClose.addEventListener("click", () => { const el = $("#logs-sheet"); if (el) el.classList.add("hidden"); });
   const logsCopy = $("#logs-copy-btn");
   if (logsCopy) logsCopy.addEventListener("click", () => copyText(buildLogsText(), "Журнал скопирован"));
   const logsClear = $("#logs-clear-btn");
@@ -2636,17 +2628,14 @@ function wireDebugScreen() {
   });
 
   const storageBtn = $("#debug-storage-btn");
-  if (storageBtn) storageBtn.addEventListener("click", () => {
-    renderStorageSheet();
-    $("#storage-sheet").classList.remove("hidden");
-  });
+  if (storageBtn) storageBtn.addEventListener("click", () => { renderStorageSheet(); const el = $("#storage-sheet"); if (el) el.classList.remove("hidden"); });
   const storageClose = $("#storage-close");
-  if (storageClose) storageClose.addEventListener("click", () => $("#storage-sheet").classList.add("hidden"));
+  if (storageClose) storageClose.addEventListener("click", () => { const el = $("#storage-sheet"); if (el) el.classList.add("hidden"); });
 
   const expBackup = $("#export-backup-btn");
   if (expBackup) expBackup.addEventListener("click", exportBackup);
   const impBackup = $("#import-backup-btn");
-  if (impBackup) impBackup.addEventListener("click", () => $("#import-backup-input").click());
+  if (impBackup) impBackup.addEventListener("click", () => { const el = $("#import-backup-input"); if (el) el.click(); });
   const impInput = $("#import-backup-input");
   if (impInput) impInput.addEventListener("change", importBackup);
 
@@ -2718,9 +2707,6 @@ function renderStorageSheet() {
   el.innerHTML = html;
 }
 
-// =====================================================================
-// Диагностика
-// =====================================================================
 function buildDiagnosticsText() {
   const lines = [];
   lines.push("=== Эфир — диагностика ===");
@@ -2781,7 +2767,7 @@ function renderDiagnostics() {
 }
 
 // =====================================================================
-// Экспорт/импорт бэкапа
+// Экспорт/импорт
 // =====================================================================
 function exportBackup() {
   const data = {};
@@ -2813,7 +2799,7 @@ async function importBackup(ev) {
 }
 
 // =====================================================================
-// События mesh
+// Mesh события
 // =====================================================================
 function wireMeshEvents() {
   mesh.addEventListener("link-status", (ev) => {
@@ -2877,73 +2863,17 @@ function wireMeshEvents() {
 }
 
 // =====================================================================
-// Boot-recovery
+// wireChatScreen — форма отправки и обработчики инпута
 // =====================================================================
-function showBootRecovery() {
-  document.getElementById("onboarding").classList.add("hidden");
-  document.getElementById("app-shell").classList.add("hidden");
-  document.getElementById("lock-screen").classList.add("hidden");
-  document.getElementById("boot-recovery").classList.remove("hidden");
-}
-function bootDidNotRender() {
-  const onH = document.getElementById("onboarding").classList.contains("hidden");
-  const apH = document.getElementById("app-shell").classList.contains("hidden");
-  const lkH = document.getElementById("lock-screen").classList.contains("hidden");
-  const rcH = document.getElementById("boot-recovery").classList.contains("hidden");
-  return onH && apH && lkH && rcH;
-}
-const bootWatchdog = setTimeout(() => { if (bootDidNotRender()) showBootRecovery(); }, 10000);
-window.addEventListener("error", () => { if (bootDidNotRender()) { clearTimeout(bootWatchdog); showBootRecovery(); } });
-window.addEventListener("unhandledrejection", () => { if (bootDidNotRender()) { clearTimeout(bootWatchdog); showBootRecovery(); } });
+function wireChatScreen() {
+  if (__chatWired) return;
+  __chatWired = true;
 
-document.addEventListener("DOMContentLoaded", async () => {
-  try {
-    await restoreFromIDB().catch(() => {});
-    initBoot();
-    clearTimeout(bootWatchdog);
-  } catch (e) { console.error("[boot]", e); showBootRecovery(); }
-});
-
-document.getElementById("boot-recovery-reset")?.addEventListener("click", () => {
-  localStorage.clear();
-  if ("caches" in window) caches.keys().then((names) => names.forEach((n) => caches.delete(n)));
-  if ("indexedDB" in window) try { indexedDB.deleteDatabase("ether-db"); } catch (e) {}
-  location.reload();
-});
-
-window.addEventListener("beforeunload", () => {
-  try { saveCurrentDraft(); } catch (e) {}
-  try { backupToIDB(); } catch (e) {}
-});
-
-// Обновляем бейдж при возврате фокуса
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") {
-    updateAppBadge();
-    if (state.chatId) markThreadRead(state.contacts.get(state.chatId));
-  }
-});
-
-// Кнопка «вниз»
-document.addEventListener("DOMContentLoaded", () => {
-  const btn = document.getElementById("scroll-bottom-btn");
-  if (!btn) return;
-  btn.addEventListener("click", () => {
-    const wrap = document.getElementById("chat-messages");
-    if (wrap) wrap.scrollTo({ top: wrap.scrollHeight, behavior: "smooth" });
-  });
-  const wrap = document.getElementById("chat-messages");
-  if (wrap) {
-    wrap.addEventListener("scroll", () => { updateScrollBottomButton(); });
-  }
-});
-
-// Обработчики формы чата (привязываются один раз)
-document.addEventListener("DOMContentLoaded", () => {
-  const form = document.getElementById("chat-form");
+  const form = $("#chat-form");
   if (form) form.addEventListener("submit", (e) => {
     e.preventDefault();
-    const input = document.getElementById("chat-input");
+    const input = $("#chat-input");
+    if (!input) return;
     const text = input.value.trim();
     if (!text || !state.chatId) return;
     if (state.editingMessageId) { commitEdit(state.chatId, state.editingMessageId, text); cancelEditing(); }
@@ -2954,7 +2884,7 @@ document.addEventListener("DOMContentLoaded", () => {
     sendTypingStop(state.chatId);
   });
 
-  const input = document.getElementById("chat-input");
+  const input = $("#chat-input");
   if (input) {
     let typingSendTimer = null;
     input.addEventListener("input", () => {
@@ -2969,31 +2899,96 @@ document.addEventListener("DOMContentLoaded", () => {
     input.addEventListener("blur", () => { if (state.chatId) sendTypingStop(state.chatId); });
   }
 
-  const callBtn = document.getElementById("chat-call-btn");
+  const callBtn = $("#chat-call-btn");
   if (callBtn) callBtn.addEventListener("click", () => beginCall(state.chatId));
 
-  const moreBtn = document.getElementById("chat-more-btn");
+  const moreBtn = $("#chat-more-btn");
   if (moreBtn) moreBtn.addEventListener("click", () => {
     const id = state.chatId;
     if (!id) return;
     openContactCard(id);
   });
 
-  const peerTap = document.getElementById("chat-peer-tap");
+  const peerTap = $("#chat-peer-tap");
   if (peerTap) peerTap.addEventListener("click", () => {
     const id = state.chatId;
     if (!id) return;
     openContactCard(id);
   });
 
-  const editCancel = document.getElementById("edit-cancel-btn");
+  const editCancel = $("#edit-cancel-btn");
   if (editCancel) editCancel.addEventListener("click", () => {
     const id = state.chatId;
     cancelEditing();
-    const inp = document.getElementById("chat-input");
+    const inp = $("#chat-input");
+    if (!inp) return;
     if (id && state.drafts[id]) inp.value = state.drafts[id]; else inp.value = "";
   });
 
-  const replyCancel = document.getElementById("reply-cancel-btn");
+  const replyCancel = $("#reply-cancel-btn");
   if (replyCancel) replyCancel.addEventListener("click", () => cancelReply());
+
+  const scrollBtn = $("#scroll-bottom-btn");
+  if (scrollBtn) scrollBtn.addEventListener("click", () => {
+    const wrap = $("#chat-messages");
+    if (wrap) wrap.scrollTo({ top: wrap.scrollHeight, behavior: "smooth" });
+  });
+  const wrap = $("#chat-messages");
+  if (wrap) wrap.addEventListener("scroll", () => updateScrollBottomButton());
+}
+
+// =====================================================================
+// Boot-recovery
+// =====================================================================
+function showBootRecovery() {
+  const o = document.getElementById("onboarding"); if (o) o.classList.add("hidden");
+  const a = document.getElementById("app-shell"); if (a) a.classList.add("hidden");
+  const l = document.getElementById("lock-screen"); if (l) l.classList.add("hidden");
+  const r = document.getElementById("boot-recovery"); if (r) r.classList.remove("hidden");
+}
+function bootDidNotRender() {
+  const on = document.getElementById("onboarding");
+  const ap = document.getElementById("app-shell");
+  const lk = document.getElementById("lock-screen");
+  const rc = document.getElementById("boot-recovery");
+  if (!on || !ap || !lk || !rc) return false;
+  const onH = on.classList.contains("hidden");
+  const apH = ap.classList.contains("hidden");
+  const lkH = lk.classList.contains("hidden");
+  const rcH = rc.classList.contains("hidden");
+  return onH && apH && lkH && rcH;
+}
+const bootWatchdog = setTimeout(() => { if (bootDidNotRender()) showBootRecovery(); }, 10000);
+window.addEventListener("error", () => { if (bootDidNotRender()) { clearTimeout(bootWatchdog); showBootRecovery(); } });
+window.addEventListener("unhandledrejection", () => { if (bootDidNotRender()) { clearTimeout(bootWatchdog); showBootRecovery(); } });
+
+document.addEventListener("DOMContentLoaded", async () => {
+  try {
+    await restoreFromIDB().catch(() => {});
+    initBoot();
+    clearTimeout(bootWatchdog);
+  } catch (e) { console.error("[boot]", e); showBootRecovery(); }
+});
+
+const brReset = document.getElementById("boot-recovery-reset");
+if (brReset) brReset.addEventListener("click", () => {
+  localStorage.clear();
+  if ("caches" in window) caches.keys().then((names) => names.forEach((n) => caches.delete(n)));
+  if ("indexedDB" in window) try { indexedDB.deleteDatabase("ether-db"); } catch (e) {}
+  location.reload();
+});
+
+window.addEventListener("beforeunload", () => {
+  try { saveCurrentDraft(); } catch (e) {}
+  try { backupToIDB(); } catch (e) {}
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    try { updateAppBadge(); } catch (e) {}
+    if (state.chatId) {
+      const c = state.contacts.get(state.chatId);
+      if (c) markThreadRead(c);
+    }
+  }
 });
