@@ -171,9 +171,6 @@ class PeerLink extends EventTarget {
       }
     });
 
-    // addTrack() без stream на удалённой стороне даёт track-событие с
-    // пустым ev.streams. Всегда диспатчим remote-track, при
-    // необходимости собирая MediaStream из одного трека руками.
     this.pc.addEventListener("track", (ev) => {
       let stream = (ev.streams && ev.streams[0]) || null;
       if (!stream && ev.track) stream = new MediaStream([ev.track]);
@@ -344,30 +341,42 @@ class PeerLink extends EventTarget {
     }
   }
 
+  async _ensureLocalAudio() {
+    if (this.localAudioTrack) {
+      if (!this.localStream) this.localStream = new MediaStream([this.localAudioTrack]);
+      return;
+    }
+    // getUserMedia должен вызываться в контексте user gesture (особенно
+    // на iOS). Никаких await перед этим вызовом.
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    this.localAudioTrack = stream.getAudioTracks()[0];
+    this.localStream = stream;
+  }
+
   async startCall() {
     if (this._closed) throw new Error("link closed");
-    if (!this.localAudioTrack) {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      this.localAudioTrack = stream.getAudioTracks()[0];
-      this.localStream = stream;
-    } else if (!this.localStream) {
-      this.localStream = new MediaStream([this.localAudioTrack]);
+    await this._ensureLocalAudio();
+    // Если addTrack падает (бывает при кривом SDP) — не глотаем, но
+    // оставляем status прежним, чтобы app.js не принял «connected».
+    try {
+      this.pc.addTrack(this.localAudioTrack, this.localStream);
+    } catch (e) {
+      this._log("error", "[webrtc] startCall addTrack failed:", String(e));
+      throw e;
     }
-    this.pc.addTrack(this.localAudioTrack, this.localStream);
     this._setStatus("in-call");
     this.send({ kind: "call-state", state: "ringing" });
   }
 
   async answerCall() {
     if (this._closed) throw new Error("link closed");
-    if (!this.localAudioTrack) {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      this.localAudioTrack = stream.getAudioTracks()[0];
-      this.localStream = stream;
-    } else if (!this.localStream) {
-      this.localStream = new MediaStream([this.localAudioTrack]);
+    await this._ensureLocalAudio();
+    try {
+      this.pc.addTrack(this.localAudioTrack, this.localStream);
+    } catch (e) {
+      this._log("error", "[webrtc] answerCall addTrack failed:", String(e));
+      throw e;
     }
-    this.pc.addTrack(this.localAudioTrack, this.localStream);
     this._setStatus("in-call");
     this.send({ kind: "call-state", state: "accepted" });
   }

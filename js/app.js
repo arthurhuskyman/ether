@@ -22,6 +22,11 @@ const DEBUG_KEY = "ether.debugHidden";
 const CONNECT_STUCK_MS = 30000;
 const WATCH_CONNECT_TIMEOUT_MS = 20000;
 const ACK_DEDUP_WINDOW_MS = 5000;
+// Если активный звонок остаётся без живого P2P дольше этого времени —
+// закрываем принудительно, чтобы UI не висел вечно.
+const CALL_DEAD_LINK_TIMEOUT_MS = 30000;
+// Сколько ждём «принятия» входящего, прежде чем пометить его пропущенным.
+const INCOMING_CALL_TIMEOUT_MS = 40000;
 
 function effectiveSignalingUrl() {
   return (Store.signalingUrl || DEFAULT_SIGNALING_URL).trim();
@@ -206,7 +211,9 @@ const state = {
   typingTimers: new Map(),
   typingSendingState: new Map(),
   unlockAttempts: 0,
-  _callRecoveryTimer: null,
+  // Служебное для звонков.
+  _callAcceptInFlight: false,
+  _callDeadSeconds: 0,
 };
 
 let mesh = null;
@@ -222,6 +229,7 @@ let __chatSearchScrollTimer = null;
 const onlineSet = new Set();
 const onlineRoster = new Map();
 const autoConnectTimers = new Map();
+// Дедупликация сигнальных пакетов по паре from + packet.x.
 const recentSignalNonces = new Set();
 const outbox = new Map();
 const pendingNoKey = new Map();
@@ -353,6 +361,22 @@ function isStandalone() {
 }
 function isIOS() { return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream; }
 
+// Дедупликация сигнальных пакетов по необязательному полю packet.x.
+// Если у пакета нет x — считаем, что дедуп не нужен, и возвращаем false.
+function isDuplicateSignal(from, packet) {
+  if (!packet || typeof packet !== "object") return false;
+  const tag = packet.x;
+  if (!tag) return false;
+  const key = String(from) + ":" + String(tag);
+  if (recentSignalNonces.has(key)) return true;
+  recentSignalNonces.add(key);
+  if (recentSignalNonces.size > 200) {
+    const first = recentSignalNonces.values().next().value;
+    recentSignalNonces.delete(first);
+  }
+  return false;
+}
+
 // =====================================================================
 // Аудио-разогрев (iOS)
 // =====================================================================
@@ -373,7 +397,6 @@ function initAudioWarmup() {
           etherLog("info", "[audio] ctx resumed, state=" + ctx.state);
         }).catch(() => {});
       }
-      // Короткий beep — «прописка» аудио-разрешения в iOS.
       try {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
@@ -387,11 +410,9 @@ function initAudioWarmup() {
       etherLog("warn", "[audio] warmup failed:", String(e));
     }
   };
-  // Не снимаем обработчики — пусть буждит контекст при каждом тапе.
   document.addEventListener("touchstart", warm, { passive: true });
   document.addEventListener("click", warm);
   document.addEventListener("keydown", warm);
-  // Плюс сразу пробуем создать (в standalone PWA может уже быть разрешено).
   warm();
 }
 
@@ -449,7 +470,6 @@ function vibrate(pattern) {
 }
 function playRingtone() {
   stopRingtone();
-  // 1) Пробуем Web Audio (основной путь).
   try {
     const ctx = ensureAudioCtx();
     if (ctx) {
@@ -481,24 +501,19 @@ function playRingtone() {
     }
   } catch (e) { etherLog("error", "[ringtone] Web Audio failed:", String(e)); }
 
-  // 2) Резервный HTMLAudio — на iOS часто звучит даже когда Web Audio молчит.
   try {
     if (!ringtoneAudioEl) {
       ringtoneAudioEl = document.createElement("audio");
       ringtoneAudioEl.setAttribute("playsinline", "");
       ringtoneAudioEl.loop = true;
       ringtoneAudioEl.preload = "auto";
-      // Простой рингтон: два коротких бипа через data URI (WAV 8 kHz).
       ringtoneAudioEl.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
       document.body.appendChild(ringtoneAudioEl);
     }
-    // HTMLAudio-элемент с data URI практически пустой — Web Audio основной,
-    // но сам факт play() на iOS «прописывает» разрешение. Поэтому пробуем.
     const pp = ringtoneAudioEl.play();
     if (pp && pp.catch) pp.catch(() => {});
   } catch (e) {}
 
-  // 3) Вибрация, если поддерживается (Android; на iOS её нет).
   if (navigator.vibrate) {
     try { navigator.vibrate([400, 200, 400, 200, 400, 1000]); } catch (e) {}
   }
@@ -679,7 +694,8 @@ function startApp() {
   try { resumeUnsentMessages(); } catch (e) {}
   try { updateAppBadge(); } catch (e) {}
   try { maybeShowOnboardingHint(); } catch (e) {}
-  try { state.callId = null; state.callPhase = null; state._callRecoveryTimer = null; } catch (e) {}
+  // Никаких «зависших» звонков из прошлой сессии.
+  try { state.callId = null; state.callPhase = null; state._callAcceptInFlight = false; state._callDeadSeconds = 0; } catch (e) {}
 }
 
 function wireNetworkListeners() {
@@ -1599,14 +1615,19 @@ function initSignaling() {
   renderSignalingBanner();
 }
 function wireSignalingEvents(sig) {
-  const on = (type, fn) => { const wrapped = (ev) => fn(ev); sig.addEventListener(type, wrapped); return { type, wrapped }; };
+  const on = (type, fn) => {
+    const wrapped = (ev) => {
+      try { fn(ev); }
+      catch (e) { etherLog("error", "[signaling:" + type + "]", String(e && e.stack || e)); }
+    };
+    sig.addEventListener(type, wrapped);
+    return { type, wrapped };
+  };
   const subs = [];
 
   subs.push(on("connected", () => {
     updateSignalingStatusUI("online", "Подключено");
     renderSignalingBanner();
-    // Если линк был живой, но порвался из-за потери WS — пересоздаём
-    // принудительно, чтобы не ждать 25 сек таймаута.
     for (const [id, link] of mesh.links) {
       if (link.status === "disconnected" && link._closed !== true) {
         etherLog("info", "[reconnect] dropping dead link to " + String(id).slice(0, 10) + "…");
@@ -1813,8 +1834,6 @@ function wireSignalingEvents(sig) {
 
     applyIncomingPayload(from, msgId, payload, true, kind);
 
-    // Квитанцию "delivered" отправляем ТОЛЬКО на chat. Ни на ack-batch,
-    // ни на typing/edit/delete/reaction — иначе лавина.
     if (kind === "chat") {
       sendAckBatch(from, [msgId], "delivered");
     }
@@ -1877,14 +1896,12 @@ async function attemptConnect(id) {
   if (!signaling || !signaling.connected) return;
   if (!onlineSet.has(id)) return;
 
-  // КРИТИЧНО: offer создаёт ТОЛЬКО сторона с меньшим id.
   const iShouldOffer = Store.myId < id;
   if (!iShouldOffer) {
     etherLog("info", "[connect] " + tag, "not my turn — waiting for peer's offer");
     return;
   }
 
-  // Защита от гонки: пока в процессе первый PeerLink, второй не создаём.
   if (_connectInFlight.has(id)) {
     etherLog("info", "[connect] " + tag, "already in flight — skipping");
     return;
@@ -2311,9 +2328,6 @@ function renderCallsList() {
   for (const rec of items) {
     const c = state.contacts.get(rec.contactId);
     const name = (c && c.name) || rec.contactName || "Без имени";
-    // Успешный звонок — только "completed". Всё остальное (missed,
-    // cancelled, declined, failed, ringing — «не ответил») считается
-    // несостоявшимся и рисуется красным, независимо от направления.
     const isFailed = rec.status !== "completed";
     const dirIcon = isFailed ? "missed" : (rec.direction === "in" ? "in" : "out");
     const arrowSvg = rec.direction === "in"
@@ -2373,8 +2387,6 @@ function openCallScreen(id, phase) {
   state.callId = id;
   state.callPhase = phase;
   try { ensureAudioCtx(); } catch (e) {}
-  // Сброс состояния микрофона — иначе «Микрофон выкл» переедет со
-  // прошлого звонка.
   const muteBtn = $("#call-mute-btn");
   if (muteBtn) {
     muteBtn.classList.remove("active");
@@ -2391,6 +2403,25 @@ function openCallScreen(id, phase) {
   const ca = $("#call-controls-active"); if (ca) ca.classList.toggle("hidden", incoming);
   clearInterval(callTimerInterval);
   if (phase === "active") startCallTimer();
+
+  // Пока «звонит» — держим таймер «никто не ответил». Если через
+  // INCOMING_CALL_TIMEOUT_MS никто ничего не сделал — считаем пропущенным.
+  if (phase === "ringing") {
+    clearPendingCall();
+    pendingCall.contactId = id;
+    pendingCall.timer = setTimeout(() => {
+      if (state.callId !== id) return;
+      if (state.callPhase !== "ringing") return;
+      etherLog("info", "[call] ringing timeout — missed");
+      try { const l = mesh.get(id); if (l) l.endCall(); } catch (e) {}
+      if (signaling && signaling.connected) {
+        try { signaling.signal(id, { t: "call-ended" }); } catch (e) {}
+      }
+      toast("Пропущенный звонок");
+      closeCallScreen("missed");
+    }, INCOMING_CALL_TIMEOUT_MS);
+  }
+
   if (!state.currentCallRecord) {
     if (phase === "calling") startCallRecord(id, "out");
     else if (phase === "ringing") startCallRecord(id, "in");
@@ -2398,6 +2429,7 @@ function openCallScreen(id, phase) {
 }
 function setCallPhaseActive() {
   state.callPhase = "active";
+  clearPendingCall();
   const ci = $("#call-controls-incoming"); if (ci) ci.classList.add("hidden");
   const ca = $("#call-controls-active"); if (ca) ca.classList.remove("hidden");
   startCallTimer();
@@ -2436,15 +2468,31 @@ function attachRemoteAudio(id, stream) {
 function startCallTimer() {
   const started = Date.now();
   clearInterval(callTimerInterval);
+  state._callDeadSeconds = 0;
   callTimerInterval = setInterval(() => {
     const secs = Math.floor((Date.now() - started) / 1000);
     const mm = String(Math.floor(secs / 60)).padStart(2, "0");
     const ss = String(secs % 60).padStart(2, "0");
     const cp = $("#call-phase"); if (cp) cp.textContent = `${mm}:${ss}`;
+
+    // Health-check: если звонок активен, а P2P-линк мёртв дольше
+    // CALL_DEAD_LINK_TIMEOUT_MS — принудительно закрываем экран.
+    const cid = state.callId;
+    if (!cid) { state._callDeadSeconds = 0; return; }
+    const link = mesh.get(cid);
+    const alive = link && (link.status === "connected" || link.status === "in-call");
+    if (alive) { state._callDeadSeconds = 0; return; }
+    state._callDeadSeconds = (state._callDeadSeconds || 0) + 1;
+    if (state._callDeadSeconds * 1000 >= CALL_DEAD_LINK_TIMEOUT_MS) {
+      etherLog("warn", "[call] dead P2P for " + state._callDeadSeconds + "s — closing call UI");
+      closeCallScreen("completed");
+    }
   }, 1000);
 }
 function closeCallScreen(reason) {
   clearInterval(callTimerInterval); callTimerInterval = null;
+  state._callDeadSeconds = 0;
+  state._callAcceptInFlight = false;
   clearPendingCall();
   stopRingtone();
   endCallRecord(reason);
@@ -2454,7 +2502,6 @@ function closeCallScreen(reason) {
   if (state.callId) pendingRemoteStreams.delete(state.callId);
   state.callId = null;
   state.callPhase = null;
-  if (state._callRecoveryTimer) { clearTimeout(state._callRecoveryTimer); state._callRecoveryTimer = null; }
   if (state.tab === "calls") renderCallsList();
 }
 function wireCallScreen() {
@@ -2477,29 +2524,55 @@ function wireCallScreen() {
   });
   const accept = $("#call-accept-btn");
   if (accept) accept.addEventListener("click", async () => {
+    if (state._callAcceptInFlight) return;
+    state._callAcceptInFlight = true;
     const cid = state.callId;
-    stopRingtone();
-    if (signaling && signaling.connected && cid) signaling.signal(cid, { t: "call-accepted" });
-    const link = mesh.get(cid);
-    if (!link || !isReachable(state.contacts.get(cid))) {
+    try {
+      stopRingtone();
+      if (signaling && signaling.connected && cid) signaling.signal(cid, { t: "call-accepted" });
+      const c = state.contacts.get(cid);
+      if (!c) { closeCallScreen("failed"); return; }
+
+      // Если P2P уже установлен — принимаем напрямую.
+      const link = mesh.get(cid);
+      if (link && isReachable(c)) {
+        try {
+          await link.answerCall();
+          setCallPhaseActive();
+        } catch (e) {
+          // НЕ отклоняем звонок из-за локальной ошибки (например, нет
+          // разрешения на микрофон) — оставляем экран открытым, чтобы
+          // пользователь мог повторить.
+          etherLog("error", "[call] answerCall failed:", String(e));
+          toast("Не удалось включить микрофон. Разрешите доступ и попробуйте ещё раз.");
+        }
+        return;
+      }
+
+      // Иначе — ждём, пока P2P установится, и потом отвечаем.
       toast("Соединяемся — говорите, как только услышите");
+      clearPendingCall();
       pendingCall.contactId = cid;
       attemptConnect(cid);
-      const waitTimer = setTimeout(() => {
+      pendingCall.timer = setTimeout(() => {
         if (state.callId !== cid) return;
         const l2 = mesh.get(cid);
-        if (l2 && isReachable(state.contacts.get(cid))) l2.answerCall().then(setCallPhaseActive).catch(() => {});
-        else {
+        if (l2 && isReachable(state.contacts.get(cid))) {
+          l2.answerCall().then(setCallPhaseActive).catch((e) => {
+            etherLog("error", "[call] deferred answerCall failed:", String(e));
+          });
+        } else {
           toast("Не удалось установить связь");
           if (signaling && signaling.connected) signaling.signal(cid, { t: "call-ended" });
           closeCallScreen("failed");
         }
       }, PENDING_CALL_TIMEOUT_MS);
-      pendingCall.timer = waitTimer;
-      return;
+    } catch (e) {
+      etherLog("error", "[call] accept handler failed:", String(e));
+      toast("Ошибка при приёме звонка");
+    } finally {
+      state._callAcceptInFlight = false;
     }
-    try { await link.answerCall(); setCallPhaseActive(); }
-    catch (e) { toast("Нет доступа к микрофону"); link.declineCall(); closeCallScreen("failed"); }
   });
   const decline = $("#call-decline-btn");
   if (decline) decline.addEventListener("click", () => {
@@ -2900,81 +2973,80 @@ async function importBackup(ev) {
 // =====================================================================
 function wireMeshEvents() {
   mesh.addEventListener("link-status", (ev) => {
-    const { id, status } = ev.detail;
-    const c = state.contacts.get(id); if (!c) return;
-    const wasConnected = c.status === "connected" || c.status === "in-call";
-    c.status = status;
-    etherLog("info", "[link] " + String(id).slice(0, 10) + "…", "status=" + status);
-    if (status === "connected" && !wasConnected) {
-      if (state._callRecoveryTimer) { clearTimeout(state._callRecoveryTimer); state._callRecoveryTimer = null; }
-      const link = mesh.get(id);
-      if (link && link.remoteName) c.name = link.remoteName;
-      if (c.managed) persistContacts();
-      toast(`«${c.name}» на связи`);
-      clearAutoConnectTimer(id);
-      if (state.pendingOutgoing && state.pendingOutgoing.id === id) resetConnectScreen();
-      if (pendingCall.contactId === id && link) {
-        clearPendingCall();
-        link.startCall().catch(() => { toast("Нет доступа к микрофону"); closeCallScreen("failed"); });
+    try {
+      const { id, status } = ev.detail;
+      const c = state.contacts.get(id); if (!c) return;
+      const wasConnected = c.status === "connected" || c.status === "in-call";
+      c.status = status;
+      etherLog("info", "[link] " + String(id).slice(0, 10) + "…", "status=" + status);
+      if (status === "connected" && !wasConnected) {
+        const link = mesh.get(id);
+        if (link && link.remoteName) c.name = link.remoteName;
+        if (c.managed) persistContacts();
+        toast(`«${c.name}» на связи`);
+        clearAutoConnectTimer(id);
+        if (state.pendingOutgoing && state.pendingOutgoing.id === id) resetConnectScreen();
+        if (pendingCall.contactId === id && link && state.callId === id) {
+          clearPendingCall();
+          link.startCall().catch(() => { toast("Нет доступа к микрофону"); closeCallScreen("failed"); });
+        }
+        if (state.callId === id && state.callPhase !== "active" && link) {
+          link.answerCall().then(setCallPhaseActive).catch((e) => {
+            etherLog("error", "[call] deferred answerCall failed:", String(e));
+          });
+        }
+        flushOutbox();
       }
-      if (state.callId === id && state.callPhase !== "active" && link) {
-        link.answerCall().then(setCallPhaseActive).catch(() => {});
-      }
-      flushOutbox();
-    }
-    if (status === "disconnected") {
-      sendTypingStop(id);
-      if (state.callId === id) {
-        // На время активного звонка даём ICE шанс на восстановление
-        // (звонок идёт по WebRTC, WS не при чём). 30 секунд — с запасом.
-        if (!state._callRecoveryTimer) {
-          state._callRecoveryTimer = setTimeout(() => {
-            state._callRecoveryTimer = null;
-            if (state.callId !== id) return; // уже разобрались
-            const cur = mesh.get(id);
-            if (cur && (cur.status === "connected" || cur.status === "in-call")) return; // восстановилось
-            const wasAnswered = state.currentCallRecord && state.currentCallRecord.answeredAt;
-            closeCallScreen(wasAnswered ? "completed" : "missed");
-          }, 30000);
+      if (status === "disconnected") {
+        sendTypingStop(id);
+        // Не пересоздаём P2P сразу — даём PeerLink попытку restartIce().
+        if (c.managed && c.online) {
+          setTimeout(() => {
+            const stillGone = !mesh.get(id) || mesh.get(id).status === "disconnected";
+            if (stillGone && state.contacts.get(id)) scheduleAutoConnect(id);
+          }, 10000);
         }
       }
-      // Не пересоздаём P2P сразу — даём PeerLink попытку restartIce().
-      if (c.managed && c.online) {
-        setTimeout(() => {
-          const stillGone = !mesh.get(id) || mesh.get(id).status === "disconnected";
-          if (stillGone && state.contacts.get(id)) scheduleAutoConnect(id);
-        }, 10000);
-      }
+      if (state.chatId === id) renderChatThread();
+      if (state.contactCardId === id) renderContactCard();
+      if (state.tab === "chats" && !state.chatId) renderChatsList();
+    } catch (e) {
+      etherLog("error", "[link-status] handler failed:", String(e && e.stack || e));
     }
-    if (state.chatId === id) renderChatThread();
-    if (state.contactCardId === id) renderContactCard();
-    if (state.tab === "chats" && !state.chatId) renderChatsList();
   });
   mesh.addEventListener("message", (ev) => {
-    const { id, payload } = ev.detail;
-    const c = state.contacts.get(id); if (!c) return;
-    if (c.blocked) return;
-    if (payload && payload.kind === "call-state") {
-      if (payload.state === "ringing" && state.callId !== id && state.callPhase !== "ringing") {
-        openCallScreen(id, "ringing");
-        playRingtone();
+    try {
+      const { id, payload } = ev.detail;
+      const c = state.contacts.get(id); if (!c) return;
+      if (c.blocked) return;
+      if (payload && payload.kind === "call-state") {
+        if (payload.state === "ringing" && state.callId !== id && state.callPhase !== "ringing") {
+          openCallScreen(id, "ringing");
+          playRingtone();
+        }
+        if (payload.state === "accepted" && state.callId === id) setCallPhaseActive();
+        if (payload.state === "declined" && state.callId === id) {
+          toast("Собеседник отклонил вызов");
+          const link = mesh.get(id); if (link) link.endCall();
+          closeCallScreen("declined");
+        }
+        if (payload.state === "ended" && state.callId === id) closeCallScreen("completed");
+        return;
       }
-      if (payload.state === "accepted" && state.callId === id) setCallPhaseActive();
-      if (payload.state === "declined" && state.callId === id) {
-        toast("Собеседник отклонил вызов");
-        const link = mesh.get(id); if (link) link.endCall();
-        closeCallScreen("declined");
-      }
-      if (payload.state === "ended" && state.callId === id) closeCallScreen("completed");
-      return;
+      applyIncomingPayload(id, payload && payload.id, payload, false, payload && payload.kind);
+    } catch (e) {
+      etherLog("error", "[message] handler failed:", String(e && e.stack || e));
     }
-    applyIncomingPayload(id, payload && payload.id, payload, false, payload && payload.kind);
   });
   mesh.addEventListener("remote-track", (ev) => {
-    const { id, stream } = ev.detail;
-    etherLog("info", "[audio] remote-track id=" + String(id).slice(0, 10) + "…, callId=" + (state.callId ? String(state.callId).slice(0, 10) + "…" : "—") + ", phase=" + state.callPhase);
-    if (state.callId === id && state.callPhase !== "active") { pendingRemoteStreams.set(id, stream); return; }
-    attachRemoteAudio(id, stream);
+    try {
+      const { id, stream } = ev.detail;
+      etherLog("info", "[audio] remote-track id=" + String(id).slice(0, 10) + "…, callId=" + (state.callId ? String(state.callId).slice(0, 10) + "…" : "—") + ", phase=" + state.callPhase);
+      if (state.callId === id && state.callPhase !== "active") { pendingRemoteStreams.set(id, stream); return; }
+      attachRemoteAudio(id, stream);
+    } catch (e) {
+      etherLog("error", "[remote-track] handler failed:", String(e && e.stack || e));
+    }
   });
 }
 
@@ -3076,11 +3148,9 @@ function shutdownCallIfActive() {
   try {
     const cid = state.callId;
     if (!cid) return;
-    // Скажем собеседнику, что мы ушли.
     if (signaling && signaling.connected) {
       try { signaling.signal(cid, { t: "call-ended" }); } catch (e) {}
     }
-    // Локально тоже приберёмся.
     try {
       const link = mesh && mesh.get(cid);
       if (link) link.endCall();
