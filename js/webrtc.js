@@ -77,6 +77,8 @@ class PeerLink extends EventTarget {
     this.dc = null;
     this.localAudioTrack = null;
     this.localStream = null;
+    // Защита от повторного addTrack на том же PeerLink.
+    this._audioAdded = false;
     this._pendingNegotiation = false;
     this._renegotiationRetryTimer = null;
     this._pingTimer = null;
@@ -123,6 +125,9 @@ class PeerLink extends EventTarget {
       this.dispatchEvent(new CustomEvent("ice-gathering-state", { detail: { state: this.pc.iceGatheringState } }));
     });
 
+    // При "disconnected" ждём 8 с — вдруг ICE сам восстановится.
+    // Если нет — делаем reInvite() с новым SDP (iceRestart: true),
+    // чтобы и удалённая сторона узнала о новом ICE.
     this.pc.addEventListener("iceconnectionstatechange", () => {
       const s = this.pc.iceConnectionState;
       this._log("info", "[webrtc]", id.slice(0, 10) + "…", "iceConnection:", s);
@@ -133,15 +138,15 @@ class PeerLink extends EventTarget {
           this._iceDisconnectTimer = null;
           if (this._closed) return;
           if (this.pc.iceConnectionState === "disconnected" || this.pc.iceConnectionState === "failed") {
-            this._log("warn", "[webrtc]", id.slice(0, 10) + "…", "ICE still disconnected after 8s, restartIce()");
-            try { this.pc.restartIce(); } catch (e) {}
+            this._log("warn", "[webrtc]", id.slice(0, 10) + "…", "ICE still disconnected after 8s, reInvite()");
+            this.reInvite();
           }
         }, 8000);
       } else if (s === "connected" || s === "completed") {
         if (this._iceDisconnectTimer) { clearTimeout(this._iceDisconnectTimer); this._iceDisconnectTimer = null; }
       } else if (s === "failed") {
-        this._log("warn", "[webrtc]", id.slice(0, 10) + "…", "ICE failed, restartIce()");
-        try { this.pc.restartIce(); } catch (e) {}
+        this._log("warn", "[webrtc]", id.slice(0, 10) + "…", "ICE failed, reInvite()");
+        this.reInvite();
       }
     });
 
@@ -171,6 +176,9 @@ class PeerLink extends EventTarget {
       }
     });
 
+    // addTrack() без stream на удалённой стороне даёт track-событие с
+    // пустым ev.streams. Всегда диспатчим remote-track, при
+    // необходимости собирая MediaStream из одного трека руками.
     this.pc.addEventListener("track", (ev) => {
       let stream = (ev.streams && ev.streams[0]) || null;
       if (!stream && ev.track) stream = new MediaStream([ev.track]);
@@ -346,37 +354,30 @@ class PeerLink extends EventTarget {
       if (!this.localStream) this.localStream = new MediaStream([this.localAudioTrack]);
       return;
     }
-    // getUserMedia должен вызываться в контексте user gesture (особенно
-    // на iOS). Никаких await перед этим вызовом.
+    // getUserMedia должен вызываться без await перед ним — иначе на iOS
+    // теряется привязка к user gesture.
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     this.localAudioTrack = stream.getAudioTracks()[0];
     this.localStream = stream;
   }
 
+  async _addAudioTrackOnce() {
+    if (this._audioAdded) return;
+    await this._ensureLocalAudio();
+    this.pc.addTrack(this.localAudioTrack, this.localStream);
+    this._audioAdded = true;
+  }
+
   async startCall() {
     if (this._closed) throw new Error("link closed");
-    await this._ensureLocalAudio();
-    // Если addTrack падает (бывает при кривом SDP) — не глотаем, но
-    // оставляем status прежним, чтобы app.js не принял «connected».
-    try {
-      this.pc.addTrack(this.localAudioTrack, this.localStream);
-    } catch (e) {
-      this._log("error", "[webrtc] startCall addTrack failed:", String(e));
-      throw e;
-    }
+    await this._addAudioTrackOnce();
     this._setStatus("in-call");
     this.send({ kind: "call-state", state: "ringing" });
   }
 
   async answerCall() {
     if (this._closed) throw new Error("link closed");
-    await this._ensureLocalAudio();
-    try {
-      this.pc.addTrack(this.localAudioTrack, this.localStream);
-    } catch (e) {
-      this._log("error", "[webrtc] answerCall addTrack failed:", String(e));
-      throw e;
-    }
+    await this._addAudioTrackOnce();
     this._setStatus("in-call");
     this.send({ kind: "call-state", state: "accepted" });
   }
@@ -385,6 +386,24 @@ class PeerLink extends EventTarget {
 
   setMuted(muted) {
     if (this.localAudioTrack) this.localAudioTrack.enabled = !muted;
+  }
+
+  // Восстановление звонка после смены сети / потери ICE.
+  // Генерирует новый локальный SDP с iceRestart: true и отправляет его
+  // через data channel. Удалённая сторона применит его через
+  // setRemoteDescription и ICE перезапустится с обеих сторон.
+  async reInvite() {
+    if (this._closed) return;
+    if (!this.dc || this.dc.readyState !== "open") return;
+    try {
+      this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "reInvite: createOffer iceRestart");
+      const offer = await this.pc.createOffer({ iceRestart: true });
+      await this.pc.setLocalDescription(offer);
+      await waitForIceGathering(this.pc);
+      this.send({ kind: "sdp", sdpType: "offer", sdp: this.pc.localDescription.sdp });
+    } catch (e) {
+      this._log("warn", "[webrtc] reInvite failed:", String(e));
+    }
   }
 
   endCall() {
@@ -397,6 +416,7 @@ class PeerLink extends EventTarget {
       this.localAudioTrack = null;
     }
     this.localStream = null;
+    this._audioAdded = false;
     this._setStatus(this.dc && this.dc.readyState === "open" ? "connected" : "disconnected");
     this.send({ kind: "call-state", state: "ended" });
   }
@@ -415,6 +435,7 @@ class PeerLink extends EventTarget {
         this.localAudioTrack.stop();
       }
       this.localAudioTrack = null;
+      this._audioAdded = false;
       if (this.dc) this.dc.close();
       this.pc.close();
     } catch (e) {}

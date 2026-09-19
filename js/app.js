@@ -212,8 +212,11 @@ const state = {
   typingSendingState: new Map(),
   unlockAttempts: 0,
   // Служебное для звонков.
-  _callAcceptInFlight: false,
-  _callDeadSeconds: 0,
+  _callUserAccepted: false,       // true только когда пользователь нажал «Принять»
+  _callAcceptInFlight: false,     // debounce для кнопки «Принять»
+  _callMuteOnAnswer: false,       // флаг: ответить и сразу заглушить микрофон
+  _callBusy: false,               // true если уже в звонке (для busy-сигнала)
+  _callDeadSeconds: 0,            // health-check активного звонка
 };
 
 let mesh = null;
@@ -695,7 +698,12 @@ function startApp() {
   try { updateAppBadge(); } catch (e) {}
   try { maybeShowOnboardingHint(); } catch (e) {}
   // Никаких «зависших» звонков из прошлой сессии.
-  try { state.callId = null; state.callPhase = null; state._callAcceptInFlight = false; state._callDeadSeconds = 0; } catch (e) {}
+  try {
+    state.callId = null; state.callPhase = null;
+    state._callUserAccepted = false; state._callAcceptInFlight = false;
+    state._callMuteOnAnswer = false; state._callBusy = false;
+    state._callDeadSeconds = 0;
+  } catch (e) {}
 }
 
 function wireNetworkListeners() {
@@ -739,7 +747,14 @@ function wireServiceWorker() {
       window.focus();
       state.chatId = data.contactId;
       renderTab();
-      if (data.kind === "call") toast("Входящий звонок был пропущен");
+      if (data.kind === "call") {
+        // Если по приходу уведомления звонок ещё «звонит» — открываем экран звонка.
+        if (state.callId === data.contactId && state.callPhase === "ringing") {
+          openCallScreen(data.contactId, "ringing");
+        } else {
+          toast("Входящий звонок был пропущен");
+        }
+      }
     }
     if (data.type === "push-subscription-changed") {
       ensurePushSubscription().catch(() => {});
@@ -914,6 +929,12 @@ function ensureContactEntry(id, suggestedName) {
 function wireTabBar() {
   $$(".tab-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
+      // Если идёт звонок — не даём уйти с экрана звонка (он всё равно
+      // перекрывает весь UI, но на всякий случай).
+      if (state.callId) {
+        const cs = $("#call-screen"); if (cs) cs.classList.remove("hidden");
+        return;
+      }
       state.tab = btn.dataset.tab;
       state.chatId = null;
       state.contactCardId = null;
@@ -1078,7 +1099,14 @@ function renderContactsList() {
   }
 }
 
-function openContactCard(contactId) { if (!state.contacts.has(contactId)) return; state.contactCardId = contactId; renderTab(); }
+function openContactCard(contactId) {
+  if (!state.contacts.has(contactId)) return;
+  // Если открываем карточку — сбрасываем чат, чтобы renderTab() показал
+  // именно карточку, а не оставшийся открытым чат.
+  state.chatId = null;
+  state.contactCardId = contactId;
+  renderTab();
+}
 function renderContactCard() {
   const c = state.contacts.get(state.contactCardId);
   if (!c) { state.contactCardId = null; renderTab(); return; }
@@ -1099,7 +1127,11 @@ function wireContactCard() {
     state.contactCardId = null; state.chatId = id; renderTab();
   });
   const callBtn = $("#contact-call-btn");
-  if (callBtn) callBtn.addEventListener("click", () => { const id = state.contactCardId; if (!id) return; beginCall(id); });
+  if (callBtn) callBtn.addEventListener("click", () => {
+    const id = state.contactCardId;
+    if (!id) { toast("Контакт не выбран"); return; }
+    beginCall(id);
+  });
   const rename = $("#contact-rename-btn");
   if (rename) rename.addEventListener("click", () => {
     const id = state.contactCardId;
@@ -1191,6 +1223,14 @@ function renderChatThreadInner() {
   const q = state.chatSearchQuery.toLowerCase();
   let lastDay = "";
   for (const m of c.messages) {
+    // Системные сообщения о звонках.
+    if (m.from === "system") {
+      const sys = document.createElement("div");
+      sys.className = "system-message";
+      sys.textContent = m.text;
+      frag.appendChild(sys);
+      continue;
+    }
     const dayStr = formatDayGroup(m.ts);
     if (dayStr && dayStr !== lastDay) {
       const sep = document.createElement("div");
@@ -1490,9 +1530,7 @@ function sendAckBatch(contactId, originalMsgIds, ackState) {
   const key = contactId + ":" + ackState + ":" + originalMsgIds.slice(0, 3).join(",");
   const now = Date.now();
   const last = _recentAckSent.get(key);
-  if (last && now - last < ACK_DEDUP_WINDOW_MS) {
-    return;
-  }
+  if (last && now - last < ACK_DEDUP_WINDOW_MS) return;
   _recentAckSent.set(key, now);
   if (_recentAckSent.size > 200) {
     const first = _recentAckSent.keys().next().value;
@@ -1707,17 +1745,35 @@ function wireSignalingEvents(sig) {
       if (isDuplicateSignal(from, packet)) return;
       etherLog("info", "[call] incoming invite from " + String(from).slice(0, 10) + "…");
       ensureContactEntry(from, packet.n);
-      if (state.callId !== from) {
-        openCallScreen(from, "ringing");
-        // iOS: пробуем разбудить аудио-контекст немедленно, до playRingtone().
-        try { ensureAudioCtx(); } catch (e) {}
-        playRingtone();
-        const c = state.contacts.get(from);
-        if (c && !c.muted && Store.notificationsEnabled) {
-          showNotification(`📞 ${packet.n || "Звонок"}`, "Входящий вызов", { tag: "ether-call-" + from, contactId: from, kind: "call", force: true });
-        }
+
+      // Если уже в звонке с кем-то другим — отправляем «занято».
+      if (state.callId && state.callId !== from) {
+        etherLog("info", "[call] busy — declining invite from " + String(from).slice(0, 10) + "…");
+        try { sig.signal(from, { t: "call-busy" }); } catch (e) {}
+        return;
       }
-      sig.signal(from, { t: "call-invite-ack" });
+      // Если уже в звонке с этим же контактом — просто подтверждаем.
+      if (state.callId === from) {
+        try { sig.signal(from, { t: "call-invite-ack" }); } catch (e) {}
+        return;
+      }
+
+      openCallScreen(from, "ringing");
+      try { ensureAudioCtx(); } catch (e) {}
+      playRingtone();
+      const c = state.contacts.get(from);
+      if (c && !c.muted && Store.notificationsEnabled) {
+        showNotification(`📞 ${packet.n || "Звонок"}`, "Входящий вызов", { tag: "ether-call-" + from, contactId: from, kind: "call", force: true });
+      }
+      try { sig.signal(from, { t: "call-invite-ack" }); } catch (e) {}
+      return;
+    }
+    if (packet.t === "call-busy") {
+      if (state.callId === from) {
+        stopRingtone();
+        toast("Абонент занят");
+        closeCallScreen("busy");
+      }
       return;
     }
     if (packet.t === "call-invite-ack") {
@@ -1743,8 +1799,6 @@ function wireSignalingEvents(sig) {
       if (state.callId === from) { stopRingtone(); closeCallScreen("completed"); }
       return;
     }
-    // Для offer/answer фильтр дубликатов НЕ применяем: SDP-машина сама
-    // отбросит невалидные повторы через setRemoteDescription.
     if (packet.t === "offer") {
       etherLog("info", "[offer] processing — from=" + String(from).slice(0, 10) + "…");
       const existing = mesh.get(from);
@@ -2315,6 +2369,7 @@ function callStatusLabel(rec) {
   if (rec.status === "missed") return "Пропущен";
   if (rec.status === "cancelled") return "Отменён";
   if (rec.status === "failed") return "Не удалось";
+  if (rec.status === "busy") return "Абонент занят";
   if (rec.status === "ringing") return "Не принят";
   return "Звонок";
 }
@@ -2351,39 +2406,73 @@ function renderCallsList() {
   }
 }
 function clearPendingCall() { if (pendingCall.timer) clearTimeout(pendingCall.timer); pendingCall.timer = null; pendingCall.contactId = null; }
+
 async function beginCall(id) {
   const c = state.contacts.get(id);
-  if (!c) return;
+  if (!c) { toast("Контакт не найден"); return; }
   if (c.blocked) { toast("Контакт заблокирован"); return; }
+
+  // Если уже в звонке с кем-то другим — не даём начать новый.
+  if (state.callId && state.callId !== id) {
+    toast("Сначала завершите текущий звонок");
+    return;
+  }
+  // Если уже в звонке с этим же — просто показать экран.
+  if (state.callId === id) {
+    openCallScreen(id, state.callPhase || "calling");
+    return;
+  }
+
   etherLog("info", "[call] beginCall to " + String(id).slice(0, 10) + "…");
+
+  // Сброс служебных флагов под новый звонок.
+  state._callUserAccepted = false;
+  state._callAcceptInFlight = false;
+  state._callMuteOnAnswer = false;
+  state._callBusy = false;
+  state._callDeadSeconds = 0;
+
   openCallScreen(id, "calling");
-  if (signaling && signaling.connected) {
-    signaling.signal(id, { t: "call-invite", n: Store.name });
-  } else {
+
+  if (!signaling || !signaling.connected) {
     toast("Нет связи с сервером — звонок невозможен");
     closeCallScreen("failed");
     return;
   }
+
+  signaling.signal(id, { t: "call-invite", n: Store.name });
+
   const link = mesh.get(id);
   if (link && isReachable(c)) {
     try { await link.startCall(); }
     catch (e) { toast("Нет доступа к микрофону"); closeCallScreen("failed"); return; }
     return;
   }
+
   clearPendingCall();
   pendingCall.contactId = id;
   attemptConnect(id);
   pendingCall.timer = setTimeout(() => {
     if (pendingCall.contactId !== id) return;
-    const cur = state.contacts.get(id);
-    if (cur && isReachable(cur)) return;
+    if (state.callId !== id) return;
+    if (state.callPhase === "active") return;
     clearPendingCall();
-    toast("Не удалось установить P2P — звук недоступен");
-    if (signaling && signaling.connected) signaling.signal(id, { t: "call-ended" });
-    closeCallScreen("failed");
+    const l = mesh.get(id);
+    if (l) l.endCall();
+    if (signaling && signaling.connected) {
+      try { signaling.signal(id, { t: "call-ended" }); } catch (e) {}
+    }
+    toast("Собеседник не ответил");
+    closeCallScreen("cancelled");
   }, PENDING_CALL_TIMEOUT_MS);
 }
+
 function openCallScreen(id, phase) {
+  if (state.callId !== id) {
+    state._callUserAccepted = false;
+    state._callAcceptInFlight = false;
+    state._callMuteOnAnswer = false;
+  }
   state.callId = id;
   state.callPhase = phase;
   try { ensureAudioCtx(); } catch (e) {}
@@ -2393,10 +2482,10 @@ function openCallScreen(id, phase) {
     const lbl = $("#call-mute-label");
     if (lbl) lbl.textContent = "Микрофон";
   }
-  const c = state.contacts.get(id); if (!c) return;
+  const c = state.contacts.get(id);
   const cs = $("#call-screen"); if (cs) cs.classList.remove("hidden");
-  const pn = $("#call-peer-name"); if (pn) pn.textContent = c.name || "Без имени";
-  const pa = $("#call-peer-avatar"); if (pa) { pa.style.background = avatarGradient(c.name); pa.textContent = initials(c.name); }
+  const pn = $("#call-peer-name"); if (pn) pn.textContent = (c && c.name) || "Без имени";
+  const pa = $("#call-peer-avatar"); if (pa) { pa.style.background = avatarGradient((c && c.name) || "?"); pa.textContent = initials((c && c.name) || "?"); }
   const cp = $("#call-phase"); if (cp) cp.textContent = phase === "calling" ? "Вызов…" : phase === "ringing" ? "Входящий вызов" : "На связи";
   const incoming = phase === "ringing";
   const ci = $("#call-controls-incoming"); if (ci) ci.classList.toggle("hidden", !incoming);
@@ -2404,8 +2493,6 @@ function openCallScreen(id, phase) {
   clearInterval(callTimerInterval);
   if (phase === "active") startCallTimer();
 
-  // Пока «звонит» — держим таймер «никто не ответил». Если через
-  // INCOMING_CALL_TIMEOUT_MS никто ничего не сделал — считаем пропущенным.
   if (phase === "ringing") {
     clearPendingCall();
     pendingCall.contactId = id;
@@ -2427,8 +2514,10 @@ function openCallScreen(id, phase) {
     else if (phase === "ringing") startCallRecord(id, "in");
   }
 }
+
 function setCallPhaseActive() {
   state.callPhase = "active";
+  state._callUserAccepted = true;
   clearPendingCall();
   const ci = $("#call-controls-incoming"); if (ci) ci.classList.add("hidden");
   const ca = $("#call-controls-active"); if (ca) ca.classList.remove("hidden");
@@ -2439,6 +2528,7 @@ function setCallPhaseActive() {
     pendingRemoteStreams.delete(state.callId);
   }
 }
+
 function attachRemoteAudio(id, stream) {
   if (!stream) { etherLog("warn", "[audio] attachRemoteAudio: пустой stream, id=" + String(id).slice(0, 10) + "…"); return; }
   let audioEl = document.getElementById("remote-audio-" + id);
@@ -2475,8 +2565,6 @@ function startCallTimer() {
     const ss = String(secs % 60).padStart(2, "0");
     const cp = $("#call-phase"); if (cp) cp.textContent = `${mm}:${ss}`;
 
-    // Health-check: если звонок активен, а P2P-линк мёртв дольше
-    // CALL_DEAD_LINK_TIMEOUT_MS — принудительно закрываем экран.
     const cid = state.callId;
     if (!cid) { state._callDeadSeconds = 0; return; }
     const link = mesh.get(cid);
@@ -2490,9 +2578,12 @@ function startCallTimer() {
   }, 1000);
 }
 function closeCallScreen(reason) {
+  const rec = state.currentCallRecord;
   clearInterval(callTimerInterval); callTimerInterval = null;
   state._callDeadSeconds = 0;
   state._callAcceptInFlight = false;
+  state._callUserAccepted = false;
+  state._callMuteOnAnswer = false;
   clearPendingCall();
   stopRingtone();
   endCallRecord(reason);
@@ -2503,6 +2594,26 @@ function closeCallScreen(reason) {
   state.callId = null;
   state.callPhase = null;
   if (state.tab === "calls") renderCallsList();
+
+  // Системное сообщение в чате о завершении звонка.
+  if (rec && rec.contactId && (reason === "missed" || reason === "cancelled" || reason === "declined" || reason === "busy")) {
+    const c = state.contacts.get(rec.contactId);
+    if (c) {
+      const sysMsg = {
+        id: crypto.randomUUID(),
+        from: "system",
+        text: reason === "missed" ? "Пропущенный звонок" :
+              reason === "busy" ? "Абонент занят" :
+              reason === "declined" ? "Звонок отклонён" :
+              "Звонок отменён",
+        ts: Date.now(),
+      };
+      c.messages.push(sysMsg);
+      c.lastActivity = Date.now();
+      persistContacts();
+      if (state.chatId === rec.contactId) renderChatThread();
+    }
+  }
 }
 function wireCallScreen() {
   const hangup = $("#call-hangup-btn");
@@ -2522,58 +2633,13 @@ function wireCallScreen() {
     const lbl = $("#call-mute-label");
     if (lbl) lbl.textContent = muted ? "Микрофон выкл" : "Микрофон";
   });
+
   const accept = $("#call-accept-btn");
-  if (accept) accept.addEventListener("click", async () => {
-    if (state._callAcceptInFlight) return;
-    state._callAcceptInFlight = true;
-    const cid = state.callId;
-    try {
-      stopRingtone();
-      if (signaling && signaling.connected && cid) signaling.signal(cid, { t: "call-accepted" });
-      const c = state.contacts.get(cid);
-      if (!c) { closeCallScreen("failed"); return; }
+  if (accept) accept.addEventListener("click", () => acceptCall(false));
 
-      // Если P2P уже установлен — принимаем напрямую.
-      const link = mesh.get(cid);
-      if (link && isReachable(c)) {
-        try {
-          await link.answerCall();
-          setCallPhaseActive();
-        } catch (e) {
-          // НЕ отклоняем звонок из-за локальной ошибки (например, нет
-          // разрешения на микрофон) — оставляем экран открытым, чтобы
-          // пользователь мог повторить.
-          etherLog("error", "[call] answerCall failed:", String(e));
-          toast("Не удалось включить микрофон. Разрешите доступ и попробуйте ещё раз.");
-        }
-        return;
-      }
+  const muteAccept = $("#call-mute-accept-btn");
+  if (muteAccept) muteAccept.addEventListener("click", () => acceptCall(true));
 
-      // Иначе — ждём, пока P2P установится, и потом отвечаем.
-      toast("Соединяемся — говорите, как только услышите");
-      clearPendingCall();
-      pendingCall.contactId = cid;
-      attemptConnect(cid);
-      pendingCall.timer = setTimeout(() => {
-        if (state.callId !== cid) return;
-        const l2 = mesh.get(cid);
-        if (l2 && isReachable(state.contacts.get(cid))) {
-          l2.answerCall().then(setCallPhaseActive).catch((e) => {
-            etherLog("error", "[call] deferred answerCall failed:", String(e));
-          });
-        } else {
-          toast("Не удалось установить связь");
-          if (signaling && signaling.connected) signaling.signal(cid, { t: "call-ended" });
-          closeCallScreen("failed");
-        }
-      }, PENDING_CALL_TIMEOUT_MS);
-    } catch (e) {
-      etherLog("error", "[call] accept handler failed:", String(e));
-      toast("Ошибка при приёме звонка");
-    } finally {
-      state._callAcceptInFlight = false;
-    }
-  });
   const decline = $("#call-decline-btn");
   if (decline) decline.addEventListener("click", () => {
     const cid = state.callId;
@@ -2582,6 +2648,45 @@ function wireCallScreen() {
     stopRingtone();
     closeCallScreen("declined");
   });
+}
+
+async function acceptCall(withMute) {
+  if (state._callUserAccepted) return;
+  if (state._callAcceptInFlight) return;
+  const cid = state.callId;
+  if (!cid) return;
+
+  state._callAcceptInFlight = true;
+  state._callUserAccepted = true;
+  state._callMuteOnAnswer = !!withMute;
+
+  try {
+    stopRingtone();
+    if (signaling && signaling.connected) {
+      try { signaling.signal(cid, { t: "call-accepted" }); } catch (e) {}
+    }
+    const c = state.contacts.get(cid);
+    const link = mesh.get(cid);
+
+    if (link && c && isReachable(c)) {
+      try {
+        await link.answerCall();
+        if (withMute) link.setMuted(true);
+        setCallPhaseActive();
+      } catch (e) {
+        etherLog("error", "[call] answerCall failed:", String(e));
+        toast("Не удалось включить микрофон. Разрешите доступ и попробуйте ещё раз.");
+      }
+      return;
+    }
+
+    toast("Соединяемся — говорите, как только услышите");
+  } catch (e) {
+    etherLog("error", "[call] accept handler failed:", String(e));
+    toast("Ошибка при приёме звонка");
+  } finally {
+    state._callAcceptInFlight = false;
+  }
 }
 
 // =====================================================================
@@ -2862,6 +2967,7 @@ function buildDiagnosticsText() {
   lines.push("Статус: " + (signaling ? (signaling.connected ? "подключён" : "не подключён") : "не инициализирован"));
   lines.push("Онлайн: " + onlineSet.size + " (roster: " + onlineRoster.size + ")");
   lines.push("outbox: " + outbox.size + ", pendingNoKey: " + pendingNoKey.size);
+  lines.push("Активный звонок: " + (state.callId ? String(state.callId).slice(0, 10) + "… phase=" + state.callPhase + " accepted=" + state._callUserAccepted : "нет"));
   lines.push("");
   lines.push("--- Push ---");
   lines.push("PWA: " + (isStandalone() ? "да" : "нет"));
@@ -2900,6 +3006,7 @@ function renderDiagnostics() {
     <div><b>Контактов:</b> ${state.contacts.size}</div>
     <div><b>P2P links:</b> ${mesh ? mesh.links.size : 0}</div>
     <div><b>В очереди:</b> ${outbox.size}</div>
+    <div><b>Активный звонок:</b> ${state.callId ? escapeHtml(String(state.callId).slice(0, 10)) + "… (" + state.callPhase + ")" : "—"}</div>
     <div><b>TURN-серверов:</b> ${turnCount} ${turnCount > 0 ? "✅" : "⚠️"}</div>`;
   const log = $("#diagnostics-log"); if (log) log.textContent = buildDiagnosticsText();
 }
@@ -2986,20 +3093,42 @@ function wireMeshEvents() {
         toast(`«${c.name}» на связи`);
         clearAutoConnectTimer(id);
         if (state.pendingOutgoing && state.pendingOutgoing.id === id) resetConnectScreen();
-        if (pendingCall.contactId === id && link && state.callId === id) {
-          clearPendingCall();
-          link.startCall().catch(() => { toast("Нет доступа к микрофону"); closeCallScreen("failed"); });
+
+        // --- Логика звонка при установке P2P ---
+        if (state.callId === id && link) {
+          if (state.callPhase === "calling") {
+            // Звонящий: добавляем аудиодорожку, НЕ отправляем "accepted".
+            if (!link._audioAdded) {
+              link.startCall().catch((e) => {
+                etherLog("error", "[call] caller startCall failed on link connect:", String(e));
+              });
+            }
+          } else if (state._callUserAccepted && state.callPhase !== "active") {
+            // Принимающий, который уже нажал «Принять» (возможно, с mute) — теперь отвечаем.
+            link.answerCall().then(() => {
+              if (state._callMuteOnAnswer) {
+                link.setMuted(true);
+                const mb = $("#call-mute-btn");
+                if (mb) {
+                  mb.classList.add("active");
+                  const lbl = $("#call-mute-label");
+                  if (lbl) lbl.textContent = "Микрофон выкл";
+                }
+                state._callMuteOnAnswer = false;
+              }
+              setCallPhaseActive();
+            }).catch((e) => {
+              etherLog("error", "[call] deferred answerCall failed:", String(e));
+            });
+          }
+          // Принимающий, который ещё НЕ нажал «Принять» (phase "ringing",
+          // _callUserAccepted = false) — ничего не делаем. Ждём кнопку.
         }
-        if (state.callId === id && state.callPhase !== "active" && link) {
-          link.answerCall().then(setCallPhaseActive).catch((e) => {
-            etherLog("error", "[call] deferred answerCall failed:", String(e));
-          });
-        }
+
         flushOutbox();
       }
       if (status === "disconnected") {
         sendTypingStop(id);
-        // Не пересоздаём P2P сразу — даём PeerLink попытку restartIce().
         if (c.managed && c.online) {
           setTimeout(() => {
             const stillGone = !mesh.get(id) || mesh.get(id).status === "disconnected";
@@ -3021,7 +3150,13 @@ function wireMeshEvents() {
       if (c.blocked) return;
       if (payload && payload.kind === "call-state") {
         if (payload.state === "ringing" && state.callId !== id && state.callPhase !== "ringing") {
+          if (state.callId) {
+            const l = mesh.get(id);
+            if (l) { try { l.declineCall(); } catch (e) {} }
+            return;
+          }
           openCallScreen(id, "ringing");
+          try { ensureAudioCtx(); } catch (e) {}
           playRingtone();
         }
         if (payload.state === "accepted" && state.callId === id) setCallPhaseActive();
@@ -3084,7 +3219,10 @@ function wireChatScreen() {
     input.addEventListener("blur", () => { if (state.chatId) sendTypingStop(state.chatId); });
   }
   const callBtn = $("#chat-call-btn");
-  if (callBtn) callBtn.addEventListener("click", () => beginCall(state.chatId));
+  if (callBtn) callBtn.addEventListener("click", () => {
+    if (!state.chatId) return;
+    beginCall(state.chatId);
+  });
   const moreBtn = $("#chat-more-btn");
   if (moreBtn) moreBtn.addEventListener("click", () => { const id = state.chatId; if (id) openContactCard(id); });
   const peerTap = $("#chat-peer-tap");
@@ -3158,12 +3296,11 @@ function shutdownCallIfActive() {
     try { closeCallScreen("completed"); } catch (e) {}
   } catch (e) {}
 }
+// beforeunload — только при реальном закрытии/перезагрузке. pagehide
+// срабатывает при сворачивании PWA на мобильных — если на нём вешать
+// shutdown, звонок убивается каждый раз, когда пользователь уходит
+// с экрана. Поэтому здесь — только beforeunload.
 window.addEventListener("beforeunload", () => {
-  try { saveCurrentDraft(); } catch (e) {}
-  try { backupToIDB(); } catch (e) {}
-  shutdownCallIfActive();
-});
-window.addEventListener("pagehide", () => {
   try { saveCurrentDraft(); } catch (e) {}
   try { backupToIDB(); } catch (e) {}
   shutdownCallIfActive();
@@ -3175,6 +3312,24 @@ document.addEventListener("visibilitychange", () => {
     try {
       if (globalAudioCtx && globalAudioCtx.state === "suspended") globalAudioCtx.resume().catch(() => {});
     } catch (e) {}
+    // Если идёт звонок, но экран звонка по какой-то причине скрыт —
+    // показываем его снова. iOS часто перерисовывает DOM при возврате
+    // из фона, и оверлей может «слететь».
+    if (state.callId) {
+      const cs = $("#call-screen");
+      if (cs && cs.classList.contains("hidden")) {
+        cs.classList.remove("hidden");
+      }
+      const ci = $("#call-controls-incoming");
+      const ca = $("#call-controls-active");
+      if (state.callPhase === "ringing") {
+        if (ci) ci.classList.remove("hidden");
+        if (ca) ca.classList.add("hidden");
+      } else if (state.callPhase === "active") {
+        if (ci) ci.classList.add("hidden");
+        if (ca) ca.classList.remove("hidden");
+      }
+    }
     if (state.chatId) { const c = state.contacts.get(state.chatId); if (c) markThreadRead(c); }
   }
 });

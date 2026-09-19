@@ -399,6 +399,18 @@ input.switch:checked::before { transform: translateX(18px); }
 .bubble-reaction-chip { background: rgba(255,255,255,0.18); border-radius: 10px; padding: 2px 6px; font-size: 11px; }
 .bubble-row.theirs .bubble-reaction-chip { background: var(--input-bg); }
 
+/* Системные сообщения в чате (пропущенный звонок, отклонён и т.п.) */
+.system-message {
+  text-align: center;
+  font-size: 12px;
+  color: var(--ink-dim);
+  padding: 6px 12px;
+  margin: 4px auto;
+  background: var(--input-bg);
+  border-radius: 12px;
+  max-width: 80%;
+}
+
 .ack-tick { display: inline-block; margin-left: 5px; font-size: 14px; font-weight: 900; line-height: 1; letter-spacing: -1px; }
 .ack-tick.ack-sent { color: rgba(255,255,255,0.7); }
 .ack-tick.ack-delivered { color: #ffd60a; text-shadow: 0 0 4px rgba(255,214,10,0.4); }
