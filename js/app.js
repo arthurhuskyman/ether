@@ -95,6 +95,7 @@ const CRITICAL_LS_KEYS = [
   "ether.privKey", "ether.pubKey",
   "ether.pinHash", "ether.pinSalt", "ether.pinEnabled",
   "ether.contacts",
+  "ether.outbox", "ether.pendingNoKey",
   "ether.theme", "ether.glassAlpha",
   "ether.notifications", "ether.sounds",
   "ether.vapidPublicKey", "ether.pushSubscription",
@@ -141,9 +142,9 @@ const Store = {
   get contactsJson() { return localStorage.getItem("ether.contacts") || "[]"; },
   set contactsJson(v) { localStorage.setItem("ether.contacts", v); scheduleIDBBackup(); },
   get outboxJson() { return localStorage.getItem("ether.outbox") || "[]"; },
-  set outboxJson(v) { localStorage.setItem("ether.outbox", v); },
+  set outboxJson(v) { localStorage.setItem("ether.outbox", v); scheduleIDBBackup(); },
   get pendingNoKeyJson() { return localStorage.getItem("ether.pendingNoKey") || "{}"; },
-  set pendingNoKeyJson(v) { localStorage.setItem("ether.pendingNoKey", v); },
+  set pendingNoKeyJson(v) { localStorage.setItem("ether.pendingNoKey", v); scheduleIDBBackup(); },
   get callLogJson() { return localStorage.getItem("ether.callLog") || "[]"; },
   set callLogJson(v) { localStorage.setItem("ether.callLog", v); scheduleIDBBackup(); },
   get lastSeenJson() { return localStorage.getItem("ether.lastSeen") || "{}"; },
@@ -344,6 +345,8 @@ function applyGlassAlpha(v) {
   if (!Number.isFinite(v)) v = 0.55;
   document.documentElement.style.setProperty("--glass-alpha", v.toFixed(2));
   document.documentElement.style.setProperty("--glass-blur", (14 + v * 26).toFixed(0) + "px");
+  const label = document.getElementById("glass-slider-value");
+  if (label) label.textContent = Math.round(v * 100) + "%";
 }
 function applyTheme(theme) { document.documentElement.dataset.theme = theme; }
 
@@ -726,6 +729,14 @@ function applyStaticTranslations() {
     if (!k) return;
     el.textContent = T(k);
   });
+  $$("[data-i18n-ph]").forEach((el) => {
+    const k = el.getAttribute("data-i18n-ph");
+    if (k) el.setAttribute("placeholder", T(k));
+  });
+  $$("[data-i18n-aria]").forEach((el) => {
+    const k = el.getAttribute("data-i18n-aria");
+    if (k) el.setAttribute("aria-label", T(k));
+  });
 }
 
 function setupLanguageSelector() {
@@ -1026,23 +1037,30 @@ function closeChatSafely() {
 }
 function closeContactCardSafely() { state.contactCardId = null; try { renderTab(); } catch (e) {} }
 function renderTab() { try { renderTabInner(); } catch (e) { etherLog("error", "[renderTab]", String(e)); } }
+function setNavMode(mode) {
+  const list = $("#nav-list-mode"), chat = $("#nav-chat-mode"), contact = $("#nav-contact-mode");
+  if (list) list.classList.toggle("hidden", mode !== "list");
+  if (chat) chat.classList.toggle("hidden", mode !== "chat");
+  if (contact) contact.classList.toggle("hidden", mode !== "contact");
+}
 function renderTabInner() {
   $$(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === state.tab));
   $$(".screen").forEach((s) => s.classList.add("hidden"));
+  const tb = $("#tab-bar"); if (tb) tb.classList.remove("hidden"); // нижняя навигация теперь видна всегда
 
   if (state.chatId) {
     const sc = $("#screen-chat"); if (sc) sc.classList.remove("hidden");
-    const tb = $("#tab-bar"); if (tb) tb.classList.add("hidden");
+    setNavMode("chat");
     renderChatThread();
     return;
   }
   if (state.contactCardId) {
     const sc = $("#screen-contact"); if (sc) sc.classList.remove("hidden");
-    const tb = $("#tab-bar"); if (tb) tb.classList.add("hidden");
+    setNavMode("contact");
     renderContactCard();
     return;
   }
-  const tb = $("#tab-bar"); if (tb) tb.classList.remove("hidden");
+  setNavMode("list");
   const map = { chats: "#screen-chats", calls: "#screen-calls", connect: "#screen-connect", settings: "#screen-settings", debug: "#screen-debug" };
   const el = $(map[state.tab]); if (el) el.classList.remove("hidden");
   const titles = {
@@ -1183,6 +1201,7 @@ function renderContactCard() {
   const av = $("#contact-avatar");
   if (av) { av.style.background = avatarGradient(c.name); av.textContent = initials(c.name); }
   const n = $("#contact-name"); if (n) n.textContent = c.name || T("sys.someone");
+  const navT = $("#nav-contact-title"); if (navT) navT.textContent = c.name || T("sys.someone");
   const st = $("#contact-status"); if (st) st.textContent = contactStatusLabel(c);
   const idEl = $("#contact-info-id"); if (idEl) idEl.textContent = c.raw || "—";
   const mutedEl = $("#contact-info-muted"); if (mutedEl) mutedEl.textContent = c.muted ? "🔕" : "🔔";
@@ -1292,12 +1311,20 @@ function renderChatThreadInner() {
   const frag = document.createDocumentFragment();
   const q = state.chatSearchQuery.toLowerCase();
   let lastDay = "";
+  let prevMsg = null;
   for (const m of c.messages) {
     if (m.from === "system") {
       const sys = document.createElement("div");
       sys.className = "system-message";
-      sys.textContent = m.text;
+      const label = document.createElement("span");
+      label.textContent = m.text;
+      const time = document.createElement("span");
+      time.className = "system-message-time";
+      time.textContent = formatTime(m.ts);
+      sys.appendChild(label);
+      sys.appendChild(time);
       frag.appendChild(sys);
+      prevMsg = null; // системное сообщение всегда разрывает визуальную группу
       continue;
     }
     const dayStr = formatDayGroup(m.ts);
@@ -1309,9 +1336,15 @@ function renderChatThreadInner() {
       sep.appendChild(inner);
       frag.appendChild(sep);
       lastDay = dayStr;
+      prevMsg = null; // новый день — тоже новая группа
     }
+    // Подряд идущие сообщения одного собеседника (в пределах 5 минут) визуально
+    // сближаем — так делают WhatsApp/Telegram/iMessage: понятно, что это одна
+    // "реплика", а не череда отдельных сообщений.
+    const grouped = !!(prevMsg && prevMsg.from === m.from && m.ts - prevMsg.ts < 5 * 60 * 1000);
     const bubble = document.createElement("div");
-    bubble.className = "bubble-row " + (m.from === "me" ? "mine" : "theirs");
+    bubble.className = "bubble-row " + (m.from === "me" ? "mine" : "theirs") + (grouped ? " grouped" : "");
+    prevMsg = m;
     const tick = m.from === "me" ? ackGlyph(m.ack) : "";
     const editedMark = m.edited ? `<span class="bubble-edited">${escapeHtml(T("chat.edit"))}</span>` : "";
     const inner = document.createElement("div");
@@ -2701,7 +2734,10 @@ async function acceptCall(withMute) {
       }
       return;
     }
-    toast(T("toast.callAccepted"));
+    // Соединение недоступно ровно в момент принятия — не показываем ложный
+    // "звонок принят", а честно закрываем экран как несостоявшийся звонок.
+    toast(T("calls.failed"));
+    closeCallScreen("failed");
   } catch (e) {
     etherLog("error", "[call] accept handler failed:", String(e));
   } finally {
@@ -2780,7 +2816,7 @@ function wireSettingsScreen() {
   });
   const pinlock = $("#settings-pinlock");
   if (pinlock) pinlock.addEventListener("change", (e) => {
-    const st = $("#set-pin-title"); if (st) st.textContent = Store.pinHash ? "PIN" : "PIN";
+    const st = $("#set-pin-title"); if (st) st.textContent = T("pin.newTitle");
     const si = $("#set-pin-input"); if (si) si.value = "";
     const ss = $("#set-pin-sheet"); if (ss) ss.classList.remove("hidden");
     setTimeout(() => { const i = $("#set-pin-input"); if (i) i.focus(); }, 50);
@@ -2795,7 +2831,7 @@ function wireSettingsScreen() {
       if (Store.pinHash) {
         const h = await pbkdf2Hex(v, Store.pinSalt, PIN_ITERATIONS);
         if (h !== Store.pinHash) { toast(T("toast.pinWrong")); return; }
-        const st = $("#set-pin-title"); if (st) st.textContent = "PIN";
+        const st = $("#set-pin-title"); if (st) st.textContent = T("pin.newTitle");
         inp.value = "";
         return;
       }

@@ -40,8 +40,8 @@
     <h1 data-i18n="app.name">Ether</h1>
     <p class="onboarding-sub" data-i18n="app.tagline">Messages and calls directly between devices.</p>
     <form id="onboarding-form">
-      <input id="onboarding-name" type="text" placeholder="Your name" autocomplete="name" maxlength="40" required />
-      <input id="onboarding-identity" type="text" placeholder="Phone or email" autocomplete="tel" maxlength="80" required />
+      <input id="onboarding-name" type="text" placeholder="Your name" data-i18n-ph="onboarding.name.placeholder" autocomplete="name" maxlength="40" required />
+      <input id="onboarding-identity" type="text" placeholder="Phone or email" data-i18n-ph="onboarding.id.placeholder" autocomplete="tel" maxlength="80" required />
       <button type="submit" class="btn-primary" data-i18n="onboarding.start">Start</button>
     </form>
     <p class="onboarding-fine" data-i18n="onboarding.hint">If you registered before — enter the same name and phone/email: the account will be restored.</p>
@@ -49,7 +49,27 @@
 </div>
 
 <div id="app-shell" class="hidden">
-  <header id="nav-bar" class="glass"><h1 id="nav-title">Chats</h1></header>
+  <header id="nav-bar" class="glass">
+    <div id="nav-list-mode" class="nav-mode-list">
+      <h1 id="nav-title">Chats</h1>
+    </div>
+    <div id="nav-chat-mode" class="nav-mode-chat hidden">
+      <button type="button" id="chat-back" class="icon-btn back-btn">‹</button>
+      <button type="button" id="chat-peer-tap" class="chat-header-info chat-header-tappable">
+        <span id="chat-peer-name">Peer</span>
+        <span id="chat-peer-status" class="muted"></span>
+      </button>
+      <span id="chat-transport-badge" class="transport-badge hidden">P2P</span>
+      <button type="button" id="chat-search-btn" class="icon-btn" aria-label="Search" data-i18n-aria="a11y.search"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg></button>
+      <button type="button" id="chat-call-btn" class="icon-btn call-icon" aria-label="Call" data-i18n-aria="chat.call"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.7 21 3 13.3 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.4 0 .8-.2 1L6.6 10.8z"/></svg></button>
+      <button type="button" id="chat-more-btn" class="icon-btn" aria-label="More" data-i18n-aria="a11y.more"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M6 10.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm6 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm6 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z"/></svg></button>
+    </div>
+    <div id="nav-contact-mode" class="nav-mode-chat hidden">
+      <button type="button" id="contact-back" class="icon-btn back-btn">‹</button>
+      <span id="nav-contact-title" class="nav-contact-title"></span>
+      <span class="icon-btn" style="visibility:hidden;">‹</span>
+    </div>
+  </header>
 
   <div id="lang-offer" class="notif-banner glass-content hidden">
     <div class="notif-banner-text">
@@ -57,7 +77,7 @@
       <span id="lang-offer-text"></span>
     </div>
     <button type="button" id="lang-offer-yes" class="btn-primary notif-banner-btn">Switch</button>
-    <button type="button" id="lang-offer-no" class="icon-btn small" aria-label="Close">
+    <button type="button" id="lang-offer-no" class="icon-btn small" aria-label="Close" data-i18n-aria="sys.close">
       <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
     </button>
   </div>
@@ -68,7 +88,7 @@
       <span data-i18n="notif.bannerText">To receive messages and calls when the app is closed</span>
     </div>
     <button type="button" id="notif-enable-btn" class="btn-primary notif-banner-btn" data-i18n="notif.enable">Enable</button>
-    <button type="button" id="notif-dismiss-btn" class="icon-btn small" aria-label="Close">
+    <button type="button" id="notif-dismiss-btn" class="icon-btn small" aria-label="Close" data-i18n-aria="sys.close">
       <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
     </button>
   </div>
@@ -77,7 +97,7 @@
 
     <section id="screen-chats" class="screen">
       <div class="search-wrap">
-        <input id="global-search" type="text" placeholder="Search chats" class="search-input" autocomplete="off" />
+        <input id="global-search" type="text" placeholder="Search chats" data-i18n-ph="chats.search" class="search-input" autocomplete="off" />
       </div>
       <div id="chats-empty" class="empty-state hidden">
         <div class="empty-icon">💬</div>
@@ -109,8 +129,8 @@
       <div class="connect-card glass-content" id="add-contact-card">
         <h2 data-i18n="connect.add">Add contact</h2>
         <p class="muted" data-i18n="connect.add.sub">Enter a phone number or email — once that person opens the app too, you'll be connected automatically.</p>
-        <input id="add-contact-name" type="text" placeholder="Name (optional)" maxlength="40" />
-        <input id="add-contact-value" type="text" placeholder="Contact's phone or email" maxlength="80" />
+        <input id="add-contact-name" type="text" placeholder="Name (optional)" data-i18n-ph="connect.name.placeholder" maxlength="40" />
+        <input id="add-contact-value" type="text" placeholder="Contact's phone or email" data-i18n-ph="connect.id.placeholder" maxlength="80" />
         <button type="button" id="add-contact-btn" class="btn-primary" data-i18n="connect.addButton">Add contact</button>
       </div>
 
@@ -139,14 +159,14 @@
           </div>
           <div class="divider"></div>
           <h2 data-i18n="connect.invite.step2">Step 2 · paste the answer code</h2>
-          <textarea id="answer-code-in" placeholder="Answer code"></textarea>
+          <textarea id="answer-code-in" placeholder="Answer code" data-i18n-ph="connect.invite.answer.placeholder"></textarea>
           <button type="button" id="complete-invite-btn" class="btn-primary" data-i18n="connect.invite.complete">Connect</button>
           <button type="button" id="new-invite-again" class="btn-tertiary" data-i18n="connect.invite.restart">Start over</button>
         </div>
         <div class="connect-card glass-content" id="join-card">
           <h2 data-i18n="connect.invite.join">I have an invite code</h2>
           <div id="paste-code-wrap">
-            <textarea id="paste-code-in" placeholder="Invite code"></textarea>
+            <textarea id="paste-code-in" placeholder="Invite code" data-i18n-ph="connect.invite.paste.placeholder"></textarea>
             <button type="button" id="reply-btn" class="btn-primary" data-i18n="connect.invite.reply">Reply</button>
           </div>
           <div id="answer-out-wrap" class="hidden">
@@ -183,7 +203,7 @@
       </div>
       <div class="settings-group glass-content">
         <div class="settings-row column">
-          <span data-i18n="settings.glass">Glass transparency</span>
+          <span data-i18n="settings.glass">Glass transparency</span> <span id="glass-slider-value" class="fine muted"></span>
           <input id="glass-slider" type="range" min="0.18" max="0.85" step="0.01" />
         </div>
         <div class="settings-row column">
@@ -204,50 +224,38 @@
 
     <section id="screen-debug" class="screen hidden">
       <div class="settings-group glass-content">
-        <button type="button" id="diagnostics-btn" class="settings-row link-row"><span>Diagnostics</span><span class="chevron">›</span></button>
-        <button type="button" id="webrtc-debug-btn" class="settings-row link-row"><span>WebRTC connections</span><span class="chevron">›</span></button>
-        <button type="button" id="debug-logs-btn" class="settings-row link-row"><span>Event log</span><span class="chevron">›</span></button>
-        <button type="button" id="debug-storage-btn" class="settings-row link-row"><span>Storage & environment</span><span class="chevron">›</span></button>
+        <button type="button" id="diagnostics-btn" class="settings-row link-row"><span data-i18n="debug.diagnostics">Diagnostics</span><span class="chevron">›</span></button>
+        <button type="button" id="webrtc-debug-btn" class="settings-row link-row"><span data-i18n="debug.webrtc">WebRTC connections</span><span class="chevron">›</span></button>
+        <button type="button" id="debug-logs-btn" class="settings-row link-row"><span data-i18n="debug.eventLog">Event log</span><span class="chevron">›</span></button>
+        <button type="button" id="debug-storage-btn" class="settings-row link-row"><span data-i18n="debug.storage">Storage & environment</span><span class="chevron">›</span></button>
       </div>
       <div class="settings-group glass-content">
-        <button type="button" id="export-backup-btn" class="settings-row link-row"><span>Export all data</span><span class="chevron">›</span></button>
-        <button type="button" id="import-backup-btn" class="settings-row link-row"><span>Import data from file</span><span class="chevron">›</span></button>
+        <button type="button" id="export-backup-btn" class="settings-row link-row"><span data-i18n="debug.exportData">Export all data</span><span class="chevron">›</span></button>
+        <button type="button" id="import-backup-btn" class="settings-row link-row"><span data-i18n="debug.importData">Import data from file</span><span class="chevron">›</span></button>
       </div>
       <div class="settings-group glass-content">
-        <button type="button" id="reset-all-btn" class="settings-row destructive">Drop all connections</button>
-        <button type="button" id="debug-hard-reset-btn" class="settings-row destructive">Full app reset</button>
+        <button type="button" id="reset-all-btn" class="settings-row destructive" data-i18n="debug.dropConnections">Drop all connections</button>
+        <button type="button" id="debug-hard-reset-btn" class="settings-row destructive" data-i18n="debug.fullReset">Full app reset</button>
       </div>
       <div class="settings-group glass-content">
         <div class="settings-row column">
-          <span>Debug mode</span>
-          <span class="fine muted">Hides the "Debug" tab. To restore — tap the header 5 times.</span>
-          <label class="settings-row"><span>Hide "Debug" tab</span><input id="debug-hide-toggle" type="checkbox" class="switch" /></label>
+          <span data-i18n="debug.mode">Debug mode</span>
+          <span class="fine muted" data-i18n="debug.hideTabHint">Hides the "Debug" tab. To restore — tap the header 5 times.</span>
+          <label class="settings-row"><span data-i18n="debug.hideTab">Hide "Debug" tab</span><input id="debug-hide-toggle" type="checkbox" class="switch" /></label>
         </div>
       </div>
     </section>
 
     <section id="screen-chat" class="screen hidden">
-      <div class="chat-header glass">
-        <button type="button" id="chat-back" class="icon-btn back-btn">‹</button>
-        <button type="button" id="chat-peer-tap" class="chat-header-info chat-header-tappable">
-          <span id="chat-peer-name">Peer</span>
-          <span id="chat-peer-status" class="muted"></span>
-        </button>
-        <span id="chat-transport-badge" class="transport-badge hidden">P2P</span>
-        <button type="button" id="chat-search-btn" class="icon-btn" aria-label="Search"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg></button>
-        <button type="button" id="chat-call-btn" class="icon-btn call-icon" aria-label="Call"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.7 21 3 13.3 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.4 0 .8-.2 1L6.6 10.8z"/></svg></button>
-        <button type="button" id="chat-more-btn" class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M6 10.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm6 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm6 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z"/></svg></button>
-      </div>
-
       <div id="chat-search-bar" class="search-bar glass hidden">
-        <input id="chat-search-input" type="text" placeholder="Search in chat" class="search-input-inline" autocomplete="off" />
+        <input id="chat-search-input" type="text" placeholder="Search in chat" data-i18n-ph="chat.search" class="search-input-inline" autocomplete="off" />
         <span id="chat-search-counter" class="search-counter"></span>
         <button type="button" id="chat-search-close" class="icon-btn small"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg></button>
       </div>
 
       <div id="chat-messages" class="chat-messages"></div>
 
-      <button type="button" id="scroll-bottom-btn" class="scroll-bottom-btn hidden" aria-label="To last">
+      <button type="button" id="scroll-bottom-btn" class="scroll-bottom-btn hidden" aria-label="To last" data-i18n-aria="a11y.toLast">
         <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 16 6 10l1.41-1.41L12 13.17l4.59-4.58L18 10z"/></svg>
         <span id="scroll-bottom-count" class="scroll-bottom-count"></span>
       </button>
@@ -260,20 +268,17 @@
 
       <div id="edit-banner" class="edit-banner glass hidden">
         <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z"/></svg>
-        <span class="edit-banner-text">Editing</span>
+        <span class="edit-banner-text" data-i18n="chat.editingLabel">Editing</span>
         <button type="button" id="edit-cancel-btn" class="icon-btn small"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg></button>
       </div>
 
       <form id="chat-form" class="chat-input-bar glass">
-        <input id="chat-input" type="text" placeholder="Message" autocomplete="off" maxlength="4000" />
-        <button type="submit" class="send-btn" aria-label="Send"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M3 11.5 21 3l-6 18-4-7.5L3 11.5z"/></svg></button>
+        <input id="chat-input" type="text" placeholder="Message" data-i18n-ph="chat.placeholder" autocomplete="off" maxlength="4000" />
+        <button type="submit" class="send-btn" aria-label="Send" data-i18n-aria="chat.send"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M3 11.5 21 3l-6 18-4-7.5L3 11.5z"/></svg></button>
       </form>
     </section>
 
     <section id="screen-contact" class="screen hidden">
-      <div class="contact-card-head">
-        <button type="button" id="contact-back" class="icon-btn back-btn">‹</button>
-      </div>
       <div class="contact-profile glass-content">
         <div id="contact-avatar" class="contact-avatar"></div>
         <h2 id="contact-name">Contact</h2>
@@ -281,28 +286,28 @@
         <div class="contact-actions">
           <button type="button" id="contact-msg-btn" class="contact-action-btn">
             <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 4V6a2 2 0 0 1 2-2z"/></svg>
-            <span>Message</span>
+            <span data-i18n="chat.message">Message</span>
           </button>
           <button type="button" id="contact-call-btn" class="contact-action-btn">
             <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.7 21 3 13.3 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.4 0 .8-.2 1L6.6 10.8z"/></svg>
-            <span>Call</span>
+            <span data-i18n="chat.call">Call</span>
           </button>
         </div>
       </div>
       <div class="settings-group glass-content" id="contact-info-group">
-        <div class="settings-row"><span>Identifier</span><span id="contact-info-id" class="fine muted"></span></div>
-        <div class="settings-row"><span>Notifications</span><span id="contact-info-muted" class="fine muted"></span></div>
+        <div class="settings-row"><span data-i18n="chat.contact.identifier">Identifier</span><span id="contact-info-id" class="fine muted"></span></div>
+        <div class="settings-row"><span data-i18n="chat.contact.notifications">Notifications</span><span id="contact-info-muted" class="fine muted"></span></div>
       </div>
       <div class="settings-group glass-content">
-        <button type="button" id="contact-rename-btn" class="settings-row link-row"><span>Rename</span><span class="chevron">›</span></button>
-        <button type="button" id="contact-mute-btn" class="settings-row link-row"><span>Mute</span><span class="chevron">›</span></button>
-        <button type="button" id="contact-archive-btn" class="settings-row link-row"><span>Archive</span><span class="chevron">›</span></button>
-        <button type="button" id="contact-block-btn" class="settings-row link-row"><span>Block</span><span class="chevron">›</span></button>
-        <button type="button" id="contact-export-btn" class="settings-row link-row"><span>Export chat</span><span class="chevron">›</span></button>
+        <button type="button" id="contact-rename-btn" class="settings-row link-row"><span data-i18n="chat.contact.rename">Rename</span><span class="chevron">›</span></button>
+        <button type="button" id="contact-mute-btn" class="settings-row link-row"><span data-i18n="chat.contact.mute">Mute</span><span class="chevron">›</span></button>
+        <button type="button" id="contact-archive-btn" class="settings-row link-row"><span data-i18n="chat.contact.archive">Archive</span><span class="chevron">›</span></button>
+        <button type="button" id="contact-block-btn" class="settings-row link-row"><span data-i18n="chat.contact.block">Block</span><span class="chevron">›</span></button>
+        <button type="button" id="contact-export-btn" class="settings-row link-row"><span data-i18n="chat.contact.export">Export chat</span><span class="chevron">›</span></button>
       </div>
       <div class="settings-group glass-content">
-        <button type="button" id="contact-clear-btn" class="settings-row destructive">Clear history</button>
-        <button type="button" id="contact-delete-btn" class="settings-row destructive">Delete contact</button>
+        <button type="button" id="contact-clear-btn" class="settings-row destructive" data-i18n="chat.contact.clear">Clear history</button>
+        <button type="button" id="contact-delete-btn" class="settings-row destructive" data-i18n="chat.contact.delete">Delete contact</button>
       </div>
     </section>
 
@@ -379,7 +384,7 @@
     <div class="sheet-handle"></div>
     <div id="reaction-bar" class="reaction-bar"></div>
     <div id="message-sheet-body" class="sheet-actions"></div>
-    <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="message-sheet">Cancel</button>
+    <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="message-sheet" data-i18n="sys.cancel">Cancel</button>
   </div>
 </div>
 
@@ -387,9 +392,9 @@
   <div class="sheet-backdrop"></div>
   <div class="sheet-panel glass-content">
     <div class="sheet-handle"></div>
-    <h2>Forward</h2>
+    <h2 data-i18n="chat.forward">Forward</h2>
     <div id="forward-list" class="forward-list"></div>
-    <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="forward-sheet">Cancel</button>
+    <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="forward-sheet" data-i18n="sys.cancel">Cancel</button>
   </div>
 </div>
 
@@ -397,10 +402,10 @@
   <div class="sheet-backdrop"></div>
   <div class="sheet-panel glass-content">
     <div class="sheet-handle"></div>
-    <h2>Rename contact</h2>
+    <h2 data-i18n="chat.contact.rename">Rename contact</h2>
     <input id="rename-input" type="text" maxlength="40" class="rename-input" />
-    <button type="button" id="rename-save-btn" class="btn-primary">Save</button>
-    <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="rename-sheet">Cancel</button>
+    <button type="button" id="rename-save-btn" class="btn-primary" data-i18n="sys.save">Save</button>
+    <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="rename-sheet" data-i18n="sys.cancel">Cancel</button>
   </div>
 </div>
 
@@ -409,9 +414,10 @@
   <div class="sheet-panel glass-content">
     <div class="sheet-handle"></div>
     <h2 id="set-pin-title">New PIN</h2>
+    <p class="fine muted" data-i18n="settings.pin.disclaimer" style="margin:-8px 0 14px;">The PIN only locks the screen from a casual glance — it does not encrypt what's stored on this device.</p>
     <input id="set-pin-input" type="password" inputmode="numeric" maxlength="8" placeholder="••••" class="pin-input" />
-    <button type="button" id="set-pin-save-btn" class="btn-primary">Save</button>
-    <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="set-pin-sheet">Cancel</button>
+    <button type="button" id="set-pin-save-btn" class="btn-primary" data-i18n="sys.save">Save</button>
+    <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="set-pin-sheet" data-i18n="sys.cancel">Cancel</button>
   </div>
 </div>
 
@@ -419,14 +425,14 @@
   <div class="sheet-backdrop"></div>
   <div class="sheet-panel glass-content">
     <div class="sheet-handle"></div>
-    <h2>Diagnostics</h2>
+    <h2 data-i18n="debug.diagnostics">Diagnostics</h2>
     <div id="diagnostics-summary" class="diag-summary"></div>
     <pre id="diagnostics-log" class="diag-log"></pre>
     <div class="row-actions">
-      <button type="button" id="diagnostics-copy-btn" class="btn-secondary">Copy</button>
-      <button type="button" id="diagnostics-refresh-btn" class="btn-secondary">Refresh</button>
+      <button type="button" id="diagnostics-copy-btn" class="btn-secondary" data-i18n="sys.copy">Copy</button>
+      <button type="button" id="diagnostics-refresh-btn" class="btn-secondary" data-i18n="sys.refresh">Refresh</button>
     </div>
-    <button type="button" id="diagnostics-close" class="btn-primary">Close</button>
+    <button type="button" id="diagnostics-close" class="btn-primary" data-i18n="sys.close">Close</button>
   </div>
 </div>
 
@@ -434,13 +440,13 @@
   <div class="sheet-backdrop"></div>
   <div class="sheet-panel glass-content">
     <div class="sheet-handle"></div>
-    <h2>WebRTC connections</h2>
+    <h2 data-i18n="debug.webrtc">WebRTC connections</h2>
     <div id="webrtc-content" class="diag-log"></div>
     <div class="row-actions">
-      <button type="button" id="webrtc-copy-btn" class="btn-secondary">Copy</button>
-      <button type="button" id="webrtc-refresh-btn" class="btn-secondary">Refresh</button>
+      <button type="button" id="webrtc-copy-btn" class="btn-secondary" data-i18n="sys.copy">Copy</button>
+      <button type="button" id="webrtc-refresh-btn" class="btn-secondary" data-i18n="sys.refresh">Refresh</button>
     </div>
-    <button type="button" id="webrtc-close" class="btn-primary">Close</button>
+    <button type="button" id="webrtc-close" class="btn-primary" data-i18n="sys.close">Close</button>
   </div>
 </div>
 
@@ -448,13 +454,13 @@
   <div class="sheet-backdrop"></div>
   <div class="sheet-panel glass-content">
     <div class="sheet-handle"></div>
-    <h2>Event log</h2>
+    <h2 data-i18n="debug.eventLog">Event log</h2>
     <pre id="logs-content" class="diag-log"></pre>
     <div class="row-actions">
-      <button type="button" id="logs-copy-btn" class="btn-secondary">Copy</button>
-      <button type="button" id="logs-clear-btn" class="btn-secondary">Clear</button>
+      <button type="button" id="logs-copy-btn" class="btn-secondary" data-i18n="sys.copy">Copy</button>
+      <button type="button" id="logs-clear-btn" class="btn-secondary" data-i18n="sys.clear">Clear</button>
     </div>
-    <button type="button" id="logs-close" class="btn-primary">Close</button>
+    <button type="button" id="logs-close" class="btn-primary" data-i18n="sys.close">Close</button>
   </div>
 </div>
 
@@ -462,9 +468,9 @@
   <div class="sheet-backdrop"></div>
   <div class="sheet-panel glass-content">
     <div class="sheet-handle"></div>
-    <h2>Storage & environment</h2>
+    <h2 data-i18n="debug.storage">Storage & environment</h2>
     <div id="storage-summary" class="diag-summary"></div>
-    <button type="button" id="storage-close" class="btn-primary">Close</button>
+    <button type="button" id="storage-close" class="btn-primary" data-i18n="sys.close">Close</button>
   </div>
 </div>
 
@@ -473,8 +479,8 @@
 
 <div id="boot-recovery" class="hidden">
   <div class="onboarding-card glass-content boot-recovery-card">
-    <h1 class="boot-recovery-title">Something went wrong</h1>
-    <button type="button" id="boot-recovery-reset" class="btn-primary">Clear and start over</button>
+    <h1 class="boot-recovery-title" data-i18n="boot.error">Something went wrong</h1>
+    <button type="button" id="boot-recovery-reset" class="btn-primary" data-i18n="boot.resetButton">Clear and start over</button>
   </div>
 </div>
 

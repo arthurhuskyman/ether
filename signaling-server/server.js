@@ -61,6 +61,25 @@ function rateLimitOk(ip) {
   return w.n <= ICE_RATE_LIMIT_PER_MIN;
 }
 
+// Отдельный, независимый лимит на попытки регистрации с одного IP.
+// Сервер не проверяет владение номером/email (id — просто хэш) — это
+// известное ограничение (см. README). Полноценная защита требует
+// верификации номера/почты; пока это не сделано, лимит хотя бы
+// затрудняет автоматический перебор чужих id с одного источника.
+const REGISTER_RATE_LIMIT_PER_MIN = 15;
+const registerHits = new Map();
+function registerRateLimitOk(ip) {
+  const now = Date.now();
+  const w = registerHits.get(ip) || { start: now, n: 0 };
+  if (now - w.start > 60_000) { w.start = now; w.n = 0; }
+  w.n++;
+  registerHits.set(ip, w);
+  if (registerHits.size > 5000) {
+    for (const [k, v] of registerHits) if (now - v.start > 120_000) registerHits.delete(k);
+  }
+  return w.n <= REGISTER_RATE_LIMIT_PER_MIN;
+}
+
 async function fetchMeteredIce() {
   if (!METERED_API_KEY) return null;
   const url = METERED_API_BASE + "?apiKey=" + encodeURIComponent(METERED_API_KEY);
@@ -113,8 +132,14 @@ async function getIceServers() {
 }
 
 // ---------- HTTP-сервер (для /ice и как база для WS) ----------
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "*";
+if (ALLOWED_ORIGIN === "*") {
+  console.warn("[ice] ALLOWED_ORIGIN не задан — /ice отдаёт TURN-credentials любому источнику. " +
+    "Перед публичным релизом задайте ALLOWED_ORIGIN=https://ваш-домен в переменных окружения.");
+}
 const httpServer = http.createServer(async (req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
+  res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
@@ -314,8 +339,10 @@ function isValidEnvelope(env) {
 function shortId(s) { return String(s || "").slice(0, 10) + "…"; }
 
 // ---------- Соединения ----------
-wss.on("connection", (ws) => {
+wss.on("connection", (ws, req) => {
   let myId = null;
+  const clientIp = (req && req.headers && req.headers["x-forwarded-for"] || "").toString().split(",")[0].trim()
+    || (req && req.socket && req.socket.remoteAddress) || "unknown";
   ws.isAlive = true;
   ws.on("pong", () => (ws.isAlive = true));
 
@@ -330,6 +357,10 @@ wss.on("connection", (ws) => {
     }
 
     if (msg.type === "register" && typeof msg.id === "string" && msg.id) {
+      if (!registerRateLimitOk(clientIp)) {
+        safeSend(ws, { type: "register-rate-limited" });
+        return;
+      }
       if (clients.has(msg.id) && clients.get(msg.id).ws !== ws) {
         try {
           safeSend(clients.get(msg.id).ws, { type: "replaced" });
@@ -344,7 +375,7 @@ wss.on("connection", (ws) => {
         visible: msg.visible !== false,
         publicKey: msg.publicKey || null,
       });
-      console.log("[reg] " + shortId(myId) + " name=" + (msg.name || "").slice(0, 20) + " visible=" + (msg.visible !== false) + " clients=" + clients.size);
+      console.log("[reg] " + shortId(myId) + " visible=" + (msg.visible !== false) + " clients=" + clients.size);
       const online = Array.from(clients.keys())
         .filter((i) => i !== myId)
         .map((i) => rosterEntry(i))

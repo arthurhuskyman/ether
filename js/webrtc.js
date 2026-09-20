@@ -116,6 +116,7 @@ class PeerLink extends EventTarget {
           tcpType: c.tcpType || null,
           ts: Date.now(),
         });
+        if (this._iceCandidates.length > 200) this._iceCandidates.shift(); // диагностика, не нужно копить бесконечно через reInvite()-циклы
         this._log("info", "[webrtc]", id.slice(0, 10) + "…", "ICE " + kind + " " + (c.protocol || "?"), (c.address || "") + ":" + (c.port || ""));
         this.dispatchEvent(new CustomEvent("ice-candidate", { detail: { candidate: c, type: kind } }));
       } else {
@@ -134,6 +135,7 @@ class PeerLink extends EventTarget {
         ts: Date.now(),
       };
       this._iceErrors.push(err);
+      if (this._iceErrors.length > 100) this._iceErrors.shift();
       this._log("warn", "[webrtc]", id.slice(0, 10) + "…", "ICE error " + ev.errorCode, ev.errorText || "", ev.url || "");
     });
 

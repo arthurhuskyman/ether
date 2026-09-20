@@ -9,6 +9,10 @@ const fs = require("fs");
 const path = require("path");
 const wrtc = require("@roamhq/wrtc");
 
+// webrtc.js обращается к window.* на верхнем уровне модуля (например,
+// window.__etherIceReady) — в Node такого глобала нет, поэтому раньше eval
+// падал с ReferenceError ещё до первой проверки. Подставляем минимальный шим.
+global.window = global;
 global.RTCPeerConnection = wrtc.RTCPeerConnection;
 global.crypto = global.crypto || require("crypto").webcrypto;
 
