@@ -1,9 +1,11 @@
-const CACHE_VERSION = "ether-shell-v16";
+const CACHE_VERSION = "ether-shell-v17";
 const SHELL_FILES = [
   "./",
   "./index.html",
   "./manifest.webmanifest",
   "./css/styles.css",
+  "./js/languages.js",
+  "./js/i18n.js",
   "./js/app.js",
   "./js/webrtc.js",
   "./js/signaling-codec.js",

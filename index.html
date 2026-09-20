@@ -1,16 +1,16 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
 <meta name="color-scheme" content="dark light" />
-<title>Эфир — связь напрямую</title>
-<meta name="description" content="Обмен сообщениями и звонки напрямую между устройствами." />
+<title>Ether — direct connection</title>
+<meta name="description" content="Messages and calls directly between devices." />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#000000" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="apple-mobile-web-app-title" content="Эфир" />
+<meta name="apple-mobile-web-app-title" content="Ether" />
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
 <link rel="icon" href="icons/favicon-32.png" sizes="32x32" />
 <link rel="stylesheet" href="css/styles.css" />
@@ -22,11 +22,11 @@
     <div class="lock-icon">
       <svg viewBox="0 0 24 24" width="40" height="40"><path fill="currentColor" d="M17 8h-1V6a4 4 0 0 0-8 0v2H7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2zM9 6a3 3 0 0 1 6 0v2H9V6zm3 12a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"/></svg>
     </div>
-    <h1 class="lock-title">Эфир защищён</h1>
-    <p class="onboarding-sub">Введите пин-код</p>
+    <h1 class="lock-title" data-i18n="lock.title">Ether locked</h1>
+    <p class="onboarding-sub" data-i18n="lock.sub">Enter PIN code</p>
     <input id="lock-pin" type="password" inputmode="numeric" maxlength="8" placeholder="••••" class="pin-input" autocomplete="off" />
-    <button type="button" id="lock-submit" class="btn-primary">Разблокировать</button>
-    <button type="button" id="lock-forgot" class="btn-tertiary">Забыли пин-код?</button>
+    <button type="button" id="lock-submit" class="btn-primary" data-i18n="lock.unlock">Unlock</button>
+    <button type="button" id="lock-forgot" class="btn-tertiary" data-i18n="lock.forgot">Forgot PIN?</button>
   </div>
 </div>
 
@@ -37,27 +37,38 @@
       <div class="glyph-bubble b1"></div>
       <div class="glyph-bubble b2"></div>
     </div>
-    <h1>Эфир</h1>
-    <p class="onboarding-sub">Сообщения и звонки напрямую между устройствами.</p>
+    <h1 data-i18n="app.name">Ether</h1>
+    <p class="onboarding-sub" data-i18n="app.tagline">Messages and calls directly between devices.</p>
     <form id="onboarding-form">
-      <input id="onboarding-name" type="text" placeholder="Как вас представить?" autocomplete="name" maxlength="40" required />
-      <input id="onboarding-identity" type="text" placeholder="Ваш телефон или email" autocomplete="tel" maxlength="80" required />
-      <button type="submit" class="btn-primary">Начать</button>
+      <input id="onboarding-name" type="text" placeholder="Your name" autocomplete="name" maxlength="40" required />
+      <input id="onboarding-identity" type="text" placeholder="Phone or email" autocomplete="tel" maxlength="80" required />
+      <button type="submit" class="btn-primary" data-i18n="onboarding.start">Start</button>
     </form>
-    <p class="onboarding-fine">Если вы уже регистрировались раньше — введите те же имя и телефон/email: аккаунт восстановится.</p>
+    <p class="onboarding-fine" data-i18n="onboarding.hint">If you registered before — enter the same name and phone/email: the account will be restored.</p>
   </div>
 </div>
 
 <div id="app-shell" class="hidden">
-  <header id="nav-bar" class="glass"><h1 id="nav-title">Чаты</h1></header>
+  <header id="nav-bar" class="glass"><h1 id="nav-title">Chats</h1></header>
+
+  <div id="lang-offer" class="notif-banner glass-content hidden">
+    <div class="notif-banner-text">
+      <strong id="lang-offer-title">Change language?</strong>
+      <span id="lang-offer-text"></span>
+    </div>
+    <button type="button" id="lang-offer-yes" class="btn-primary notif-banner-btn">Switch</button>
+    <button type="button" id="lang-offer-no" class="icon-btn small" aria-label="Close">
+      <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
+    </button>
+  </div>
 
   <div id="notif-banner" class="notif-banner glass-content hidden">
     <div class="notif-banner-text">
-      <strong>Включите уведомления</strong>
-      <span>Чтобы получать сообщения и звонки, когда приложение закрыто</span>
+      <strong data-i18n="notif.bannerTitle">Enable notifications</strong>
+      <span data-i18n="notif.bannerText">To receive messages and calls when the app is closed</span>
     </div>
-    <button type="button" id="notif-enable-btn" class="btn-primary notif-banner-btn">Включить</button>
-    <button type="button" id="notif-dismiss-btn" class="icon-btn small" aria-label="Закрыть">
+    <button type="button" id="notif-enable-btn" class="btn-primary notif-banner-btn" data-i18n="notif.enable">Enable</button>
+    <button type="button" id="notif-dismiss-btn" class="icon-btn small" aria-label="Close">
       <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
     </button>
   </div>
@@ -66,81 +77,81 @@
 
     <section id="screen-chats" class="screen">
       <div class="search-wrap">
-        <input id="global-search" type="text" placeholder="Поиск по чатам" class="search-input" autocomplete="off" />
+        <input id="global-search" type="text" placeholder="Search chats" class="search-input" autocomplete="off" />
       </div>
       <div id="chats-empty" class="empty-state hidden">
         <div class="empty-icon">💬</div>
-        <h2>Пока никого нет на связи</h2>
-        <p>Откройте вкладку «Контакты», чтобы добавить первого собеседника.</p>
+        <h2 data-i18n="chats.empty.title">No one is online yet</h2>
+        <p data-i18n="chats.empty.sub">Open the Contacts tab to add your first peer.</p>
       </div>
       <div id="chats-list" class="chats-list"></div>
       <div id="chats-archived-toggle" class="link-toggle-wrap hidden">
-        <button type="button" id="toggle-archived" class="link-toggle">Показать архив ›</button>
+        <button type="button" id="toggle-archived" class="link-toggle" data-i18n="chats.archive.show">Show archive ›</button>
       </div>
     </section>
 
     <section id="screen-calls" class="screen hidden">
       <div id="calls-empty" class="empty-state hidden">
         <div class="empty-icon">📞</div>
-        <h2>Звонков пока не было</h2>
+        <h2 data-i18n="calls.empty.title">No calls yet</h2>
       </div>
       <div id="calls-list" class="calls-list"></div>
     </section>
 
     <section id="screen-connect" class="screen hidden">
       <div class="connect-card glass-content">
-        <h2>Мои контакты</h2>
-        <p class="muted">Все, кого вы добавили. Тапните по контакту, чтобы написать или позвонить.</p>
+        <h2 data-i18n="connect.myContacts">My contacts</h2>
+        <p class="muted" data-i18n="connect.myContacts.sub">Everyone you've added. Tap a contact to chat or call.</p>
         <div id="contacts-list" class="roster-list"></div>
-        <p id="contacts-empty" class="muted fine hidden">Пока нет ни одного контакта.</p>
+        <p id="contacts-empty" class="muted fine hidden" data-i18n="connect.empty">No contacts yet.</p>
       </div>
 
       <div class="connect-card glass-content" id="add-contact-card">
-        <h2>Добавить контакт</h2>
-        <p class="muted">Введите номер телефона или email — как только этот человек тоже откроет приложение, вы автоматически окажетесь на связи.</p>
-        <input id="add-contact-name" type="text" placeholder="Имя (необязательно)" maxlength="40" />
-        <input id="add-contact-value" type="text" placeholder="Телефон или email контакта" maxlength="80" />
-        <button type="button" id="add-contact-btn" class="btn-primary">Добавить контакт</button>
+        <h2 data-i18n="connect.add">Add contact</h2>
+        <p class="muted" data-i18n="connect.add.sub">Enter a phone number or email — once that person opens the app too, you'll be connected automatically.</p>
+        <input id="add-contact-name" type="text" placeholder="Name (optional)" maxlength="40" />
+        <input id="add-contact-value" type="text" placeholder="Contact's phone or email" maxlength="80" />
+        <button type="button" id="add-contact-btn" class="btn-primary" data-i18n="connect.addButton">Add contact</button>
       </div>
 
       <div class="connect-card glass-content" id="online-roster-card">
-        <h2>Сейчас в сети</h2>
-        <p class="muted">Все, кто прямо сейчас открыл приложение с тем же сигнальным сервером и не скрыл себя из списка.</p>
+        <h2 data-i18n="connect.online">Online now</h2>
+        <p class="muted" data-i18n="connect.online.sub">Everyone who has the app open right now on the same signaling server and hasn't hidden themselves.</p>
         <div id="online-roster-list" class="roster-list"></div>
-        <p id="online-roster-empty" class="muted fine hidden">Пока никого не видно.</p>
+        <p id="online-roster-empty" class="muted fine hidden" data-i18n="connect.online.empty">No one is visible.</p>
       </div>
 
-      <button type="button" id="toggle-manual-btn" class="link-toggle">Ручное подключение без сервера, по коду ›</button>
+      <button type="button" id="toggle-manual-btn" class="link-toggle" data-i18n="connect.manual">Manual connection without a server, by code ›</button>
       <div id="manual-section" class="hidden">
         <div id="incoming-banner" class="banner glass-content hidden"><span id="incoming-banner-text"></span></div>
         <div class="connect-card glass-content" id="invite-idle">
-          <h2>Пригласить кодом</h2>
-          <button type="button" id="create-invite-btn" class="btn-primary">Создать приглашение</button>
+          <h2 data-i18n="connect.invite">Invite via code</h2>
+          <button type="button" id="create-invite-btn" class="btn-primary" data-i18n="connect.invite.create">Create invite</button>
         </div>
         <div class="connect-card glass-content hidden" id="invite-active">
-          <h2>Шаг 1 · отправьте код</h2>
+          <h2 data-i18n="connect.invite.step1">Step 1 · send the code</h2>
           <div class="code-box"><code id="invite-code-out"></code></div>
-          <div class="row-actions"><button type="button" id="copy-code-btn" class="btn-secondary">Копировать код</button></div>
+          <div class="row-actions"><button type="button" id="copy-code-btn" class="btn-secondary" data-i18n="connect.invite.copyCode">Copy code</button></div>
           <div class="link-box"><span id="invite-link-out"></span></div>
           <div class="row-actions">
-            <button type="button" id="copy-link-btn" class="btn-secondary">Копировать ссылку</button>
-            <button type="button" id="share-link-btn" class="btn-secondary">Поделиться</button>
+            <button type="button" id="copy-link-btn" class="btn-secondary" data-i18n="connect.invite.copyLink">Copy link</button>
+            <button type="button" id="share-link-btn" class="btn-secondary" data-i18n="connect.invite.share">Share</button>
           </div>
           <div class="divider"></div>
-          <h2>Шаг 2 · вставьте код ответа</h2>
-          <textarea id="answer-code-in" placeholder="Код ответа"></textarea>
-          <button type="button" id="complete-invite-btn" class="btn-primary">Подключить</button>
-          <button type="button" id="new-invite-again" class="btn-tertiary">Начать заново</button>
+          <h2 data-i18n="connect.invite.step2">Step 2 · paste the answer code</h2>
+          <textarea id="answer-code-in" placeholder="Answer code"></textarea>
+          <button type="button" id="complete-invite-btn" class="btn-primary" data-i18n="connect.invite.complete">Connect</button>
+          <button type="button" id="new-invite-again" class="btn-tertiary" data-i18n="connect.invite.restart">Start over</button>
         </div>
         <div class="connect-card glass-content" id="join-card">
-          <h2>У меня есть код приглашения</h2>
+          <h2 data-i18n="connect.invite.join">I have an invite code</h2>
           <div id="paste-code-wrap">
-            <textarea id="paste-code-in" placeholder="Код приглашения"></textarea>
-            <button type="button" id="reply-btn" class="btn-primary">Ответить</button>
+            <textarea id="paste-code-in" placeholder="Invite code"></textarea>
+            <button type="button" id="reply-btn" class="btn-primary" data-i18n="connect.invite.reply">Reply</button>
           </div>
           <div id="answer-out-wrap" class="hidden">
             <div class="code-box"><code id="answer-out-code"></code></div>
-            <div class="row-actions"><button type="button" id="answer-copy-btn" class="btn-secondary">Копировать код</button></div>
+            <div class="row-actions"><button type="button" id="answer-copy-btn" class="btn-secondary" data-i18n="connect.invite.copyCode">Copy code</button></div>
           </div>
         </div>
       </div>
@@ -148,59 +159,69 @@
 
     <section id="screen-settings" class="screen hidden">
       <div class="settings-group glass-content">
-        <label class="settings-row"><span>Ваше имя</span><input id="settings-name" type="text" maxlength="40" /></label>
-        <label class="settings-row"><span>Телефон / email</span><input id="settings-identity" type="text" maxlength="80" /></label>
+        <label class="settings-row"><span data-i18n="settings.name">Your name</span><input id="settings-name" type="text" maxlength="40" /></label>
+        <label class="settings-row"><span data-i18n="settings.id">Phone / email</span><input id="settings-identity" type="text" maxlength="80" /></label>
       </div>
       <div class="settings-group glass-content">
         <div class="settings-row column">
-          <span>Сигнальный сервер <span id="signaling-status-dot" class="status-dot"></span></span>
-          <input id="settings-signaling-url" type="text" placeholder="wss://ваш-сервер.example.com" />
-          <button type="button" id="save-signaling-btn" class="btn-secondary settings-btn-full">Сохранить и подключиться</button>
+          <span><span data-i18n="settings.server">Signaling server</span> <span id="signaling-status-dot" class="status-dot"></span></span>
+          <input id="settings-signaling-url" type="text" placeholder="wss://your-server.example.com" />
+          <button type="button" id="save-signaling-btn" class="btn-secondary settings-btn-full" data-i18n="settings.save">Save and connect</button>
           <span id="signaling-status-text" class="fine muted"></span>
         </div>
-        <label class="settings-row"><span>Показывать меня в списке «Сейчас в сети»</span><input id="settings-discoverable" type="checkbox" class="switch" /></label>
+        <label class="settings-row"><span data-i18n="settings.discoverable">Show me in the "Online now" list</span><input id="settings-discoverable" type="checkbox" class="switch" /></label>
       </div>
       <div class="settings-group glass-content">
-        <label class="settings-row"><span>Уведомления о сообщениях и звонках</span><input id="settings-notifications" type="checkbox" class="switch" /></label>
-        <label class="settings-row"><span>Звук и вибрация</span><input id="settings-sounds" type="checkbox" class="switch" /></label>
-        <label class="settings-row"><span>Пин-код при входе</span><input id="settings-pinlock" type="checkbox" class="switch" /></label>
+        <label class="settings-row"><span data-i18n="settings.notifications">Notifications for messages and calls</span><input id="settings-notifications" type="checkbox" class="switch" /></label>
+        <label class="settings-row"><span data-i18n="settings.sounds">Sound and vibration</span><input id="settings-sounds" type="checkbox" class="switch" /></label>
+        <label class="settings-row"><span data-i18n="settings.pinlock">PIN code on start</span><input id="settings-pinlock" type="checkbox" class="switch" /></label>
+      </div>
+      <div class="settings-group glass-content">
+        <label class="settings-row"><span data-i18n="settings.language">Language</span>
+          <select id="settings-language" class="settings-select"></select>
+        </label>
       </div>
       <div class="settings-group glass-content">
         <div class="settings-row column">
-          <span>Прозрачность стекла</span>
+          <span data-i18n="settings.glass">Glass transparency</span>
           <input id="glass-slider" type="range" min="0.18" max="0.85" step="0.01" />
         </div>
         <div class="settings-row column">
-          <span>Оформление</span>
+          <span data-i18n="settings.theme">Appearance</span>
           <div class="theme-seg">
-            <button type="button" data-theme="light">Светлая</button>
-            <button type="button" data-theme="dark">Тёмная</button>
-            <button type="button" data-theme="auto" class="active">Системная</button>
+            <button type="button" data-theme="light" data-i18n="settings.theme.light">Light</button>
+            <button type="button" data-theme="dark" data-i18n="settings.theme.dark">Dark</button>
+            <button type="button" data-theme="auto" class="active" data-i18n="settings.theme.auto">System</button>
           </div>
+        </div>
+      </div>
+      <div class="settings-group glass-content">
+        <div class="settings-row column">
+          <span class="fine muted" data-i18n="settings.designedBy">Designed by AIK in Moscow</span>
         </div>
       </div>
     </section>
 
     <section id="screen-debug" class="screen hidden">
       <div class="settings-group glass-content">
-        <button type="button" id="diagnostics-btn" class="settings-row link-row"><span>Диагностика соединения</span><span class="chevron">›</span></button>
-        <button type="button" id="webrtc-debug-btn" class="settings-row link-row"><span>WebRTC соединения</span><span class="chevron">›</span></button>
-        <button type="button" id="debug-logs-btn" class="settings-row link-row"><span>Журнал событий</span><span class="chevron">›</span></button>
-        <button type="button" id="debug-storage-btn" class="settings-row link-row"><span>Хранилище и окружение</span><span class="chevron">›</span></button>
+        <button type="button" id="diagnostics-btn" class="settings-row link-row"><span>Diagnostics</span><span class="chevron">›</span></button>
+        <button type="button" id="webrtc-debug-btn" class="settings-row link-row"><span>WebRTC connections</span><span class="chevron">›</span></button>
+        <button type="button" id="debug-logs-btn" class="settings-row link-row"><span>Event log</span><span class="chevron">›</span></button>
+        <button type="button" id="debug-storage-btn" class="settings-row link-row"><span>Storage & environment</span><span class="chevron">›</span></button>
       </div>
       <div class="settings-group glass-content">
-        <button type="button" id="export-backup-btn" class="settings-row link-row"><span>Экспорт всех данных</span><span class="chevron">›</span></button>
-        <button type="button" id="import-backup-btn" class="settings-row link-row"><span>Импорт данных из файла</span><span class="chevron">›</span></button>
+        <button type="button" id="export-backup-btn" class="settings-row link-row"><span>Export all data</span><span class="chevron">›</span></button>
+        <button type="button" id="import-backup-btn" class="settings-row link-row"><span>Import data from file</span><span class="chevron">›</span></button>
       </div>
       <div class="settings-group glass-content">
-        <button type="button" id="reset-all-btn" class="settings-row destructive">Разорвать все соединения</button>
-        <button type="button" id="debug-hard-reset-btn" class="settings-row destructive">Полный сброс приложения</button>
+        <button type="button" id="reset-all-btn" class="settings-row destructive">Drop all connections</button>
+        <button type="button" id="debug-hard-reset-btn" class="settings-row destructive">Full app reset</button>
       </div>
       <div class="settings-group glass-content">
         <div class="settings-row column">
-          <span>Отладочный режим</span>
-          <span class="fine muted">Скрывает вкладку «Отладка» из таб-бара. Чтобы вернуть — тапните 5 раз по заголовку в шапке.</span>
-          <label class="settings-row"><span>Скрыть вкладку «Отладка»</span><input id="debug-hide-toggle" type="checkbox" class="switch" /></label>
+          <span>Debug mode</span>
+          <span class="fine muted">Hides the "Debug" tab. To restore — tap the header 5 times.</span>
+          <label class="settings-row"><span>Hide "Debug" tab</span><input id="debug-hide-toggle" type="checkbox" class="switch" /></label>
         </div>
       </div>
     </section>
@@ -209,43 +230,43 @@
       <div class="chat-header glass">
         <button type="button" id="chat-back" class="icon-btn back-btn">‹</button>
         <button type="button" id="chat-peer-tap" class="chat-header-info chat-header-tappable">
-          <span id="chat-peer-name">Собеседник</span>
+          <span id="chat-peer-name">Peer</span>
           <span id="chat-peer-status" class="muted"></span>
         </button>
         <span id="chat-transport-badge" class="transport-badge hidden">P2P</span>
-        <button type="button" id="chat-search-btn" class="icon-btn" aria-label="Поиск"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg></button>
-        <button type="button" id="chat-call-btn" class="icon-btn call-icon" aria-label="Позвонить"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.7 21 3 13.3 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.4 0 .8-.2 1L6.6 10.8z"/></svg></button>
-        <button type="button" id="chat-more-btn" class="icon-btn" aria-label="Ещё"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M6 10.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm6 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm6 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z"/></svg></button>
+        <button type="button" id="chat-search-btn" class="icon-btn" aria-label="Search"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg></button>
+        <button type="button" id="chat-call-btn" class="icon-btn call-icon" aria-label="Call"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.7 21 3 13.3 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.4 0 .8-.2 1L6.6 10.8z"/></svg></button>
+        <button type="button" id="chat-more-btn" class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M6 10.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm6 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm6 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z"/></svg></button>
       </div>
 
       <div id="chat-search-bar" class="search-bar glass hidden">
-        <input id="chat-search-input" type="text" placeholder="Поиск по переписке" class="search-input-inline" autocomplete="off" />
+        <input id="chat-search-input" type="text" placeholder="Search in chat" class="search-input-inline" autocomplete="off" />
         <span id="chat-search-counter" class="search-counter"></span>
         <button type="button" id="chat-search-close" class="icon-btn small"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg></button>
       </div>
 
       <div id="chat-messages" class="chat-messages"></div>
 
-      <button type="button" id="scroll-bottom-btn" class="scroll-bottom-btn hidden" aria-label="К последним">
+      <button type="button" id="scroll-bottom-btn" class="scroll-bottom-btn hidden" aria-label="To last">
         <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 16 6 10l1.41-1.41L12 13.17l4.59-4.58L18 10z"/></svg>
         <span id="scroll-bottom-count" class="scroll-bottom-count"></span>
       </button>
 
       <div id="reply-banner" class="edit-banner glass hidden">
         <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/></svg>
-        <div class="reply-banner-body"><div class="reply-banner-author">Ответ</div><div class="reply-banner-text"></div></div>
+        <div class="reply-banner-body"><div class="reply-banner-author">Reply</div><div class="reply-banner-text"></div></div>
         <button type="button" id="reply-cancel-btn" class="icon-btn small"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg></button>
       </div>
 
       <div id="edit-banner" class="edit-banner glass hidden">
         <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z"/></svg>
-        <span class="edit-banner-text">Редактирование</span>
+        <span class="edit-banner-text">Editing</span>
         <button type="button" id="edit-cancel-btn" class="icon-btn small"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg></button>
       </div>
 
       <form id="chat-form" class="chat-input-bar glass">
-        <input id="chat-input" type="text" placeholder="Сообщение" autocomplete="off" maxlength="4000" />
-        <button type="submit" class="send-btn" aria-label="Отправить"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M3 11.5 21 3l-6 18-4-7.5L3 11.5z"/></svg></button>
+        <input id="chat-input" type="text" placeholder="Message" autocomplete="off" maxlength="4000" />
+        <button type="submit" class="send-btn" aria-label="Send"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M3 11.5 21 3l-6 18-4-7.5L3 11.5z"/></svg></button>
       </form>
     </section>
 
@@ -255,33 +276,33 @@
       </div>
       <div class="contact-profile glass-content">
         <div id="contact-avatar" class="contact-avatar"></div>
-        <h2 id="contact-name">Контакт</h2>
+        <h2 id="contact-name">Contact</h2>
         <p id="contact-status" class="contact-status muted"></p>
         <div class="contact-actions">
           <button type="button" id="contact-msg-btn" class="contact-action-btn">
             <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 4V6a2 2 0 0 1 2-2z"/></svg>
-            <span>Написать</span>
+            <span>Message</span>
           </button>
           <button type="button" id="contact-call-btn" class="contact-action-btn">
             <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.7 21 3 13.3 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.4 0 .8-.2 1L6.6 10.8z"/></svg>
-            <span>Позвонить</span>
+            <span>Call</span>
           </button>
         </div>
       </div>
       <div class="settings-group glass-content" id="contact-info-group">
-        <div class="settings-row"><span>Идентификатор</span><span id="contact-info-id" class="fine muted"></span></div>
-        <div class="settings-row"><span>Уведомления</span><span id="contact-info-muted" class="fine muted"></span></div>
+        <div class="settings-row"><span>Identifier</span><span id="contact-info-id" class="fine muted"></span></div>
+        <div class="settings-row"><span>Notifications</span><span id="contact-info-muted" class="fine muted"></span></div>
       </div>
       <div class="settings-group glass-content">
-        <button type="button" id="contact-rename-btn" class="settings-row link-row"><span>Переименовать</span><span class="chevron">›</span></button>
-        <button type="button" id="contact-mute-btn" class="settings-row link-row"><span>Без звука</span><span class="chevron">›</span></button>
-        <button type="button" id="contact-archive-btn" class="settings-row link-row"><span>В архив</span><span class="chevron">›</span></button>
-        <button type="button" id="contact-block-btn" class="settings-row link-row"><span>Заблокировать</span><span class="chevron">›</span></button>
-        <button type="button" id="contact-export-btn" class="settings-row link-row"><span>Экспорт переписки</span><span class="chevron">›</span></button>
+        <button type="button" id="contact-rename-btn" class="settings-row link-row"><span>Rename</span><span class="chevron">›</span></button>
+        <button type="button" id="contact-mute-btn" class="settings-row link-row"><span>Mute</span><span class="chevron">›</span></button>
+        <button type="button" id="contact-archive-btn" class="settings-row link-row"><span>Archive</span><span class="chevron">›</span></button>
+        <button type="button" id="contact-block-btn" class="settings-row link-row"><span>Block</span><span class="chevron">›</span></button>
+        <button type="button" id="contact-export-btn" class="settings-row link-row"><span>Export chat</span><span class="chevron">›</span></button>
       </div>
       <div class="settings-group glass-content">
-        <button type="button" id="contact-clear-btn" class="settings-row destructive">Очистить историю</button>
-        <button type="button" id="contact-delete-btn" class="settings-row destructive">Удалить контакт</button>
+        <button type="button" id="contact-clear-btn" class="settings-row destructive">Clear history</button>
+        <button type="button" id="contact-delete-btn" class="settings-row destructive">Delete contact</button>
       </div>
     </section>
 
@@ -290,23 +311,23 @@
   <nav id="tab-bar" class="glass">
     <button type="button" class="tab-btn active" data-tab="chats">
       <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 4V6a2 2 0 0 1 2-2z"/></svg>
-      <span>Чаты</span>
+      <span data-i18n="nav.chats">Chats</span>
     </button>
     <button type="button" class="tab-btn" data-tab="calls">
       <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.7 21 3 13.3 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.4 0 .8-.2 1L6.6 10.8z"/></svg>
-      <span>Звонки</span>
+      <span data-i18n="nav.calls">Calls</span>
     </button>
     <button type="button" class="tab-btn" data-tab="connect">
       <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-4 0-8 2-8 5v1h16v-1c0-3-4-5-8-5z"/></svg>
-      <span>Контакты</span>
+      <span data-i18n="nav.contacts">Contacts</span>
     </button>
     <button type="button" class="tab-btn" data-tab="settings">
       <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>
-      <span>Настройки</span>
+      <span data-i18n="nav.settings">Settings</span>
     </button>
     <button type="button" class="tab-btn hidden" id="tab-debug" data-tab="debug">
       <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M9.4 16.6 4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0 4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>
-      <span>Отладка</span>
+      <span data-i18n="nav.debug">Debug</span>
     </button>
   </nav>
 </div>
@@ -318,16 +339,20 @@
     <h1 id="call-peer-name"></h1>
     <p id="call-phase" class="call-phase"></p>
   </div>
+  <div class="call-volume">
+    <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg>
+    <input id="call-volume-slider" type="range" min="0" max="1" step="0.01" value="0.3333" />
+  </div>
   <div class="call-controls" id="call-controls-active">
     <button type="button" id="call-mute-btn" class="call-btn">
       <svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-2.1A7 7 0 0 0 19 12h-2z"/></svg>
-      <span id="call-mute-label">Микрофон</span>
+      <span id="call-mute-label" data-i18n="call.mute">Microphone</span>
     </button>
     <button type="button" id="call-hangup-btn" class="call-btn hangup">
       <svg viewBox="0 0 24 24" width="26" height="26">
         <path fill="currentColor" transform="rotate(135 12 12)" d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
       </svg>
-      <span>Завершить</span>
+      <span data-i18n="call.hangup">End</span>
     </button>
   </div>
   <div class="call-controls hidden" id="call-controls-incoming">
@@ -335,15 +360,15 @@
       <svg viewBox="0 0 24 24" width="26" height="26">
         <path fill="currentColor" transform="rotate(135 12 12)" d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
       </svg>
-      <span>Отклонить</span>
+      <span data-i18n="call.decline">Decline</span>
     </button>
     <button type="button" id="call-mute-accept-btn" class="call-btn">
-      <svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-2.1A7 7 0 0 0 19 12h-2z"/><path fill="currentColor" d="M3 3l18 18" stroke="currentColor" stroke-width="2"/></svg>
-      <span>Без звука</span>
+      <svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-2.1A7 7 0 0 0 19 12h-2z"/></svg>
+      <span data-i18n="call.accept.mute">Without sound</span>
     </button>
     <button type="button" id="call-accept-btn" class="call-btn accept">
       <svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.7 21 3 13.3 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.4 0 .8-.2 1L6.6 10.8z"/></svg>
-      <span>Принять</span>
+      <span data-i18n="call.accept">Accept</span>
     </button>
   </div>
 </div>
@@ -354,7 +379,7 @@
     <div class="sheet-handle"></div>
     <div id="reaction-bar" class="reaction-bar"></div>
     <div id="message-sheet-body" class="sheet-actions"></div>
-    <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="message-sheet">Отмена</button>
+    <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="message-sheet">Cancel</button>
   </div>
 </div>
 
@@ -362,9 +387,9 @@
   <div class="sheet-backdrop"></div>
   <div class="sheet-panel glass-content">
     <div class="sheet-handle"></div>
-    <h2>Переслать</h2>
+    <h2>Forward</h2>
     <div id="forward-list" class="forward-list"></div>
-    <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="forward-sheet">Отмена</button>
+    <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="forward-sheet">Cancel</button>
   </div>
 </div>
 
@@ -372,10 +397,10 @@
   <div class="sheet-backdrop"></div>
   <div class="sheet-panel glass-content">
     <div class="sheet-handle"></div>
-    <h2>Переименовать контакт</h2>
+    <h2>Rename contact</h2>
     <input id="rename-input" type="text" maxlength="40" class="rename-input" />
-    <button type="button" id="rename-save-btn" class="btn-primary">Сохранить</button>
-    <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="rename-sheet">Отмена</button>
+    <button type="button" id="rename-save-btn" class="btn-primary">Save</button>
+    <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="rename-sheet">Cancel</button>
   </div>
 </div>
 
@@ -383,10 +408,10 @@
   <div class="sheet-backdrop"></div>
   <div class="sheet-panel glass-content">
     <div class="sheet-handle"></div>
-    <h2 id="set-pin-title">Новый пин-код</h2>
+    <h2 id="set-pin-title">New PIN</h2>
     <input id="set-pin-input" type="password" inputmode="numeric" maxlength="8" placeholder="••••" class="pin-input" />
-    <button type="button" id="set-pin-save-btn" class="btn-primary">Сохранить</button>
-    <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="set-pin-sheet">Отмена</button>
+    <button type="button" id="set-pin-save-btn" class="btn-primary">Save</button>
+    <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="set-pin-sheet">Cancel</button>
   </div>
 </div>
 
@@ -394,14 +419,14 @@
   <div class="sheet-backdrop"></div>
   <div class="sheet-panel glass-content">
     <div class="sheet-handle"></div>
-    <h2>Диагностика соединения</h2>
+    <h2>Diagnostics</h2>
     <div id="diagnostics-summary" class="diag-summary"></div>
     <pre id="diagnostics-log" class="diag-log"></pre>
     <div class="row-actions">
-      <button type="button" id="diagnostics-copy-btn" class="btn-secondary">Скопировать</button>
-      <button type="button" id="diagnostics-refresh-btn" class="btn-secondary">Обновить</button>
+      <button type="button" id="diagnostics-copy-btn" class="btn-secondary">Copy</button>
+      <button type="button" id="diagnostics-refresh-btn" class="btn-secondary">Refresh</button>
     </div>
-    <button type="button" id="diagnostics-close" class="btn-primary">Закрыть</button>
+    <button type="button" id="diagnostics-close" class="btn-primary">Close</button>
   </div>
 </div>
 
@@ -409,13 +434,13 @@
   <div class="sheet-backdrop"></div>
   <div class="sheet-panel glass-content">
     <div class="sheet-handle"></div>
-    <h2>WebRTC соединения</h2>
+    <h2>WebRTC connections</h2>
     <div id="webrtc-content" class="diag-log"></div>
     <div class="row-actions">
-      <button type="button" id="webrtc-copy-btn" class="btn-secondary">Скопировать</button>
-      <button type="button" id="webrtc-refresh-btn" class="btn-secondary">Обновить</button>
+      <button type="button" id="webrtc-copy-btn" class="btn-secondary">Copy</button>
+      <button type="button" id="webrtc-refresh-btn" class="btn-secondary">Refresh</button>
     </div>
-    <button type="button" id="webrtc-close" class="btn-primary">Закрыть</button>
+    <button type="button" id="webrtc-close" class="btn-primary">Close</button>
   </div>
 </div>
 
@@ -423,13 +448,13 @@
   <div class="sheet-backdrop"></div>
   <div class="sheet-panel glass-content">
     <div class="sheet-handle"></div>
-    <h2>Журнал событий</h2>
+    <h2>Event log</h2>
     <pre id="logs-content" class="diag-log"></pre>
     <div class="row-actions">
-      <button type="button" id="logs-copy-btn" class="btn-secondary">Скопировать</button>
-      <button type="button" id="logs-clear-btn" class="btn-secondary">Очистить</button>
+      <button type="button" id="logs-copy-btn" class="btn-secondary">Copy</button>
+      <button type="button" id="logs-clear-btn" class="btn-secondary">Clear</button>
     </div>
-    <button type="button" id="logs-close" class="btn-primary">Закрыть</button>
+    <button type="button" id="logs-close" class="btn-primary">Close</button>
   </div>
 </div>
 
@@ -437,9 +462,9 @@
   <div class="sheet-backdrop"></div>
   <div class="sheet-panel glass-content">
     <div class="sheet-handle"></div>
-    <h2>Хранилище и окружение</h2>
+    <h2>Storage & environment</h2>
     <div id="storage-summary" class="diag-summary"></div>
-    <button type="button" id="storage-close" class="btn-primary">Закрыть</button>
+    <button type="button" id="storage-close" class="btn-primary">Close</button>
   </div>
 </div>
 
@@ -448,11 +473,13 @@
 
 <div id="boot-recovery" class="hidden">
   <div class="onboarding-card glass-content boot-recovery-card">
-    <h1 class="boot-recovery-title">Что-то пошло не так</h1>
-    <button type="button" id="boot-recovery-reset" class="btn-primary">Очистить и начать заново</button>
+    <h1 class="boot-recovery-title">Something went wrong</h1>
+    <button type="button" id="boot-recovery-reset" class="btn-primary">Clear and start over</button>
   </div>
 </div>
 
+<script src="js/languages.js"></script>
+<script src="js/i18n.js"></script>
 <script src="js/signaling-codec.js"></script>
 <script src="js/crypto-helper.js"></script>
 <script src="js/signaling-client.js"></script>

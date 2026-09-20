@@ -1,4 +1,6 @@
-// Сигнальный сервер Эфир с поддержкой Web Push.
+require("dotenv").config();
+
+// Сигнальный сервер Эфир с поддержкой Web Push + прокси ICE-серверов.
 //
 // Задачи:
 //   (1) рандеву — двум устройствам сообщить, что они онлайн, и один раз
@@ -6,13 +8,15 @@
 //   (2) почтовый ящик — придержать зашифрованное сообщение до появления
 //       адресата;
 //   (3) Web Push — послать системное уведомление через Apple Push Service,
-//       когда приложение адресата закрыто.
+//       когда приложение адресата закрыто;
+//   (4) прокси ICE — выдать клиенту TURN-credentials от Metered, не
+//       раскрывая API-ключ.
 //
 // ВАЖНО: конверт зашифрован end-to-end, сервер не видит содержимого.
-// Но для маршрутизации и решений о push он получает открытое поле `kind`
-// ("chat" | "ack-batch" | "edit" | "delete" | "reaction" | "typing").
-// Push отправляется ТОЛЬКО для kind === "chat".
+// Но для маршрутизации и решений о push он получает открытое поле `kind`.
+// Push отправляется ТОЛЬКО для kind === "chat" и "call".
 
+const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const { WebSocketServer, WebSocket } = require("ws");
@@ -27,11 +31,126 @@ const MAX_PAYLOAD = 128 * 1024;
 
 const PUSH_THROTTLE_MS = 30 * 1000;
 const PUSH_DEDUP_TTL_MS = 10 * 60 * 1000;
-const PUSH_AFTER_MS = 5000; // сколько ждать mailbox-ack, прежде чем шлём push
+const PUSH_AFTER_MS = 5000;
 const pushSentForMsgId = new Map();
 
-// Постоянный файл (не /tmp — на Render free tier /tmp эфемерный и при
-// «засыпании» сервиса подписки теряются).
+// ---------- Metered (TURN) ----------
+const METERED_API_KEY = process.env.METERED_API_KEY || "";
+const METERED_API_BASE = "https://arthurhusky.metered.live/api/v1/turn/credentials";
+const ICE_CACHE_MS = 5 * 60 * 1000;
+const ICE_RATE_LIMIT_PER_MIN = 20;
+
+const FALLBACK_ICE = [
+  { urls: "stun:stun.l.google.com:19302" },
+  { urls: "stun:stun1.l.google.com:19302" },
+];
+
+let iceCache = { at: 0, servers: null };
+const iceHits = new Map(); // ip -> { start, n }
+
+function rateLimitOk(ip) {
+  const now = Date.now();
+  const w = iceHits.get(ip) || { start: now, n: 0 };
+  if (now - w.start > 60_000) { w.start = now; w.n = 0; }
+  w.n++;
+  iceHits.set(ip, w);
+  if (iceHits.size > 5000) {
+    // грубая очистка, чтобы map не разрастался
+    for (const [k, v] of iceHits) if (now - v.start > 120_000) iceHits.delete(k);
+  }
+  return w.n <= ICE_RATE_LIMIT_PER_MIN;
+}
+
+async function fetchMeteredIce() {
+  if (!METERED_API_KEY) return null;
+  const url = METERED_API_BASE + "?apiKey=" + encodeURIComponent(METERED_API_KEY);
+  const r = await fetch(url, { cache: "no-store" });
+  if (!r.ok) throw new Error("metered HTTP " + r.status);
+  const list = await r.json();
+  if (!Array.isArray(list) || list.length === 0) return null;
+
+  // ИСПРАВЛЕНО: раньше запись `stun:...` (у неё нет `transport=tcp`)
+  // ошибочно классифицировалась как TURN UDP и блокировала настоящий
+  // TURN UDP-сервер, который в списке Metered идёт следом. Теперь
+  // классифицируем строго по префиксу URL и берём по одной записи
+  // каждого типа:
+  //   1. STUN     — для srflx-кандидатов (прямое P2P без relay)
+  //   2. TURN UDP — самый быстрый путь через релей, когда UDP разрешён
+  //   3. TURN TCP — запасной путь для сетей, где UDP закрыт
+  const byKind = { stun: null, "turn-udp": null, "turn-tcp": null };
+  for (const s of list) {
+    const u = (s.urls || "").toString();
+    if (!u) continue;
+    let kind = null;
+    if (u.startsWith("stuns:") || u.startsWith("stun:")) kind = "stun";
+    else if (u.includes("transport=tcp")) kind = "turn-tcp";
+    else if (u.startsWith("turns:") || u.startsWith("turn:")) kind = "turn-udp";
+    if (!kind || byKind[kind]) continue;
+    byKind[kind] = s;
+  }
+
+  const filtered = [];
+  if (byKind.stun) filtered.push(byKind.stun);
+  if (byKind["turn-udp"]) filtered.push(byKind["turn-udp"]);
+  if (byKind["turn-tcp"]) filtered.push(byKind["turn-tcp"]);
+
+  return filtered.length ? filtered : null;
+}
+
+async function getIceServers() {
+  const now = Date.now();
+  if (iceCache.servers && now - iceCache.at < ICE_CACHE_MS) return iceCache.servers;
+  let servers = null;
+  try {
+    servers = await fetchMeteredIce();
+    if (servers) console.log("[ice] Metered отдал", servers.length, "серверов");
+  } catch (e) {
+    console.warn("[ice] Metered недоступен:", e.message);
+  }
+  if (!servers) servers = FALLBACK_ICE.slice();
+  iceCache = { at: now, servers };
+  return servers;
+}
+
+// ---------- HTTP-сервер (для /ice и как база для WS) ----------
+const httpServer = http.createServer(async (req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
+
+  const url = req.url || "";
+  if (req.method === "GET" && (url === "/ice" || url.startsWith("/ice?"))) {
+    const ip = (req.headers["x-forwarded-for"] || "").toString().split(",")[0].trim()
+      || req.socket.remoteAddress || "unknown";
+    if (!rateLimitOk(ip)) {
+      res.writeHead(429, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "rate limited" }));
+      return;
+    }
+    try {
+      const servers = await getIceServers();
+      res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "public, max-age=300" });
+      res.end(JSON.stringify(servers));
+    } catch (e) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "ice unavailable" }));
+    }
+    return;
+  }
+
+  if (req.method === "GET" && (url === "/" || url === "/health")) {
+    res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
+    res.end("Ether signaling relay OK\n");
+    return;
+  }
+
+  res.writeHead(404, { "Content-Type": "text/plain" });
+  res.end("not found");
+});
+
+// ---------- Web Push ----------
 const PUSH_SUBS_FILE = path.join(__dirname, ".ether-push-subs.json");
 
 const VAPID_PUBLIC = process.env.VAPID_PUBLIC || "";
@@ -50,7 +169,7 @@ if (PUSH_ENABLED) {
   console.log("[push] Web Push не настроен (нет VAPID-ключей или пакета web-push)");
 }
 
-const wss = new WebSocketServer({ port: PORT, maxPayload: MAX_PAYLOAD });
+const wss = new WebSocketServer({ server: httpServer, maxPayload: MAX_PAYLOAD });
 
 const clients = new Map();
 const mailbox = new Map();
@@ -295,8 +414,6 @@ wss.on("connection", (ws) => {
         kind,
       };
 
-      // ВСЕГДА кладём в mailbox. Если получатель онлайн — параллельно
-      // пробуем отдать через WS. Удаляется из mailbox только по mailbox-ack.
       if (!mailbox.has(msg.to)) mailbox.set(msg.to, new Map());
       mailbox.get(msg.to).set(msg.msgId, { ...payload, ts: Date.now() });
 
@@ -306,13 +423,11 @@ wss.on("connection", (ws) => {
 
       safeSend(ws, { type: "deliver-ack", msgId: msg.msgId });
 
-      // Push с задержкой: если за PUSH_AFTER_MS получатель не подтвердил
-      // mailbox-ack, значит он не получил — шлём push.
       if (kind === "chat" && !pushSentForMsgId.has(msg.msgId)) {
         const mid = msg.msgId;
         setTimeout(() => {
           const box = mailbox.get(msg.to);
-          if (!box || !box.has(mid)) return; // уже забрали
+          if (!box || !box.has(mid)) return;
           if (pushSentForMsgId.has(mid)) return;
           pushSentForMsgId.set(mid, Date.now());
           const me = clients.get(myId);
@@ -374,10 +489,17 @@ function shutdown() {
   console.log("Завершаем работу…");
   try { savePushSubs(); } catch (e) {}
   for (const ws of wss.clients) { try { ws.close(1001, "server shutdown"); } catch (e) {} }
-  wss.close(() => process.exit(0));
+  wss.close(() => {
+    httpServer.close(() => process.exit(0));
+  });
   setTimeout(() => process.exit(1), 3000).unref();
 }
 process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
 
-console.log(`Сигнальный релей "Эфир" слушает порт ${PORT}`);
+httpServer.listen(PORT, () => {
+  console.log(`Сигнальный релей "Эфир" слушает порт ${PORT}`);
+  console.log(METERED_API_KEY
+    ? "[ice] Metered API-ключ задан, /ice будет проксировать запросы"
+    : "[ice] METERED_API_KEY не задан — /ice будет отдавать только публичные STUN");
+});

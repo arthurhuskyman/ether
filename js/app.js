@@ -13,7 +13,17 @@ const MAX_CALL_LOG = 500;
 const MAX_MESSAGES_PER_CHAT = 5000;
 const TYPING_DEBOUNCE_MS = 1200;
 const TYPING_AUTO_CLEAR_MS = 4000;
-const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+// 110 эмодзи для реакций.
+const REACTION_EMOJIS = [
+  "👍","👎","❤️","🔥","😂","🤣","😊","😍","🥰","😘","😗","😙","😚","🙂","🤗","🤩",
+  "😎","🥳","😏","😌","😔","😞","😟","😢","😭","😤","😠","😡","🤬","😱","😨","😰",
+  "😥","😓","🤔","🤨","😐","😑","😶","🙄","😯","😦","😧","😮","😲","🥺","🤯","🤪",
+  "😜","😝","😛","🤤","🤢","🤮","🤧","😷","🤒","🤕","🥵","🥶","😴","🤫","🤭","🧐",
+  "🙏","👏","👌","✌️","🤞","🤟","🤘","👊","✊","💪","🤝","👋","🖐️","☝️","💯","✨",
+  "⭐","🌟","⚡","💥","💫","🎉","🎊","🎁","🎈","🍀","🌸","🌹","🌺","🌻","☀️","🌙",
+  "⛅","🌈","❄️","💧","🌊","🍕","🍔","🍟","🍩","🍪","☕","🍺","🍷","🍎"
+];
+
 const UNLOCK_ATTEMPTS_LIMIT = 5;
 const P2P_FALLBACK_MS = 1500;
 const ONBOARDING_HINT_SHOWN = "ether.hintShown";
@@ -22,18 +32,17 @@ const DEBUG_KEY = "ether.debugHidden";
 const CONNECT_STUCK_MS = 30000;
 const WATCH_CONNECT_TIMEOUT_MS = 20000;
 const ACK_DEDUP_WINDOW_MS = 5000;
-// Если активный звонок остаётся без живого P2P дольше этого времени —
-// закрываем принудительно, чтобы UI не висел вечно.
 const CALL_DEAD_LINK_TIMEOUT_MS = 30000;
-// Сколько ждём «принятия» входящего, прежде чем пометить его пропущенным.
 const INCOMING_CALL_TIMEOUT_MS = 40000;
+// Громкость удалённого потока по умолчанию — 33,33%.
+const DEFAULT_CALL_VOLUME = 0.3333;
 
 function effectiveSignalingUrl() {
   return (Store.signalingUrl || DEFAULT_SIGNALING_URL).trim();
 }
 
 // =====================================================================
-// IndexedDB — страховка для iOS PWA.
+// IndexedDB
 // =====================================================================
 const IDB = (() => {
   const DB_NAME = "ether-db";
@@ -90,6 +99,7 @@ const CRITICAL_LS_KEYS = [
   "ether.notifications", "ether.sounds",
   "ether.vapidPublicKey", "ether.pushSubscription",
   "ether.callLog", "ether.lastSeen", "ether.drafts",
+  "ether.callVolume", "ether.lang",
 ];
 
 async function backupToIDB() {
@@ -165,10 +175,20 @@ const Store = {
   set myPrivateKeyJwk(v) { localStorage.setItem("ether.privKey", JSON.stringify(v)); scheduleIDBBackup(); },
   get myPublicKeyJwk() { try { const v = localStorage.getItem("ether.pubKey"); return v ? JSON.parse(v) : null; } catch (e) { return null; } },
   set myPublicKeyJwk(v) { localStorage.setItem("ether.pubKey", JSON.stringify(v)); scheduleIDBBackup(); },
-  get glassAlpha() { const raw = parseFloat(localStorage.getItem("ether.glassAlpha") || "0.5"); if (!Number.isFinite(raw)) return 0.5; return Math.min(0.85, Math.max(0.18, raw)); },
+  get glassAlpha() { const raw = parseFloat(localStorage.getItem("ether.glassAlpha") || "0.55"); if (!Number.isFinite(raw)) return 0.55; return Math.min(0.85, Math.max(0.18, raw)); },
   set glassAlpha(v) { if (!Number.isFinite(v)) return; localStorage.setItem("ether.glassAlpha", String(Math.min(0.85, Math.max(0.18, v)))); scheduleIDBBackup(); },
   get theme() { return localStorage.getItem("ether.theme") || "auto"; },
   set theme(v) { localStorage.setItem("ether.theme", v); scheduleIDBBackup(); },
+  get callVolume() {
+    const raw = parseFloat(localStorage.getItem("ether.callVolume") || String(DEFAULT_CALL_VOLUME));
+    if (!Number.isFinite(raw)) return DEFAULT_CALL_VOLUME;
+    return Math.min(1, Math.max(0, raw));
+  },
+  set callVolume(v) {
+    if (!Number.isFinite(v)) return;
+    localStorage.setItem("ether.callVolume", String(Math.min(1, Math.max(0, v))));
+    scheduleIDBBackup();
+  },
 };
 
 // =====================================================================
@@ -211,12 +231,10 @@ const state = {
   typingTimers: new Map(),
   typingSendingState: new Map(),
   unlockAttempts: 0,
-  // Служебное для звонков.
-  _callUserAccepted: false,       // true только когда пользователь нажал «Принять»
-  _callAcceptInFlight: false,     // debounce для кнопки «Принять»
-  _callMuteOnAnswer: false,       // флаг: ответить и сразу заглушить микрофон
-  _callBusy: false,               // true если уже в звонке (для busy-сигнала)
-  _callDeadSeconds: 0,            // health-check активного звонка
+  _callUserAccepted: false,
+  _callAcceptInFlight: false,
+  _callMuteOnAnswer: false,
+  _callDeadSeconds: 0,
 };
 
 let mesh = null;
@@ -232,23 +250,17 @@ let __chatSearchScrollTimer = null;
 const onlineSet = new Set();
 const onlineRoster = new Map();
 const autoConnectTimers = new Map();
-// Дедупликация сигнальных пакетов по паре from + packet.x.
 const recentSignalNonces = new Set();
 const outbox = new Map();
 const pendingNoKey = new Map();
 const seenDeliverIds = new Set();
-
-// Защита от одновременного создания двух PeerLink для одного и того же id.
 const _connectInFlight = new Set();
 
 const pendingCall = { contactId: null, timer: null };
 const pendingRemoteStreams = new Map();
 let callTimerInterval = null;
-// Один общий AudioContext: iOS плохо относится к нескольким параллельным.
 let globalAudioCtx = null;
 let ringtoneTimer = null;
-// Резервный HTMLAudio-элемент для рингтона — на iOS Web Audio может
-// не разбудиться, если пользователь ещё ни разу не тапал по экрану.
 let ringtoneAudioEl = null;
 
 // =====================================================================
@@ -304,32 +316,32 @@ function toast(message) {
   clearTimeout(toast._t); toast._t = setTimeout(() => el.classList.remove("show"), 2600);
 }
 
-function formatTime(ts) { try { return new Date(ts).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }); } catch (e) { return ""; } }
-function formatDay(ts) { try { return new Date(ts).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit" }); } catch (e) { return ""; } }
+function formatTime(ts) { try { return new Date(ts).toLocaleTimeString(I18N.current, { hour: "2-digit", minute: "2-digit" }); } catch (e) { return ""; } }
+function formatDay(ts) { try { return new Date(ts).toLocaleDateString(I18N.current, { day: "2-digit", month: "2-digit", year: "2-digit" }); } catch (e) { return ""; } }
 function formatDayGroup(ts) {
   try {
     const d = new Date(ts);
     const now = new Date();
     const yest = new Date(now);
     yest.setDate(yest.getDate() - 1);
-    if (d.toDateString() === now.toDateString()) return "Сегодня";
-    if (d.toDateString() === yest.toDateString()) return "Вчера";
-    if (d.getFullYear() === now.getFullYear()) return d.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
-    return d.toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
+    if (d.toDateString() === now.toDateString()) return T("status.today");
+    if (d.toDateString() === yest.toDateString()) return T("status.yesterday");
+    if (d.getFullYear() === now.getFullYear()) return d.toLocaleDateString(I18N.current, { day: "numeric", month: "long" });
+    return d.toLocaleDateString(I18N.current, { day: "numeric", month: "long", year: "numeric" });
   } catch (e) { return ""; }
 }
-function formatDuration(ms) { const s = Math.max(0, Math.floor(ms / 1000)), mm = Math.floor(s / 60), ss = s % 60; return mm === 0 ? `${ss} сек` : `${mm}:${String(ss).padStart(2, "0")}`; }
+function formatDuration(ms) { const s = Math.max(0, Math.floor(ms / 1000)), mm = Math.floor(s / 60), ss = s % 60; return mm === 0 ? T("status.seconds", { n: ss }) : `${mm}:${String(ss).padStart(2, "0")}`; }
 function timeAgo(ts) {
   if (!ts) return "";
   const d = Date.now() - ts;
-  if (d < 60000) return "недавно";
-  if (d < 3600000) return `${Math.floor(d / 60000)} мин назад`;
-  if (d < 86400000) return `${Math.floor(d / 3600000)} ч назад`;
+  if (d < 60000) return T("status.ago.justNow");
+  if (d < 3600000) return T("status.ago.minutes", { n: Math.floor(d / 60000) });
+  if (d < 86400000) return T("status.ago.hours", { n: Math.floor(d / 3600000) });
   return formatDay(ts);
 }
 
 function applyGlassAlpha(v) {
-  if (!Number.isFinite(v)) v = 0.5;
+  if (!Number.isFinite(v)) v = 0.55;
   document.documentElement.style.setProperty("--glass-alpha", v.toFixed(2));
   document.documentElement.style.setProperty("--glass-blur", (14 + v * 26).toFixed(0) + "px");
 }
@@ -364,8 +376,6 @@ function isStandalone() {
 }
 function isIOS() { return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream; }
 
-// Дедупликация сигнальных пакетов по необязательному полю packet.x.
-// Если у пакета нет x — считаем, что дедуп не нужен, и возвращаем false.
 function isDuplicateSignal(from, packet) {
   if (!packet || typeof packet !== "object") return false;
   const tag = packet.x;
@@ -541,7 +551,7 @@ function showLockScreen() {
 async function tryUnlock(pin) {
   if (!pin) return;
   if (!Store.pinSalt) {
-    if (confirm("Пин-код повреждён. Сбросить все данные приложения?")) { localStorage.clear(); location.reload(); }
+    if (confirm(T("toast.confirmHardReset"))) { localStorage.clear(); location.reload(); }
     return;
   }
   const h = await pbkdf2Hex(pin, Store.pinSalt, PIN_ITERATIONS);
@@ -554,9 +564,9 @@ async function tryUnlock(pin) {
     state.unlockAttempts++;
     const p = $("#lock-pin"); if (p) p.value = "";
     if (state.unlockAttempts >= UNLOCK_ATTEMPTS_LIMIT) {
-      if (confirm("Слишком много неудачных попыток. Очистить все данные?")) { localStorage.clear(); location.reload(); }
+      if (confirm(T("toast.confirmHardReset"))) { localStorage.clear(); location.reload(); }
       state.unlockAttempts = 0;
-    } else toast("Неверный пин-код");
+    } else toast(T("toast.pinWrong"));
   }
 }
 function wireLockScreen() {
@@ -566,7 +576,7 @@ function wireLockScreen() {
   if (submit) submit.addEventListener("click", (e) => { e.preventDefault(); tryUnlock(pin ? pin.value : ""); });
   if (pin) pin.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); tryUnlock(pin.value); } });
   if (forgot) forgot.addEventListener("click", () => {
-    if (confirm("Сбросить пин-код? Все данные приложения будут удалены.")) { localStorage.clear(); location.reload(); }
+    if (confirm(T("toast.confirmHardReset"))) { localStorage.clear(); location.reload(); }
   });
 }
 
@@ -641,6 +651,8 @@ function startApp() {
   const l = $("#lock-screen"); if (l) l.classList.add("hidden");
   const a = $("#app-shell"); if (a) a.classList.remove("hidden");
 
+  try { I18N.init(); } catch (e) {}
+
   etherLog("info", "[startApp] init, id=" + (Store.myId ? Store.myId.slice(0, 10) + "…" : "(none)"));
   mesh = new MeshManager(Store.name);
 
@@ -663,6 +675,8 @@ function startApp() {
   safeCall(wireNetworkListeners, "wireNetworkListeners");
   safeCall(applyDebugTabVisibility, "applyDebugTabVisibility");
   safeCall(initAudioWarmup, "initAudioWarmup");
+  safeCall(setupLanguageSelector, "setupLanguageSelector");
+  safeCall(applyStaticTranslations, "applyStaticTranslations");
 
   try {
     applyGlassAlpha(Store.glassAlpha);
@@ -697,13 +711,69 @@ function startApp() {
   try { resumeUnsentMessages(); } catch (e) {}
   try { updateAppBadge(); } catch (e) {}
   try { maybeShowOnboardingHint(); } catch (e) {}
-  // Никаких «зависших» звонков из прошлой сессии.
+  try { maybeOfferSystemLanguage(); } catch (e) {}
   try {
     state.callId = null; state.callPhase = null;
     state._callUserAccepted = false; state._callAcceptInFlight = false;
-    state._callMuteOnAnswer = false; state._callBusy = false;
+    state._callMuteOnAnswer = false;
     state._callDeadSeconds = 0;
   } catch (e) {}
+}
+
+function applyStaticTranslations() {
+  $$("[data-i18n]").forEach((el) => {
+    const k = el.getAttribute("data-i18n");
+    if (!k) return;
+    el.textContent = T(k);
+  });
+}
+
+function setupLanguageSelector() {
+  const sel = $("#settings-language");
+  if (!sel) return;
+  sel.innerHTML = "";
+  for (const lang of I18N.languages) {
+    const opt = document.createElement("option");
+    opt.value = lang.code;
+    opt.textContent = lang.native + (lang.english !== lang.native ? " · " + lang.english : "");
+    sel.appendChild(opt);
+  }
+  sel.value = I18N.current;
+  sel.addEventListener("change", () => {
+    I18N.setLang(sel.value);
+    applyStaticTranslations();
+    try { renderTab(); } catch (e) {}
+    if (state.chatId) renderChatThread();
+    if (state.contactCardId) renderContactCard();
+    if (state.tab === "calls") renderCallsList();
+  });
+}
+
+function maybeOfferSystemLanguage() {
+  const sys = I18N.shouldOfferSystem();
+  if (!sys) return;
+  const banner = $("#lang-offer");
+  if (!banner) return;
+  banner.classList.remove("hidden");
+  const title = $("#lang-offer-title"); if (title) title.textContent = T("lang.offer.title");
+  const txt = $("#lang-offer-text"); if (txt) txt.textContent = T("lang.offer.text", { lang: I18N.nativeName(sys) });
+  const yes = $("#lang-offer-yes");
+  if (yes) {
+    yes.textContent = T("lang.offer.yes");
+    yes.addEventListener("click", () => {
+      I18N.setLang(sys);
+      I18N.markOfferShown();
+      banner.classList.add("hidden");
+      applyStaticTranslations();
+      try { renderTab(); } catch (e) {}
+      const sel = $("#settings-language"); if (sel) sel.value = I18N.current;
+    });
+  }
+  const no = $("#lang-offer-no");
+  if (no) no.addEventListener("click", () => {
+    I18N.markOfferShown();
+    banner.classList.add("hidden");
+  });
 }
 
 function wireNetworkListeners() {
@@ -732,7 +802,6 @@ function migrateServerAckedFlags() {
 function maybeShowOnboardingHint() {
   if (localStorage.getItem(ONBOARDING_HINT_SHOWN) === "1") return;
   localStorage.setItem(ONBOARDING_HINT_SHOWN, "1");
-  setTimeout(() => toast("Долгое нажатие на сообщение — меню действий"), 1200);
 }
 
 function wireServiceWorker() {
@@ -748,11 +817,10 @@ function wireServiceWorker() {
       state.chatId = data.contactId;
       renderTab();
       if (data.kind === "call") {
-        // Если по приходу уведомления звонок ещё «звонит» — открываем экран звонка.
         if (state.callId === data.contactId && state.callPhase === "ringing") {
           openCallScreen(data.contactId, "ringing");
         } else {
-          toast("Входящий звонок был пропущен");
+          toast(T("toast.missedCall"));
         }
       }
     }
@@ -814,12 +882,12 @@ function wireNotificationPermission() {
   if (!el) return;
   el.addEventListener("change", async (e) => {
     if (e.target.checked) {
-      if (!("Notification" in window)) { toast("Уведомления не поддерживаются"); e.target.checked = false; return; }
+      if (!("Notification" in window)) { toast("!"); e.target.checked = false; return; }
       const perm = await Notification.requestPermission();
-      if (perm !== "granted") { toast("Разрешение не выдано"); e.target.checked = false; return; }
+      if (perm !== "granted") { toast("!"); e.target.checked = false; return; }
       Store.notificationsEnabled = true;
       ensurePushSubscription().catch(() => {});
-      toast("Уведомления включены");
+      toast(T("toast.notificationsOn"));
       updateNotifBanner();
     } else {
       Store.notificationsEnabled = false;
@@ -830,7 +898,7 @@ function wireNotificationPermission() {
       } catch (e) {}
       Store.pushSubscriptionJson = "";
       if (signaling && signaling.connected) signaling.sendPushUnsubscribe();
-      toast("Уведомления выключены");
+      toast(T("toast.notificationsOff"));
     }
   });
 }
@@ -838,13 +906,13 @@ function wireNotifBanner() {
   const enableBtn = $("#notif-enable-btn");
   const dismissBtn = $("#notif-dismiss-btn");
   if (enableBtn) enableBtn.addEventListener("click", async () => {
-    if (!("Notification" in window)) { toast("Уведомления не поддерживаются"); return; }
+    if (!("Notification" in window)) { toast("!"); return; }
     const perm = await Notification.requestPermission();
-    if (perm !== "granted") { toast("Разрешение не выдано"); return; }
+    if (perm !== "granted") { toast("!"); return; }
     Store.notificationsEnabled = true;
     const cb = $("#settings-notifications"); if (cb) cb.checked = true;
     ensurePushSubscription().catch(() => {});
-    toast("Уведомления включены");
+    toast(T("toast.notificationsOn"));
     updateNotifBanner();
   });
   if (dismissBtn) dismissBtn.addEventListener("click", () => {
@@ -909,14 +977,14 @@ function ensureContactEntry(id, suggestedName) {
   let c = state.contacts.get(id);
   if (!c) {
     c = {
-      id, name: suggestedName || "Новый контакт", raw: "", managed: true,
+      id, name: suggestedName || T("sys.someone"), raw: "", managed: true,
       publicKey: null, online: onlineSet.has(id), status: "new",
       messages: [], lastActivity: Date.now(),
       archived: false, muted: false, blocked: false,
     };
     state.contacts.set(id, c);
     persistContacts();
-  } else if (suggestedName && (!c.name || c.name === "Новый контакт")) {
+  } else if (suggestedName && (!c.name || c.name === T("sys.someone"))) {
     c.name = suggestedName;
     persistContacts();
   }
@@ -929,8 +997,6 @@ function ensureContactEntry(id, suggestedName) {
 function wireTabBar() {
   $$(".tab-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
-      // Если идёт звонок — не даём уйти с экрана звонка (он всё равно
-      // перекрывает весь UI, но на всякий случай).
       if (state.callId) {
         const cs = $("#call-screen"); if (cs) cs.classList.remove("hidden");
         return;
@@ -979,24 +1045,30 @@ function renderTabInner() {
   const tb = $("#tab-bar"); if (tb) tb.classList.remove("hidden");
   const map = { chats: "#screen-chats", calls: "#screen-calls", connect: "#screen-connect", settings: "#screen-settings", debug: "#screen-debug" };
   const el = $(map[state.tab]); if (el) el.classList.remove("hidden");
-  const titles = { chats: "Чаты", calls: "Звонки", connect: "Контакты", settings: "Настройки", debug: "Отладка" };
-  const nt = $("#nav-title"); if (nt) nt.textContent = titles[state.tab] || "Эфир";
+  const titles = {
+    chats: T("nav.chats"),
+    calls: T("nav.calls"),
+    connect: T("nav.contacts"),
+    settings: T("nav.settings"),
+    debug: T("nav.debug"),
+  };
+  const nt = $("#nav-title"); if (nt) nt.textContent = titles[state.tab] || T("app.name");
   if (state.tab === "chats") renderChatsList();
   if (state.tab === "calls") renderCallsList();
   if (state.tab === "connect") { renderContactsList(); renderOnlineRosterList(); }
 }
 
 function contactStatusLabel(c) {
-  if (c.status === "in-call") return "разговор";
-  if (c.status === "connected") return "на связи";
-  if (c.status === "connecting" || c.status === "new" || c.status === "awaiting-answer") return "соединяемся…";
+  if (c.status === "in-call") return T("status.inCall");
+  if (c.status === "connected") return T("status.connected");
+  if (c.status === "connecting" || c.status === "new" || c.status === "awaiting-answer") return T("status.connecting");
   if (c.managed) {
-    if (c.online) return "в сети";
+    if (c.online) return T("status.online");
     const seen = state.lastSeen[c.id];
-    if (seen) return "был(а) " + timeAgo(seen);
-    return "офлайн";
+    if (seen) return T("status.lastSeen", { ago: timeAgo(seen) });
+    return T("status.offline");
   }
-  return "офлайн";
+  return T("status.offline");
 }
 function contactStatusClass(c) {
   if (c.status === "connected" || c.status === "in-call") return "status-connected";
@@ -1025,7 +1097,7 @@ function renderChatsList() {
   }
   if (empty) empty.classList.add("hidden");
   if (archivedToggle) archivedToggle.classList.toggle("hidden", !withArchived);
-  const ta = $("#toggle-archived"); if (ta) ta.textContent = state.showArchived ? "Скрыть архив ‹" : "Показать архив ›";
+  const ta = $("#toggle-archived"); if (ta) ta.textContent = state.showArchived ? T("chats.archive.hide") : T("chats.archive.show");
   const items = filtered.sort((a, b) => {
     const aLive = isReachable(a) || a.online ? 1 : 0, bLive = isReachable(b) || b.online ? 1 : 0;
     if (aLive !== bLive) return bLive - aLive;
@@ -1038,15 +1110,15 @@ function renderChatsList() {
     row.type = "button";
     row.className = "chat-row glass-content" + (c.archived ? " archived" : "");
     const badge = unread > 0 ? `<span class="unread-badge">${unread}</span>` : "";
-    const muteIcon = c.muted ? `<span class="muted-icon" title="Без звука">🔕</span>` : "";
-    const blockIcon = c.blocked ? `<span class="muted-icon" title="Заблокирован">🚫</span>` : "";
+    const muteIcon = c.muted ? `<span class="muted-icon" title="Mute">🔕</span>` : "";
+    const blockIcon = c.blocked ? `<span class="muted-icon" title="Blocked">🚫</span>` : "";
     let preview = last ? escapeHtml(truncate(last.text, 42)) : escapeHtml(contactStatusLabel(c));
     if (query && last && (last.text || "").toLowerCase().includes(query)) preview = highlightRaw(escapeHtml(truncate(last.text, 42)), state.searchQuery);
     row.innerHTML = `
       <div class="avatar" style="background:${avatarGradient(c.name)}">${escapeHtml(initials(c.name))}</div>
       <div class="chat-row-body">
         <div class="chat-row-top">
-          <span class="chat-row-name">${escapeHtml(c.name || "Без имени")} ${muteIcon}${blockIcon}</span>
+          <span class="chat-row-name">${escapeHtml(c.name || T("sys.someone"))} ${muteIcon}${blockIcon}</span>
           <span class="chat-row-status ${contactStatusClass(c)}">●</span>
         </div>
         <div class="chat-row-sub">${preview}${badge}</div>
@@ -1083,10 +1155,10 @@ function renderContactsList() {
     row.innerHTML = `
       <div class="avatar avatar-sm" style="background:${avatarGradient(c.name)}">${escapeHtml(initials(c.name))}</div>
       <div class="roster-name-block" style="flex:1; min-width:0;">
-        <div class="roster-name">${escapeHtml(c.name || "Без имени")}</div>
+        <div class="roster-name">${escapeHtml(c.name || T("sys.someone"))}</div>
         <div class="fine muted">${escapeHtml(contactStatusLabel(c))}</div>
       </div>
-      <button type="button" class="roster-add-btn" data-action="card">Открыть</button>`;
+      <button type="button" class="roster-add-btn" data-action="card">${escapeHtml(T("chat.peer.placeholder"))}</button>`;
     row.addEventListener("click", (ev) => {
       if (ev.target.closest("[data-action]")) return;
       openContactCard(c.id);
@@ -1101,8 +1173,6 @@ function renderContactsList() {
 
 function openContactCard(contactId) {
   if (!state.contacts.has(contactId)) return;
-  // Если открываем карточку — сбрасываем чат, чтобы renderTab() показал
-  // именно карточку, а не оставшийся открытым чат.
   state.chatId = null;
   state.contactCardId = contactId;
   renderTab();
@@ -1112,13 +1182,13 @@ function renderContactCard() {
   if (!c) { state.contactCardId = null; renderTab(); return; }
   const av = $("#contact-avatar");
   if (av) { av.style.background = avatarGradient(c.name); av.textContent = initials(c.name); }
-  const n = $("#contact-name"); if (n) n.textContent = c.name || "Без имени";
+  const n = $("#contact-name"); if (n) n.textContent = c.name || T("sys.someone");
   const st = $("#contact-status"); if (st) st.textContent = contactStatusLabel(c);
   const idEl = $("#contact-info-id"); if (idEl) idEl.textContent = c.raw || "—";
-  const mutedEl = $("#contact-info-muted"); if (mutedEl) mutedEl.textContent = c.muted ? "без звука" : "со звуком";
-  const blockBtn = $("#contact-block-btn"); if (blockBtn) blockBtn.textContent = c.blocked ? "Разблокировать" : "Заблокировать";
-  const archBtn = $("#contact-archive-btn"); if (archBtn) archBtn.textContent = c.archived ? "Из архива" : "В архив";
-  const muteBtn = $("#contact-mute-btn"); if (muteBtn) muteBtn.textContent = c.muted ? "Включить звук" : "Без звука";
+  const mutedEl = $("#contact-info-muted"); if (mutedEl) mutedEl.textContent = c.muted ? "🔕" : "🔔";
+  const blockBtn = $("#contact-block-btn"); if (blockBtn) blockBtn.textContent = c.blocked ? T("chat.contact.unblock") : T("chat.contact.block");
+  const archBtn = $("#contact-archive-btn"); if (archBtn) archBtn.textContent = T("chat.contact.archive");
+  const muteBtn = $("#contact-mute-btn"); if (muteBtn) muteBtn.textContent = T("chat.contact.mute");
 }
 function wireContactCard() {
   const msgBtn = $("#contact-msg-btn");
@@ -1129,7 +1199,7 @@ function wireContactCard() {
   const callBtn = $("#contact-call-btn");
   if (callBtn) callBtn.addEventListener("click", () => {
     const id = state.contactCardId;
-    if (!id) { toast("Контакт не выбран"); return; }
+    if (!id) { toast("!"); return; }
     beginCall(id);
   });
   const rename = $("#contact-rename-btn");
@@ -1145,33 +1215,33 @@ function wireContactCard() {
   if (mute) mute.addEventListener("click", () => {
     const c = state.contacts.get(state.contactCardId); if (!c) return;
     c.muted = !c.muted; persistContacts(); renderContactCard();
-    toast(c.muted ? "Уведомления выключены" : "Уведомления включены");
+    toast(c.muted ? T("toast.muted") : T("toast.unmuted"));
   });
   const archive = $("#contact-archive-btn");
   if (archive) archive.addEventListener("click", () => {
     const c = state.contacts.get(state.contactCardId); if (!c) return;
     c.archived = !c.archived; persistContacts(); renderContactCard();
-    toast(c.archived ? "В архиве" : "Из архива");
+    toast(c.archived ? T("toast.archived") : T("toast.unarchived"));
   });
   const block = $("#contact-block-btn");
   if (block) block.addEventListener("click", () => {
     const c = state.contacts.get(state.contactCardId); if (!c) return;
     c.blocked = !c.blocked; persistContacts(); renderContactCard();
-    toast(c.blocked ? "Заблокирован" : "Разблокирован");
+    toast(c.blocked ? T("toast.blocked") : T("toast.unblocked"));
   });
   const exportBtn = $("#contact-export-btn");
   if (exportBtn) exportBtn.addEventListener("click", () => exportChat(state.contactCardId));
   const clear = $("#contact-clear-btn");
   if (clear) clear.addEventListener("click", () => {
     const c = state.contacts.get(state.contactCardId); if (!c) return;
-    if (!confirm(`Очистить всю переписку с «${c.name}»?`)) return;
+    if (!confirm(T("toast.confirmDeleteChat", { name: c.name }))) return;
     c.messages = []; c.lastActivity = Date.now(); persistContacts();
-    toast("История очищена");
+    toast(T("toast.historyCleared"));
   });
   const del = $("#contact-delete-btn");
   if (del) del.addEventListener("click", () => {
     const c = state.contacts.get(state.contactCardId); if (!c) return;
-    if (!confirm(`Удалить контакт «${c.name}»?`)) return;
+    if (!confirm(T("toast.confirmDeleteContact", { name: c.name }))) return;
     deleteContact(state.contactCardId);
   });
 }
@@ -1180,24 +1250,24 @@ function wireContactCard() {
 // Тред
 // =====================================================================
 function ackGlyph(ack) {
-  if (ack === "failed") return `<span class="ack-tick ack-failed" title="Не доставлено">✓</span>`;
-  if (ack === "read") return `<span class="ack-tick ack-read" title="Прочитано">✓</span>`;
-  if (ack === "delivered") return `<span class="ack-tick ack-delivered" title="Доставлено">✓</span>`;
-  return `<span class="ack-tick ack-sent" title="Отправлено">✓</span>`;
+  if (ack === "failed") return `<span class="ack-tick ack-failed">✓</span>`;
+  if (ack === "read") return `<span class="ack-tick ack-read">✓</span>`;
+  if (ack === "delivered") return `<span class="ack-tick ack-delivered">✓</span>`;
+  return `<span class="ack-tick ack-sent">✓</span>`;
 }
 const NEAR_BOTTOM_PX = 80;
 function isNearBottom(el) { if (!el) return true; return el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX; }
 
-function renderChatThread() { try { renderChatThreadInner(); } catch (e) { etherLog("error", "[renderChatThread]", String(e)); const w = $("#chat-messages"); if (w) w.innerHTML = `<div class="empty-state"><p>Не удалось отрисовать переписку.</p></div>`; } }
+function renderChatThread() { try { renderChatThreadInner(); } catch (e) { etherLog("error", "[renderChatThread]", String(e)); const w = $("#chat-messages"); if (w) w.innerHTML = `<div class="empty-state"><p>Error.</p></div>`; } }
 
 function renderChatThreadInner() {
   const c = state.contacts.get(state.chatId);
   if (!c) { state.chatId = null; renderTab(); return; }
-  const nm = $("#chat-peer-name"); if (nm) nm.textContent = c.name || "Без имени";
+  const nm = $("#chat-peer-name"); if (nm) nm.textContent = c.name || T("sys.someone");
   const statusEl = $("#chat-peer-status");
   const typing = state.typingTimers.has(c.id);
   if (statusEl) {
-    statusEl.textContent = typing ? "печатает…" : contactStatusLabel(c);
+    statusEl.textContent = typing ? T("chat.typing") : contactStatusLabel(c);
     statusEl.classList.toggle("typing", typing);
   }
   const canCall = isReachable(c) || (c.managed && c.online);
@@ -1209,9 +1279,9 @@ function renderChatThreadInner() {
     if (link && (link.status === "connected" || link.status === "in-call")) {
       badge.textContent = "P2P"; badge.classList.remove("hidden", "via-server");
     } else if (link && link.status === "connecting") {
-      badge.textContent = "соединяемся…"; badge.classList.add("via-server"); badge.classList.remove("hidden");
+      badge.textContent = "…"; badge.classList.add("via-server"); badge.classList.remove("hidden");
     } else if (c.managed && c.online) {
-      badge.textContent = "через сервер"; badge.classList.add("via-server"); badge.classList.remove("hidden");
+      badge.textContent = "S"; badge.classList.add("via-server"); badge.classList.remove("hidden");
     } else badge.classList.add("hidden");
   }
 
@@ -1223,7 +1293,6 @@ function renderChatThreadInner() {
   const q = state.chatSearchQuery.toLowerCase();
   let lastDay = "";
   for (const m of c.messages) {
-    // Системные сообщения о звонках.
     if (m.from === "system") {
       const sys = document.createElement("div");
       sys.className = "system-message";
@@ -1244,13 +1313,13 @@ function renderChatThreadInner() {
     const bubble = document.createElement("div");
     bubble.className = "bubble-row " + (m.from === "me" ? "mine" : "theirs");
     const tick = m.from === "me" ? ackGlyph(m.ack) : "";
-    const editedMark = m.edited ? `<span class="bubble-edited">изм.</span>` : "";
+    const editedMark = m.edited ? `<span class="bubble-edited">${escapeHtml(T("chat.edit"))}</span>` : "";
     const inner = document.createElement("div");
     inner.className = "bubble " + (m.from === "me" ? "" : "glass-content");
     const body = linkifyAndHighlight(m.text, q);
     let replyHtml = "";
-    if (m.replyTo) replyHtml = `<div class="bubble-reply"><div class="bubble-reply-author">${escapeHtml(m.replyTo.authorName || "Ответ")}</div><div class="bubble-reply-text">${escapeHtml(truncate(m.replyTo.text || "", 80))}</div></div>`;
-    const fwdMark = m.forwarded ? `<div class="bubble-forwarded">Переслано</div>` : "";
+    if (m.replyTo) replyHtml = `<div class="bubble-reply"><div class="bubble-reply-author">${escapeHtml(m.replyTo.authorName || "")}</div><div class="bubble-reply-text">${escapeHtml(truncate(m.replyTo.text || "", 80))}</div></div>`;
+    const fwdMark = m.forwarded ? `<div class="bubble-forwarded">${escapeHtml(T("chat.forward"))}</div>` : "";
     let reactionsHtml = "";
     if (m.reactions && typeof m.reactions === "object") {
       const chips = Object.entries(m.reactions).filter(([, users]) => Array.isArray(users) && users.length > 0);
@@ -1302,7 +1371,7 @@ function attachSwipeReply(el, m, c) {
     if (swiping) {
       const m1 = tr && tr.match(/translateX\((\d+(?:\.\d+)?)px\)/);
       if (m1 && parseFloat(m1[1]) > 40) {
-        state.replyTo = { msgId: m.id, text: m.text, from: m.from, authorName: m.from === "me" ? (Store.name || "Вы") : (c.name || "Собеседник") };
+        state.replyTo = { msgId: m.id, text: m.text, from: m.from, authorName: m.from === "me" ? (Store.name || "") : (c.name || "") };
         showReplyBanner();
         const inp = $("#chat-input"); if (inp) inp.focus();
       }
@@ -1354,8 +1423,8 @@ function wireKeyboardFix() {
 // =====================================================================
 async function sendChatMessage(contactId, text, replyTo) {
   const c = state.contacts.get(contactId); if (!c) return;
-  if (c.blocked) { toast("Контакт заблокирован"); return; }
-  if (text.length > MAX_MESSAGE_LENGTH) { text = text.slice(0, MAX_MESSAGE_LENGTH); toast("Сообщение обрезано"); }
+  if (c.blocked) { toast(T("toast.blocked")); return; }
+  if (text.length > MAX_MESSAGE_LENGTH) { text = text.slice(0, MAX_MESSAGE_LENGTH); toast(T("toast.messageCut")); }
   const msgId = crypto.randomUUID();
   const ts = Date.now();
   const rec = { id: msgId, from: "me", text, ts, ack: "sent", serverAcked: false };
@@ -1412,7 +1481,7 @@ async function forwardMessage(msgId, fromContactId, toContactId) {
   to.messages.push(rec); trimMessages(to); to.lastActivity = ts; persistContacts();
   if (state.chatId === toContactId) renderChatThread();
   if (state.tab === "chats") renderChatsList();
-  toast("Переслано");
+  toast(T("toast.forwarded"));
   const payload = { kind: "chat", id: msgId2, text, ts, forwarded: true };
   await trySendOrQueue(to, msgId2, payload);
 }
@@ -1469,7 +1538,7 @@ async function flushOutboxItem(msgId) {
       if (m && m.ack === "failed") m.ack = "sent";
       persistContacts();
     }
-  } catch (e) { etherLog("error", "[crypto] ошибка шифрования:", String(e)); markMessageAck(entry.to, msgId, "failed"); }
+  } catch (e) { etherLog("error", "[crypto] encrypt:", String(e)); markMessageAck(entry.to, msgId, "failed"); }
 }
 async function flushOutbox() {
   if (!signaling || !signaling.connected) return;
@@ -1523,7 +1592,6 @@ function resumeUnsentMessages() {
   }
 }
 
-// --- sendAckBatch с защитой от лавины ---
 const _recentAckSent = new Map();
 function sendAckBatch(contactId, originalMsgIds, ackState) {
   if (!Array.isArray(originalMsgIds) || originalMsgIds.length === 0) return;
@@ -1631,26 +1699,18 @@ function updateSignalingStatusUI(kind, text) {
   if (dot) dot.className = "status-dot " + kind;
   if (label) label.textContent = text;
 }
-function renderSignalingBanner() {
-  const banner = $("#signaling-banner"); if (!banner) return;
-  if (!signaling || !signaling.connected) {
-    const t = $("#signaling-banner-text"); if (t) t.textContent = "Нет связи с сигнальным сервером — переподключаемся…";
-    banner.classList.remove("hidden");
-  } else banner.classList.add("hidden");
-}
 function initSignaling() {
   const url = effectiveSignalingUrl();
   if (signalingCleanup) { try { signalingCleanup(); } catch (e) {} signalingCleanup = null; }
   if (signaling) { signaling.stop(); signaling = null; }
   onlineSet.clear(); onlineRoster.clear();
   for (const c of state.contacts.values()) c.online = false;
-  if (!url) { updateSignalingStatusUI("off", "Сервер не настроен"); renderSignalingBanner(); renderChatsList(); renderOnlineRosterList(); return; }
-  updateSignalingStatusUI("connecting", "Подключение…");
+  if (!url) { updateSignalingStatusUI("off", "—"); renderChatsList(); renderOnlineRosterList(); return; }
+  updateSignalingStatusUI("connecting", "…");
   etherLog("info", "[signaling] connecting to " + url);
   signaling = new SignalingClient(url, Store.myId, { name: Store.name, visible: Store.discoverable, publicKey: Store.myPublicKeyJwk });
   signalingCleanup = wireSignalingEvents(signaling);
   signaling.start();
-  renderSignalingBanner();
 }
 function wireSignalingEvents(sig) {
   const on = (type, fn) => {
@@ -1664,8 +1724,7 @@ function wireSignalingEvents(sig) {
   const subs = [];
 
   subs.push(on("connected", () => {
-    updateSignalingStatusUI("online", "Подключено");
-    renderSignalingBanner();
+    updateSignalingStatusUI("online", T("status.online"));
     for (const [id, link] of mesh.links) {
       if (link.status === "disconnected" && link._closed !== true) {
         etherLog("info", "[reconnect] dropping dead link to " + String(id).slice(0, 10) + "…");
@@ -1687,20 +1746,18 @@ function wireSignalingEvents(sig) {
     setTimeout(() => { ensurePushSubscription().catch(() => {}); }, 500);
   }));
   subs.push(on("disconnected", () => {
-    updateSignalingStatusUI("off", "Нет соединения — переподключаемся…");
+    updateSignalingStatusUI("off", T("status.offline"));
     for (const c of state.contacts.values()) if (c.managed) {
       if (c.online) { state.lastSeen[c.id] = Date.now(); persistLastSeen(); }
       c.online = false;
     }
     onlineRoster.clear();
-    renderSignalingBanner();
     if (state.tab === "chats") renderChatsList();
     if (state.tab === "connect") renderOnlineRosterList();
   }));
   subs.push(on("replaced", () => {
-    updateSignalingStatusUI("off", "Отключено — тот же id в другом месте");
-    toast("Этот же контакт подключён в другой вкладке");
-    renderSignalingBanner();
+    updateSignalingStatusUI("off", T("status.offline"));
+    toast(T("status.offline"));
   }));
   subs.push(on("vapid-key", (ev) => {
     const { key } = ev.detail;
@@ -1743,27 +1800,21 @@ function wireSignalingEvents(sig) {
 
     if (packet.t === "call-invite") {
       if (isDuplicateSignal(from, packet)) return;
-      etherLog("info", "[call] incoming invite from " + String(from).slice(0, 10) + "…");
       ensureContactEntry(from, packet.n);
-
-      // Если уже в звонке с кем-то другим — отправляем «занято».
       if (state.callId && state.callId !== from) {
-        etherLog("info", "[call] busy — declining invite from " + String(from).slice(0, 10) + "…");
         try { sig.signal(from, { t: "call-busy" }); } catch (e) {}
         return;
       }
-      // Если уже в звонке с этим же контактом — просто подтверждаем.
       if (state.callId === from) {
         try { sig.signal(from, { t: "call-invite-ack" }); } catch (e) {}
         return;
       }
-
       openCallScreen(from, "ringing");
       try { ensureAudioCtx(); } catch (e) {}
       playRingtone();
       const c = state.contacts.get(from);
       if (c && !c.muted && Store.notificationsEnabled) {
-        showNotification(`📞 ${packet.n || "Звонок"}`, "Входящий вызов", { tag: "ether-call-" + from, contactId: from, kind: "call", force: true });
+        showNotification(T("call.incoming"), packet.n || "", { tag: "ether-call-" + from, contactId: from, kind: "call", force: true });
       }
       try { sig.signal(from, { t: "call-invite-ack" }); } catch (e) {}
       return;
@@ -1771,14 +1822,14 @@ function wireSignalingEvents(sig) {
     if (packet.t === "call-busy") {
       if (state.callId === from) {
         stopRingtone();
-        toast("Абонент занят");
+        toast(T("toast.peerBusy"));
         closeCallScreen("busy");
       }
       return;
     }
     if (packet.t === "call-invite-ack") {
       if (state.callId === from && state.callPhase === "calling") {
-        const p = $("#call-phase"); if (p) p.textContent = "Гудки…";
+        const p = $("#call-phase"); if (p) p.textContent = T("call.ringing");
       }
       return;
     }
@@ -1789,64 +1840,40 @@ function wireSignalingEvents(sig) {
     if (packet.t === "call-declined") {
       if (state.callId === from) {
         stopRingtone();
-        toast("Собеседник отклонил вызов");
-        const link = mesh.get(from); if (link) link.endCall();
+        try { const l = mesh.get(from); if (l) l.endCall(); } catch (e) {}
         closeCallScreen("declined");
       }
       return;
     }
     if (packet.t === "call-ended") {
-      if (state.callId === from) { stopRingtone(); closeCallScreen("completed"); }
+      if (state.callId === from) {
+        stopRingtone();
+        try { const l = mesh.get(from); if (l) l.endCall(); } catch (e) {}
+        closeCallScreen("completed");
+      }
       return;
     }
     if (packet.t === "offer") {
-      etherLog("info", "[offer] processing — from=" + String(from).slice(0, 10) + "…");
       const existing = mesh.get(from);
-      if (existing && existing.role === "answerer" && existing.status === "connected") {
-        etherLog("info", "[offer] ignoring, already connected as answerer");
-        return;
-      }
-      if (existing) {
-        etherLog("warn", "[offer] removing existing link before creating new one");
-        mesh.remove(from);
-      }
+      if (existing && existing.role === "answerer" && existing.status === "connected") return;
+      if (existing) mesh.remove(from);
       ensureContactEntry(from, packet.n);
-      etherLog("info", "[offer] creating incoming link");
       const link = mesh.createIncomingLink(from);
       try {
-        etherLog("info", "[offer] calling acceptOfferAndCreateAnswer");
         const answer = await link.acceptOfferAndCreateAnswer(packet);
-        if (!answer) {
-          etherLog("warn", "[offer] acceptOfferAndCreateAnswer returned null");
-          return;
-        }
-        etherLog("info", "[offer] answer created, sending back");
-        const sent = sig.signal(from, answer);
-        etherLog("info", "[offer] answer sent, result=" + sent);
+        if (!answer) return;
+        sig.signal(from, answer);
       } catch (e) {
-        etherLog("error", "[offer] answer FAILED:", String(e && e.message || e));
+        etherLog("error", "[offer] FAILED:", String(e && e.message || e));
         mesh.remove(from);
-        const c = state.contacts.get(from); if (c) c.status = "disconnected";
-        if (state.chatId === from) renderChatThread();
-        if (state.tab === "chats") renderChatsList();
       }
     } else if (packet.t === "answer") {
       const link = mesh.get(from);
       if (link) {
         try { await link.acceptAnswer(packet); }
-        catch (e) {
-          etherLog("error", "[webrtc] acceptAnswer failed:", String(e));
-          mesh.remove(from);
-          const c = state.contacts.get(from); if (c) c.status = "disconnected";
-          if (state.chatId === from) renderChatThread();
-          if (state.tab === "chats") renderChatsList();
-        }
+        catch (e) { mesh.remove(from); }
       }
     }
-  }));
-  subs.push(on("unreachable", (ev) => {
-    const c = state.contacts.get(ev.detail.to);
-    if (c) { c.online = false; if (state.tab === "chats") renderChatsList(); }
   }));
   subs.push(on("deliver-ack", (ev) => {
     const { msgId } = ev.detail;
@@ -1877,7 +1904,7 @@ function wireSignalingEvents(sig) {
     let payload;
     try {
       const theirKey = fromPublicKey || (state.contacts.get(from) || {}).publicKey;
-      if (!theirKey) throw new Error("нет публичного ключа отправителя");
+      if (!theirKey) throw new Error("no key");
       const sharedKey = await CryptoHelper.deriveSharedKey(Store.myPrivateKeyJwk, theirKey);
       payload = await CryptoHelper.decryptJson(sharedKey, envelope);
       if (fromPublicKey) {
@@ -1888,9 +1915,7 @@ function wireSignalingEvents(sig) {
 
     applyIncomingPayload(from, msgId, payload, true, kind);
 
-    if (kind === "chat") {
-      sendAckBatch(from, [msgId], "delivered");
-    }
+    if (kind === "chat") sendAckBatch(from, [msgId], "delivered");
   }));
   return () => { for (const s of subs) sig.removeEventListener(s.type, s.wrapped); };
 }
@@ -1908,7 +1933,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     if (isOpen) { renderChatThread(); playMessageSound(); vibrate([80, 40, 80]); }
     else {
       toast(`${c.name}: ${truncate(payload.text, 40)}`);
-      if (!c.muted) showNotification(c.name || "Эфир", truncate(payload.text, 80), { tag: "ether-msg-" + c.id, contactId: c.id, kind: "message" });
+      if (!c.muted) showNotification(c.name || T("app.name"), truncate(payload.text, 80), { tag: "ether-msg-" + c.id, contactId: c.id, kind: "message" });
       playMessageSound();
       vibrate([80, 40, 80]);
     }
@@ -1949,42 +1974,25 @@ async function attemptConnect(id) {
   const tag = String(id).slice(0, 10) + "…";
   if (!signaling || !signaling.connected) return;
   if (!onlineSet.has(id)) return;
-
   const iShouldOffer = Store.myId < id;
-  if (!iShouldOffer) {
-    etherLog("info", "[connect] " + tag, "not my turn — waiting for peer's offer");
-    return;
-  }
-
-  if (_connectInFlight.has(id)) {
-    etherLog("info", "[connect] " + tag, "already in flight — skipping");
-    return;
-  }
+  if (!iShouldOffer) { etherLog("info", "[connect] " + tag, "not my turn"); return; }
+  if (_connectInFlight.has(id)) return;
   _connectInFlight.add(id);
-
   try {
     const existing = mesh.get(id);
     if (existing) {
       const age = Date.now() - (existing._createdAt || 0);
       if (existing.status === "connected" || existing.status === "in-call") return;
-      if (existing.status === "connecting" && age < CONNECT_STUCK_MS) {
-        etherLog("info", "[connect] " + tag, "waiting — link connecting, age=" + Math.round(age / 1000) + "s");
-        return;
-      }
-      etherLog("warn", "[connect] " + tag, "resetting stuck link (age=" + Math.round(age / 1000) + "s, status=" + existing.status + ")");
+      if (existing.status === "connecting" && age < CONNECT_STUCK_MS) return;
       mesh.remove(id);
     }
-
-    etherLog("info", "[connect] " + tag, "creating offer");
     const link = mesh.createOutgoingLink(id);
     try {
       const packet = await link.createInitialOffer("");
       if (!packet) return;
       signaling.signal(id, packet);
-      etherLog("info", "[connect] " + tag, "offer sent");
       watchConnectionTimeout(id);
     } catch (e) {
-      etherLog("error", "[connect] " + tag, "offer failed:", String(e));
       mesh.remove(id);
       const c = state.contacts.get(id); if (c) c.status = "disconnected";
       if (state.chatId === id) renderChatThread();
@@ -1998,7 +2006,6 @@ function watchConnectionTimeout(id) {
   setTimeout(() => {
     const link = mesh.get(id);
     if (!link || link.status === "connected" || link.status === "in-call" || link.status === "disconnected") return;
-    etherLog("warn", "[connect] " + String(id).slice(0, 10) + "…", "connection timed out, resetting");
     mesh.remove(id);
     const c = state.contacts.get(id);
     if (c) {
@@ -2025,16 +2032,16 @@ function renderOnlineRosterList() {
     row.className = "roster-row";
     row.innerHTML = `
       <div class="avatar avatar-sm" style="background:${avatarGradient(u.name || id)}">${escapeHtml(initials(u.name || "?"))}</div>
-      <span class="roster-name">${escapeHtml(u.name || "Без имени")}</span>
-      <button type="button" class="btn-secondary roster-add-btn">Добавить</button>`;
+      <span class="roster-name">${escapeHtml(u.name || T("sys.someone"))}</span>
+      <button type="button" class="btn-secondary roster-add-btn">${escapeHtml(T("connect.addButton"))}</button>`;
     row.querySelector(".roster-add-btn").addEventListener("click", () => {
       state.contacts.set(id, {
-        id, name: u.name || "Без имени", raw: "", managed: true,
+        id, name: u.name || T("sys.someone"), raw: "", managed: true,
         publicKey: u.publicKey || null, online: true, status: "disconnected",
         messages: [], lastActivity: Date.now(), archived: false, muted: false, blocked: false,
       });
       persistContacts();
-      toast("Контакт добавлен");
+      toast(T("toast.contactAdded"));
       scheduleAutoConnect(id);
       renderOnlineRosterList();
       renderContactsList();
@@ -2050,12 +2057,12 @@ function wireConnectScreen() {
   if (addBtn) addBtn.addEventListener("click", async () => {
     const nameVal = $("#add-contact-name").value.trim();
     const raw = $("#add-contact-value").value.trim();
-    if (!raw) { toast("Введите телефон или email"); return; }
+    if (!raw) { toast(T("toast.emptyId")); return; }
     let identity;
     try { identity = await Identity.idFor(raw); }
     catch (e) { toast(e.message); return; }
-    if (identity.id === Store.myId) { toast("Это ваш собственный идентификатор"); return; }
-    if (state.contacts.has(identity.id)) toast("Этот контакт уже добавлен");
+    if (identity.id === Store.myId) { toast(T("toast.ownId")); return; }
+    if (state.contacts.has(identity.id)) toast(T("toast.alreadyAdded"));
     else {
       state.contacts.set(identity.id, {
         id: identity.id, name: nameVal || identity.normalized, raw: identity.normalized,
@@ -2064,7 +2071,7 @@ function wireConnectScreen() {
         archived: false, muted: false, blocked: false,
       });
       persistContacts();
-      toast("Контакт добавлен");
+      toast(T("toast.contactAdded"));
       if (onlineSet.has(identity.id)) scheduleAutoConnect(identity.id);
     }
     $("#add-contact-name").value = "";
@@ -2075,22 +2082,20 @@ function wireConnectScreen() {
   if (toggleManual) toggleManual.addEventListener("click", () => {
     const sec = $("#manual-section");
     sec.classList.toggle("hidden");
-    toggleManual.textContent = sec.classList.contains("hidden")
-      ? "Ручное подключение без сервера, по коду ›"
-      : "Скрыть ручное подключение ‹";
+    toggleManual.textContent = sec.classList.contains("hidden") ? T("connect.manual") : T("connect.manual.hide");
   });
   const createBtn = $("#create-invite-btn");
   if (createBtn) createBtn.addEventListener("click", createInvite);
   const copyCode = $("#copy-code-btn");
-  if (copyCode) copyCode.addEventListener("click", () => { const el = $("#invite-code-out"); if (el) copyText(el.textContent, "Код скопирован"); });
+  if (copyCode) copyCode.addEventListener("click", () => { const el = $("#invite-code-out"); if (el) copyText(el.textContent, T("toast.codeCopied")); });
   const copyLink = $("#copy-link-btn");
-  if (copyLink) copyLink.addEventListener("click", () => { const el = $("#invite-link-out"); if (el) copyText(el.textContent, "Ссылка скопирована"); });
+  if (copyLink) copyLink.addEventListener("click", () => { const el = $("#invite-link-out"); if (el) copyText(el.textContent, T("toast.linkCopied")); });
   const share = $("#share-link-btn");
   if (share) share.addEventListener("click", async () => {
     const el = $("#invite-link-out"); if (!el) return;
     const url = el.textContent;
-    if (navigator.share) { try { await navigator.share({ title: "Приглашение в Эфир", url }); } catch (e) {} }
-    else copyText(url, "Ссылка скопирована");
+    if (navigator.share) { try { await navigator.share({ title: T("app.name"), url }); } catch (e) {} }
+    else copyText(url, T("toast.linkCopied"));
   });
   const completeBtn = $("#complete-invite-btn");
   if (completeBtn) completeBtn.addEventListener("click", async () => {
@@ -2098,13 +2103,13 @@ function wireConnectScreen() {
     if (!code || !state.pendingOutgoing) return;
     try {
       const packet = await SignalingCodec.decode(code);
-      if (packet.t !== "answer") throw new Error("Это не код ответа");
+      if (packet.t !== "answer") throw new Error("not answer");
       const link = mesh.get(state.pendingOutgoing.id);
-      if (!link) { toast("Соединение потеряно — начните заново"); resetConnectScreen(); return; }
+      if (!link) { resetConnectScreen(); return; }
       await link.acceptAnswer(packet);
       $("#answer-code-in").value = "";
-      toast("Код принят — соединяемся…");
-    } catch (e) { toast("Не удалось прочитать код: " + e.message); }
+      toast(T("toast.callAccepted"));
+    } catch (e) { toast(String(e.message)); }
   });
   const replyBtn = $("#reply-btn");
   if (replyBtn) replyBtn.addEventListener("click", async () => {
@@ -2115,7 +2120,7 @@ function wireConnectScreen() {
   const newInvite = $("#new-invite-again");
   if (newInvite) newInvite.addEventListener("click", resetConnectScreen);
   const answerCopy = $("#answer-copy-btn");
-  if (answerCopy) answerCopy.addEventListener("click", () => { const el = $("#answer-out-code"); if (el) copyText(el.textContent, "Код скопирован"); });
+  if (answerCopy) answerCopy.addEventListener("click", () => { const el = $("#answer-out-code"); if (el) copyText(el.textContent, T("toast.codeCopied")); });
 }
 function resetConnectScreen() {
   state.pendingOutgoing = null;
@@ -2132,7 +2137,7 @@ async function createInvite() {
   const code = await SignalingCodec.encode(packet);
   const shareLink = SignalingCodec.buildShareLink(code);
   state.pendingOutgoing = { id, code, shareLink };
-  state.contacts.set(id, { id, name: "Приглашение…", raw: "", managed: false, online: false, status: "awaiting-answer", messages: [], lastActivity: Date.now(), archived: false, muted: false, blocked: false });
+  state.contacts.set(id, { id, name: "…", raw: "", managed: false, online: false, status: "awaiting-answer", messages: [], lastActivity: Date.now(), archived: false, muted: false, blocked: false });
   const ii = $("#invite-idle"); if (ii) ii.classList.add("hidden");
   const ia = $("#invite-active"); if (ia) ia.classList.remove("hidden");
   const co = $("#invite-code-out"); if (co) co.textContent = code;
@@ -2141,25 +2146,25 @@ async function createInvite() {
 async function handleIncomingCode(code) {
   let packet;
   try { packet = await SignalingCodec.decode(code); }
-  catch (e) { toast("Код повреждён или неполный"); return; }
+  catch (e) { return; }
   if (packet.t === "offer") {
     const id = crypto.randomUUID();
     const link = mesh.createIncomingLink(id);
     const answerPacket = await link.acceptOfferAndCreateAnswer(packet);
     const answerCode = await SignalingCodec.encode(answerPacket);
-    state.contacts.set(id, { id, name: packet.n || "Собеседник", raw: "", managed: false, online: false, status: "connecting", messages: [], lastActivity: Date.now(), archived: false, muted: false, blocked: false });
+    state.contacts.set(id, { id, name: packet.n || T("sys.someone"), raw: "", managed: false, online: false, status: "connecting", messages: [], lastActivity: Date.now(), archived: false, muted: false, blocked: false });
     state.tab = "connect"; renderTab();
     const ms = $("#manual-section"); if (ms) ms.classList.remove("hidden");
-    const tm = $("#toggle-manual-btn"); if (tm) tm.textContent = "Скрыть ручное подключение ‹";
+    const tm = $("#toggle-manual-btn"); if (tm) tm.textContent = T("connect.manual.hide");
     const ib = $("#incoming-banner"); if (ib) ib.classList.remove("hidden");
-    const ibt = $("#incoming-banner-text"); if (ibt) ibt.textContent = `Приглашение от «${packet.n || "без имени"}» принято`;
+    const ibt = $("#incoming-banner-text"); if (ibt) ibt.textContent = packet.n || "";
     const aoc = $("#answer-out-code"); if (aoc) aoc.textContent = answerCode;
     const aow = $("#answer-out-wrap"); if (aow) aow.classList.remove("hidden");
     const pcw = $("#paste-code-wrap"); if (pcw) pcw.classList.add("hidden");
-  } else toast("Это приглашение, а не код ответа");
+  }
 }
 function copyText(text, msg) {
-  if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => toast(msg)).catch(() => toast("Не удалось скопировать"));
+  if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => toast(msg)).catch(() => toast(T("toast.copyFailed")));
   else {
     const ta = document.createElement("textarea");
     ta.value = text; document.body.appendChild(ta); ta.select();
@@ -2196,16 +2201,16 @@ function openMessageSheet(msgId, contactId) {
   const isOwn = m.from === "me";
   const body = $("#message-sheet-body"); if (!body) return;
   const actions = [];
-  actions.push(`<button type="button" class="sheet-action" data-action="reply"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/></svg>Ответить</button>`);
-  actions.push(`<button type="button" class="sheet-action" data-action="forward"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M14 9V5l7 7-7 7v-4.1c-5 0-8.5 1.6-11 5.1 1-5 4-10 11-11z"/></svg>Переслать</button>`);
-  actions.push(`<button type="button" class="sheet-action" data-action="copy"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z"/></svg>Копировать текст</button>`);
-  if (m.ack === "failed" && isOwn) actions.push(`<button type="button" class="sheet-action" data-action="retry"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M17.65 6.35A8 8 0 1 0 19.73 14h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>Отправить заново</button>`);
+  actions.push(`<button type="button" class="sheet-action" data-action="reply">${escapeHtml(T("chat.reply"))}</button>`);
+  actions.push(`<button type="button" class="sheet-action" data-action="forward">${escapeHtml(T("chat.forward"))}</button>`);
+  actions.push(`<button type="button" class="sheet-action" data-action="copy">${escapeHtml(T("chat.copy"))}</button>`);
+  if (m.ack === "failed" && isOwn) actions.push(`<button type="button" class="sheet-action" data-action="retry">${escapeHtml(T("chat.retry"))}</button>`);
   if (isOwn) {
-    actions.push(`<button type="button" class="sheet-action" data-action="edit"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>Редактировать</button>`);
-    actions.push(`<button type="button" class="sheet-action destructive" data-action="delete-local"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M6 7h12l-1 13.1a2 2 0 0 1-2 1.9H9a2 2 0 0 1-2-1.9L6 7z"/></svg>Удалить у себя</button>`);
-    actions.push(`<button type="button" class="sheet-action destructive" data-action="delete-both"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M6 7h12l-1 13.1a2 2 0 0 1-2 1.9H9a2 2 0 0 1-2-1.9L6 7z"/></svg>Удалить у всех</button>`);
+    actions.push(`<button type="button" class="sheet-action" data-action="edit">${escapeHtml(T("chat.edit"))}</button>`);
+    actions.push(`<button type="button" class="sheet-action destructive" data-action="delete-local">${escapeHtml(T("chat.delete.local"))}</button>`);
+    actions.push(`<button type="button" class="sheet-action destructive" data-action="delete-both">${escapeHtml(T("chat.delete.both"))}</button>`);
   } else {
-    actions.push(`<button type="button" class="sheet-action destructive" data-action="delete-local"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M6 7h12l-1 13.1a2 2 0 0 1-2 1.9H9a2 2 0 0 1-2-1.9L6 7z"/></svg>Удалить у себя</button>`);
+    actions.push(`<button type="button" class="sheet-action destructive" data-action="delete-local">${escapeHtml(T("chat.delete.local"))}</button>`);
   }
   body.innerHTML = actions.join("");
   body.querySelectorAll(".sheet-action").forEach((btn) => {
@@ -2220,21 +2225,21 @@ function openMessageSheet(msgId, contactId) {
 async function handleMessageAction(action, msgId, contactId) {
   const c = state.contacts.get(contactId); if (!c) return;
   const m = c.messages.find((x) => x.id === msgId); if (!m) return;
-  if (action === "copy") copyText(m.text || "", "Текст скопирован");
+  if (action === "copy") copyText(m.text || "", T("toast.msgCopied"));
   else if (action === "edit") startEditing(msgId);
   else if (action === "delete-local") deleteMessageLocal(contactId, msgId);
   else if (action === "delete-both") {
-    if (!confirm("Удалить сообщение у вас и у собеседника?")) return;
+    if (!confirm(T("chat.delete.both") + "?")) return;
     await deleteMessageForBoth(contactId, msgId);
   } else if (action === "reply") {
-    state.replyTo = { msgId: m.id, text: m.text, from: m.from, authorName: m.from === "me" ? (Store.name || "Вы") : (c.name || "Собеседник") };
+    state.replyTo = { msgId: m.id, text: m.text, from: m.from, authorName: m.from === "me" ? (Store.name || "") : (c.name || "") };
     showReplyBanner();
     const inp = $("#chat-input"); if (inp) inp.focus();
   } else if (action === "forward") openForwardSheet(msgId, contactId);
   else if (action === "retry") {
     m.serverAcked = false;
-    if (outbox.has(msgId)) { flushOutboxItem(msgId); toast("Повторная отправка…"); }
-    else { addToOutbox(msgId, contactId, { kind: "chat", id: msgId, text: m.text, ts: m.ts }); flushOutboxItem(msgId); toast("Повторная отправка…"); }
+    if (outbox.has(msgId)) { flushOutboxItem(msgId); }
+    else { addToOutbox(msgId, contactId, { kind: "chat", id: msgId, text: m.text, ts: m.ts }); flushOutboxItem(msgId); }
   }
 }
 function startEditing(msgId) {
@@ -2258,11 +2263,10 @@ function openForwardSheet(msgId, fromContactId) {
   const list = $("#forward-list"); if (!list) return;
   list.innerHTML = "";
   const contacts = Array.from(state.contacts.values()).filter((c) => c.managed);
-  if (contacts.length === 0) list.innerHTML = `<p class="muted">Нет других контактов</p>`;
   for (const c of contacts) {
     const btn = document.createElement("button");
     btn.type = "button"; btn.className = "forward-row";
-    btn.innerHTML = `<div class="avatar avatar-sm" style="background:${avatarGradient(c.name)}">${escapeHtml(initials(c.name))}</div><span class="forward-name">${escapeHtml(c.name || "Без имени")}</span>`;
+    btn.innerHTML = `<div class="avatar avatar-sm" style="background:${avatarGradient(c.name)}">${escapeHtml(initials(c.name))}</div><span class="forward-name">${escapeHtml(c.name || T("sys.someone"))}</span>`;
     btn.addEventListener("click", async () => { const fs = $("#forward-sheet"); if (fs) fs.classList.add("hidden"); await forwardMessage(msgId, fromContactId, c.id); });
     list.appendChild(btn);
   }
@@ -2282,7 +2286,7 @@ function wireRenameSheet() {
     if (state.chatId === id) renderChatThread();
     if (state.contactCardId === id) renderContactCard();
     renderChatsList();
-    toast("Имя обновлено");
+    toast(T("toast.nameUpdated"));
   });
 }
 function deleteContact(id) {
@@ -2301,19 +2305,19 @@ function deleteContact(id) {
   if (state.chatId === id) state.chatId = null;
   if (state.contactCardId === id) state.contactCardId = null;
   renderTab();
-  toast("Контакт удалён");
+  toast(T("toast.contactDeleted"));
 }
 function exportChat(contactId) {
   const c = state.contacts.get(contactId); if (!c) return;
   const lines = c.messages.map((m) => {
-    const who = m.from === "me" ? "Я" : (c.name || "Собеседник");
-    const date = new Date(m.ts).toLocaleString("ru-RU");
+    const who = m.from === "me" ? (Store.name || "") : (c.name || "");
+    const date = new Date(m.ts).toLocaleString(I18N.current);
     const react = m.reactions ? " " + Object.keys(m.reactions).join("") : "";
     return `[${date}] ${who}: ${m.text}${react}`;
   });
-  const text = `Переписка с ${c.name}\n\n` + lines.join("\n");
+  const text = (c.name || "") + "\n\n" + lines.join("\n");
   downloadBlob(new Blob([text], { type: "text/plain;charset=utf-8" }), `ether-${contactId.slice(0, 8)}-${Date.now()}.txt`);
-  toast("Экспортировано");
+  toast(T("toast.exportDone"));
 }
 function downloadBlob(blob, name) {
   const url = URL.createObjectURL(blob);
@@ -2364,14 +2368,14 @@ function endCallRecord(finalStatus) {
   persistCallLog();
 }
 function callStatusLabel(rec) {
-  if (rec.status === "completed") return `Разговор · ${formatDuration(rec.durationMs)}`;
-  if (rec.status === "declined") return "Отклонён";
-  if (rec.status === "missed") return "Пропущен";
-  if (rec.status === "cancelled") return "Отменён";
-  if (rec.status === "failed") return "Не удалось";
-  if (rec.status === "busy") return "Абонент занят";
-  if (rec.status === "ringing") return "Не принят";
-  return "Звонок";
+  if (rec.status === "completed") return `${T("status.inCall")} · ${formatDuration(rec.durationMs)}`;
+  if (rec.status === "declined") return T("calls.declined");
+  if (rec.status === "missed") return T("calls.missed");
+  if (rec.status === "cancelled") return T("calls.cancelled");
+  if (rec.status === "failed") return T("calls.failed");
+  if (rec.status === "busy") return T("calls.busy");
+  if (rec.status === "ringing") return T("calls.noAnswer");
+  return T("calls.incoming");
 }
 function renderCallsList() {
   const list = $("#calls-list"), empty = $("#calls-empty");
@@ -2382,7 +2386,7 @@ function renderCallsList() {
   const items = state.callLog.slice().sort((a, b) => b.startedAt - a.startedAt);
   for (const rec of items) {
     const c = state.contacts.get(rec.contactId);
-    const name = (c && c.name) || rec.contactName || "Без имени";
+    const name = (c && c.name) || rec.contactName || T("sys.someone");
     const isFailed = rec.status !== "completed";
     const dirIcon = isFailed ? "missed" : (rec.direction === "in" ? "in" : "out");
     const arrowSvg = rec.direction === "in"
@@ -2396,7 +2400,7 @@ function renderCallsList() {
         <div class="call-name">${escapeHtml(name)}</div>
         <div class="call-sub">${escapeHtml(callStatusLabel(rec))} · ${escapeHtml(formatDay(rec.startedAt))} ${escapeHtml(formatTime(rec.startedAt))}</div>
       </div>
-      <button type="button" class="call-back-btn" aria-label="Позвонить" ${c ? "" : "disabled"}>
+      <button type="button" class="call-back-btn" aria-label="Call" ${c ? "" : "disabled"}>
         <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.7 21 3 13.3 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.4 0 .8-.2 1L6.6 10.8z"/></svg>
       </button>`;
     const backBtn = row.querySelector(".call-back-btn");
@@ -2409,33 +2413,21 @@ function clearPendingCall() { if (pendingCall.timer) clearTimeout(pendingCall.ti
 
 async function beginCall(id) {
   const c = state.contacts.get(id);
-  if (!c) { toast("Контакт не найден"); return; }
-  if (c.blocked) { toast("Контакт заблокирован"); return; }
-
-  // Если уже в звонке с кем-то другим — не даём начать новый.
-  if (state.callId && state.callId !== id) {
-    toast("Сначала завершите текущий звонок");
-    return;
-  }
-  // Если уже в звонке с этим же — просто показать экран.
-  if (state.callId === id) {
-    openCallScreen(id, state.callPhase || "calling");
-    return;
-  }
+  if (!c) return;
+  if (c.blocked) { toast(T("toast.blocked")); return; }
+  if (state.callId && state.callId !== id) { return; }
+  if (state.callId === id) { openCallScreen(id, state.callPhase || "calling"); return; }
 
   etherLog("info", "[call] beginCall to " + String(id).slice(0, 10) + "…");
-
-  // Сброс служебных флагов под новый звонок.
   state._callUserAccepted = false;
   state._callAcceptInFlight = false;
   state._callMuteOnAnswer = false;
-  state._callBusy = false;
   state._callDeadSeconds = 0;
 
   openCallScreen(id, "calling");
 
   if (!signaling || !signaling.connected) {
-    toast("Нет связи с сервером — звонок невозможен");
+    toast(T("toast.noServer"));
     closeCallScreen("failed");
     return;
   }
@@ -2445,7 +2437,7 @@ async function beginCall(id) {
   const link = mesh.get(id);
   if (link && isReachable(c)) {
     try { await link.startCall(); }
-    catch (e) { toast("Нет доступа к микрофону"); closeCallScreen("failed"); return; }
+    catch (e) { toast(T("toast.noServer")); closeCallScreen("failed"); return; }
     return;
   }
 
@@ -2462,7 +2454,7 @@ async function beginCall(id) {
     if (signaling && signaling.connected) {
       try { signaling.signal(id, { t: "call-ended" }); } catch (e) {}
     }
-    toast("Собеседник не ответил");
+    toast(T("calls.noAnswer"));
     closeCallScreen("cancelled");
   }, PENDING_CALL_TIMEOUT_MS);
 }
@@ -2480,16 +2472,18 @@ function openCallScreen(id, phase) {
   if (muteBtn) {
     muteBtn.classList.remove("active");
     const lbl = $("#call-mute-label");
-    if (lbl) lbl.textContent = "Микрофон";
+    if (lbl) lbl.textContent = T("call.mute");
   }
   const c = state.contacts.get(id);
   const cs = $("#call-screen"); if (cs) cs.classList.remove("hidden");
-  const pn = $("#call-peer-name"); if (pn) pn.textContent = (c && c.name) || "Без имени";
+  const pn = $("#call-peer-name"); if (pn) pn.textContent = (c && c.name) || T("sys.someone");
   const pa = $("#call-peer-avatar"); if (pa) { pa.style.background = avatarGradient((c && c.name) || "?"); pa.textContent = initials((c && c.name) || "?"); }
-  const cp = $("#call-phase"); if (cp) cp.textContent = phase === "calling" ? "Вызов…" : phase === "ringing" ? "Входящий вызов" : "На связи";
+  const cp = $("#call-phase"); if (cp) cp.textContent = phase === "calling" ? T("call.calling") : phase === "ringing" ? T("call.incoming") : T("call.active");
   const incoming = phase === "ringing";
   const ci = $("#call-controls-incoming"); if (ci) ci.classList.toggle("hidden", !incoming);
   const ca = $("#call-controls-active"); if (ca) ca.classList.toggle("hidden", incoming);
+  // Уровень громкости.
+  const vs = $("#call-volume-slider"); if (vs) vs.value = String(Store.callVolume);
   clearInterval(callTimerInterval);
   if (phase === "active") startCallTimer();
 
@@ -2499,12 +2493,11 @@ function openCallScreen(id, phase) {
     pendingCall.timer = setTimeout(() => {
       if (state.callId !== id) return;
       if (state.callPhase !== "ringing") return;
-      etherLog("info", "[call] ringing timeout — missed");
       try { const l = mesh.get(id); if (l) l.endCall(); } catch (e) {}
       if (signaling && signaling.connected) {
         try { signaling.signal(id, { t: "call-ended" }); } catch (e) {}
       }
-      toast("Пропущенный звонок");
+      toast(T("toast.missedCall"));
       closeCallScreen("missed");
     }, INCOMING_CALL_TIMEOUT_MS);
   }
@@ -2530,7 +2523,7 @@ function setCallPhaseActive() {
 }
 
 function attachRemoteAudio(id, stream) {
-  if (!stream) { etherLog("warn", "[audio] attachRemoteAudio: пустой stream, id=" + String(id).slice(0, 10) + "…"); return; }
+  if (!stream) { etherLog("warn", "[audio] empty stream"); return; }
   let audioEl = document.getElementById("remote-audio-" + id);
   if (!audioEl) {
     audioEl = document.createElement("audio");
@@ -2540,20 +2533,15 @@ function attachRemoteAudio(id, stream) {
     audioEl.hidden = true;
     document.body.appendChild(audioEl);
   }
+  audioEl.volume = Store.callVolume;
   audioEl.srcObject = stream;
   const p = audioEl.play();
-  if (p && typeof p.then === "function") {
-    p.then(() => {
-      etherLog("info", "[audio] attachRemoteAudio: play() ok, id=" + String(id).slice(0, 10) + "…, tracks=" + (stream.getAudioTracks ? stream.getAudioTracks().length : "?"));
-    }).catch((e) => {
-      etherLog("warn", "[audio] play() отклонён:", String(e));
-      const resume = () => { try { audioEl.play().catch(() => {}); } catch (e2) {} };
-      document.addEventListener("touchstart", resume, { once: true });
-      document.addEventListener("click", resume, { once: true });
-    });
-  } else {
-    etherLog("info", "[audio] attachRemoteAudio: play() без Promise, id=" + String(id).slice(0, 10) + "…");
-  }
+  if (p && p.catch) p.catch(() => {
+    const resume = () => { try { audioEl.play().catch(() => {}); } catch (e) {} };
+    document.addEventListener("touchstart", resume, { once: true });
+    document.addEventListener("click", resume, { once: true });
+  });
+  const sl = $("#call-volume-slider"); if (sl) sl.value = String(Store.callVolume);
 }
 function startCallTimer() {
   const started = Date.now();
@@ -2564,7 +2552,6 @@ function startCallTimer() {
     const mm = String(Math.floor(secs / 60)).padStart(2, "0");
     const ss = String(secs % 60).padStart(2, "0");
     const cp = $("#call-phase"); if (cp) cp.textContent = `${mm}:${ss}`;
-
     const cid = state.callId;
     if (!cid) { state._callDeadSeconds = 0; return; }
     const link = mesh.get(cid);
@@ -2572,11 +2559,29 @@ function startCallTimer() {
     if (alive) { state._callDeadSeconds = 0; return; }
     state._callDeadSeconds = (state._callDeadSeconds || 0) + 1;
     if (state._callDeadSeconds * 1000 >= CALL_DEAD_LINK_TIMEOUT_MS) {
-      etherLog("warn", "[call] dead P2P for " + state._callDeadSeconds + "s — closing call UI");
       closeCallScreen("completed");
     }
   }, 1000);
 }
+
+// Системные сообщения обо ВСЕХ звонках — в обе стороны.
+function systemMessageForCall(rec, reason) {
+  if (!rec) return null;
+  const isOut = rec.direction === "out";
+  if (reason === "completed" && rec.answeredAt) {
+    const d = formatDuration(rec.durationMs || 0);
+    return `${isOut ? T("calls.outgoing") : T("calls.incoming")} · ${d}`;
+  }
+  if (reason === "missed") {
+    return isOut ? T("calls.noAnswer") : T("calls.missed");
+  }
+  if (reason === "cancelled") return T("calls.cancelled");
+  if (reason === "declined") return T("calls.declined");
+  if (reason === "busy") return T("calls.busy");
+  if (reason === "failed") return T("calls.failed");
+  return null;
+}
+
 function closeCallScreen(reason) {
   const rec = state.currentCallRecord;
   clearInterval(callTimerInterval); callTimerInterval = null;
@@ -2589,29 +2594,23 @@ function closeCallScreen(reason) {
   endCallRecord(reason);
   const cs = $("#call-screen"); if (cs) cs.classList.add("hidden");
   const cm = $("#call-mute-btn"); if (cm) cm.classList.remove("active");
-  const lbl = $("#call-mute-label"); if (lbl) lbl.textContent = "Микрофон";
+  const lbl = $("#call-mute-label"); if (lbl) lbl.textContent = T("call.mute");
   if (state.callId) pendingRemoteStreams.delete(state.callId);
   state.callId = null;
   state.callPhase = null;
   if (state.tab === "calls") renderCallsList();
 
-  // Системное сообщение в чате о завершении звонка.
-  if (rec && rec.contactId && (reason === "missed" || reason === "cancelled" || reason === "declined" || reason === "busy")) {
+  if (rec && rec.contactId) {
     const c = state.contacts.get(rec.contactId);
     if (c) {
-      const sysMsg = {
-        id: crypto.randomUUID(),
-        from: "system",
-        text: reason === "missed" ? "Пропущенный звонок" :
-              reason === "busy" ? "Абонент занят" :
-              reason === "declined" ? "Звонок отклонён" :
-              "Звонок отменён",
-        ts: Date.now(),
-      };
-      c.messages.push(sysMsg);
-      c.lastActivity = Date.now();
-      persistContacts();
-      if (state.chatId === rec.contactId) renderChatThread();
+      const text = systemMessageForCall(rec, reason);
+      if (text) {
+        c.messages.push({ id: crypto.randomUUID(), from: "system", text, ts: Date.now() });
+        c.lastActivity = Date.now();
+        persistContacts();
+        if (state.chatId === rec.contactId) renderChatThread();
+        if (state.tab === "chats") renderChatsList();
+      }
     }
   }
 }
@@ -2619,7 +2618,11 @@ function wireCallScreen() {
   const hangup = $("#call-hangup-btn");
   if (hangup) hangup.addEventListener("click", () => {
     const cid = state.callId;
-    const link = mesh.get(cid); if (link) link.endCall();
+    const link = mesh.get(cid);
+    if (link) {
+      try { link.endCall(); } catch (e) {}
+      try { mesh.remove(cid); } catch (e) {}
+    }
     if (signaling && signaling.connected && cid) signaling.signal(cid, { t: "call-ended" });
     stopRingtone();
     closeCallScreen(state.currentCallRecord && state.currentCallRecord.answeredAt ? "completed" : "cancelled");
@@ -2631,15 +2634,12 @@ function wireCallScreen() {
     if (link) link.setMuted(muted);
     mute.classList.toggle("active", muted);
     const lbl = $("#call-mute-label");
-    if (lbl) lbl.textContent = muted ? "Микрофон выкл" : "Микрофон";
+    if (lbl) lbl.textContent = muted ? T("call.mute.off") : T("call.mute");
   });
-
   const accept = $("#call-accept-btn");
   if (accept) accept.addEventListener("click", () => acceptCall(false));
-
   const muteAccept = $("#call-mute-accept-btn");
   if (muteAccept) muteAccept.addEventListener("click", () => acceptCall(true));
-
   const decline = $("#call-decline-btn");
   if (decline) decline.addEventListener("click", () => {
     const cid = state.callId;
@@ -2648,6 +2648,21 @@ function wireCallScreen() {
     stopRingtone();
     closeCallScreen("declined");
   });
+  const vs = $("#call-volume-slider");
+  if (vs) {
+    vs.value = String(Store.callVolume);
+    vs.addEventListener("input", (e) => {
+      const v = parseFloat(e.target.value);
+      Store.callVolume = v;
+      const cid = state.callId;
+      if (cid) {
+        const link = mesh.get(cid);
+        if (link && link.setRemoteVolume) link.setRemoteVolume(v);
+        const el = document.getElementById("remote-audio-" + cid);
+        if (el) el.volume = v;
+      }
+    });
+  }
 }
 
 async function acceptCall(withMute) {
@@ -2671,19 +2686,24 @@ async function acceptCall(withMute) {
     if (link && c && isReachable(c)) {
       try {
         await link.answerCall();
-        if (withMute) link.setMuted(true);
+        if (withMute) {
+          link.setMuted(true);
+          const mb = $("#call-mute-btn");
+          if (mb) {
+            mb.classList.add("active");
+            const lbl = $("#call-mute-label");
+            if (lbl) lbl.textContent = T("call.mute.off");
+          }
+        }
         setCallPhaseActive();
       } catch (e) {
         etherLog("error", "[call] answerCall failed:", String(e));
-        toast("Не удалось включить микрофон. Разрешите доступ и попробуйте ещё раз.");
       }
       return;
     }
-
-    toast("Соединяемся — говорите, как только услышите");
+    toast(T("toast.callAccepted"));
   } catch (e) {
     etherLog("error", "[call] accept handler failed:", String(e));
-    toast("Ошибка при приёме звонка");
   } finally {
     state._callAcceptInFlight = false;
   }
@@ -2721,7 +2741,7 @@ function updateSearchCounter() {
   const el = $("#chat-search-counter"); if (!el) return;
   if (!q) { el.textContent = ""; return; }
   const n = c.messages.filter((m) => (m.text || "").toLowerCase().includes(q)).length;
-  el.textContent = n > 0 ? `${n} найдено` : "нет совпадений";
+  el.textContent = n > 0 ? String(n) : "—";
 }
 
 // =====================================================================
@@ -2731,7 +2751,7 @@ function wireSettingsScreen() {
   const nameEl = $("#settings-name");
   if (nameEl) nameEl.addEventListener("change", (e) => {
     const v = e.target.value.trim();
-    if (v) { Store.name = v; toast("Имя обновлено"); initSignaling(); }
+    if (v) { Store.name = v; toast(T("toast.nameUpdated")); initSignaling(); }
   });
   const idEl = $("#settings-identity");
   if (idEl) idEl.addEventListener("change", async (e) => {
@@ -2740,7 +2760,7 @@ function wireSettingsScreen() {
       const identity = await Identity.idFor(v);
       Store.myIdentityRaw = identity.normalized;
       Store.myId = identity.id;
-      toast("Идентификатор обновлён");
+      toast(T("toast.idUpdated"));
       initSignaling();
     } catch (err) { toast(err.message); e.target.value = Store.myIdentityRaw; }
   });
@@ -2748,21 +2768,19 @@ function wireSettingsScreen() {
   if (save) save.addEventListener("click", () => {
     const el = $("#settings-signaling-url");
     if (el) Store.signalingUrl = el.value.trim();
-    initSignaling(); toast("Сохранено");
+    initSignaling(); toast(T("toast.saved"));
   });
   const disc = $("#settings-discoverable");
   if (disc) disc.addEventListener("change", (e) => {
     Store.discoverable = e.target.checked; initSignaling();
-    toast(e.target.checked ? "Вы видны в списке" : "Вы скрыты");
   });
   const sounds = $("#settings-sounds");
   if (sounds) sounds.addEventListener("change", (e) => {
     Store.soundsEnabled = e.target.checked;
-    toast(e.target.checked ? "Звук и вибрация включены" : "Звук и вибрация выключены");
   });
   const pinlock = $("#settings-pinlock");
   if (pinlock) pinlock.addEventListener("change", (e) => {
-    const st = $("#set-pin-title"); if (st) st.textContent = Store.pinHash ? "Введите текущий пин-код" : "Новый пин-код (4-8 цифр)";
+    const st = $("#set-pin-title"); if (st) st.textContent = Store.pinHash ? "PIN" : "PIN";
     const si = $("#set-pin-input"); if (si) si.value = "";
     const ss = $("#set-pin-sheet"); if (ss) ss.classList.remove("hidden");
     setTimeout(() => { const i = $("#set-pin-input"); if (i) i.focus(); }, 50);
@@ -2771,13 +2789,13 @@ function wireSettingsScreen() {
   if (pinSave) pinSave.addEventListener("click", async () => {
     const inp = $("#set-pin-input"); if (!inp) return;
     const v = inp.value.trim();
-    if (!v || v.length < 4) { toast("Минимум 4 цифры"); return; }
-    if (!/^\d+$/.test(v)) { toast("Только цифры"); return; }
+    if (!v || v.length < 4) { toast(T("toast.pinShort")); return; }
+    if (!/^\d+$/.test(v)) { toast(T("toast.pinDigits")); return; }
     if ($("#settings-pinlock").checked) {
       if (Store.pinHash) {
         const h = await pbkdf2Hex(v, Store.pinSalt, PIN_ITERATIONS);
-        if (h !== Store.pinHash) { toast("Неверный пин-код"); return; }
-        const st = $("#set-pin-title"); if (st) st.textContent = "Новый пин-код";
+        if (h !== Store.pinHash) { toast(T("toast.pinWrong")); return; }
+        const st = $("#set-pin-title"); if (st) st.textContent = "PIN";
         inp.value = "";
         return;
       }
@@ -2785,16 +2803,16 @@ function wireSettingsScreen() {
       Store.pinHash = await pbkdf2Hex(v, Store.pinSalt, PIN_ITERATIONS);
       Store.pinEnabled = true;
       const ss = $("#set-pin-sheet"); if (ss) ss.classList.add("hidden");
-      toast("Пин-код включён");
+      toast(T("toast.pinOn"));
     } else {
       const h = await pbkdf2Hex(v, Store.pinSalt, PIN_ITERATIONS);
-      if (h !== Store.pinHash) { toast("Неверный пин-код"); return; }
+      if (h !== Store.pinHash) { toast(T("toast.pinWrong")); return; }
       Store.pinEnabled = false;
       Store.pinHash = "";
       Store.pinSalt = "";
       const pl = $("#settings-pinlock"); if (pl) pl.checked = false;
       const ss = $("#set-pin-sheet"); if (ss) ss.classList.add("hidden");
-      toast("Пин-код отключён");
+      toast(T("toast.pinOff"));
     }
   });
   const slider = $("#glass-slider");
@@ -2830,7 +2848,6 @@ function wireNavTitleTaps() {
       __navTitleTaps = [];
       Store.debugHidden = false;
       applyDebugTabVisibility();
-      toast("Вкладка «Отладка» включена");
     }
   });
 }
@@ -2842,7 +2859,7 @@ function wireDebugScreen() {
   const diagR = $("#diagnostics-refresh-btn");
   if (diagR) diagR.addEventListener("click", renderDiagnostics);
   const diagC = $("#diagnostics-copy-btn");
-  if (diagC) diagC.addEventListener("click", () => copyText(buildDiagnosticsText(), "Диагностика скопирована"));
+  if (diagC) diagC.addEventListener("click", () => copyText(buildDiagnosticsText(), T("toast.msgCopied")));
 
   const webrtcBtn = $("#webrtc-debug-btn");
   if (webrtcBtn) webrtcBtn.addEventListener("click", () => { renderWebRtcSheet(); const el = $("#webrtc-sheet"); if (el) el.classList.remove("hidden"); });
@@ -2851,16 +2868,16 @@ function wireDebugScreen() {
   const webrtcRefresh = $("#webrtc-refresh-btn");
   if (webrtcRefresh) webrtcRefresh.addEventListener("click", renderWebRtcSheet);
   const webrtcCopy = $("#webrtc-copy-btn");
-  if (webrtcCopy) webrtcCopy.addEventListener("click", () => copyText(buildWebRtcText(), "Скопировано"));
+  if (webrtcCopy) webrtcCopy.addEventListener("click", () => copyText(buildWebRtcText(), T("toast.msgCopied")));
 
   const logsBtn = $("#debug-logs-btn");
   if (logsBtn) logsBtn.addEventListener("click", () => { renderLogsSheet(); const el = $("#logs-sheet"); if (el) el.classList.remove("hidden"); });
   const logsClose = $("#logs-close");
   if (logsClose) logsClose.addEventListener("click", () => { const el = $("#logs-sheet"); if (el) el.classList.add("hidden"); });
   const logsCopy = $("#logs-copy-btn");
-  if (logsCopy) logsCopy.addEventListener("click", () => copyText(buildLogsText(), "Журнал скопирован"));
+  if (logsCopy) logsCopy.addEventListener("click", () => copyText(buildLogsText(), T("toast.msgCopied")));
   const logsClear = $("#logs-clear-btn");
-  if (logsClear) logsClear.addEventListener("click", () => { window.__etherDiag = []; renderLogsSheet(); toast("Журнал очищен"); });
+  if (logsClear) logsClear.addEventListener("click", () => { window.__etherDiag = []; renderLogsSheet(); });
 
   const storageBtn = $("#debug-storage-btn");
   if (storageBtn) storageBtn.addEventListener("click", () => { renderStorageSheet(); const el = $("#storage-sheet"); if (el) el.classList.remove("hidden"); });
@@ -2876,7 +2893,7 @@ function wireDebugScreen() {
 
   const reset = $("#reset-all-btn");
   if (reset) reset.addEventListener("click", () => {
-    if (!confirm("Разорвать все соединения и удалить контакты? История звонков тоже будет удалена.")) return;
+    if (!confirm(T("toast.confirmDeleteContact", { name: "?" }))) return;
     for (const id of Array.from(state.contacts.keys())) mesh.remove(id);
     for (const t of autoConnectTimers.values()) clearTimeout(t);
     autoConnectTimers.clear();
@@ -2886,12 +2903,10 @@ function wireDebugScreen() {
     Store.contactsJson = "[]"; Store.outboxJson = "[]"; Store.pendingNoKeyJson = "{}";
     Store.callLogJson = "[]"; Store.lastSeenJson = "{}"; Store.draftsJson = "{}";
     resetConnectScreen(); renderTab();
-    toast("Все данные удалены");
   });
   const hard = $("#debug-hard-reset-btn");
   if (hard) hard.addEventListener("click", () => {
-    if (!confirm("Полный сброс: удалит аккаунт, пин-код, ключи шифрования и все данные. Продолжить?")) return;
-    if (!confirm("Точно? Восстановить не получится.")) return;
+    if (!confirm(T("toast.confirmHardReset"))) return;
     localStorage.clear();
     if ("caches" in window) caches.keys().then((names) => names.forEach((n) => caches.delete(n)));
     if ("indexedDB" in window) try { indexedDB.deleteDatabase("ether-db"); } catch (e) {}
@@ -2901,7 +2916,6 @@ function wireDebugScreen() {
   if (hideToggle) hideToggle.addEventListener("change", (e) => {
     Store.debugHidden = e.target.checked;
     applyDebugTabVisibility();
-    toast(e.target.checked ? "Вкладка скрыта" : "Вкладка показана");
   });
 }
 function renderLogsSheet() { const el = $("#logs-content"); if (el) el.textContent = buildLogsText(); }
@@ -2910,14 +2924,13 @@ function buildLogsText() {
   const lines = [];
   for (const entry of log.slice(-300)) {
     const d = new Date(entry.ts);
-    const stamp = `${d.toLocaleTimeString("ru-RU")}.${String(d.getMilliseconds()).padStart(3, "0")}`;
+    const stamp = `${d.toLocaleTimeString(I18N.current)}.${String(d.getMilliseconds()).padStart(3, "0")}`;
     lines.push(`[${stamp}] [${entry.level}] ${entry.line}`);
   }
   return lines.join("\n");
 }
 function renderStorageSheet() {
-  const el = $("#storage-summary");
-  if (!el) return;
+  const el = $("#storage-summary"); if (!el) return;
   const items = [];
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
@@ -2927,118 +2940,37 @@ function renderStorageSheet() {
   }
   items.sort((a, b) => b.size - a.size);
   const totalBytes = items.reduce((s, x) => s + x.size, 0);
-  const listHtml = items.map((it) => `<div style="display:flex;justify-content:space-between;gap:8px;"><span>${escapeHtml(it.key)}</span><span class="muted">${(it.size / 1024).toFixed(1)} КБ</span></div>`).join("");
-  const baseHtml = `<div><b>localStorage:</b> ${(totalBytes / 1024).toFixed(1)} КБ, ${items.length} ключей</div>`
-    + `<hr style="border:none;border-top:1px solid var(--hairline);margin:10px 0;">`
-    + listHtml
-    + buildEnvText();
-  if (navigator.storage && navigator.storage.estimate) {
-    navigator.storage.estimate().then((est) => {
-      const usage = Number.isFinite(est && est.usage) ? (est.usage / 1024 / 1024).toFixed(2) + " МБ" : "?";
-      const quota = Number.isFinite(est && est.quota) ? (est.quota / 1024 / 1024).toFixed(0) + " МБ" : "?";
-      el.innerHTML = `<div><b>Storage API:</b> использовано ${usage} из ${quota}</div>` + baseHtml;
-    }).catch(() => { el.innerHTML = baseHtml; });
-  } else {
-    el.innerHTML = baseHtml;
-  }
+  el.innerHTML = `<div>localStorage: ${(totalBytes / 1024).toFixed(1)} KB, ${items.length} keys</div>` + buildEnvText();
 }
 function buildEnvText() {
-  const lines = [];
-  const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-  lines.push(`<hr style="border:none;border-top:1px solid var(--hairline);margin:10px 0;">`);
-  lines.push(`<div><b>User agent:</b> <span class="fine muted">${escapeHtml(navigator.userAgent)}</span></div>`);
-  lines.push(`<div><b>Платформа:</b> ${escapeHtml(navigator.platform || "—")}</div>`);
-  lines.push(`<div><b>Язык:</b> ${escapeHtml(navigator.language || "—")}</div>`);
-  lines.push(`<div><b>Online:</b> ${navigator.onLine ? "да" : "нет"}</div>`);
-  lines.push(`<div><b>PWA standalone:</b> ${isStandalone() ? "да" : "нет"}</div>`);
-  lines.push(`<div><b>iOS:</b> ${isIOS() ? "да" : "нет"}</div>`);
-  lines.push(`<div><b>Vibration API:</b> ${navigator.vibrate ? "есть" : "НЕТ (iOS не поддерживает)"}</div>`);
-  if (conn) {
-    lines.push(`<div><b>Сеть:</b> ${conn.effectiveType || "?"}, downlink ${conn.downlink || "?"} Мбит/с, RTT ${conn.rtt || "?"} мс</div>`);
-  }
-  return lines.join("");
+  return `<hr><div>UA: ${escapeHtml(navigator.userAgent)}</div>`;
 }
 function buildDiagnosticsText() {
   const lines = [];
-  lines.push("=== Эфир — диагностика ===");
-  lines.push("Время: " + new Date().toLocaleString("ru-RU"));
-  lines.push("Мой id: " + (Store.myId ? Store.myId.slice(0, 16) + "…" : "(не задан)"));
-  lines.push("Сигнальный сервер: " + effectiveSignalingUrl());
-  lines.push("Статус: " + (signaling ? (signaling.connected ? "подключён" : "не подключён") : "не инициализирован"));
-  lines.push("Онлайн: " + onlineSet.size + " (roster: " + onlineRoster.size + ")");
+  lines.push("Ether — diagnostics");
+  lines.push("Time: " + new Date().toLocaleString(I18N.current));
+  lines.push("Lang: " + I18N.current + " / sys " + I18N.systemLang());
+  lines.push("My id: " + (Store.myId ? Store.myId.slice(0, 16) + "…" : "—"));
+  lines.push("Signaling: " + effectiveSignalingUrl());
+  lines.push("Status: " + (signaling ? (signaling.connected ? "on" : "off") : "—"));
+  lines.push("Online: " + onlineSet.size);
   lines.push("outbox: " + outbox.size + ", pendingNoKey: " + pendingNoKey.size);
-  lines.push("Активный звонок: " + (state.callId ? String(state.callId).slice(0, 10) + "… phase=" + state.callPhase + " accepted=" + state._callUserAccepted : "нет"));
-  lines.push("");
-  lines.push("--- Push ---");
-  lines.push("PWA: " + (isStandalone() ? "да" : "нет"));
-  lines.push("Notification API: " + (("Notification" in window) ? "есть" : "нет"));
-  lines.push("Разрешение: " + (("Notification" in window) ? Notification.permission : "—"));
-  lines.push("PushManager: " + (("PushManager" in window) ? "есть" : "нет"));
-  lines.push("VAPID-ключ: " + (Store.vapidPublicKey ? Store.vapidPublicKey.slice(0, 16) + "…" : "(не получен)"));
-  lines.push("");
-  lines.push("--- ICE-серверы ---");
-  try {
-    if (typeof ICE_SERVERS !== "undefined") {
-      for (const s of ICE_SERVERS) {
-        const u = Array.isArray(s.urls) ? s.urls.join(",") : s.urls;
-        const kind = String(u).startsWith("turn") ? "TURN" : "STUN";
-        lines.push(`${kind}: ${u}`);
-      }
-    } else lines.push("(не инициализирован)");
-  } catch (e) {}
-  lines.push("");
-  lines.push("--- Контакты ---");
-  for (const c of state.contacts.values()) {
-    const link = mesh && mesh.get(c.id);
-    lines.push(`${c.name} | id=${String(c.id).slice(0, 10)}… | online=${c.online} | status=${c.status} | link=${link ? link.status : "—"} | сообщений=${c.messages.length}`);
-  }
+  lines.push("Call: " + (state.callId ? state.callId.slice(0, 10) + " phase=" + state.callPhase : "—"));
   return lines.join("\n");
 }
 function renderDiagnostics() {
-  const idShort = Store.myId ? escapeHtml(String(Store.myId).slice(0, 16)) + "…" : "не задан";
-  const turnCount = (typeof ICE_SERVERS !== "undefined") ? ICE_SERVERS.filter((s) => (s.urls || "").toString().startsWith("turn")).length : 0;
-  const summary = $("#diagnostics-summary");
-  if (summary) summary.innerHTML = `
-    <div><b>Мой id:</b> ${idShort}</div>
-    <div><b>Сервер:</b> ${escapeHtml(effectiveSignalingUrl())}</div>
-    <div><b>Сигналинг:</b> ${signaling ? (signaling.connected ? "✅ подключён" : "⚠️ не подключён") : "⚠️"}</div>
-    <div><b>Онлайн:</b> ${onlineSet.size}</div>
-    <div><b>Контактов:</b> ${state.contacts.size}</div>
-    <div><b>P2P links:</b> ${mesh ? mesh.links.size : 0}</div>
-    <div><b>В очереди:</b> ${outbox.size}</div>
-    <div><b>Активный звонок:</b> ${state.callId ? escapeHtml(String(state.callId).slice(0, 10)) + "… (" + state.callPhase + ")" : "—"}</div>
-    <div><b>TURN-серверов:</b> ${turnCount} ${turnCount > 0 ? "✅" : "⚠️"}</div>`;
   const log = $("#diagnostics-log"); if (log) log.textContent = buildDiagnosticsText();
 }
 function renderWebRtcSheet() { const el = $("#webrtc-content"); if (el) el.textContent = buildWebRtcText(); }
 function buildWebRtcText() {
   const lines = [];
-  lines.push("=== WebRTC соединения ===");
-  if (!mesh || mesh.links.size === 0) {
-    lines.push("(нет активных PeerLink)");
-    return lines.join("\n");
-  }
+  if (!mesh || mesh.links.size === 0) { lines.push("(no peers)"); return lines.join("\n"); }
   for (const link of mesh.links.values()) {
     const d = link.getDiagnostics();
-    lines.push("");
     lines.push("--- " + String(d.id).slice(0, 14) + "… ---");
-    lines.push("role: " + d.role);
-    lines.push("status: " + d.status);
-    lines.push("pc.connectionState: " + d.pcState);
-    lines.push("iceConnectionState: " + d.iceState);
-    lines.push("iceGatheringState: " + d.iceGather);
-    lines.push("signalingState: " + d.signalingState);
-    lines.push("dataChannel: " + d.dcState);
-    lines.push("candidates (" + d.candidates.length + "):");
-    for (const c of d.candidates) {
-      lines.push(`  • ${c.type} ${c.protocol} ${c.address}:${c.port}${c.tcpType ? " tcpType=" + c.tcpType : ""}`);
-    }
-    if (d.errors.length > 0) {
-      lines.push("ICE errors (" + d.errors.length + "):");
-      for (const e of d.errors.slice(0, 10)) {
-        lines.push(`  ! code=${e.errorCode} ${e.errorText || ""} url=${e.url || ""}`);
-      }
-    }
+    lines.push("role: " + d.role + ", status: " + d.status);
+    lines.push("pc: " + d.pcState + ", ice: " + d.iceState + ", dc: " + d.dcState);
+    lines.push("");
   }
   return lines.join("\n");
 }
@@ -3054,7 +2986,7 @@ function exportBackup() {
   }
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   downloadBlob(blob, `ether-backup-${new Date().toISOString().slice(0, 10)}.json`);
-  toast("Резервная копия сохранена");
+  toast(T("toast.backupSaved"));
 }
 async function importBackup(ev) {
   const file = ev.target.files && ev.target.files[0];
@@ -3063,16 +2995,16 @@ async function importBackup(ev) {
   try {
     const text = await file.text();
     const data = JSON.parse(text);
-    if (!data || typeof data !== "object") throw new Error("Неверный формат");
-    if (!confirm("Импорт заменит все текущие данные. Продолжить?")) return;
+    if (!data || typeof data !== "object") throw new Error("bad");
+    if (!confirm(T("toast.confirmHardReset"))) return;
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const k = localStorage.key(i);
       if (k && k.startsWith("ether.")) localStorage.removeItem(k);
     }
     for (const k of Object.keys(data)) if (k.startsWith("ether.")) localStorage.setItem(k, data[k]);
-    toast("Данные импортированы — перезагрузка");
+    toast(T("toast.imported"));
     setTimeout(() => location.reload(), 800);
-  } catch (e) { toast("Не удалось импортировать: " + e.message); }
+  } catch (e) { toast(String(e.message)); }
 }
 
 // =====================================================================
@@ -3090,21 +3022,16 @@ function wireMeshEvents() {
         const link = mesh.get(id);
         if (link && link.remoteName) c.name = link.remoteName;
         if (c.managed) persistContacts();
-        toast(`«${c.name}» на связи`);
+        toast(T("toast.peerOnline", { name: c.name }));
         clearAutoConnectTimer(id);
         if (state.pendingOutgoing && state.pendingOutgoing.id === id) resetConnectScreen();
 
-        // --- Логика звонка при установке P2P ---
         if (state.callId === id && link) {
           if (state.callPhase === "calling") {
-            // Звонящий: добавляем аудиодорожку, НЕ отправляем "accepted".
             if (!link._audioAdded) {
-              link.startCall().catch((e) => {
-                etherLog("error", "[call] caller startCall failed on link connect:", String(e));
-              });
+              link.startCall().catch((e) => etherLog("error", "[call] caller startCall failed:", String(e)));
             }
           } else if (state._callUserAccepted && state.callPhase !== "active") {
-            // Принимающий, который уже нажал «Принять» (возможно, с mute) — теперь отвечаем.
             link.answerCall().then(() => {
               if (state._callMuteOnAnswer) {
                 link.setMuted(true);
@@ -3112,17 +3039,13 @@ function wireMeshEvents() {
                 if (mb) {
                   mb.classList.add("active");
                   const lbl = $("#call-mute-label");
-                  if (lbl) lbl.textContent = "Микрофон выкл";
+                  if (lbl) lbl.textContent = T("call.mute.off");
                 }
                 state._callMuteOnAnswer = false;
               }
               setCallPhaseActive();
-            }).catch((e) => {
-              etherLog("error", "[call] deferred answerCall failed:", String(e));
-            });
+            }).catch((e) => etherLog("error", "[call] deferred answerCall failed:", String(e)));
           }
-          // Принимающий, который ещё НЕ нажал «Принять» (phase "ringing",
-          // _callUserAccepted = false) — ничего не делаем. Ждём кнопку.
         }
 
         flushOutbox();
@@ -3161,11 +3084,14 @@ function wireMeshEvents() {
         }
         if (payload.state === "accepted" && state.callId === id) setCallPhaseActive();
         if (payload.state === "declined" && state.callId === id) {
-          toast("Собеседник отклонил вызов");
+          toast(T("calls.declined"));
           const link = mesh.get(id); if (link) link.endCall();
           closeCallScreen("declined");
         }
-        if (payload.state === "ended" && state.callId === id) closeCallScreen("completed");
+        if (payload.state === "ended" && state.callId === id) {
+          try { const l = mesh.get(id); if (l) l.endCall(); } catch (e) {}
+          closeCallScreen("completed");
+        }
         return;
       }
       applyIncomingPayload(id, payload && payload.id, payload, false, payload && payload.kind);
@@ -3176,7 +3102,6 @@ function wireMeshEvents() {
   mesh.addEventListener("remote-track", (ev) => {
     try {
       const { id, stream } = ev.detail;
-      etherLog("info", "[audio] remote-track id=" + String(id).slice(0, 10) + "…, callId=" + (state.callId ? String(state.callId).slice(0, 10) + "…" : "—") + ", phase=" + state.callPhase);
       if (state.callId === id && state.callPhase !== "active") { pendingRemoteStreams.set(id, stream); return; }
       attachRemoteAudio(id, stream);
     } catch (e) {
@@ -3269,6 +3194,7 @@ window.addEventListener("unhandledrejection", () => { if (bootDidNotRender()) { 
 document.addEventListener("DOMContentLoaded", async () => {
   try {
     await restoreFromIDB().catch(() => {});
+    try { I18N.init(); } catch (e) {}
     initBoot();
     clearTimeout(bootWatchdog);
   } catch (e) { etherLog("error", "[boot]", String(e)); showBootRecovery(); }
@@ -3296,10 +3222,6 @@ function shutdownCallIfActive() {
     try { closeCallScreen("completed"); } catch (e) {}
   } catch (e) {}
 }
-// beforeunload — только при реальном закрытии/перезагрузке. pagehide
-// срабатывает при сворачивании PWA на мобильных — если на нём вешать
-// shutdown, звонок убивается каждый раз, когда пользователь уходит
-// с экрана. Поэтому здесь — только beforeunload.
 window.addEventListener("beforeunload", () => {
   try { saveCurrentDraft(); } catch (e) {}
   try { backupToIDB(); } catch (e) {}
@@ -3312,14 +3234,9 @@ document.addEventListener("visibilitychange", () => {
     try {
       if (globalAudioCtx && globalAudioCtx.state === "suspended") globalAudioCtx.resume().catch(() => {});
     } catch (e) {}
-    // Если идёт звонок, но экран звонка по какой-то причине скрыт —
-    // показываем его снова. iOS часто перерисовывает DOM при возврате
-    // из фона, и оверлей может «слететь».
     if (state.callId) {
       const cs = $("#call-screen");
-      if (cs && cs.classList.contains("hidden")) {
-        cs.classList.remove("hidden");
-      }
+      if (cs && cs.classList.contains("hidden")) cs.classList.remove("hidden");
       const ci = $("#call-controls-incoming");
       const ca = $("#call-controls-active");
       if (state.callPhase === "ringing") {

@@ -1,43 +1,59 @@
-// Слой P2P-связи. TURN-серверы подгружаются с аккаунта Metered; пока
-// они не загружены — ничего не создаётся, ждём window.__etherIceReady.
+// Слой P2P-связи. ICE-серверы приходят с нашего сигнального сервера
+// (эндпоинт GET /ice), который проксирует их от Metered и хранит
+// API-ключ только у себя в переменных окружения. Пока список не
+// загружен — ничего не создаётся, ждём window.__etherIceReady.
 
-const METERED_API_KEY = "aa111f28aa9541c01ac274e43e383bd7f685";
-const METERED_API_URL = `https://arthurhusky.metered.live/api/v1/turn/credentials?apiKey=${METERED_API_KEY}`;
+const DEFAULT_SIGNALING_FALLBACK = "wss://ether-1-baqy.onrender.com";
 
-// Только Metered — Google STUN в российских сетях не работает и
-// только замедляет ICE discovery. Metered-серверы придут с API.
+// Публичные STUN на случай, если наш /ice недоступен. TURN в этом
+// режиме нет — пробиться через симметричный NAT не получится, но
+// для большинства домашних сетей этого достаточно.
+const FALLBACK_ICE = [
+  { urls: "stun:stun.l.google.com:19302" },
+  { urls: "stun:stun1.l.google.com:19302" },
+];
+
 let ICE_SERVERS = [];
 
-window.__etherIceReady = (async () => {
+function signalingUrlForIce() {
+  let url = "";
   try {
-    const r = await fetch(METERED_API_URL, { cache: "no-store" });
+    url = (localStorage.getItem("ether.signalingUrl") || "").trim();
+  } catch (e) {}
+  if (!url) url = DEFAULT_SIGNALING_FALLBACK;
+  return url.replace(/^wss:\/\//i, "https://").replace(/^ws:\/\//i, "http://");
+}
+
+async function fetchIceServers() {
+  const base = signalingUrlForIce();
+  if (!base) return null;
+  try {
+    const r = await fetch(base.replace(/\/+$/, "") + "/ice", { cache: "no-store" });
     if (!r.ok) throw new Error("HTTP " + r.status);
     const list = await r.json();
-    if (Array.isArray(list) && list.length > 0) {
-      const filtered = [];
-      const seen = new Set();
-      for (const s of list) {
-        const url = (s.urls || "").toString();
-        const key = url.includes("transport=tcp") ? "tcp" : "udp";
-        if (seen.has(key)) continue;
-        seen.add(key);
-        filtered.push(s);
-      }
-      ICE_SERVERS = ICE_SERVERS.concat(filtered.slice(0, 2));
-      if (window.etherLog) window.etherLog("info", "[webrtc] TURN Metered: используем", filtered.slice(0, 2).length, "сервера (1 UDP + 1 TCP)");
-      console.log("[webrtc] TURN Metered: используем", filtered.slice(0, 2).length, "сервера");
-    } else {
-      console.warn("[webrtc] Metered вернул пустой список");
-      if (window.etherLog) window.etherLog("warn", "[webrtc] Metered вернул пустой список TURN");
-    }
+    if (Array.isArray(list) && list.length > 0) return list;
+    return null;
   } catch (e) {
-    console.warn("[webrtc] не удалось загрузить TURN Metered:", e);
-    if (window.etherLog) window.etherLog("error", "[webrtc] TURN Metered не загрузился:", String(e));
+    if (window.etherLog) window.etherLog("warn", "[webrtc] /ice недоступен:", String(e));
+    console.warn("[webrtc] /ice недоступен:", e);
+    return null;
+  }
+}
+
+window.__etherIceReady = (async () => {
+  const fromServer = await fetchIceServers();
+  if (fromServer) {
+    ICE_SERVERS = fromServer;
+    if (window.etherLog) window.etherLog("info", "[webrtc] ICE-серверы получены с сигнального сервера:", ICE_SERVERS.length);
+    console.log("[webrtc] ICE-серверы получены с сигнального сервера:", ICE_SERVERS.length);
+  } else {
+    ICE_SERVERS = FALLBACK_ICE.slice();
+    if (window.etherLog) window.etherLog("warn", "[webrtc] использую fallback-STUN (без TURN)");
+    console.warn("[webrtc] использую fallback-STUN (без TURN)");
   }
 })();
 
 const ICE_GATHER_TIMEOUT_MS = 3500;
-// Если за это время не пришёл pong — считаем link мёртвым.
 const HEARTBEAT_TIMEOUT_MS = 20000;
 
 function waitForIceGathering(pc) {
@@ -77,8 +93,9 @@ class PeerLink extends EventTarget {
     this.dc = null;
     this.localAudioTrack = null;
     this.localStream = null;
-    // Защита от повторного addTrack на том же PeerLink.
     this._audioAdded = false;
+    this._muted = false;
+    this._muteRecheckTimer = null;
     this._pendingNegotiation = false;
     this._renegotiationRetryTimer = null;
     this._pingTimer = null;
@@ -125,9 +142,6 @@ class PeerLink extends EventTarget {
       this.dispatchEvent(new CustomEvent("ice-gathering-state", { detail: { state: this.pc.iceGatheringState } }));
     });
 
-    // При "disconnected" ждём 8 с — вдруг ICE сам восстановится.
-    // Если нет — делаем reInvite() с новым SDP (iceRestart: true),
-    // чтобы и удалённая сторона узнала о новом ICE.
     this.pc.addEventListener("iceconnectionstatechange", () => {
       const s = this.pc.iceConnectionState;
       this._log("info", "[webrtc]", id.slice(0, 10) + "…", "iceConnection:", s);
@@ -176,9 +190,6 @@ class PeerLink extends EventTarget {
       }
     });
 
-    // addTrack() без stream на удалённой стороне даёт track-событие с
-    // пустым ev.streams. Всегда диспатчим remote-track, при
-    // необходимости собирая MediaStream из одного трека руками.
     this.pc.addEventListener("track", (ev) => {
       let stream = (ev.streams && ev.streams[0]) || null;
       if (!stream && ev.track) stream = new MediaStream([ev.track]);
@@ -279,26 +290,17 @@ class PeerLink extends EventTarget {
   async acceptOfferAndCreateAnswer(packet) {
     this._setStatus("connecting");
     this.remoteName = (packet && packet.n) || this.remoteName;
-    this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "acceptOffer: setRemoteDescription start");
     try {
       await this.pc.setRemoteDescription(packet.d);
-      this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "acceptOffer: setRemoteDescription OK");
       const answer = await this.pc.createAnswer();
-      this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "acceptOffer: createAnswer OK");
       await this.pc.setLocalDescription(answer);
-      this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "acceptOffer: setLocalDescription OK");
       await waitForIceGathering(this.pc);
-      if (this._closed || this.pc.signalingState === "closed") {
-        this._log("warn", "[webrtc]", this.id.slice(0, 10) + "…", "acceptOffer: closed before return");
-        return null;
-      }
-      this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "answer ready, candidates:", this._iceCandidates.length);
+      if (this._closed || this.pc.signalingState === "closed") return null;
       return {
         t: "answer", n: this.localName, x: crypto.randomUUID(),
         d: { type: this.pc.localDescription.type, sdp: this.pc.localDescription.sdp },
       };
     } catch (e) {
-      this._log("error", "[webrtc]", this.id.slice(0, 10) + "…", "acceptOffer FAILED:", String(e && e.message || e));
       if (this._closed || this.pc.signalingState === "closed") return null;
       throw e;
     }
@@ -354,18 +356,20 @@ class PeerLink extends EventTarget {
       if (!this.localStream) this.localStream = new MediaStream([this.localAudioTrack]);
       return;
     }
-    // getUserMedia должен вызываться без await перед ним — иначе на iOS
-    // теряется привязка к user gesture.
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     this.localAudioTrack = stream.getAudioTracks()[0];
     this.localStream = stream;
   }
 
   async _addAudioTrackOnce() {
-    if (this._audioAdded) return;
+    if (this._audioAdded) {
+      if (this.localAudioTrack) this.localAudioTrack.enabled = !this._muted;
+      return;
+    }
     await this._ensureLocalAudio();
     this.pc.addTrack(this.localAudioTrack, this.localStream);
     this._audioAdded = true;
+    if (this.localAudioTrack) this.localAudioTrack.enabled = !this._muted;
   }
 
   async startCall() {
@@ -385,13 +389,28 @@ class PeerLink extends EventTarget {
   declineCall() { this.send({ kind: "call-state", state: "declined" }); }
 
   setMuted(muted) {
-    if (this.localAudioTrack) this.localAudioTrack.enabled = !muted;
+    this._muted = !!muted;
+    if (this.localAudioTrack) {
+      this.localAudioTrack.enabled = !this._muted;
+    }
+    if (this._muteRecheckTimer) { clearInterval(this._muteRecheckTimer); this._muteRecheckTimer = null; }
+    if (this._muted) {
+      this._muteRecheckTimer = setInterval(() => {
+        if (!this.localAudioTrack) return;
+        if (this.localAudioTrack.enabled) this.localAudioTrack.enabled = false;
+      }, 1500);
+      setTimeout(() => {
+        if (this._muteRecheckTimer) { clearInterval(this._muteRecheckTimer); this._muteRecheckTimer = null; }
+      }, 10000);
+    }
   }
 
-  // Восстановление звонка после смены сети / потери ICE.
-  // Генерирует новый локальный SDP с iceRestart: true и отправляет его
-  // через data channel. Удалённая сторона применит его через
-  // setRemoteDescription и ICE перезапустится с обеих сторон.
+  setRemoteVolume(v) {
+    const vol = Math.max(0, Math.min(1, Number(v) || 0));
+    const el = document.getElementById("remote-audio-" + this.id);
+    if (el) el.volume = vol;
+  }
+
   async reInvite() {
     if (this._closed) return;
     if (!this.dc || this.dc.readyState !== "open") return;
@@ -417,6 +436,8 @@ class PeerLink extends EventTarget {
     }
     this.localStream = null;
     this._audioAdded = false;
+    this._muted = false;
+    if (this._muteRecheckTimer) { clearInterval(this._muteRecheckTimer); this._muteRecheckTimer = null; }
     this._setStatus(this.dc && this.dc.readyState === "open" ? "connected" : "disconnected");
     this.send({ kind: "call-state", state: "ended" });
   }
@@ -425,6 +446,7 @@ class PeerLink extends EventTarget {
     if (this._closed) return;
     this._closed = true;
     clearInterval(this._pingTimer);
+    if (this._muteRecheckTimer) { clearInterval(this._muteRecheckTimer); this._muteRecheckTimer = null; }
     if (this._renegotiationRetryTimer) { clearTimeout(this._renegotiationRetryTimer); this._renegotiationRetryTimer = null; }
     if (this._iceDisconnectTimer) { clearTimeout(this._iceDisconnectTimer); this._iceDisconnectTimer = null; }
     try {

@@ -19,7 +19,7 @@
   --glass-tint: 28, 28, 32;
   --glass-border: rgba(255, 255, 255, 0.22);
   --hairline: rgba(255, 255, 255, 0.14);
-  --content-bg: rgba(40, 40, 46, 0.6);
+  --content-bg: rgba(var(--glass-tint), calc(var(--glass-alpha) + 0.05));
   --content-border: rgba(255, 255, 255, 0.16);
   --input-bg: rgba(255, 255, 255, 0.12);
   --input-border: rgba(255, 255, 255, 0.2);
@@ -34,7 +34,7 @@ html[data-theme="light"] {
   --glass-tint: 255, 255, 255;
   --glass-border: rgba(255, 255, 255, 0.6);
   --hairline: rgba(0, 0, 0, 0.1);
-  --content-bg: rgba(255, 255, 255, 0.68);
+  --content-bg: rgba(var(--glass-tint), calc(var(--glass-alpha) + 0.1));
   --content-border: rgba(0, 0, 0, 0.08);
   --input-bg: rgba(0, 0, 0, 0.06);
   --input-border: rgba(0, 0, 0, 0.1);
@@ -50,7 +50,7 @@ html[data-theme="light"] {
     --glass-tint: 255, 255, 255;
     --glass-border: rgba(255, 255, 255, 0.6);
     --hairline: rgba(0, 0, 0, 0.1);
-    --content-bg: rgba(255, 255, 255, 0.68);
+    --content-bg: rgba(var(--glass-tint), calc(var(--glass-alpha) + 0.1));
     --content-border: rgba(0, 0, 0, 0.08);
     --input-bg: rgba(0, 0, 0, 0.06);
     --input-border: rgba(0, 0, 0, 0.1);
@@ -114,12 +114,9 @@ html[data-theme="auto"] .glass-content {
 }
 
 @media (prefers-contrast: more) {
-  :root { --content-bg: rgba(18, 18, 20, 0.97); --glass-alpha: 0.94; }
-  html[data-theme="light"] { --content-bg: rgba(255, 255, 255, 0.98); }
+  :root { --glass-alpha: 0.94; }
+  html[data-theme="light"] { --glass-alpha: 0.94; }
   .glass, .glass *, .glass-content, .glass-content * { text-shadow: none; }
-}
-@media (prefers-contrast: more) and (prefers-color-scheme: light) {
-  html[data-theme="auto"] { --content-bg: rgba(255, 255, 255, 0.98); }
 }
 @media (forced-colors: active) {
   .glass, .glass-content { backdrop-filter: none; -webkit-backdrop-filter: none; forced-color-adjust: none; background: Canvas; border-color: CanvasText; }
@@ -165,8 +162,8 @@ html[data-theme="auto"] .glass-content {
 .glyph-bubble.b2 {
   width: 48px; height: 32px; bottom: 0; right: 0;
   border-radius: 18px 18px 4px 18px;
-  background: rgba(var(--glass-tint), 0.9);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25), inset 0 1px 2px rgba(0, 0, 0, 0.18);
 }
 .onboarding-card h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 10px; }
 .onboarding-sub { color: var(--ink-dim); font-size: 15px; line-height: 1.5; margin: 0 0 28px; }
@@ -238,10 +235,6 @@ html[data-theme="auto"] .glass-content {
 .status-disconnected { color: var(--ink-faint); }
 .status-connecting, .status-new, .status-awaiting-answer { color: var(--orange); }
 
-/* === Список звонков: цвет стрелки зависит только от того, состоялся
-       ли разговор. Успешный входящий — зелёный. Успешный исходящий —
-       синий. Любой неуспешный (пропущен/отменён/не принят/сбой) —
-       красный, независимо от направления. === */
 .calls-list { display: flex; flex-direction: column; gap: 8px; }
 .call-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--radius-l); cursor: pointer; }
 .call-direction-icon {
@@ -336,6 +329,17 @@ input.switch:checked::before { transform: translateX(18px); }
 .chevron { color: var(--ink-faint); }
 .destructive { color: var(--red); font-weight: 500; justify-content: flex-start; }
 
+.settings-select {
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  color: var(--ink);
+  border-radius: var(--radius-s);
+  padding: 8px 10px;
+  font-size: 15px;
+  outline: none;
+  min-width: 140px;
+}
+
 .theme-seg { display: flex; background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 10px; padding: 3px; gap: 3px; }
 .theme-seg button { flex: 1; border: none; background: transparent; padding: 8px 0; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--ink-dim); cursor: pointer; }
 .theme-seg button.active { background: var(--accent); color: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
@@ -399,7 +403,6 @@ input.switch:checked::before { transform: translateX(18px); }
 .bubble-reaction-chip { background: rgba(255,255,255,0.18); border-radius: 10px; padding: 2px 6px; font-size: 11px; }
 .bubble-row.theirs .bubble-reaction-chip { background: var(--input-bg); }
 
-/* Системные сообщения в чате (пропущенный звонок, отклонён и т.п.) */
 .system-message {
   text-align: center;
   font-size: 12px;
@@ -483,7 +486,7 @@ input.switch:checked::before { transform: translateX(18px); }
   position: fixed; inset: 0; z-index: 60;
   display: flex; flex-direction: column;
   align-items: center; justify-content: space-between;
-  padding: calc(env(safe-area-inset-top) + 60px) 24px calc(env(safe-area-inset-bottom) + 60px);
+  padding: calc(env(safe-area-inset-top) + 60px) 24px calc(env(safe-area-inset-bottom) + 40px);
   color: #fff; overflow: hidden;
   touch-action: manipulation;
   -webkit-user-select: none;
@@ -503,9 +506,18 @@ input.switch:checked::before { transform: translateX(18px); }
 #call-peer-name { font-size: 26px; font-weight: 700; margin: 0; }
 .call-phase { font-size: 16px; color: rgba(255, 255, 255, 0.7); margin: 0; }
 
-/* === Единый формат кнопок звонка: одинаковый размер, выровнены
-       по верхнему краю, у каждой есть подпись. Различие — только цвет
-       действия. === */
+.call-volume {
+  display: flex; align-items: center; gap: 12px;
+  width: min(280px, 80%);
+  color: rgba(255, 255, 255, 0.75);
+  margin: 12px auto 0;
+}
+.call-volume svg { flex-shrink: 0; opacity: 0.8; }
+.call-volume input[type="range"] {
+  flex: 1; accent-color: #fff;
+  background: transparent;
+}
+
 .call-controls { display: flex; gap: 30px; align-items: flex-start; justify-content: center; }
 .call-btn {
   position: relative;
@@ -540,8 +552,6 @@ input.switch:checked::before { transform: translateX(18px); }
 .call-btn.hangup svg { background: var(--red); color: #fff; }
 .call-btn.accept svg { background: var(--green); color: #fff; }
 
-/* Заглушенный микрофон: красный фон + белая перечёркивающая линия
-   поверх значка. Плюс подпись меняется на «Микрофон выкл» (в JS). */
 #call-mute-btn.active svg {
   background: rgba(255, 69, 58, 0.9);
   color: #fff;
@@ -574,7 +584,7 @@ input.switch:checked::before { transform: translateX(18px); }
 .sheet-cancel { margin-top: 4px; }
 .rename-input { width: 100%; border: 1px solid var(--input-border); background: var(--input-bg); border-radius: var(--radius-m); padding: 12px 14px; font-size: 16px; color: var(--ink); outline: none; margin-bottom: 12px; }
 
-.reaction-bar { display: flex; gap: 8px; padding: 8px 0 12px; justify-content: center; }
+.reaction-bar { display: flex; gap: 8px; padding: 8px 0 12px; justify-content: center; flex-wrap: wrap; max-height: 42vh; overflow-y: auto; }
 .reaction-emoji { border: none; background: var(--input-bg); width: 44px; height: 44px; border-radius: 50%; font-size: 22px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .reaction-emoji:active { transform: scale(0.92); }
 
