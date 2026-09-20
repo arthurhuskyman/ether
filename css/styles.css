@@ -444,7 +444,7 @@ html[dir="rtl"] .chevron {
   gap: 8px;
   width: 100%;
   box-sizing: border-box;
-  padding: 10px 12px calc(env(safe-area-inset-bottom) + 10px) 12px;
+  padding: 10px 12px;
   flex-shrink: 0;
   border-radius: var(--radius-l) var(--radius-l) 0 0;
 }
@@ -467,7 +467,7 @@ html[dir="rtl"] .chevron {
 .scroll-bottom-btn {
   position: absolute;
   inset-inline-end: 16px;
-  bottom: calc(env(safe-area-inset-bottom) + 90px);
+  bottom: 78px;
   width: 44px; height: 44px; border-radius: 50%;
   background: var(--content-bg);
   border: 1px solid var(--content-border);

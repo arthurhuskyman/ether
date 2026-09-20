@@ -1,4 +1,4 @@
-const CACHE_VERSION = "ether-shell-v23";
+const CACHE_VERSION = "ether-shell-v24";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -13,7 +13,14 @@ const SHELL_FILES = [
   "./js/crypto-helper.js",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
-  "./icons/apple-touch-icon.png"
+  "./icons/apple-touch-icon.png",
+  "./sounds/ring-classic.mp3",
+  "./sounds/ring-soft.mp3",
+  "./sounds/ring-bell.mp3",
+  "./sounds/msg-icq-style.mp3",
+  "./sounds/call-dialing.mp3",
+  "./sounds/call-busy.mp3",
+  "./sounds/call-noanswer.mp3"
 ];
 
 self.addEventListener("install", (event) => {

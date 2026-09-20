@@ -97,7 +97,7 @@ const CRITICAL_LS_KEYS = [
   "ether.contacts",
   "ether.outbox", "ether.pendingNoKey",
   "ether.theme", "ether.glassAlpha",
-  "ether.notifications", "ether.sounds",
+  "ether.notifications", "ether.sounds", "ether.ringtone",
   "ether.vapidPublicKey", "ether.pushSubscription",
   "ether.callLog", "ether.lastSeen", "ether.drafts",
   "ether.callVolume", "ether.lang",
@@ -161,6 +161,8 @@ const Store = {
   set notificationsEnabled(v) { localStorage.setItem("ether.notifications", v ? "1" : "0"); scheduleIDBBackup(); },
   get soundsEnabled() { return localStorage.getItem("ether.sounds") !== "0"; },
   set soundsEnabled(v) { localStorage.setItem("ether.sounds", v ? "1" : "0"); scheduleIDBBackup(); },
+  get ringtone() { return localStorage.getItem("ether.ringtone") || "ring-classic"; },
+  set ringtone(v) { localStorage.setItem("ether.ringtone", v); scheduleIDBBackup(); },
   get vapidPublicKey() { return localStorage.getItem("ether.vapidPublicKey") || ""; },
   set vapidPublicKey(v) { if (v) { localStorage.setItem("ether.vapidPublicKey", v); scheduleIDBBackup(); } },
   get pushSubscriptionJson() { return localStorage.getItem("ether.pushSubscription") || ""; },
@@ -263,6 +265,59 @@ let callTimerInterval = null;
 let globalAudioCtx = null;
 let ringtoneTimer = null;
 let ringtoneAudioEl = null;
+
+// Настоящие аудиофайлы вместо синтезированных на лету осцилляторов —
+// на iPhone Web Audio-осцилляторы, запущенные из асинхронного события
+// (а не прямо внутри обработчика клика), нередко просто не звучат:
+// заблокированы политикой автовоспроизведения или переключателем
+// "Звонок/Бесшумно". Обычные <audio>-элементы, один раз "разблокированные"
+// внутри настоящего пользовательского жеста, гораздо надёжнее для звука,
+// который должен запускаться позже, сам по себе.
+const RINGTONES = {
+  "ring-classic": "sounds/ring-classic.mp3",
+  "ring-soft": "sounds/ring-soft.mp3",
+  "ring-bell": "sounds/ring-bell.mp3",
+};
+const SOUND_FILES = {
+  message: "sounds/msg-icq-style.mp3",
+  dialing: "sounds/call-dialing.mp3",
+  busy: "sounds/call-busy.mp3",
+  noanswer: "sounds/call-noanswer.mp3",
+};
+const soundPool = new Map(); // ключ -> <audio>, создаются один раз и переиспользуются
+let dialingAudioEl = null;
+
+function getSoundEl(src, loop) {
+  let el = soundPool.get(src);
+  if (!el) {
+    el = document.createElement("audio");
+    el.src = src;
+    el.preload = "auto";
+    el.loop = !!loop;
+    el.setAttribute("playsinline", "");
+    document.body.appendChild(el);
+    soundPool.set(src, el);
+  }
+  return el;
+}
+
+// Разблокировка звука на iOS: должна произойти строго внутри настоящего
+// пользовательского жеста (клик/тап) — тогда все элементы из пула потом
+// смогут запускаться сами, из любого асинхронного события (входящий
+// звонок, сообщение), без нового жеста.
+function unlockSoundPool() {
+  for (const src of [...Object.values(RINGTONES), ...Object.values(SOUND_FILES)]) {
+    const el = getSoundEl(src, false);
+    if (el.dataset.unlocked) continue;
+    const wasMuted = el.muted;
+    el.muted = true;
+    const p = el.play();
+    if (p && p.catch) {
+      p.then(() => { el.pause(); el.currentTime = 0; el.muted = wasMuted; el.dataset.unlocked = "1"; }).catch(() => { el.muted = wasMuted; });
+    }
+  }
+}
+
 
 // =====================================================================
 // Утилиты
@@ -425,6 +480,7 @@ function initAudioWarmup() {
     } catch (e) {
       etherLog("warn", "[audio] warmup failed:", String(e));
     }
+    try { unlockSoundPool(); } catch (e) {}
   };
   document.addEventListener("touchstart", warm, { passive: true });
   document.addEventListener("click", warm);
@@ -442,21 +498,11 @@ function ensureAudioCtx() {
 }
 function playMessageSound() {
   if (!Store.soundsEnabled) return;
-  const ctx = ensureAudioCtx();
-  if (!ctx) return;
   try {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = "sine";
-    osc.frequency.value = 900;
-    gain.gain.value = 0.0001;
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    const t = ctx.currentTime;
-    gain.gain.exponentialRampToValueAtTime(0.2, t + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
-    osc.start(t);
-    osc.stop(t + 0.32);
+    const el = getSoundEl(SOUND_FILES.message, false);
+    el.currentTime = 0;
+    const p = el.play();
+    if (p && p.catch) p.catch((e) => etherLog("warn", "[sound] message:", String(e)));
   } catch (e) { etherLog("warn", "[sound] message:", String(e)); }
 }
 function playOutgoingSound() {
@@ -484,13 +530,30 @@ function vibrate(pattern) {
     try { navigator.vibrate(pattern); } catch (e) {}
   }
 }
+
+function currentRingtoneSrc() {
+  return RINGTONES[Store.ringtone] || RINGTONES["ring-classic"];
+}
+
 function playRingtone() {
   stopRingtone();
+  if (!Store.soundsEnabled) { if (navigator.vibrate) { try { navigator.vibrate([400, 200, 400, 200, 400, 1000]); } catch (e) {} } return; }
+  try {
+    ringtoneAudioEl = getSoundEl(currentRingtoneSrc(), true);
+    ringtoneAudioEl.currentTime = 0;
+    const p = ringtoneAudioEl.play();
+    if (p && p.catch) p.catch((e) => etherLog("warn", "[ringtone] play failed:", String(e)));
+  } catch (e) { etherLog("warn", "[ringtone] failed:", String(e)); }
+
+  if (navigator.vibrate) {
+    try { navigator.vibrate([400, 200, 400, 200, 400, 1000]); } catch (e) {}
+  }
+  // Дублируем ту же мелодию через Web Audio — на устройствах, где
+  // audio-элемент почему-то не разблокировался, есть шанс, что сработает
+  // осциллятор (и наоборот) — два независимых пути надёжнее одного.
   try {
     const ctx = ensureAudioCtx();
     if (ctx) {
-      if (ctx.state === "suspended") ctx.resume().catch(() => {});
-      etherLog("info", "[ringtone] start, ctx.state=" + ctx.state);
       const playTone = (freq, delay, dur, vol) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
@@ -507,39 +570,61 @@ function playRingtone() {
         osc.stop(t + dur + 0.05);
       };
       const ringCycle = () => {
-        playTone(880, 0, 0.18, 0.4);
-        playTone(660, 0.18, 0.18, 0.4);
-        playTone(880, 0.4, 0.18, 0.4);
-        playTone(660, 0.58, 0.18, 0.4);
+        playTone(880, 0, 0.18, 0.35);
+        playTone(660, 0.18, 0.18, 0.35);
+        playTone(880, 0.4, 0.18, 0.35);
+        playTone(660, 0.58, 0.18, 0.35);
       };
       ringCycle();
       ringtoneTimer = setInterval(ringCycle, 2000);
     }
-  } catch (e) { etherLog("error", "[ringtone] Web Audio failed:", String(e)); }
-
-  try {
-    if (!ringtoneAudioEl) {
-      ringtoneAudioEl = document.createElement("audio");
-      ringtoneAudioEl.setAttribute("playsinline", "");
-      ringtoneAudioEl.loop = true;
-      ringtoneAudioEl.preload = "auto";
-      ringtoneAudioEl.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
-      document.body.appendChild(ringtoneAudioEl);
-    }
-    const pp = ringtoneAudioEl.play();
-    if (pp && pp.catch) pp.catch(() => {});
   } catch (e) {}
-
-  if (navigator.vibrate) {
-    try { navigator.vibrate([400, 200, 400, 200, 400, 1000]); } catch (e) {}
-  }
 }
 function stopRingtone() {
   if (ringtoneTimer) { clearInterval(ringtoneTimer); ringtoneTimer = null; }
   if (ringtoneAudioEl) {
     try { ringtoneAudioEl.pause(); ringtoneAudioEl.currentTime = 0; } catch (e) {}
+    ringtoneAudioEl = null;
   }
   if (navigator.vibrate) { try { navigator.vibrate(0); } catch (e) {} }
+}
+
+// Звуки для звонящей стороны: дозваниваемся / занято / не дозвонились.
+function playDialingSound() {
+  stopCallSounds();
+  if (!Store.soundsEnabled) return;
+  try {
+    dialingAudioEl = getSoundEl(SOUND_FILES.dialing, true);
+    dialingAudioEl.currentTime = 0;
+    const p = dialingAudioEl.play();
+    if (p && p.catch) p.catch(() => {});
+  } catch (e) {}
+}
+function playBusySound() {
+  stopCallSounds();
+  if (!Store.soundsEnabled) return;
+  try {
+    const el = getSoundEl(SOUND_FILES.busy, false);
+    el.currentTime = 0;
+    const p = el.play();
+    if (p && p.catch) p.catch(() => {});
+  } catch (e) {}
+}
+function playNoAnswerSound() {
+  stopCallSounds();
+  if (!Store.soundsEnabled) return;
+  try {
+    const el = getSoundEl(SOUND_FILES.noanswer, false);
+    el.currentTime = 0;
+    const p = el.play();
+    if (p && p.catch) p.catch(() => {});
+  } catch (e) {}
+}
+function stopCallSounds() {
+  if (dialingAudioEl) {
+    try { dialingAudioEl.pause(); dialingAudioEl.currentTime = 0; } catch (e) {}
+    dialingAudioEl = null;
+  }
 }
 
 // =====================================================================
@@ -692,6 +777,7 @@ function startApp() {
     const sd = $("#settings-discoverable"); if (sd) sd.checked = Store.discoverable;
     const snn = $("#settings-notifications"); if (snn) snn.checked = Store.notificationsEnabled;
     const ssn = $("#settings-sounds"); if (ssn) ssn.checked = Store.soundsEnabled;
+    const srt = $("#settings-ringtone"); if (srt) srt.value = Store.ringtone;
     const spl = $("#settings-pinlock"); if (spl) spl.checked = Store.pinEnabled;
   } catch (e) { etherLog("error", "[startApp] settings init:", String(e)); }
 
@@ -743,7 +829,8 @@ function setupLanguageSelector() {
   const sel = $("#settings-language");
   if (!sel) return;
   sel.innerHTML = "";
-  for (const lang of I18N.languages) {
+  const langs = I18N.languages.slice().sort((a, b) => a.english.localeCompare(b.english, "en"));
+  for (const lang of langs) {
     const opt = document.createElement("option");
     opt.value = lang.code;
     opt.textContent = lang.native + (lang.english !== lang.native ? " · " + lang.english : "");
@@ -2540,6 +2627,7 @@ async function beginCall(id) {
   state._callDeadSeconds = 0;
 
   openCallScreen(id, "calling");
+  playDialingSound();
 
   if (!signaling || !signaling.connected) {
     toast(T("toast.noServer"));
@@ -2570,6 +2658,7 @@ async function beginCall(id) {
       try { signaling.signal(id, { t: "call-ended" }); } catch (e) {}
     }
     toast(T("calls.noAnswer"));
+    playNoAnswerSound();
     closeCallScreen("cancelled");
   }, PENDING_CALL_TIMEOUT_MS);
 }
@@ -2627,6 +2716,7 @@ function setCallPhaseActive() {
   state.callPhase = "active";
   state._callUserAccepted = true;
   clearPendingCall();
+  stopCallSounds();
   const ci = $("#call-controls-incoming"); if (ci) ci.classList.add("hidden");
   const ca = $("#call-controls-active"); if (ca) ca.classList.remove("hidden");
   startCallTimer();
@@ -2706,6 +2796,7 @@ function closeCallScreen(reason) {
   state._callMuteOnAnswer = false;
   clearPendingCall();
   stopRingtone();
+  stopCallSounds();
   endCallRecord(reason);
   const cs = $("#call-screen"); if (cs) cs.classList.add("hidden");
   const cm = $("#call-mute-btn"); if (cm) cm.classList.remove("active");
@@ -2895,6 +2986,21 @@ function wireSettingsScreen() {
   const sounds = $("#settings-sounds");
   if (sounds) sounds.addEventListener("change", (e) => {
     Store.soundsEnabled = e.target.checked;
+  });
+  const ringtoneSel = $("#settings-ringtone");
+  if (ringtoneSel) {
+    ringtoneSel.value = Store.ringtone;
+    ringtoneSel.addEventListener("change", (e) => { Store.ringtone = e.target.value; });
+  }
+  const ringtonePreview = $("#settings-ringtone-preview");
+  if (ringtonePreview) ringtonePreview.addEventListener("click", () => {
+    try {
+      const el = getSoundEl(currentRingtoneSrc(), false);
+      el.currentTime = 0;
+      const p = el.play();
+      if (p && p.catch) p.catch(() => {});
+      setTimeout(() => { try { el.pause(); el.currentTime = 0; } catch (e) {} }, 3000);
+    } catch (e) {}
   });
   const pinlock = $("#settings-pinlock");
   if (pinlock) pinlock.addEventListener("change", (e) => {
@@ -3193,7 +3299,7 @@ function wireMeshEvents() {
         if (payload.state === "ringing" && state.callId !== id && state.callPhase !== "ringing") {
           if (state.callId) {
             const l = mesh.get(id);
-            if (l) { try { l.declineCall(); } catch (e) {} }
+            if (l) { try { l.declineCall("busy"); } catch (e) {} }
             return;
           }
           openCallScreen(id, "ringing");
@@ -3203,6 +3309,7 @@ function wireMeshEvents() {
         if (payload.state === "accepted" && state.callId === id) setCallPhaseActive();
         if (payload.state === "declined" && state.callId === id) {
           toast(T("calls.declined"));
+          if (payload.reason === "busy") playBusySound(); else playNoAnswerSound();
           const link = mesh.get(id); if (link) link.endCall();
           closeCallScreen("declined");
         }

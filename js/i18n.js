@@ -153,7 +153,7 @@
     const initial =
       (isSupported(preferredCode) && preferredCode) ||
       (isSupported(saved) && saved) ||
-      detectSystemLanguage();
+      DEFAULT_LANG; // первый запуск — всегда английский; язык системы предлагается отдельно, через shouldOfferSystem()
 
     applyLanguage(initial);
     return current;

@@ -194,6 +194,14 @@
       <div class="settings-group glass-content">
         <label class="settings-row"><span data-i18n="settings.notifications">Notifications for messages and calls</span><input id="settings-notifications" type="checkbox" class="switch" /></label>
         <label class="settings-row"><span data-i18n="settings.sounds">Sound and vibration</span><input id="settings-sounds" type="checkbox" class="switch" /></label>
+        <label class="settings-row"><span data-i18n="settings.ringtone">Ringtone</span>
+          <select id="settings-ringtone" class="settings-select">
+            <option value="ring-classic" data-i18n="settings.ringtone.classic">Classic</option>
+            <option value="ring-soft" data-i18n="settings.ringtone.soft">Soft</option>
+            <option value="ring-bell" data-i18n="settings.ringtone.bell">Bell</option>
+          </select>
+        </label>
+        <button type="button" id="settings-ringtone-preview" class="settings-row link-row"><span data-i18n="settings.ringtone.preview">Play preview</span><span class="chevron">›</span></button>
         <label class="settings-row"><span data-i18n="settings.pinlock">PIN code on start</span><input id="settings-pinlock" type="checkbox" class="switch" /></label>
       </div>
       <div class="settings-group glass-content">
@@ -216,7 +224,7 @@
         </div>
       </div>
       <div class="settings-group glass-content">
-        <div class="settings-row column">
+        <div class="settings-row column" style="align-items:center; text-align:center;">
           <span class="fine muted" data-i18n="settings.designedBy">Designed by AIK in Moscow</span>
         </div>
       </div>

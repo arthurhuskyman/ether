@@ -200,6 +200,11 @@
     "a11y.more": "More",
     "a11y.search": "Search",
     "a11y.toLast": "To last",
+    "settings.ringtone": "Ringtone",
+    "settings.ringtone.classic": "Classic",
+    "settings.ringtone.soft": "Soft",
+    "settings.ringtone.bell": "Bell",
+    "settings.ringtone.preview": "Play preview",
   };
 
   // ============================================================
@@ -404,6 +409,11 @@
     "a11y.more": "Ещё",
     "a11y.search": "Поиск",
     "a11y.toLast": "К последнему",
+    "settings.ringtone": "Рингтон",
+    "settings.ringtone.classic": "Классический",
+    "settings.ringtone.soft": "Мягкий",
+    "settings.ringtone.bell": "Колокольчик",
+    "settings.ringtone.preview": "Прослушать",
   };
 
   // ============================================================
@@ -608,6 +618,11 @@
     "a11y.more": "更多",
     "a11y.search": "搜索",
     "a11y.toLast": "跳到最新",
+    "settings.ringtone": "铃声",
+    "settings.ringtone.classic": "经典",
+    "settings.ringtone.soft": "柔和",
+    "settings.ringtone.bell": "铃铛",
+    "settings.ringtone.preview": "试听",
   };
 
   // ============================================================
@@ -812,6 +827,11 @@
     "a11y.more": "अधिक",
     "a11y.search": "खोजें",
     "a11y.toLast": "अंतिम तक",
+    "settings.ringtone": "रिंगटोन",
+    "settings.ringtone.classic": "क्लासिक",
+    "settings.ringtone.soft": "सॉफ्ट",
+    "settings.ringtone.bell": "बेल",
+    "settings.ringtone.preview": "पूर्वावलोकन सुनें",
   };
 
   // ============================================================
@@ -1016,6 +1036,11 @@
     "a11y.more": "Más",
     "a11y.search": "Buscar",
     "a11y.toLast": "Al último",
+    "settings.ringtone": "Tono de llamada",
+    "settings.ringtone.classic": "Clásico",
+    "settings.ringtone.soft": "Suave",
+    "settings.ringtone.bell": "Campana",
+    "settings.ringtone.preview": "Reproducir vista previa",
   };
 
   // ============================================================
@@ -1220,6 +1245,11 @@
     "a11y.more": "المزيد",
     "a11y.search": "بحث",
     "a11y.toLast": "إلى الأخير",
+    "settings.ringtone": "نغمة الرنين",
+    "settings.ringtone.classic": "كلاسيكي",
+    "settings.ringtone.soft": "ناعم",
+    "settings.ringtone.bell": "جرس",
+    "settings.ringtone.preview": "تشغيل معاينة",
   };
 
   // ============================================================
@@ -1424,6 +1454,11 @@
     "a11y.more": "Mais",
     "a11y.search": "Pesquisar",
     "a11y.toLast": "Para o último",
+    "settings.ringtone": "Toque",
+    "settings.ringtone.classic": "Clássico",
+    "settings.ringtone.soft": "Suave",
+    "settings.ringtone.bell": "Sino",
+    "settings.ringtone.preview": "Reproduzir prévia",
   };
 
   // ============================================================
@@ -1628,6 +1663,11 @@
     "a11y.more": "その他",
     "a11y.search": "検索",
     "a11y.toLast": "最新へ",
+    "settings.ringtone": "着信音",
+    "settings.ringtone.classic": "クラシック",
+    "settings.ringtone.soft": "ソフト",
+    "settings.ringtone.bell": "ベル",
+    "settings.ringtone.preview": "プレビュー再生",
   };
 
   // ============================================================
@@ -1832,6 +1872,11 @@
     "a11y.more": "Mehr",
     "a11y.search": "Suchen",
     "a11y.toLast": "Zum Letzten",
+    "settings.ringtone": "Klingelton",
+    "settings.ringtone.classic": "Klassisch",
+    "settings.ringtone.soft": "Sanft",
+    "settings.ringtone.bell": "Glocke",
+    "settings.ringtone.preview": "Vorschau abspielen",
   };
 
    // ============================================================
@@ -2036,6 +2081,11 @@
     "a11y.more": "Plus",
     "a11y.search": "Rechercher",
     "a11y.toLast": "Au dernier",
+    "settings.ringtone": "Sonnerie",
+    "settings.ringtone.classic": "Classique",
+    "settings.ringtone.soft": "Douce",
+    "settings.ringtone.bell": "Cloche",
+    "settings.ringtone.preview": "Écouter l'aperçu",
   };
 
   // ============================================================
@@ -2240,6 +2290,11 @@
     "a11y.more": "Altro",
     "a11y.search": "Cerca",
     "a11y.toLast": "All'ultimo",
+    "settings.ringtone": "Suoneria",
+    "settings.ringtone.classic": "Classica",
+    "settings.ringtone.soft": "Morbida",
+    "settings.ringtone.bell": "Campana",
+    "settings.ringtone.preview": "Riproduci anteprima",
   };
 
   // ============================================================
@@ -2444,6 +2499,11 @@
     "a11y.more": "더보기",
     "a11y.search": "검색",
     "a11y.toLast": "최신으로",
+    "settings.ringtone": "벨소리",
+    "settings.ringtone.classic": "클래식",
+    "settings.ringtone.soft": "소프트",
+    "settings.ringtone.bell": "벨",
+    "settings.ringtone.preview": "미리 듣기",
   };
 
   // ============================================================
@@ -2648,6 +2708,11 @@
     "a11y.more": "Diğer",
     "a11y.search": "Ara",
     "a11y.toLast": "Sona git",
+    "settings.ringtone": "Zil sesi",
+    "settings.ringtone.classic": "Klasik",
+    "settings.ringtone.soft": "Yumuşak",
+    "settings.ringtone.bell": "Çan",
+    "settings.ringtone.preview": "Önizlemeyi çal",
   };
   // ============================================================
   // VIETNAMESE — Tiếng Việt
@@ -2851,6 +2916,11 @@
     "a11y.more": "Thêm",
     "a11y.search": "Tìm kiếm",
     "a11y.toLast": "Đến cuối",
+    "settings.ringtone": "Nhạc chuông",
+    "settings.ringtone.classic": "Cổ điển",
+    "settings.ringtone.soft": "Nhẹ nhàng",
+    "settings.ringtone.bell": "Chuông",
+    "settings.ringtone.preview": "Nghe thử",
   };
 
   // ============================================================
@@ -3055,6 +3125,11 @@
     "a11y.more": "Więcej",
     "a11y.search": "Szukaj",
     "a11y.toLast": "Do ostatniej",
+    "settings.ringtone": "Dzwonek",
+    "settings.ringtone.classic": "Klasyczny",
+    "settings.ringtone.soft": "Delikatny",
+    "settings.ringtone.bell": "Dzwonek",
+    "settings.ringtone.preview": "Odtwórz podgląd",
   };
 
   // ============================================================
@@ -3259,6 +3334,11 @@
     "a11y.more": "Meer",
     "a11y.search": "Zoeken",
     "a11y.toLast": "Naar laatste",
+    "settings.ringtone": "Beltoon",
+    "settings.ringtone.classic": "Klassiek",
+    "settings.ringtone.soft": "Zacht",
+    "settings.ringtone.bell": "Bel",
+    "settings.ringtone.preview": "Voorbeeld afspelen",
   };
 
   // ============================================================
@@ -3463,6 +3543,11 @@
     "a11y.more": "เพิ่มเติม",
     "a11y.search": "ค้นหา",
     "a11y.toLast": "ไปที่ล่าสุด",
+    "settings.ringtone": "เสียงเรียกเข้า",
+    "settings.ringtone.classic": "คลาสสิก",
+    "settings.ringtone.soft": "นุ่มนวล",
+    "settings.ringtone.bell": "กระดิ่ง",
+    "settings.ringtone.preview": "เล่นตัวอย่าง",
   };
 
   // ============================================================
@@ -3667,6 +3752,11 @@
     "a11y.more": "Lainnya",
     "a11y.search": "Cari",
     "a11y.toLast": "Ke terakhir",
+    "settings.ringtone": "Nada dering",
+    "settings.ringtone.classic": "Klasik",
+    "settings.ringtone.soft": "Lembut",
+    "settings.ringtone.bell": "Lonceng",
+    "settings.ringtone.preview": "Putar pratinjau",
   };
 
   // ============================================================
@@ -3871,6 +3961,11 @@
     "a11y.more": "Lagi",
     "a11y.search": "Cari",
     "a11y.toLast": "Ke terkini",
+    "settings.ringtone": "Nada dering",
+    "settings.ringtone.classic": "Klasik",
+    "settings.ringtone.soft": "Lembut",
+    "settings.ringtone.bell": "Loceng",
+    "settings.ringtone.preview": "Main pratonton",
   };
 
   // ============================================================
@@ -4075,6 +4170,11 @@
     "a11y.more": "بیشتر",
     "a11y.search": "جستجو",
     "a11y.toLast": "به آخرین",
+    "settings.ringtone": "آهنگ زنگ",
+    "settings.ringtone.classic": "کلاسیک",
+    "settings.ringtone.soft": "ملایم",
+    "settings.ringtone.bell": "زنگوله",
+    "settings.ringtone.preview": "پخش پیش‌نمایش",
   };
 
   // ============================================================
@@ -4279,6 +4379,11 @@
     "a11y.more": "مزید",
     "a11y.search": "تلاش کریں",
     "a11y.toLast": "آخری تک",
+    "settings.ringtone": "رنگ ٹون",
+    "settings.ringtone.classic": "کلاسک",
+    "settings.ringtone.soft": "نرم",
+    "settings.ringtone.bell": "گھنٹی",
+    "settings.ringtone.preview": "پیش نظارہ چلائیں",
   };
 
   // ============================================================
@@ -4483,6 +4588,11 @@
     "a11y.more": "மேலும்",
     "a11y.search": "தேடு",
     "a11y.toLast": "கடைசிக்கு",
+    "settings.ringtone": "ரிங்டோன்",
+    "settings.ringtone.classic": "கிளாசிக்",
+    "settings.ringtone.soft": "மென்மையான",
+    "settings.ringtone.bell": "மணி",
+    "settings.ringtone.preview": "முன்னோட்டம் இயக்கு",
   };
 
   // ============================================================
@@ -4687,6 +4797,11 @@
     "a11y.more": "మరిన్ని",
     "a11y.search": "శోధించు",
     "a11y.toLast": "చివరికి",
+    "settings.ringtone": "రింగ్‌టోన్",
+    "settings.ringtone.classic": "క్లాసిక్",
+    "settings.ringtone.soft": "సాఫ్ట్",
+    "settings.ringtone.bell": "బెల్",
+    "settings.ringtone.preview": "ప్రివ్యూ ప్లే చేయి",
   };
 
   // ============================================================
@@ -4891,6 +5006,11 @@
     "a11y.more": "अधिक",
     "a11y.search": "शोधा",
     "a11y.toLast": "शेवटपर्यंत",
+    "settings.ringtone": "रिंगटोन",
+    "settings.ringtone.classic": "क्लासिक",
+    "settings.ringtone.soft": "सॉफ्ट",
+    "settings.ringtone.bell": "बेल",
+    "settings.ringtone.preview": "पूर्वावलोकन प्ले करा",
   };
 
   // ============================================================
@@ -5095,6 +5215,11 @@
     "a11y.more": "વધુ",
     "a11y.search": "શોધો",
     "a11y.toLast": "છેલ્લા સુધી",
+    "settings.ringtone": "રિંગટોન",
+    "settings.ringtone.classic": "ક્લાસિક",
+    "settings.ringtone.soft": "સોફ્ટ",
+    "settings.ringtone.bell": "બેલ",
+    "settings.ringtone.preview": "પૂર્વાવલોકન વગાડો",
   };
 
   // ============================================================
@@ -5299,6 +5424,11 @@
     "a11y.more": "ಇನ್ನಷ್ಟು",
     "a11y.search": "ಹುಡುಕಿ",
     "a11y.toLast": "ಕೊನೆಗೆ",
+    "settings.ringtone": "ರಿಂಗ್‌ಟೋನ್",
+    "settings.ringtone.classic": "ಕ್ಲಾಸಿಕ್",
+    "settings.ringtone.soft": "ಮೃದು",
+    "settings.ringtone.bell": "ಬೆಲ್",
+    "settings.ringtone.preview": "ಮುನ್ನೋಟ ಪ್ಲೇ ಮಾಡಿ",
   };
 
   // ============================================================
@@ -5503,6 +5633,11 @@
     "a11y.more": "കൂടുതൽ",
     "a11y.search": "തിരയുക",
     "a11y.toLast": "അവസാനത്തിലേക്ക്",
+    "settings.ringtone": "റിംഗ്‌ടോൺ",
+    "settings.ringtone.classic": "ക്ലാസിക്",
+    "settings.ringtone.soft": "സോഫ്റ്റ്",
+    "settings.ringtone.bell": "ബെൽ",
+    "settings.ringtone.preview": "പ്രിവ്യൂ പ്ലേ ചെയ്യുക",
   };
 
   // ============================================================
@@ -5707,6 +5842,11 @@
     "a11y.more": "আরও",
     "a11y.search": "অনুসন্ধান",
     "a11y.toLast": "সর্বশেষে",
+    "settings.ringtone": "রিংটোন",
+    "settings.ringtone.classic": "ক্লাসিক",
+    "settings.ringtone.soft": "সফট",
+    "settings.ringtone.bell": "বেল",
+    "settings.ringtone.preview": "প্রিভিউ চালান",
   };
 
   // ============================================================
@@ -5911,6 +6051,11 @@
     "a11y.more": "ਹੋਰ",
     "a11y.search": "ਖੋਜੋ",
     "a11y.toLast": "ਆਖਰੀ ਤੱਕ",
+    "settings.ringtone": "ਰਿੰਗਟੋਨ",
+    "settings.ringtone.classic": "ਕਲਾਸਿਕ",
+    "settings.ringtone.soft": "ਨਰਮ",
+    "settings.ringtone.bell": "ਘੰਟੀ",
+    "settings.ringtone.preview": "ਪੂਰਵਦਰਸ਼ਨ ਚਲਾਓ",
   };
 
   // ============================================================
@@ -6115,6 +6260,11 @@
     "a11y.more": "Zaidi",
     "a11y.search": "Tafuta",
     "a11y.toLast": "Hadi mwisho",
+    "settings.ringtone": "Mlio wa simu",
+    "settings.ringtone.classic": "Wa kawaida",
+    "settings.ringtone.soft": "Laini",
+    "settings.ringtone.bell": "Kengele",
+    "settings.ringtone.preview": "Cheza mfano",
   };
 
   // ============================================================
@@ -6319,6 +6469,11 @@
     "a11y.more": "ተጨማሪ",
     "a11y.search": "ፈልግ",
     "a11y.toLast": "ወደ መጨረሻ",
+    "settings.ringtone": "የስልክ ጥሪ ድምፅ",
+    "settings.ringtone.classic": "ክላሲክ",
+    "settings.ringtone.soft": "ለስላሳ",
+    "settings.ringtone.bell": "ደወል",
+    "settings.ringtone.preview": "ቅድመ-እይታ አጫውት",
   };
 
   // ============================================================
@@ -6523,6 +6678,11 @@
     "a11y.more": "Ƙari",
     "a11y.search": "Bincike",
     "a11y.toLast": "Zuwa na ƙarshe",
+    "settings.ringtone": "Ringtone",
+    "settings.ringtone.classic": "Na gargajiya",
+    "settings.ringtone.soft": "Mai laushi",
+    "settings.ringtone.bell": "Kararrawa",
+    "settings.ringtone.preview": "Kunna dubawa",
   };
 
   // ============================================================
@@ -6727,6 +6887,11 @@
     "a11y.more": "Síwájú sí",
     "a11y.search": "Wá",
     "a11y.toLast": "Sí èyí tó kẹ́yìn",
+    "settings.ringtone": "Ohun agogo",
+    "settings.ringtone.classic": "Ìbílẹ̀",
+    "settings.ringtone.soft": "Rírọ̀",
+    "settings.ringtone.bell": "Agogo",
+    "settings.ringtone.preview": "Ṣe àyẹ̀wò",
   };
 
   // ============================================================
@@ -6931,6 +7096,11 @@
     "a11y.more": "עוד",
     "a11y.search": "חיפוש",
     "a11y.toLast": "לאחרון",
+    "settings.ringtone": "צלצול",
+    "settings.ringtone.classic": "קלאסי",
+    "settings.ringtone.soft": "רך",
+    "settings.ringtone.bell": "פעמון",
+    "settings.ringtone.preview": "נגן תצוגה מקדימה",
   };
 
   // ============================================================
@@ -7135,6 +7305,11 @@
     "a11y.more": "Mai mult",
     "a11y.search": "Căutare",
     "a11y.toLast": "La ultimul",
+    "settings.ringtone": "Ton de apel",
+    "settings.ringtone.classic": "Clasic",
+    "settings.ringtone.soft": "Moale",
+    "settings.ringtone.bell": "Clopoțel",
+    "settings.ringtone.preview": "Redă previzualizare",
   };
 
   // ============================================================
@@ -7339,6 +7514,11 @@
     "a11y.more": "Více",
     "a11y.search": "Hledat",
     "a11y.toLast": "Na poslední",
+    "settings.ringtone": "Vyzvánění",
+    "settings.ringtone.classic": "Klasické",
+    "settings.ringtone.soft": "Jemné",
+    "settings.ringtone.bell": "Zvonek",
+    "settings.ringtone.preview": "Přehrát ukázku",
   };
 
   // ============================================================
@@ -7543,6 +7723,11 @@
     "a11y.more": "Mer",
     "a11y.search": "Sök",
     "a11y.toLast": "Till senaste",
+    "settings.ringtone": "Ringsignal",
+    "settings.ringtone.classic": "Klassisk",
+    "settings.ringtone.soft": "Mjuk",
+    "settings.ringtone.bell": "Klocka",
+    "settings.ringtone.preview": "Spela förhandsvisning",
   };
   // ============================================================
   // NORWEGIAN — Norsk
@@ -7746,6 +7931,11 @@
     "a11y.more": "Mer",
     "a11y.search": "Søk",
     "a11y.toLast": "Til siste",
+    "settings.ringtone": "Ringetone",
+    "settings.ringtone.classic": "Klassisk",
+    "settings.ringtone.soft": "Myk",
+    "settings.ringtone.bell": "Bjelle",
+    "settings.ringtone.preview": "Spill forhåndsvisning",
   };
 
   // ============================================================
@@ -7950,6 +8140,11 @@
     "a11y.more": "Mere",
     "a11y.search": "Søg",
     "a11y.toLast": "Til seneste",
+    "settings.ringtone": "Ringetone",
+    "settings.ringtone.classic": "Klassisk",
+    "settings.ringtone.soft": "Blød",
+    "settings.ringtone.bell": "Klokke",
+    "settings.ringtone.preview": "Afspil eksempel",
   };
 
   // ============================================================
@@ -8154,6 +8349,11 @@
     "a11y.more": "Lisää",
     "a11y.search": "Haku",
     "a11y.toLast": "Uusimpaan",
+    "settings.ringtone": "Soittoääni",
+    "settings.ringtone.classic": "Klassinen",
+    "settings.ringtone.soft": "Pehmeä",
+    "settings.ringtone.bell": "Kello",
+    "settings.ringtone.preview": "Toista esikuuntelu",
   };
 
   // ============================================================
@@ -8358,6 +8558,11 @@
     "a11y.more": "Περισσότερα",
     "a11y.search": "Αναζήτηση",
     "a11y.toLast": "Στο τελευταίο",
+    "settings.ringtone": "Ήχος κλήσης",
+    "settings.ringtone.classic": "Κλασικός",
+    "settings.ringtone.soft": "Απαλός",
+    "settings.ringtone.bell": "Καμπάνα",
+    "settings.ringtone.preview": "Αναπαραγωγή προεπισκόπησης",
   };
 
   // ============================================================
@@ -8562,6 +8767,11 @@
     "a11y.more": "Több",
     "a11y.search": "Keresés",
     "a11y.toLast": "Az utolsóhoz",
+    "settings.ringtone": "Csengőhang",
+    "settings.ringtone.classic": "Klasszikus",
+    "settings.ringtone.soft": "Lágy",
+    "settings.ringtone.bell": "Csengő",
+    "settings.ringtone.preview": "Előnézet lejátszása",
   };
 
   // ============================================================
@@ -8766,6 +8976,11 @@
     "a11y.more": "Още",
     "a11y.search": "Търсене",
     "a11y.toLast": "Към последното",
+    "settings.ringtone": "Мелодия за звънене",
+    "settings.ringtone.classic": "Класическа",
+    "settings.ringtone.soft": "Мека",
+    "settings.ringtone.bell": "Звънец",
+    "settings.ringtone.preview": "Пусни преглед",
   };
 
   // ============================================================
@@ -8970,6 +9185,11 @@
     "a11y.more": "Још",
     "a11y.search": "Претрага",
     "a11y.toLast": "На последње",
+    "settings.ringtone": "Мелодија звона",
+    "settings.ringtone.classic": "Класична",
+    "settings.ringtone.soft": "Мека",
+    "settings.ringtone.bell": "Звоно",
+    "settings.ringtone.preview": "Пусти преглед",
   };
 
   // ============================================================
@@ -9174,6 +9394,11 @@
     "a11y.more": "Više",
     "a11y.search": "Pretraži",
     "a11y.toLast": "Na zadnje",
+    "settings.ringtone": "Melodija zvona",
+    "settings.ringtone.classic": "Klasična",
+    "settings.ringtone.soft": "Meka",
+    "settings.ringtone.bell": "Zvono",
+    "settings.ringtone.preview": "Reproduciraj pregled",
   };
 
   // ============================================================
@@ -9378,6 +9603,11 @@
     "a11y.more": "Viac",
     "a11y.search": "Hľadať",
     "a11y.toLast": "Na posledné",
+    "settings.ringtone": "Vyzváňanie",
+    "settings.ringtone.classic": "Klasické",
+    "settings.ringtone.soft": "Jemné",
+    "settings.ringtone.bell": "Zvonček",
+    "settings.ringtone.preview": "Prehrať ukážku",
   };
 
   // ============================================================
@@ -9582,6 +9812,11 @@
     "a11y.more": "Več",
     "a11y.search": "Iskanje",
     "a11y.toLast": "Na zadnje",
+    "settings.ringtone": "Melodija zvonjenja",
+    "settings.ringtone.classic": "Klasična",
+    "settings.ringtone.soft": "Mehka",
+    "settings.ringtone.bell": "Zvonec",
+    "settings.ringtone.preview": "Predvajaj predogled",
   };
 
   // ============================================================
@@ -9786,6 +10021,11 @@
     "a11y.more": "Daugiau",
     "a11y.search": "Ieškoti",
     "a11y.toLast": "Iki paskutinio",
+    "settings.ringtone": "Skambėjimo tonas",
+    "settings.ringtone.classic": "Klasikinis",
+    "settings.ringtone.soft": "Švelnus",
+    "settings.ringtone.bell": "Varpelis",
+    "settings.ringtone.preview": "Groti peržiūrą",
   };
 
   // ============================================================
@@ -9990,6 +10230,11 @@
     "a11y.more": "Vairāk",
     "a11y.search": "Meklēt",
     "a11y.toLast": "Uz pēdējo",
+    "settings.ringtone": "Zvana signāls",
+    "settings.ringtone.classic": "Klasisks",
+    "settings.ringtone.soft": "Mīksts",
+    "settings.ringtone.bell": "Zvans",
+    "settings.ringtone.preview": "Atskaņot priekšskatījumu",
   };
 
   // ============================================================
@@ -10194,6 +10439,11 @@
     "a11y.more": "Rohkem",
     "a11y.search": "Otsi",
     "a11y.toLast": "Viimasele",
+    "settings.ringtone": "Helin",
+    "settings.ringtone.classic": "Klassikaline",
+    "settings.ringtone.soft": "Pehme",
+    "settings.ringtone.bell": "Kell",
+    "settings.ringtone.preview": "Esita eelvaade",
   };
 
   // ============================================================
@@ -10398,6 +10648,11 @@
     "a11y.more": "Më shumë",
     "a11y.search": "Kërko",
     "a11y.toLast": "Te fundit",
+    "settings.ringtone": "Zilja",
+    "settings.ringtone.classic": "Klasike",
+    "settings.ringtone.soft": "E butë",
+    "settings.ringtone.bell": "Kambanë",
+    "settings.ringtone.preview": "Luaj shikimin paraprak",
   };
 
   // ============================================================
@@ -10602,6 +10857,11 @@
     "a11y.more": "Повеќе",
     "a11y.search": "Пребарај",
     "a11y.toLast": "До последната",
+    "settings.ringtone": "Мелодија",
+    "settings.ringtone.classic": "Класична",
+    "settings.ringtone.soft": "Мека",
+    "settings.ringtone.bell": "Ѕвонче",
+    "settings.ringtone.preview": "Пушти преглед",
   };
 
   // ============================================================
@@ -10806,6 +11066,11 @@
     "a11y.more": "Više",
     "a11y.search": "Pretraga",
     "a11y.toLast": "Na zadnju",
+    "settings.ringtone": "Melodija zvona",
+    "settings.ringtone.classic": "Klasična",
+    "settings.ringtone.soft": "Meka",
+    "settings.ringtone.bell": "Zvono",
+    "settings.ringtone.preview": "Reproduciraj pregled",
   };
 
   // ============================================================
@@ -11010,6 +11275,11 @@
     "a11y.more": "Яшчэ",
     "a11y.search": "Пошук",
     "a11y.toLast": "Да апошняга",
+    "settings.ringtone": "Мелодыя званка",
+    "settings.ringtone.classic": "Класічная",
+    "settings.ringtone.soft": "Мяккая",
+    "settings.ringtone.bell": "Званочак",
+    "settings.ringtone.preview": "Прайграць прэв'ю",
   };
 
   // ============================================================
@@ -11214,6 +11484,11 @@
     "a11y.more": "მეტი",
     "a11y.search": "ძებნა",
     "a11y.toLast": "ბოლომდე",
+    "settings.ringtone": "ზარის ტონი",
+    "settings.ringtone.classic": "კლასიკური",
+    "settings.ringtone.soft": "რბილი",
+    "settings.ringtone.bell": "ზარი",
+    "settings.ringtone.preview": "გადახედვის დაკვრა",
   };
 
   // ============================================================
@@ -11418,6 +11693,11 @@
     "a11y.more": "Ավելին",
     "a11y.search": "Որոնում",
     "a11y.toLast": "Վերջինին",
+    "settings.ringtone": "Զանգի ձայն",
+    "settings.ringtone.classic": "Դասական",
+    "settings.ringtone.soft": "Փափուկ",
+    "settings.ringtone.bell": "Զանգակ",
+    "settings.ringtone.preview": "Նվագարկել նախադիտումը",
   };
 
   // ============================================================
@@ -11622,6 +11902,11 @@
     "a11y.more": "Daha çox",
     "a11y.search": "Axtar",
     "a11y.toLast": "Sona",
+    "settings.ringtone": "Zəng melodiyası",
+    "settings.ringtone.classic": "Klassik",
+    "settings.ringtone.soft": "Yumşaq",
+    "settings.ringtone.bell": "Zəng",
+    "settings.ringtone.preview": "Ön izləməni oynat",
   };
   // ============================================================
   // KAZAKH — Қазақша
@@ -11825,6 +12110,11 @@
     "a11y.more": "Көбірек",
     "a11y.search": "Іздеу",
     "a11y.toLast": "Соңғысына",
+    "settings.ringtone": "Қоңырау әуені",
+    "settings.ringtone.classic": "Классикалық",
+    "settings.ringtone.soft": "Жұмсақ",
+    "settings.ringtone.bell": "Қоңырау",
+    "settings.ringtone.preview": "Алдын ала қарауды ойнату",
   };
 
   // ============================================================
@@ -12029,6 +12319,11 @@
     "a11y.more": "Ko'proq",
     "a11y.search": "Qidirish",
     "a11y.toLast": "Oxirigisiga",
+    "settings.ringtone": "Qo'ng'iroq ohangi",
+    "settings.ringtone.classic": "Klassik",
+    "settings.ringtone.soft": "Yumshoq",
+    "settings.ringtone.bell": "Qo'ng'iroq",
+    "settings.ringtone.preview": "Ko'rib chiqishni ijro etish",
   };
 
   // ============================================================
@@ -12233,6 +12528,11 @@
     "a11y.more": "Дагы",
     "a11y.search": "Издөө",
     "a11y.toLast": "Акыркысына",
+    "settings.ringtone": "Коңгуроо обону",
+    "settings.ringtone.classic": "Классикалык",
+    "settings.ringtone.soft": "Жумшак",
+    "settings.ringtone.bell": "Коңгуроо",
+    "settings.ringtone.preview": "Алдын ала уктуруу",
   };
 
   // ============================================================
@@ -12437,6 +12737,11 @@
     "a11y.more": "Бештар",
     "a11y.search": "Ҷустуҷӯ",
     "a11y.toLast": "Ба охирин",
+    "settings.ringtone": "Оҳанги занг",
+    "settings.ringtone.classic": "Классикӣ",
+    "settings.ringtone.soft": "Мулоим",
+    "settings.ringtone.bell": "Занг",
+    "settings.ringtone.preview": "Пешнамоишро пахш кунед",
   };
 
   // ============================================================
@@ -12641,6 +12946,11 @@
     "a11y.more": "Илүү",
     "a11y.search": "Хайх",
     "a11y.toLast": "Сүүлийнх рүү",
+    "settings.ringtone": "Хонхны дуу",
+    "settings.ringtone.classic": "Сонгодог",
+    "settings.ringtone.soft": "Зөөлөн",
+    "settings.ringtone.bell": "Хонх",
+    "settings.ringtone.preview": "Урьдчилан үзэхийг тоглуулах",
   };
 
   // ============================================================
@@ -12845,6 +13155,11 @@
     "a11y.more": "थप",
     "a11y.search": "खोज्नुहोस्",
     "a11y.toLast": "पछिल्लोसम्म",
+    "settings.ringtone": "रिङटोन",
+    "settings.ringtone.classic": "क्लासिक",
+    "settings.ringtone.soft": "नरम",
+    "settings.ringtone.bell": "घण्टी",
+    "settings.ringtone.preview": "पूर्वावलोकन बजाउनुहोस्",
   };
 
   // ============================================================
@@ -13049,6 +13364,11 @@
     "a11y.more": "තව",
     "a11y.search": "සොයන්න",
     "a11y.toLast": "අවසානයට",
+    "settings.ringtone": "රින්ටෝනය",
+    "settings.ringtone.classic": "සම්භාව්‍ය",
+    "settings.ringtone.soft": "මෘදු",
+    "settings.ringtone.bell": "සීනුව",
+    "settings.ringtone.preview": "පෙරදසුන වාදනය කරන්න",
   };
 
   // ============================================================
@@ -13253,6 +13573,11 @@
     "a11y.more": "ပိုမို",
     "a11y.search": "ရှာဖွေရန်",
     "a11y.toLast": "နောက်ဆုံးသို့",
+    "settings.ringtone": "ရင်တုန်း",
+    "settings.ringtone.classic": "ဂန္တဝင်",
+    "settings.ringtone.soft": "နူးညံ့",
+    "settings.ringtone.bell": "ခေါင်းလောင်း",
+    "settings.ringtone.preview": "အစမ်းနားထောင်ရန်",
   };
   // ============================================================
   // KHMER — ខ្មែរ
@@ -13456,6 +13781,11 @@
     "a11y.more": "ច្រើនទៀត",
     "a11y.search": "ស្វែងរក",
     "a11y.toLast": "ទៅចុងក្រោយ",
+    "settings.ringtone": "សំឡេងរោទ៍",
+    "settings.ringtone.classic": "បុរាណ",
+    "settings.ringtone.soft": "ទន់ភ្លន់",
+    "settings.ringtone.bell": "កណ្ដឹង",
+    "settings.ringtone.preview": "ចាក់មើលជាមុន",
   };
 
   // ============================================================
@@ -13660,6 +13990,11 @@
     "a11y.more": "ເພີ່ມເຕີມ",
     "a11y.search": "ຄົ້ນຫາ",
     "a11y.toLast": "ໄປຫາລ່າສຸດ",
+    "settings.ringtone": "ສຽງໂທລະສັບ",
+    "settings.ringtone.classic": "ຄລາສສິກ",
+    "settings.ringtone.soft": "ນຸ່ມນວນ",
+    "settings.ringtone.bell": "ລະຄັງ",
+    "settings.ringtone.preview": "ຫຼິ້ນຕົວຢ່າງ",
   };
 
   // ============================================================
@@ -13864,6 +14199,11 @@
     "a11y.more": "Higit pa",
     "a11y.search": "Maghanap",
     "a11y.toLast": "Sa huli",
+    "settings.ringtone": "Ringtone",
+    "settings.ringtone.classic": "Klasiko",
+    "settings.ringtone.soft": "Malambot",
+    "settings.ringtone.bell": "Kampanilya",
+    "settings.ringtone.preview": "I-play ang preview",
   };
 
   // ============================================================
@@ -14068,6 +14408,11 @@
     "a11y.more": "Liyane",
     "a11y.search": "Golek",
     "a11y.toLast": "Menyang pungkasan",
+    "settings.ringtone": "Ringtone",
+    "settings.ringtone.classic": "Klasik",
+    "settings.ringtone.soft": "Alus",
+    "settings.ringtone.bell": "Lonceng",
+    "settings.ringtone.preview": "Muter pratinjau",
   };
   // ============================================================
   // SUNDANESE — Basa Sunda
@@ -14271,6 +14616,11 @@
     "a11y.more": "Deui",
     "a11y.search": "Sungsi",
     "a11y.toLast": "Ka nu panungtung",
+    "settings.ringtone": "Ringtone",
+    "settings.ringtone.classic": "Klasik",
+    "settings.ringtone.soft": "Lemes",
+    "settings.ringtone.bell": "Lonceng",
+    "settings.ringtone.preview": "Puter pratinjau",
   };
 
   // ============================================================
@@ -14475,6 +14825,11 @@
     "a11y.more": "Dugang",
     "a11y.search": "Pangita",
     "a11y.toLast": "Sa kataposan",
+    "settings.ringtone": "Ringtone",
+    "settings.ringtone.classic": "Klasiko",
+    "settings.ringtone.soft": "Hinay",
+    "settings.ringtone.bell": "Kampanilya",
+    "settings.ringtone.preview": "I-play ang preview",
   };
 
   // ============================================================
@@ -14679,6 +15034,11 @@
     "a11y.more": "Ще",
     "a11y.search": "Пошук",
     "a11y.toLast": "До останнього",
+    "settings.ringtone": "Рингтон",
+    "settings.ringtone.classic": "Класичний",
+    "settings.ringtone.soft": "М'який",
+    "settings.ringtone.bell": "Дзвіночок",
+    "settings.ringtone.preview": "Відтворити прев'ю",
   };
 
   // ============================================================

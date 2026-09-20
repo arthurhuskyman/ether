@@ -331,22 +331,42 @@ class PeerLink extends EventTarget {
     }
   }
 
-  async _renegotiateOverDataChannel() {
-    if (this._pendingNegotiation) return;
+  // Единая точка пересогласования SDP — используется и для добавления
+  // аудио (negotiationneeded), и для перезапуска ICE при сбое сети
+  // (раньше reInvite() делал это отдельно, в обход всех защит ниже —
+  // из-за этого могли столкнуться ДВА параллельных пересогласования и
+  // сломать соединение прямо во время звонка).
+  async _negotiate(iceRestart) {
+    if (this._pendingNegotiation) {
+      if (iceRestart) this._negotiationQueuedIceRestart = true;
+      return;
+    }
     if (!this.dc || this.dc.readyState !== "open") { this._negotiationPendingOnOpen = true; return; }
     if (this._closed) return;
+    if (this.pc.signalingState !== "stable") {
+      // Сейчас не момент создавать offer — сами ещё разбираем чужой/
+      // предыдущий; без этой проверки здесь и вылезал InvalidStateError.
+      if (!this._renegotiationRetryTimer) {
+        this._renegotiationRetryTimer = setTimeout(() => {
+          this._renegotiationRetryTimer = null;
+          this._negotiate(iceRestart);
+        }, 300);
+      }
+      return;
+    }
     this._pendingNegotiation = true;
     this._makingOffer = true;
     try {
-      const offer = await this.pc.createOffer();
+      const offer = await this.pc.createOffer(iceRestart ? { iceRestart: true } : undefined);
       await this.pc.setLocalDescription(offer);
+      if (iceRestart) await waitForIceGathering(this.pc);
       const ok = this.send({ kind: "sdp", sdpType: "offer", sdp: this.pc.localDescription.sdp });
       if (!ok && !this._closed) {
         this._renegotiationRetryTimer = setTimeout(() => {
           this._renegotiationRetryTimer = null;
           this._pendingNegotiation = false;
           this._makingOffer = false;
-          this._renegotiateOverDataChannel();
+          this._negotiate(iceRestart);
         }, 500);
         return;
       }
@@ -354,8 +374,18 @@ class PeerLink extends EventTarget {
       this._log("warn", "[webrtc] пересогласование:", String(e));
     } finally {
       this._makingOffer = false;
-      if (!this._renegotiationRetryTimer) this._pendingNegotiation = false;
+      if (!this._renegotiationRetryTimer) {
+        this._pendingNegotiation = false;
+        if (this._negotiationQueuedIceRestart) {
+          this._negotiationQueuedIceRestart = false;
+          this._negotiate(true);
+        }
+      }
     }
+  }
+
+  async _renegotiateOverDataChannel() {
+    return this._negotiate(false);
   }
 
   async _handleRemoteSdp(payload) {
@@ -419,7 +449,7 @@ class PeerLink extends EventTarget {
     this.send({ kind: "call-state", state: "accepted" });
   }
 
-  declineCall() { this.send({ kind: "call-state", state: "declined" }); }
+  declineCall(reason) { this.send({ kind: "call-state", state: "declined", reason: reason || null }); }
 
   setMuted(muted) {
     this._muted = !!muted;
@@ -447,15 +477,8 @@ class PeerLink extends EventTarget {
   async reInvite() {
     if (this._closed) return;
     if (!this.dc || this.dc.readyState !== "open") return;
-    try {
-      this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "reInvite: createOffer iceRestart");
-      const offer = await this.pc.createOffer({ iceRestart: true });
-      await this.pc.setLocalDescription(offer);
-      await waitForIceGathering(this.pc);
-      this.send({ kind: "sdp", sdpType: "offer", sdp: this.pc.localDescription.sdp });
-    } catch (e) {
-      this._log("warn", "[webrtc] reInvite failed:", String(e));
-    }
+    this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "reInvite: createOffer iceRestart");
+    return this._negotiate(true);
   }
 
   endCall() {

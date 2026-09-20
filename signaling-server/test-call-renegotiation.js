@@ -113,6 +113,32 @@ async function connectPair(idA, idB) {
     a.close(); b.close();
   }
 
+  console.log("\n=== Сценарий 3: reInvite() во время уже идущего пересогласования (добавление аудио) ===");
+  {
+    const { a, b } = await connectPair("eeee", "ffff");
+    check("соединение установлено для теста reInvite-гонки", a.status === "connected" && b.status === "connected");
+
+    let bGotOffer = false;
+    const origB = b._handleRemoteSdp.bind(b);
+    b._handleRemoteSdp = async (p) => { if (p.sdpType === "offer") bGotOffer = true; return origB(p); };
+
+    // Запускаем обычное пересогласование (как при добавлении аудио) И
+    // reInvite() (как при кратковременном ICE-сбое) почти одновременно —
+    // раньше это было именно то столкновение, что рвало соединение
+    // прямо во время звонка.
+    a.pc.addTransceiver("audio", { direction: "sendrecv" }); // триггерит _renegotiateOverDataChannel через negotiationneeded
+    const reInvitePromise = a.reInvite(); // и сразу же — второй, независимый путь пересогласования
+
+    await reInvitePromise;
+    await sleep(2500);
+
+    check("после конфликта signalingState стабилен, а не завис в half-negotiated", a.pc.signalingState === "stable" && b.pc.signalingState === "stable");
+    check("offer реально дошёл до второй стороны, согласование не потерялось", bGotOffer);
+    check("оба конца остались подключены — соединение не развалилось из-за гонки", a.status !== "disconnected" && b.status !== "disconnected");
+
+    a.close(); b.close();
+  }
+
   console.log(`\nИтого: ${pass} прошло, ${fail} упало`);
   process.exit(fail > 0 ? 1 : 0);
 })().catch((e) => {
