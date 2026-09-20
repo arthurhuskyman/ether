@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "generate-vapid": "node generate-vapid.js",
-    "test": "node test-two-clients.js && node test-e2e-webrtc.js && node test-race-condition.js && node test-crypto.js"
+    "test": "node test-two-clients.js && node test-e2e-webrtc.js && node test-race-condition.js && node test-crypto.js && node test-call-renegotiation.js"
   },
   "engines": {
     "node": ">=18"

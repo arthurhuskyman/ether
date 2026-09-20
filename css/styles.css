@@ -189,7 +189,7 @@ html[data-theme="auto"] .glass-content {
 .btn-secondary { background: var(--input-bg); color: var(--accent); flex: 1; }
 .btn-tertiary { background: transparent; color: var(--ink-dim); font-weight: 500; }
 
-#app-shell { height: 100dvh; display: flex; flex-direction: column; }
+#app-shell { height: 100dvh; display: flex; flex-direction: column; position: relative; }
 #nav-bar {
   padding: calc(env(safe-area-inset-top) + 10px) 16px 12px;
   border-radius: 0 0 var(--radius-l) var(--radius-l);
@@ -495,7 +495,7 @@ html[dir="rtl"] .chevron {
 .tab-btn.hidden { display: none !important; }
 
 #call-screen {
-  position: fixed; inset: 0; z-index: 60;
+  position: absolute; inset: 0; z-index: 60;
   display: flex; flex-direction: column;
   align-items: center; justify-content: space-between;
   padding: calc(env(safe-area-inset-top) + 60px) 24px calc(env(safe-area-inset-bottom) + 40px);
@@ -644,13 +644,6 @@ html[dir="rtl"] .chevron {
     position: relative;
   }
   #onboarding, #lock-screen { position: fixed; }
-  #call-screen {
-    max-width: 420px;
-    margin: 0 auto;
-    left: 50%;
-    right: auto;
-    transform: translateX(-50%);
-  }
   .sheet { max-width: 420px; margin: 0 auto; }
 }
 @media (prefers-reduced-motion: reduce) {

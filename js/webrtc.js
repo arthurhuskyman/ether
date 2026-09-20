@@ -15,6 +15,10 @@ const FALLBACK_ICE = [
 
 let ICE_SERVERS = [];
 
+function getMyId() {
+  try { return localStorage.getItem("ether.myId") || ""; } catch (e) { return ""; }
+}
+
 function signalingUrlForIce() {
   let url = "";
   try {
@@ -98,6 +102,9 @@ class PeerLink extends EventTarget {
     this._muteRecheckTimer = null;
     this._pendingNegotiation = false;
     this._renegotiationRetryTimer = null;
+    this._negotiationPendingOnOpen = false; // если addTrack сработал раньше, чем открылся dc — не теряем это молча
+    this._makingOffer = false; // для Perfect Negotiation (устранение glare при одновременном createOffer с двух сторон)
+    this._polite = getMyId() < id; // детерминированно и одинаково с обеих сторон: у кого id меньше — тот "вежливый" (уступает при столкновении)
     this._pingTimer = null;
     this._iceDisconnectTimer = null;
     this._lastPongAt = 0;
@@ -240,6 +247,13 @@ class PeerLink extends EventTarget {
         }
         this.send({ kind: "ping", t: Date.now() });
       }, 5000);
+      // Трек мог быть добавлен ДО того, как канал открылся — тогда
+      // negotiationneeded сработал вхолостую (событие одноразовое) и
+      // пересогласование молча не состоялось. Досылаем его сейчас.
+      if (this._negotiationPendingOnOpen) {
+        this._negotiationPendingOnOpen = false;
+        this._renegotiateOverDataChannel();
+      }
     });
     this.dc.addEventListener("close", () => {
       this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "dataChannel close");
@@ -319,9 +333,10 @@ class PeerLink extends EventTarget {
 
   async _renegotiateOverDataChannel() {
     if (this._pendingNegotiation) return;
-    if (!this.dc || this.dc.readyState !== "open") return;
+    if (!this.dc || this.dc.readyState !== "open") { this._negotiationPendingOnOpen = true; return; }
     if (this._closed) return;
     this._pendingNegotiation = true;
+    this._makingOffer = true;
     try {
       const offer = await this.pc.createOffer();
       await this.pc.setLocalDescription(offer);
@@ -330,6 +345,7 @@ class PeerLink extends EventTarget {
         this._renegotiationRetryTimer = setTimeout(() => {
           this._renegotiationRetryTimer = null;
           this._pendingNegotiation = false;
+          this._makingOffer = false;
           this._renegotiateOverDataChannel();
         }, 500);
         return;
@@ -337,6 +353,7 @@ class PeerLink extends EventTarget {
     } catch (e) {
       this._log("warn", "[webrtc] пересогласование:", String(e));
     } finally {
+      this._makingOffer = false;
       if (!this._renegotiationRetryTimer) this._pendingNegotiation = false;
     }
   }
@@ -344,6 +361,20 @@ class PeerLink extends EventTarget {
   async _handleRemoteSdp(payload) {
     if (this._closed) return;
     if (payload.sdpType === "offer") {
+      // Perfect Negotiation: если мы сами в этот момент тоже создаём offer
+      // (столкновение) — "вежливая" сторона откатывает свой offer и
+      // принимает чужой, "невежливая" — молча игнорирует чужой и ждёт,
+      // что её собственный offer в итоге примут. Без этого одна из сторон
+      // почти гарантированно получает InvalidStateError и рвёт согласование.
+      const collision = this._makingOffer || this.pc.signalingState !== "stable";
+      if (collision && !this._polite) {
+        this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "glare: невежливая сторона игнорирует встречный offer");
+        return;
+      }
+      if (collision) {
+        this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "glare: откатываю свой offer в пользу встречного");
+        try { await this.pc.setLocalDescription({ type: "rollback" }); } catch (e) {}
+      }
       await this.pc.setRemoteDescription({ type: "offer", sdp: payload.sdp });
       const answer = await this.pc.createAnswer();
       await this.pc.setLocalDescription(answer);

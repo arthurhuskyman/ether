@@ -33,7 +33,7 @@ const CONNECT_STUCK_MS = 30000;
 const WATCH_CONNECT_TIMEOUT_MS = 20000;
 const ACK_DEDUP_WINDOW_MS = 5000;
 const CALL_DEAD_LINK_TIMEOUT_MS = 30000;
-const INCOMING_CALL_TIMEOUT_MS = 40000;
+const INCOMING_CALL_TIMEOUT_MS = PENDING_CALL_TIMEOUT_MS - 2000; // должен истекать НЕ ПОЗЖЕ, чем звонящий сдастся — иначе у принимающего экран "входящий" висит, когда звонящий уже положил трубку
 // Громкость удалённого потока по умолчанию — 33,33%.
 const DEFAULT_CALL_VOLUME = 0.3333;
 
@@ -1282,6 +1282,7 @@ function renderChatThread() { try { renderChatThreadInner(); } catch (e) { ether
 function renderChatThreadInner() {
   const c = state.contacts.get(state.chatId);
   if (!c) { state.chatId = null; renderTab(); return; }
+  if (c.managed && !isReachable(c)) attemptConnectViaRelay(c.id).catch(() => {}); // на всякий случай — вдруг найдётся общий контакт, даже если сервер цель не видит
   const nm = $("#chat-peer-name"); if (nm) nm.textContent = c.name || T("sys.someone");
   const statusEl = $("#chat-peer-status");
   const typing = state.typingTimers.has(c.id);
@@ -1745,6 +1746,33 @@ function initSignaling() {
   signalingCleanup = wireSignalingEvents(signaling);
   signaling.start();
 }
+// Общая обработка входящего offer/answer — используется и для сигнального
+// сервера, и для релея через общий контакт (см. ниже): сама логика
+// WebRTC-рукопожатия не должна знать и не знает, через какой транспорт
+// пришёл пакет.
+async function handleIncomingOffer(from, packet, replySignal) {
+  const existing = mesh.get(from);
+  if (existing && existing.role === "answerer" && existing.status === "connected") return;
+  if (existing) mesh.remove(from);
+  ensureContactEntry(from, packet.n);
+  const link = mesh.createIncomingLink(from);
+  try {
+    const answer = await link.acceptOfferAndCreateAnswer(packet);
+    if (!answer) return;
+    replySignal(answer);
+  } catch (e) {
+    etherLog("error", "[offer] FAILED:", String(e && e.message || e));
+    mesh.remove(from);
+  }
+}
+async function handleIncomingAnswer(from, packet) {
+  const link = mesh.get(from);
+  if (link) {
+    try { await link.acceptAnswer(packet); }
+    catch (e) { mesh.remove(from); }
+  }
+}
+
 function wireSignalingEvents(sig) {
   const on = (type, fn) => {
     const wrapped = (ev) => {
@@ -1887,25 +1915,9 @@ function wireSignalingEvents(sig) {
       return;
     }
     if (packet.t === "offer") {
-      const existing = mesh.get(from);
-      if (existing && existing.role === "answerer" && existing.status === "connected") return;
-      if (existing) mesh.remove(from);
-      ensureContactEntry(from, packet.n);
-      const link = mesh.createIncomingLink(from);
-      try {
-        const answer = await link.acceptOfferAndCreateAnswer(packet);
-        if (!answer) return;
-        sig.signal(from, answer);
-      } catch (e) {
-        etherLog("error", "[offer] FAILED:", String(e && e.message || e));
-        mesh.remove(from);
-      }
+      await handleIncomingOffer(from, packet, (answer) => sig.signal(from, answer));
     } else if (packet.t === "answer") {
-      const link = mesh.get(from);
-      if (link) {
-        try { await link.acceptAnswer(packet); }
-        catch (e) { mesh.remove(from); }
-      }
+      await handleIncomingAnswer(from, packet);
     }
   }));
   subs.push(on("deliver-ack", (ev) => {
@@ -1998,10 +2010,80 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
 // Автоподключение
 // =====================================================================
 function clearAutoConnectTimer(id) { const t = autoConnectTimers.get(id); if (t) clearTimeout(t); autoConnectTimers.delete(id); }
+// =====================================================================
+// Relay-сигналинг через общий контакт (без сигнального сервера)
+// =====================================================================
+//
+// Если я уже P2P-подключён к X, а X уже P2P-подключён к T (тому, кого я
+// хочу добавить) — X может разово передать между нами offer/answer прямо
+// по уже открытым зашифрованным каналам, без сигнального сервера вообще.
+// Пересылка — ровно на один хоп (я → X → T и обратно), без дальнейшей
+// маршрутизации по цепочке: так надёжнее и не нужно думать про циклы.
+//
+//   relay-request           я → X:  "передай этот offer контакту T"
+//   relay-deliver           X → T:  "вот offer от меня-через-X"
+//   relay-deliver-response  T → X:  "вот ответ, верни его обратно"
+//   relay-response          X → я:  "вот ответ от T"
+
+function handleRelayPayload(viaId, payload) {
+  if (payload.kind === "relay-request") {
+    const target = mesh.get(payload.to);
+    if (target && target.status === "connected") {
+      target.send({ kind: "relay-deliver", from: viaId, packet: payload.packet });
+    }
+    // Если T через меня недостижим — молча ничего не делаем: запрашивающий
+    // либо получит ответ от другого общего контакта, либо не получит вовсе.
+    return;
+  }
+  if (payload.kind === "relay-deliver") {
+    if (isDuplicateSignal(payload.from, payload.packet)) return;
+    handleIncomingOffer(payload.from, payload.packet, (answer) => {
+      const backToRelay = mesh.get(viaId);
+      if (backToRelay) backToRelay.send({ kind: "relay-deliver-response", to: payload.from, packet: answer });
+    });
+    return;
+  }
+  if (payload.kind === "relay-deliver-response") {
+    const requester = mesh.get(payload.to);
+    if (requester) requester.send({ kind: "relay-response", from: viaId, packet: payload.packet });
+    return;
+  }
+  if (payload.kind === "relay-response") {
+    if (isDuplicateSignal(payload.from, payload.packet)) return;
+    handleIncomingAnswer(payload.from, payload.packet);
+  }
+}
+
+// Пробуем достучаться до contactId через ЛЮБОЙ из уже подключённых
+// контактов — полезно, когда цель не видна через сигнальный сервер
+// (свой/другой сервер, временно офлайн на сервере), но у нас есть общий
+// знакомый, который сейчас с ней на связи.
+async function attemptConnectViaRelay(targetId) {
+  const existing = mesh.get(targetId);
+  if (existing && existing.status !== "disconnected") return;
+  if (_connectInFlight.has(targetId)) return;
+  const relays = Array.from(mesh.links.entries()).filter(([rid, l]) => rid !== targetId && l.status === "connected");
+  if (relays.length === 0) return;
+  _connectInFlight.add(targetId);
+  try {
+    const link = mesh.createOutgoingLink(targetId);
+    const packet = await link.createInitialOffer("");
+    if (!packet) { mesh.remove(targetId); return; }
+    for (const [, relayLink] of relays) relayLink.send({ kind: "relay-request", to: targetId, packet });
+    watchConnectionTimeout(targetId);
+  } catch (e) {
+    etherLog("error", "[relay] createInitialOffer failed:", String(e));
+    mesh.remove(targetId);
+  } finally {
+    _connectInFlight.delete(targetId);
+  }
+}
+
 function scheduleAutoConnect(id) {
   attemptConnect(id);
+  attemptConnectViaRelay(id).catch(() => {});
   if (autoConnectTimers.has(id)) return;
-  autoConnectTimers.set(id, setTimeout(() => { autoConnectTimers.delete(id); attemptConnect(id); }, 4000));
+  autoConnectTimers.set(id, setTimeout(() => { autoConnectTimers.delete(id); attemptConnect(id); attemptConnectViaRelay(id).catch(() => {}); }, 4000));
 }
 async function attemptConnect(id) {
   const tag = String(id).slice(0, 10) + "…";
@@ -3128,6 +3210,10 @@ function wireMeshEvents() {
           try { const l = mesh.get(id); if (l) l.endCall(); } catch (e) {}
           closeCallScreen("completed");
         }
+        return;
+      }
+      if (payload && payload.kind && String(payload.kind).indexOf("relay-") === 0) {
+        handleRelayPayload(id, payload);
         return;
       }
       applyIncomingPayload(id, payload && payload.id, payload, false, payload && payload.kind);
