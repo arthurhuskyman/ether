@@ -62,6 +62,7 @@
       <span id="chat-transport-badge" class="transport-badge hidden">P2P</span>
       <button type="button" id="chat-search-btn" class="icon-btn" aria-label="Search" data-i18n-aria="a11y.search"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg></button>
       <button type="button" id="chat-call-btn" class="icon-btn call-icon" aria-label="Call" data-i18n-aria="chat.call"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.7 21 3 13.3 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.4 0 .8-.2 1L6.6 10.8z"/></svg></button>
+      <button type="button" id="chat-video-call-btn" class="icon-btn call-icon" aria-label="Video call" data-i18n-aria="call.video"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/></svg></button>
       <button type="button" id="chat-more-btn" class="icon-btn" aria-label="More" data-i18n-aria="a11y.more"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M6 10.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm6 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm6 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z"/></svg></button>
     </div>
     <div id="nav-contact-mode" class="nav-mode-chat hidden">
@@ -124,6 +125,7 @@
         <p class="muted" data-i18n="connect.myContacts.sub">Everyone you've added. Tap a contact to chat or call.</p>
         <div id="contacts-list" class="roster-list"></div>
         <p id="contacts-empty" class="muted fine hidden" data-i18n="connect.empty">No contacts yet.</p>
+        <button type="button" id="new-group-btn" class="btn-secondary" data-i18n="group.new">New group</button>
       </div>
 
       <div class="connect-card glass-content" id="add-contact-card">
@@ -132,6 +134,10 @@
         <input id="add-contact-name" type="text" placeholder="Name (optional)" data-i18n-ph="connect.name.placeholder" maxlength="40" />
         <input id="add-contact-value" type="text" placeholder="Contact's phone or email" data-i18n-ph="connect.id.placeholder" maxlength="80" />
         <button type="button" id="add-contact-btn" class="btn-primary" data-i18n="connect.addButton">Add contact</button>
+        <div class="row-actions">
+          <button type="button" id="show-my-qr-btn" class="btn-secondary" data-i18n="connect.qr.mine">My QR code</button>
+          <button type="button" id="scan-qr-btn" class="btn-secondary" data-i18n="connect.qr.scan">Scan QR code</button>
+        </div>
       </div>
 
       <div class="connect-card glass-content" id="online-roster-card">
@@ -193,6 +199,8 @@
       </div>
       <div class="settings-group glass-content">
         <label class="settings-row"><span data-i18n="settings.notifications">Notifications for messages and calls</span><input id="settings-notifications" type="checkbox" class="switch" /></label>
+        <label class="settings-row"><span data-i18n="settings.linkPreviews">Link previews</span><input id="settings-link-previews" type="checkbox" class="switch" /></label>
+        <p class="fine muted" style="padding:0 4px 6px;" data-i18n="settings.linkPreviews.disclaimer">To show a preview, the signaling server briefly fetches the link on your behalf — it sees which link, not the message.</p>
         <label class="settings-row"><span data-i18n="settings.sounds">Sound and vibration</span><input id="settings-sounds" type="checkbox" class="switch" /></label>
         <label class="settings-row"><span data-i18n="settings.ringtone">Ringtone</span>
           <select id="settings-ringtone" class="settings-select">
@@ -281,9 +289,19 @@
       </div>
 
       <form id="chat-form" class="chat-input-bar glass">
+        <button type="button" id="chat-attach-btn" class="icon-btn" aria-label="Attach" data-i18n-aria="chat.attach"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M16.5 6v10.5a4 4 0 1 1-8 0V5a2.5 2.5 0 0 1 5 0v10.5a1 1 0 1 1-2 0V6H10v9.5a2.5 2.5 0 0 0 5 0V5a4 4 0 1 0-8 0v11.5a5.5 5.5 0 0 0 11 0V6h-1.5z"/></svg></button>
+        <input id="chat-file-input" type="file" accept="image/*,video/*,*/*" style="display:none;" />
         <input id="chat-input" type="text" placeholder="Message" data-i18n-ph="chat.placeholder" autocomplete="off" maxlength="4000" />
         <button type="submit" class="send-btn" aria-label="Send" data-i18n-aria="chat.send"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M3 11.5 21 3l-6 18-4-7.5L3 11.5z"/></svg></button>
+        <button type="button" id="voice-record-btn" class="send-btn hidden" aria-label="Record voice message" data-i18n-aria="chat.voice.record"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-2.08A7 7 0 0 0 19 12h-2z"/></svg></button>
       </form>
+      <div id="voice-recording-bar" class="chat-input-bar glass hidden">
+        <button type="button" id="voice-cancel-btn" class="icon-btn" aria-label="Cancel">✕</button>
+        <span class="voice-recording-dot"></span>
+        <span id="voice-recording-time">0:00</span>
+        <span class="fine muted" data-i18n="chat.voice.recording">Recording…</span>
+        <button type="button" id="voice-send-btn" class="send-btn" aria-label="Send"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M3 11.5 21 3l-6 18-4-7.5L3 11.5z"/></svg></button>
+      </div>
     </section>
 
     <section id="screen-contact" class="screen hidden">
@@ -305,6 +323,14 @@
       <div class="settings-group glass-content" id="contact-info-group">
         <div class="settings-row"><span data-i18n="chat.contact.identifier">Identifier</span><span id="contact-info-id" class="fine muted"></span></div>
         <div class="settings-row"><span data-i18n="chat.contact.notifications">Notifications</span><span id="contact-info-muted" class="fine muted"></span></div>
+        <label class="settings-row"><span data-i18n="chat.disappearing">Disappearing messages</span>
+          <select id="contact-disappearing-select" class="settings-select">
+            <option value="0" data-i18n="chat.disappearing.off">Off</option>
+            <option value="3600000" data-i18n="chat.disappearing.1h">1 hour</option>
+            <option value="86400000" data-i18n="chat.disappearing.1d">1 day</option>
+            <option value="604800000" data-i18n="chat.disappearing.1w">1 week</option>
+          </select>
+        </label>
       </div>
       <div class="settings-group glass-content">
         <button type="button" id="contact-rename-btn" class="settings-row link-row"><span data-i18n="chat.contact.rename">Rename</span><span class="chevron">›</span></button>
@@ -312,6 +338,7 @@
         <button type="button" id="contact-archive-btn" class="settings-row link-row"><span data-i18n="chat.contact.archive">Archive</span><span class="chevron">›</span></button>
         <button type="button" id="contact-block-btn" class="settings-row link-row"><span data-i18n="chat.contact.block">Block</span><span class="chevron">›</span></button>
         <button type="button" id="contact-export-btn" class="settings-row link-row"><span data-i18n="chat.contact.export">Export chat</span><span class="chevron">›</span></button>
+        <button type="button" id="contact-forward-btn" class="settings-row link-row"><span data-i18n="chat.contact.forwardContact">Forward contact</span><span class="chevron">›</span></button>
       </div>
       <div class="settings-group glass-content">
         <button type="button" id="contact-clear-btn" class="settings-row destructive" data-i18n="chat.contact.clear">Clear history</button>
@@ -346,6 +373,8 @@
 
   <div id="call-screen" class="hidden">
     <div class="call-bg"></div>
+    <video id="call-remote-video" class="hidden" autoplay playsinline></video>
+    <video id="call-local-video" class="hidden" autoplay playsinline muted></video>
     <div class="call-content">
       <div id="call-peer-avatar" class="call-avatar"></div>
       <h1 id="call-peer-name"></h1>
@@ -359,6 +388,14 @@
     <button type="button" id="call-mute-btn" class="call-btn">
       <svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-2.1A7 7 0 0 0 19 12h-2z"/></svg>
       <span id="call-mute-label" data-i18n="call.mute">Microphone</span>
+    </button>
+    <button type="button" id="call-video-btn" class="call-btn">
+      <svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/></svg>
+      <span data-i18n="call.video">Video</span>
+    </button>
+    <button type="button" id="call-switch-camera-btn" class="call-btn hidden">
+      <svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M20 5h-3.17L15 3H9L7.17 5H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm-8 13a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm7-8-2 2 2 2v-1.5c1.66 0 3 1.34 3 3S18.66 18 17 18v1.5a4.5 4.5 0 0 0 0-9V9z"/></svg>
+      <span data-i18n="call.switchCamera">Flip</span>
     </button>
     <button type="button" id="call-hangup-btn" class="call-btn hangup">
       <svg viewBox="0 0 24 24" width="26" height="26">
@@ -429,6 +466,59 @@
   </div>
 </div>
 
+<div id="my-qr-sheet" class="sheet hidden">
+  <div class="sheet-backdrop"></div>
+  <div class="sheet-panel glass-content">
+    <div class="sheet-handle"></div>
+    <h2 data-i18n="connect.qr.mine">My QR code</h2>
+    <p class="fine muted" data-i18n="connect.qr.mine.hint">Have the other person scan this with "Scan QR code" — they'll be added instantly, no typing.</p>
+    <div class="qr-canvas-wrap"><canvas id="my-qr-canvas" width="240" height="240"></canvas></div>
+    <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="my-qr-sheet" data-i18n="sys.close">Close</button>
+  </div>
+</div>
+
+<div id="scan-qr-sheet" class="sheet hidden">
+  <div class="sheet-backdrop"></div>
+  <div class="sheet-panel glass-content">
+    <div class="sheet-handle"></div>
+    <h2 data-i18n="connect.qr.scan">Scan QR code</h2>
+    <div class="qr-scan-wrap">
+      <video id="qr-scan-video" playsinline muted></video>
+      <div class="qr-scan-frame"></div>
+    </div>
+    <p id="qr-scan-status" class="fine muted" data-i18n="connect.qr.scan.hint">Point the camera at the other person's QR code.</p>
+    <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="scan-qr-sheet" data-i18n="sys.cancel">Cancel</button>
+  </div>
+</div>
+
+<div id="new-group-sheet" class="sheet hidden">
+  <div class="sheet-backdrop"></div>
+  <div class="sheet-panel glass-content">
+    <div class="sheet-handle"></div>
+    <h2 data-i18n="group.new">New group</h2>
+    <input id="new-group-name" type="text" maxlength="60" placeholder="Group name" data-i18n-ph="group.name.placeholder" />
+    <p class="fine muted" data-i18n="group.pickMembers">Pick up to 9 people (10 including you).</p>
+    <div id="new-group-members" class="forward-list"></div>
+    <button type="button" id="new-group-create-btn" class="btn-primary" data-i18n="group.create">Create group</button>
+    <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="new-group-sheet" data-i18n="sys.cancel">Cancel</button>
+  </div>
+</div>
+
+<div id="group-info-sheet" class="sheet hidden">
+  <div class="sheet-backdrop"></div>
+  <div class="sheet-panel glass-content">
+    <div class="sheet-handle"></div>
+    <h2 data-i18n="group.info">Group info</h2>
+    <input id="group-info-name" type="text" maxlength="60" />
+    <button type="button" id="group-info-rename-btn" class="btn-secondary" data-i18n="group.rename">Save name</button>
+    <p class="fine muted" data-i18n="group.members">Members</p>
+    <div id="group-info-members" class="forward-list"></div>
+    <button type="button" id="group-info-add-btn" class="btn-secondary" data-i18n="group.addMember">Add member</button>
+    <button type="button" id="group-info-leave-btn" class="settings-row destructive" data-i18n="group.leave">Leave group</button>
+    <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="group-info-sheet" data-i18n="sys.close">Close</button>
+  </div>
+</div>
+
 <div id="diagnostics-sheet" class="sheet hidden">
   <div class="sheet-backdrop"></div>
   <div class="sheet-panel glass-content">
@@ -494,6 +584,9 @@
 
 <script src="js/languages.js"></script>
 <script src="js/i18n.js"></script>
+<script src="js/vendor/qrcode-generator.js"></script>
+<script src="js/vendor/qrcode-generator-utf8.js"></script>
+<script src="js/vendor/jsQR.js"></script>
 <script src="js/signaling-codec.js"></script>
 <script src="js/crypto-helper.js"></script>
 <script src="js/signaling-client.js"></script>

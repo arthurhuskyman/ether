@@ -50,7 +50,7 @@ async function connectPair(idA, idB) {
   await a.acceptAnswer(answer);
 
   const deadline = Date.now() + 8000;
-  while ((a.status !== "connected" || b.status !== "connected") && Date.now() < deadline) await sleep(50);
+  while ((a.status !== "connected" || b.status !== "connected" || !a.dc || !b.dc) && Date.now() < deadline) await sleep(50);
   return { a, b };
 }
 

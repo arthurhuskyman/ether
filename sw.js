@@ -1,4 +1,4 @@
-const CACHE_VERSION = "ether-shell-v24";
+const CACHE_VERSION = "ether-shell-v33";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -11,6 +11,9 @@ const SHELL_FILES = [
   "./js/signaling-codec.js",
   "./js/signaling-client.js",
   "./js/crypto-helper.js",
+  "./js/vendor/qrcode-generator.js",
+  "./js/vendor/qrcode-generator-utf8.js",
+  "./js/vendor/jsQR.js",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/apple-touch-icon.png",

@@ -98,6 +98,8 @@ class PeerLink extends EventTarget {
     this.localAudioTrack = null;
     this.localStream = null;
     this._audioAdded = false;
+    this._videoAdded = false;
+    this.localVideoTrack = null;
     this._muted = false;
     this._muteRecheckTimer = null;
     this._pendingNegotiation = false;
@@ -285,6 +287,27 @@ class PeerLink extends EventTarget {
     return false;
   }
 
+  // Отправка файла кусками поверх обычного send() — с учётом bufferedAmount,
+  // чтобы не захлебнуть канал на больших вложениях. Работает только пока
+  // связь P2P жива (как и звонки — без офлайн-очереди через сервер: файл
+  // мог бы быть мегабайты, а серверный почтовый ящик на это не рассчитан).
+  async sendFile(meta, base64Chunks, onProgress) {
+    if (!this.dc || this.dc.readyState !== "open") return false;
+    const metaPayload = { kind: "file-meta", id: meta.id, name: meta.name, mime: meta.mime, size: meta.size, totalChunks: base64Chunks.length };
+    if (meta.duration) metaPayload.duration = meta.duration;
+    if (!this.send(metaPayload)) return false;
+    const BUFFER_THRESHOLD = 262144; // 256KB — не даём буферу канала расти бесконтрольно
+    for (let i = 0; i < base64Chunks.length; i++) {
+      while (this.dc && this.dc.readyState === "open" && this.dc.bufferedAmount > BUFFER_THRESHOLD) {
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      if (!this.dc || this.dc.readyState !== "open") return false;
+      if (!this.send({ kind: "file-chunk", id: meta.id, index: i, data: base64Chunks[i] })) return false;
+      if (onProgress) onProgress(i + 1, base64Chunks.length);
+    }
+    return this.send({ kind: "file-done", id: meta.id });
+  }
+
   async createInitialOffer(roomTag) {
     this._setStatus("connecting");
     try {
@@ -435,16 +458,68 @@ class PeerLink extends EventTarget {
     if (this.localAudioTrack) this.localAudioTrack.enabled = !this._muted;
   }
 
-  async startCall() {
-    if (this._closed) throw new Error("link closed");
-    await this._addAudioTrackOnce();
-    this._setStatus("in-call");
-    this.send({ kind: "call-state", state: "ringing" });
+  async _ensureLocalVideo(facingMode) {
+    if (this.localVideoTrack) return;
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facingMode || "user" } });
+    this.localVideoTrack = stream.getVideoTracks()[0];
+    if (!this.localStream) this.localStream = new MediaStream();
+    this.localStream.addTrack(this.localVideoTrack);
+  }
+  // Добавляет видео, если его ещё не было — работает и при начале звонка
+  // сразу с видео, и при включении камеры посреди уже идущего аудиозвонка
+  // (второй случай запускает пересогласование через уже существующий
+  // _negotiate() — тот же механизм, что чинил glare для аудио).
+  async enableVideo(facingMode) {
+    if (this._closed) return false;
+    if (this._videoAdded) {
+      if (this.localVideoTrack) this.localVideoTrack.enabled = true;
+      return true;
+    }
+    try {
+      await this._ensureLocalVideo(facingMode);
+      this.pc.addTrack(this.localVideoTrack, this.localStream);
+      this._videoAdded = true;
+      return true;
+    } catch (e) {
+      this._log("warn", "[webrtc] enableVideo failed:", String(e));
+      return false;
+    }
+  }
+  disableVideo() {
+    if (this.localVideoTrack) this.localVideoTrack.enabled = false;
+  }
+  async switchCamera() {
+    if (!this.localVideoTrack) return;
+    const cur = this.localVideoTrack.getSettings ? this.localVideoTrack.getSettings().facingMode : null;
+    const next = cur === "environment" ? "user" : "environment";
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: next } });
+      const newTrack = stream.getVideoTracks()[0];
+      const sender = this.pc.getSenders().find((s) => s.track && s.track.kind === "video");
+      if (sender) await sender.replaceTrack(newTrack);
+      try { this.localVideoTrack.stop(); } catch (e) {}
+      this.localVideoTrack = newTrack;
+      if (this.localStream) {
+        this.localStream.getVideoTracks().forEach((t) => this.localStream.removeTrack(t));
+        this.localStream.addTrack(newTrack);
+      }
+    } catch (e) {
+      this._log("warn", "[webrtc] switchCamera failed:", String(e));
+    }
   }
 
-  async answerCall() {
+  async startCall(withVideo) {
     if (this._closed) throw new Error("link closed");
     await this._addAudioTrackOnce();
+    if (withVideo) await this.enableVideo();
+    this._setStatus("in-call");
+    this.send({ kind: "call-state", state: "ringing", video: !!withVideo });
+  }
+
+  async answerCall(withVideo) {
+    if (this._closed) throw new Error("link closed");
+    await this._addAudioTrackOnce();
+    if (withVideo) await this.enableVideo();
     this._setStatus("in-call");
     this.send({ kind: "call-state", state: "accepted" });
   }
@@ -490,8 +565,13 @@ class PeerLink extends EventTarget {
       this.localAudioTrack.stop();
       this.localAudioTrack = null;
     }
+    if (this.localVideoTrack) {
+      try { this.localVideoTrack.stop(); } catch (e) {}
+      this.localVideoTrack = null;
+    }
     this.localStream = null;
     this._audioAdded = false;
+    this._videoAdded = false;
     this._muted = false;
     if (this._muteRecheckTimer) { clearInterval(this._muteRecheckTimer); this._muteRecheckTimer = null; }
     this._setStatus(this.dc && this.dc.readyState === "open" ? "connected" : "disconnected");
@@ -514,6 +594,8 @@ class PeerLink extends EventTarget {
       }
       this.localAudioTrack = null;
       this._audioAdded = false;
+      this._videoAdded = false;
+      this.localVideoTrack = null;
       if (this.dc) this.dc.close();
       this.pc.close();
     } catch (e) {}

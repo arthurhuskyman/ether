@@ -17,6 +17,9 @@ require("dotenv").config();
 // Push отправляется ТОЛЬКО для kind === "chat" и "call".
 
 const http = require("http");
+const https = require("https");
+const dns = require("dns");
+const net = require("net");
 const fs = require("fs");
 const path = require("path");
 const { WebSocketServer, WebSocket } = require("ws");
@@ -131,6 +134,158 @@ async function getIceServers() {
   return servers;
 }
 
+// ---------- Превью ссылок ----------
+// Браузер не может сам скачать чужую HTML-страницу для превью (CORS
+// блокирует это почти везде) — поэтому, как и у всех остальных
+// мессенджеров, это делает сервер. Сервер при этом узнаёт, какую именно
+// ссылку смотрит клиент (см. README) — контент сообщений это не
+// раскрывает, но сама ссылка серверу видна.
+const LINK_PREVIEW_CACHE_MS = 60 * 60 * 1000; // час — большинство ссылок не меняют title/картинку так часто
+const LINK_PREVIEW_MAX_BYTES = 512 * 1024; // не скачиваем больше полумегабайта HTML
+const LINK_PREVIEW_TIMEOUT_MS = 6000;
+const LINK_PREVIEW_RATE_LIMIT_PER_MIN = 30;
+const linkPreviewCache = new Map(); // url -> { at, data }
+const linkPreviewHits = new Map();
+
+function linkPreviewRateLimitOk(ip) {
+  const now = Date.now();
+  const w = linkPreviewHits.get(ip) || { start: now, n: 0 };
+  if (now - w.start > 60_000) { w.start = now; w.n = 0; }
+  w.n++;
+  linkPreviewHits.set(ip, w);
+  if (linkPreviewHits.size > 5000) {
+    for (const [k, v] of linkPreviewHits) if (now - v.start > 120_000) linkPreviewHits.delete(k);
+  }
+  return w.n <= LINK_PREVIEW_RATE_LIMIT_PER_MIN;
+}
+
+function isPrivateIp(ip) {
+  if (net.isIPv4(ip)) {
+    const p = ip.split(".").map(Number);
+    if (p[0] === 10) return true;
+    if (p[0] === 127) return true;
+    if (p[0] === 169 && p[1] === 254) return true;
+    if (p[0] === 172 && p[1] >= 16 && p[1] <= 31) return true;
+    if (p[0] === 192 && p[1] === 168) return true;
+    if (p[0] === 0) return true;
+    return false;
+  }
+  if (net.isIPv6(ip)) {
+    const low = ip.toLowerCase();
+    if (low === "::1") return true;
+    if (low.startsWith("fe80:") || low.startsWith("fc") || low.startsWith("fd")) return true;
+    if (low.startsWith("::ffff:")) return isPrivateIp(low.slice(7)); // IPv4-mapped
+    return false;
+  }
+  return true; // не распознали — на всякий случай считаем небезопасным
+}
+
+function resolveHostSafe(hostname) {
+  return new Promise((resolve, reject) => {
+    dns.lookup(hostname, { all: true }, (err, addresses) => {
+      if (err) return reject(err);
+      if (!addresses || addresses.length === 0) return reject(new Error("no address"));
+      for (const a of addresses) {
+        if (isPrivateIp(a.address)) return reject(new Error("private address blocked"));
+      }
+      resolve(addresses[0].address);
+    });
+  });
+}
+
+async function fetchUrlSafe(targetUrl, redirectsLeft) {
+  const u = new URL(targetUrl);
+  if (u.protocol !== "http:" && u.protocol !== "https:") throw new Error("scheme not allowed");
+  await resolveHostSafe(u.hostname); // бросит исключение, если хост резолвится в приватный адрес (SSRF-защита)
+
+  const mod = u.protocol === "https:" ? https : http;
+  return new Promise((resolve, reject) => {
+    const req = mod.get(u, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; EtherLinkPreview/1.0; +https://github.com/)",
+        "Accept": "text/html,application/xhtml+xml",
+      },
+      timeout: LINK_PREVIEW_TIMEOUT_MS,
+    }, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && redirectsLeft > 0) {
+        res.resume();
+        const next = new URL(res.headers.location, u).toString();
+        fetchUrlSafe(next, redirectsLeft - 1).then(resolve, reject);
+        return;
+      }
+      if (res.statusCode !== 200) { res.resume(); reject(new Error("HTTP " + res.statusCode)); return; }
+      const ctype = String(res.headers["content-type"] || "");
+      if (ctype && !ctype.includes("html")) { res.resume(); reject(new Error("not html")); return; }
+      let total = 0;
+      const chunks = [];
+      res.on("data", (chunk) => {
+        total += chunk.length;
+        if (total > LINK_PREVIEW_MAX_BYTES) { req.destroy(); reject(new Error("too large")); return; }
+        chunks.push(chunk);
+      });
+      res.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+      res.on("error", reject);
+    });
+    req.on("timeout", () => req.destroy(new Error("timeout")));
+    req.on("error", reject);
+  });
+}
+
+function decodeHtmlEntities(s) {
+  return s
+    .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&apos;/g, "'");
+}
+
+function extractMeta(html, targetUrl) {
+  const metaTag = (attrPattern) => {
+    const re = new RegExp(`<meta[^>]+${attrPattern}[^>]+content=["']([^"']*)["']`, "i");
+    const re2 = new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]+${attrPattern}`, "i");
+    const m = html.match(re) || html.match(re2);
+    return m ? decodeHtmlEntities(m[1]).trim() : "";
+  };
+  const titleMatch = html.match(/<title[^>]*>([^<]*)<\/title>/i);
+  const ogTitle = metaTag('property=["\']og:title["\']');
+  const ogDesc = metaTag('property=["\']og:description["\']');
+  const ogImage = metaTag('property=["\']og:image["\']');
+  const ogSite = metaTag('property=["\']og:site_name["\']');
+  const plainDesc = metaTag('name=["\']description["\']');
+
+  const title = ogTitle || (titleMatch ? decodeHtmlEntities(titleMatch[1]).trim() : "") || "";
+  const description = ogDesc || plainDesc || "";
+  let image = ogImage || "";
+  if (image) {
+    try { image = new URL(image, targetUrl).toString(); } catch (e) { image = ""; }
+    if (!/^https?:\/\//i.test(image)) image = "";
+  }
+  let siteName = ogSite || "";
+  if (!siteName) { try { siteName = new URL(targetUrl).hostname.replace(/^www\./, ""); } catch (e) {} }
+
+  if (!title && !description && !image) return null;
+  return {
+    url: targetUrl,
+    title: title.slice(0, 200),
+    description: description.slice(0, 300),
+    image: image.slice(0, 2000),
+    siteName: siteName.slice(0, 100),
+  };
+}
+
+async function getLinkPreview(targetUrl) {
+  const now = Date.now();
+  const cached = linkPreviewCache.get(targetUrl);
+  if (cached && now - cached.at < LINK_PREVIEW_CACHE_MS) return cached.data;
+  const html = await fetchUrlSafe(targetUrl, 3);
+  const data = extractMeta(html, targetUrl);
+  linkPreviewCache.set(targetUrl, { at: now, data });
+  if (linkPreviewCache.size > 2000) {
+    // грубая очистка — держим кеш в разумных пределах
+    const cutoff = now - LINK_PREVIEW_CACHE_MS;
+    for (const [k, v] of linkPreviewCache) if (v.at < cutoff) linkPreviewCache.delete(k);
+  }
+  return data;
+}
+
 // ---------- HTTP-сервер (для /ice и как база для WS) ----------
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "*";
 if (ALLOWED_ORIGIN === "*") {
@@ -161,6 +316,35 @@ const httpServer = http.createServer(async (req, res) => {
     } catch (e) {
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "ice unavailable" }));
+    }
+    return;
+  }
+
+  if (req.method === "GET" && (url === "/link-preview" || url.startsWith("/link-preview?"))) {
+    const ip = (req.headers["x-forwarded-for"] || "").toString().split(",")[0].trim()
+      || req.socket.remoteAddress || "unknown";
+    if (!linkPreviewRateLimitOk(ip)) {
+      res.writeHead(429, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "rate limited" }));
+      return;
+    }
+    let target = "";
+    try { target = new URL(req.url, "http://x").searchParams.get("url") || ""; } catch (e) {}
+    if (!target) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "missing url" }));
+      return;
+    }
+    try {
+      const data = await getLinkPreview(target);
+      if (!data) {
+        res.writeHead(204); res.end(); return;
+      }
+      res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "public, max-age=3600" });
+      res.end(JSON.stringify(data));
+    } catch (e) {
+      res.writeHead(204); // тихо ничего не показываем — не хотим шумных ошибок в чате из-за недоступной ссылки
+      res.end();
     }
     return;
   }
