@@ -287,15 +287,31 @@ async function getLinkPreview(targetUrl) {
 }
 
 // ---------- HTTP-сервер (для /ice и как база для WS) ----------
+// ВАЖНО: ALLOWED_ORIGIN и APP_BASE_URL — это НЕ одно и то же, и раньше
+// тут была реальная ошибка: одна и та же переменная использовалась и как
+// значение заголовка Access-Control-Allow-Origin (там браузер ожидает
+// ГОЛЫЙ origin, без пути — "https://example.com"), и как база для поля
+// "navigate" в push-уведомлениях (там нужен путь, если приложение
+// развёрнуто не в корне домена — "https://example.com/ether"). Если
+// приложение живёт по пути (как в этом проекте — GitHub Pages, /ether/),
+// одной переменной на оба назначения не хватает: либо CORS сломается
+// (браузер не примет origin с путём), либо push будет открывать не ту
+// страницу. Поэтому — две отдельные переменные.
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "*";
 if (ALLOWED_ORIGIN === "*") {
   console.warn("[ice] ALLOWED_ORIGIN не задан — /ice отдаёт TURN-credentials любому источнику. " +
     "Перед публичным релизом задайте ALLOWED_ORIGIN=https://ваш-домен в переменных окружения.");
+} else if (/^https?:\/\/[^\/]+\/./.test(ALLOWED_ORIGIN)) {
+  console.warn("[ice] ALLOWED_ORIGIN содержит путь (" + ALLOWED_ORIGIN + ") — для CORS нужен только " +
+    "голый origin, без пути (например https://example.com, а не https://example.com/ether). " +
+    "Браузер будет отклонять запросы. Путь до приложения задаётся отдельно через APP_BASE_URL.");
 }
-// Тот же origin используем для поля "navigate" в декларативных push-уведомлениях
-// (Declarative Web Push требует абсолютный URL — см. ниже). Если ALLOWED_ORIGIN
-// не задан явно, откатываемся на известный адрес деплоя проекта.
-const APP_ORIGIN = (ALLOWED_ORIGIN !== "*" ? ALLOWED_ORIGIN : "https://arthurhuskyman.github.io/ether").replace(/\/+$/, "");
+// Полный адрес приложения (с путём, если он есть) — используется только
+// для поля "navigate"/иконок в push. Если не задан явно, для обратной
+// совместимости пробуем ALLOWED_ORIGIN (сработает, если приложение живёт
+// в корне домена), иначе — известный адрес деплоя проекта.
+const APP_BASE_URL = (process.env.APP_BASE_URL || (ALLOWED_ORIGIN !== "*" ? ALLOWED_ORIGIN : "") || "https://arthurhuskyman.github.io/ether").replace(/\/+$/, "");
+const APP_ORIGIN = APP_BASE_URL;
 const httpServer = http.createServer(async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
   res.setHeader("Vary", "Origin");

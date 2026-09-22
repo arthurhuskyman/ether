@@ -339,17 +339,13 @@ input.switch:checked::before { transform: translateX(18px); }
 .settings-group .settings-row:last-child { border-bottom: none; }
 .settings-row.column { flex-direction: column; align-items: stretch; gap: 10px; }
 .settings-row input[type="text"] { border: none; background: transparent; text-align: end; font-size: 16px; color: var(--accent); outline: none; max-width: 60%; }
-.settings-row input[type="range"] { width: 100%; accent-color: var(--accent); }
+.settings-row input[type="range"] { width: 100%; accent-color: var(--accent); height: 28px; }
 #settings-signaling-url { width: 100%; text-align: start; max-width: 100%; background: var(--input-bg); border: 1px solid var(--input-border); border-radius: var(--radius-s); padding: 10px 12px; font-size: 14px; color: var(--ink); }
 .settings-btn-full { width: 100%; margin-top: 2px; }
 .link-row { color: var(--accent); font-weight: 500; }
 .chevron { color: var(--ink-faint); }
 .destructive { color: var(--red); font-weight: 500; justify-content: flex-start; }
 
-#settings-language, #settings-language option {
-  font-family: "SF Mono", "Menlo", "Consolas", "Courier New", monospace;
-  font-size: 13px;
-}
 .settings-select {
   background: var(--input-bg);
   border: 1px solid var(--input-border);
@@ -523,7 +519,7 @@ html[dir="rtl"] .chevron {
   box-sizing: border-box;
   padding: 10px 12px;
   flex-shrink: 0;
-  border-radius: 0;
+  border-radius: var(--radius-l) var(--radius-l) 0 0;
 }
 #chat-input {
   flex: 1 1 auto;
@@ -566,10 +562,10 @@ html[dir="rtl"] .chevron {
   display: flex; align-items: center; justify-content: center;
 }
 
-#tab-bar { display: flex; padding: 8px 4px calc(env(safe-area-inset-bottom) + 8px); border-radius: 0; border-bottom: none; z-index: 20; }
-.tab-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0 2px; border: none; background: none; color: var(--ink-faint); cursor: pointer; font-size: 10px; font-weight: 500; min-width: 0; position: relative; }
+#tab-bar { display: flex; padding: 4px 4px calc(env(safe-area-inset-bottom) + 4px); border-radius: 0; border-bottom: none; z-index: 20; flex-shrink: 0; }
+.tab-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 0 2px; border: none; background: none; color: var(--ink-faint); cursor: pointer; font-size: 10px; font-weight: 500; min-width: 0; position: relative; }
 .tab-badge {
-  position: absolute; top: 1px; left: 50%; margin-left: 4px;
+  position: absolute; top: 1px; inset-inline-start: 50%; margin-inline-start: 4px;
   background: var(--accent); color: #fff; font-size: 10px; font-weight: 700; line-height: 1;
   min-width: 16px; height: 16px; padding: 0 4px; border-radius: 9px;
   display: flex; align-items: center; justify-content: center;
@@ -619,6 +615,7 @@ html[dir="rtl"] .chevron {
 .call-volume input[type="range"] {
   flex: 1; accent-color: #fff;
   background: transparent;
+  height: 28px;
 }
 
 .call-controls { display: flex; gap: 30px; align-items: flex-start; justify-content: center; position: relative; z-index: 2; }

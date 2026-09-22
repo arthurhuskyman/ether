@@ -284,6 +284,7 @@ const pendingRemoteStreams = new Map();
 // обработчик scroll) — не сразу при открытии чата.
 const unreadDividerFor = new Map();
 let __lastRenderedChatId = null;
+let speakerOn = false; // по умолчанию — внутренний динамик (наушник); объявлена здесь, с остальными глобальными переменными, а не рядом с первым использованием (openCallScreen ссылался на неё раньше объявления — сейчас не стреляет из-за порядка выполнения скрипта, но это хрупко)
 let callTimerInterval = null;
 let globalAudioCtx = null;
 let ringtoneTimer = null;
@@ -886,6 +887,7 @@ function startApp() {
   safeCall(wireNavTitleTaps, "wireNavTitleTaps");
   safeCall(wireKeyboardFix, "wireKeyboardFix");
   safeCall(wireNetworkListeners, "wireNetworkListeners");
+  safeCall(wireViewportRecalc, "wireViewportRecalc");
   safeCall(applyDebugTabVisibility, "applyDebugTabVisibility");
   safeCall(initAudioWarmup, "initAudioWarmup");
   safeCall(setupLanguageSelector, "setupLanguageSelector");
@@ -961,15 +963,15 @@ function setupLanguageSelector() {
   const langs = I18N.languages.slice().sort((a, b) => a.english.localeCompare(b.english, "en"));
   // Всегда показываем обе части (раньше пара пропадала для языков, где
   // native === english — English, Hausa, Filipino, Cebuano — совпадение
-  // ошибочно трактовалось как "нечего добавлять"). Выравниваем точки по
-  // одной колонке — дополняем английское название пробелами до самого
-  // длинного среди всех 72 языков; для реального визуального выравнивания
-  // нужен моноширинный шрифт (задан в CSS для #settings-language).
-  const maxLen = Math.max(...langs.map((l) => l.english.length));
+  // ошибочно трактовалось как "нечего добавлять"). Без искусственного
+  // выравнивания через пробелы: на мобильных <select> рендерится через
+  // нативный пикер ОС, который игнорирует шрифт и стили страницы —
+  // padding только добавлял бы лишние видимые пробелы, не выравнивая
+  // ничего на практике.
   for (const lang of langs) {
     const opt = document.createElement("option");
     opt.value = lang.code;
-    opt.textContent = lang.english.padEnd(maxLen, "\u00A0") + " · " + lang.native;
+    opt.textContent = lang.english + " · " + lang.native;
     sel.appendChild(opt);
   }
   sel.value = I18N.current;
@@ -1010,6 +1012,27 @@ function maybeOfferSystemLanguage() {
   });
 }
 
+// iOS Safari/PWA в standalone-режиме иногда "замораживает" значения
+// env(safe-area-inset-*) и 100dvh на момент сворачивания приложения —
+// при повторном открытии эти значения могут не пересчитаться, из-за
+// чего футер визуально "плывёт" и растёт с каждым новым открытием.
+// Обходной приём: на возврате в приложение принудительно вызываем
+// перерасчёт layout, ненадолго переключая высоту #app-shell.
+function forceViewportRecalc() {
+  try {
+    const shell = document.getElementById("app-shell");
+    if (!shell) return;
+    shell.style.height = "100vh";
+    // eslint-disable-next-line no-unused-expressions
+    shell.offsetHeight; // принудительный reflow между сбросом и восстановлением
+    shell.style.height = "";
+  } catch (e) {}
+}
+function wireViewportRecalc() {
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) forceViewportRecalc(); });
+  window.addEventListener("pageshow", () => forceViewportRecalc());
+  window.addEventListener("focus", () => forceViewportRecalc());
+}
 function wireNetworkListeners() {
   window.addEventListener("online", () => etherLog("info", "[net] online"));
   window.addEventListener("offline", () => etherLog("warn", "[net] offline"));
@@ -1156,6 +1179,11 @@ function wireNotificationPermission() {
       } catch (e) {}
       Store.pushSubscriptionJson = "";
       if (signaling && signaling.connected) signaling.sendPushUnsubscribe();
+      // Пользователь осознанно выключил уведомления через настройки — баннер
+      // "включите уведомления" не должен тут же всплыть снова с призывом
+      // включить то, что он только что сам выключил.
+      Store.notifBannerDismissed = true;
+      updateNotifBanner();
       toast(T("toast.notificationsOff"));
     }
   });
@@ -1279,9 +1307,9 @@ function wireTabBar() {
 }
 function closeChatSafely() {
   const prevId = state.chatId;
+  try { saveCurrentDraft(); } catch (e) {} // ДО обнуления chatId — иначе saveCurrentDraft() сразу выходит (проверяет state.chatId) и черновик теряется
   state.chatId = null;
   try { if (prevId) sendTypingStop(prevId); } catch (e) {}
-  try { saveCurrentDraft(); } catch (e) {}
   try { cancelEditing(); } catch (e) {}
   try { cancelReply(); } catch (e) {}
   try { closeChatSearch(); } catch (e) {}
@@ -3063,12 +3091,19 @@ function handleRelayPayload(viaId, payload) {
 // контактов — полезно, когда цель не видна через сигнальный сервер
 // (свой/другой сервер, временно офлайн на сервере), но у нас есть общий
 // знакомый, который сейчас с ней на связи.
+const relayAttemptCooldown = new Map(); // targetId -> когда в последний раз безуспешно пробовали (ms)
+const RELAY_COOLDOWN_MS = 15000;
 async function attemptConnectViaRelay(targetId) {
   const existing = mesh.get(targetId);
   if (existing && existing.status !== "disconnected") return;
   if (_connectInFlight.has(targetId)) return;
+  // renderChatThreadInner дёргает эту функцию очень часто (на каждый presence/
+  // typing/link-status), а если релеев пока нет — смысла пересканировать
+  // mesh.links на каждый вызов нет. Ограничиваем частоту попыток.
+  const lastTry = relayAttemptCooldown.get(targetId);
+  if (lastTry && Date.now() - lastTry < RELAY_COOLDOWN_MS) return;
   const relays = Array.from(mesh.links.entries()).filter(([rid, l]) => rid !== targetId && l.status === "connected");
-  if (relays.length === 0) return;
+  if (relays.length === 0) { relayAttemptCooldown.set(targetId, Date.now()); return; }
   _connectInFlight.add(targetId);
   try {
     const link = mesh.createOutgoingLink(targetId);
@@ -3611,6 +3646,8 @@ function deleteContact(id) {
   persistOutbox();
   delete state.lastSeen[id]; persistLastSeen();
   delete state.drafts[id]; persistDrafts();
+  unreadDividerFor.delete(id);
+  relayAttemptCooldown.delete(id);
   if (state.activeContactContext === id) state.activeContactContext = null;
   const audioEl = document.getElementById("remote-audio-" + id); if (audioEl) audioEl.remove();
   state.contacts.delete(id);
@@ -3846,7 +3883,6 @@ function setCallPhaseActive() {
   }
 }
 
-let speakerOn = false; // по умолчанию — внутренний динамик (наушник), как просили
 async function findAudioOutputDevice(pattern) {
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
@@ -4610,13 +4646,21 @@ function wireChatScreen() {
     const input = $("#chat-input"); if (!input) return;
     const text = input.value.trim();
     if (!text || !state.chatId) return;
-    if (state.editingMessageId) { commitEdit(state.chatId, state.editingMessageId, text); cancelEditing(); }
-    else {
-      const cc = state.contacts.get(state.chatId);
-      if (isGroup(cc)) sendGroupMessage(state.chatId, text, state.replyTo);
-      else sendChatMessage(state.chatId, text, state.replyTo);
-      cancelReply();
+    if (state.editingMessageId) {
+      commitEdit(state.chatId, state.editingMessageId, text);
+      cancelEditing();
+      // Черновик (если был) всё это время не трогался — восстанавливаем
+      // его в поле, а не стираем: пользователь редактировал ЧУЖОЕ
+      // сообщение, а не своё недописанное.
+      const savedDraft = state.drafts[state.chatId];
+      input.value = savedDraft || "";
+      updateSendVsMic();
+      return;
     }
+    const cc = state.contacts.get(state.chatId);
+    if (isGroup(cc)) sendGroupMessage(state.chatId, text, state.replyTo);
+    else sendChatMessage(state.chatId, text, state.replyTo);
+    cancelReply();
     input.value = "";
     delete state.drafts[state.chatId];
     persistDrafts();
@@ -4644,6 +4688,7 @@ function wireChatScreen() {
     input.addEventListener("input", () => {
       updateSendVsMic();
       if (!state.chatId) return;
+      if (state.editingMessageId) return; // не затираем черновик текстом редактируемого сообщения
       const v = input.value.trim();
       if (v) state.drafts[state.chatId] = v; else delete state.drafts[state.chatId];
       persistDrafts();

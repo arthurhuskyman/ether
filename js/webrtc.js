@@ -385,6 +385,13 @@ class PeerLink extends EventTarget {
       if (iceRestart) await waitForIceGathering(this.pc);
       const ok = this.send({ kind: "sdp", sdpType: "offer", sdp: this.pc.localDescription.sdp });
       if (!ok && !this._closed) {
+        // Критично: setLocalDescription(offer) уже перевёл signalingState в
+        // "have-local-offer". Без отката это состояние никогда не вернётся
+        // в "stable" само — следующий _negotiate() будет видеть "не время
+        // договариваться" и вечно перезапускать retry-таймер (реальный
+        // бесконечный цикл, не гипотетический). Откатываем локальный offer,
+        // чтобы повторная попытка стартовала с чистого stable-состояния.
+        try { await this.pc.setLocalDescription({ type: "rollback" }); } catch (e) {}
         this._renegotiationRetryTimer = setTimeout(() => {
           this._renegotiationRetryTimer = null;
           this._pendingNegotiation = false;
@@ -596,6 +603,8 @@ class PeerLink extends EventTarget {
       this._audioAdded = false;
       this._videoAdded = false;
       this.localVideoTrack = null;
+      this._negotiationQueuedIceRestart = false;
+      if (this._renegotiationRetryTimer) { clearTimeout(this._renegotiationRetryTimer); this._renegotiationRetryTimer = null; }
       if (this.dc) this.dc.close();
       this.pc.close();
     } catch (e) {}

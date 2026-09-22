@@ -294,6 +294,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Help",
+    "settings.pin.disclaimer": "The PIN only locks the screen from a casual glance — it does not encrypt what's stored on this device.",
   };
 
   // ============================================================
@@ -592,6 +594,8 @@
     "help.privacy.body": "Сообщения защищены сквозным шифрованием — прочитать их могут только вы и собеседник, не сервер. Сервер лишь помогает двум устройствам найти друг друга и ненадолго придерживает зашифрованный конверт, если получатель офлайн. В настройках можно включить PIN-код, чтобы блокировать приложение, пока им не пользуются — это только скрывает экран от случайного взгляда, а не добавляет дополнительное шифрование к уже сохранённым на устройстве данным.",
     "help.settingsHelp.title": "Настройки",
     "help.settingsHelp.body": "В настройках можно изменить отображаемое имя, язык интерфейса и оформление (светлое, тёмное или автоматическое). Также можно включить или выключить звуки, уведомления и превью ссылок, а ещё экспортировать или импортировать резервную копию контактов и сообщений. Продвинутые инструменты диагностики скрыты по умолчанию — нажмите 5 раз на заголовок «Настройки» вверху этого экрана, чтобы их открыть.",
+    "settings.help": "Справка",
+    "settings.pin.disclaimer": "PIN только блокирует экран от случайного взгляда — он не шифрует то, что уже сохранено на устройстве.",
   };
 
   // ============================================================
@@ -890,6 +894,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "帮助",
+    "settings.pin.disclaimer": "PIN 码仅用于防止他人随意查看屏幕——它不会加密设备上已保存的数据。",
   };
 
   // ============================================================
@@ -1188,6 +1194,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "सहायता",
+    "settings.pin.disclaimer": "PIN केवल स्क्रीन को आकस्मिक नज़र से बचाता है — यह डिवाइस पर पहले से सहेजी गई चीज़ों को एन्क्रिप्ट नहीं करता।",
   };
 
   // ============================================================
@@ -1486,6 +1494,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Ayuda",
+    "settings.pin.disclaimer": "El PIN solo bloquea la pantalla frente a una mirada casual — no cifra lo que ya está guardado en este dispositivo.",
   };
 
   // ============================================================
@@ -1784,6 +1794,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "مساعدة",
+    "settings.pin.disclaimer": "رمز PIN يقفل الشاشة فقط من نظرة عابرة — لا يقوم بتشفير ما هو محفوظ بالفعل على هذا الجهاز.",
   };
 
   // ============================================================
@@ -2082,6 +2094,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Ajuda",
+    "settings.pin.disclaimer": "O PIN apenas bloqueia a tela de um olhar casual — não criptografa o que já está salvo neste dispositivo.",
   };
 
   // ============================================================
@@ -2380,6 +2394,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "ヘルプ",
+    "settings.pin.disclaimer": "PINは画面を不用意な視線から守るだけです — この端末にすでに保存されているデータを暗号化するものではありません。",
   };
 
   // ============================================================
@@ -2678,6 +2694,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Hilfe",
+    "settings.pin.disclaimer": "Die PIN sperrt den Bildschirm nur vor beiläufigen Blicken — sie verschlüsselt nicht, was bereits auf diesem Gerät gespeichert ist.",
   };
 
    // ============================================================
@@ -2976,6 +2994,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Aide",
+    "settings.pin.disclaimer": "Le code PIN verrouille uniquement l'écran contre un regard indiscret — il ne chiffre pas ce qui est déjà stocké sur cet appareil.",
   };
 
   // ============================================================
@@ -3274,6 +3294,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Guida",
+    "settings.pin.disclaimer": "Il PIN blocca solo lo schermo da uno sguardo casuale — non cifra ciò che è già salvato su questo dispositivo.",
   };
 
   // ============================================================
@@ -3572,6 +3594,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "도움말",
+    "settings.pin.disclaimer": "PIN은 화면을 무심코 보는 것만 막을 뿐, 이 기기에 이미 저장된 데이터를 암호화하지는 않습니다.",
   };
 
   // ============================================================
@@ -3870,6 +3894,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Yardım",
+    "settings.pin.disclaimer": "PIN yalnızca ekranı rastgele bakışlardan kilitler — bu cihazda zaten kayıtlı olanları şifrelemez.",
   };
   // ============================================================
   // VIETNAMESE — Tiếng Việt
@@ -4167,6 +4193,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Trợ giúp",
+    "settings.pin.disclaimer": "Mã PIN chỉ khóa màn hình khỏi ánh nhìn vô tình — nó không mã hóa những gì đã lưu trên thiết bị này.",
   };
 
   // ============================================================
@@ -4465,6 +4493,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Pomoc",
+    "settings.pin.disclaimer": "PIN tylko blokuje ekran przed przypadkowym spojrzeniem — nie szyfruje tego, co już zapisano na tym urządzeniu.",
   };
 
   // ============================================================
@@ -4763,6 +4793,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Help",
+    "settings.pin.disclaimer": "De pincode vergrendelt alleen het scherm tegen toevallige blikken — het versleutelt niet wat al op dit apparaat is opgeslagen.",
   };
 
   // ============================================================
@@ -5061,6 +5093,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "วิธีใช้",
+    "settings.pin.disclaimer": "PIN เพียงล็อกหน้าจอจากการมองเผลอ ๆ เท่านั้น — ไม่ได้เข้ารหัสสิ่งที่บันทึกไว้แล้วในอุปกรณ์นี้",
   };
 
   // ============================================================
@@ -5359,6 +5393,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Bantuan",
+    "settings.pin.disclaimer": "PIN hanya mengunci layar dari pandangan sekilas — tidak mengenkripsi apa yang sudah tersimpan di perangkat ini.",
   };
 
   // ============================================================
@@ -5657,6 +5693,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Bantuan",
+    "settings.pin.disclaimer": "PIN hanya mengunci skrin daripada pandangan sepintas lalu — ia tidak menyulitkan apa yang sudah disimpan pada peranti ini.",
   };
 
   // ============================================================
@@ -5955,6 +5993,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "راهنما",
+    "settings.pin.disclaimer": "پین فقط صفحه را از نگاه اتفاقی قفل می‌کند — چیزی را که از قبل روی این دستگاه ذخیره شده رمزگذاری نمی‌کند.",
   };
 
   // ============================================================
@@ -6253,6 +6293,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "مدد",
+    "settings.pin.disclaimer": "پن صرف اسکرین کو اچانک نظر سے بچاتا ہے — یہ اس ڈیوائس پر پہلے سے محفوظ چیزوں کو خفیہ نہیں کرتا۔",
   };
 
   // ============================================================
@@ -6551,6 +6593,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "உதவி",
+    "settings.pin.disclaimer": "பின், திரையை தற்செயல் பார்வையிலிருந்து மட்டுமே பூட்டுகிறது — இந்த சாதனத்தில் ஏற்கனவே சேமிக்கப்பட்டவற்றை குறியாக்கம் செய்யாது.",
   };
 
   // ============================================================
@@ -6849,6 +6893,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "సహాయం",
+    "settings.pin.disclaimer": "PIN తెరను కేవలం అనుకోకుండా చూడకుండా మాత్రమే లాక్ చేస్తుంది — ఈ పరికరంలో ఇప్పటికే సేవ్ చేసిన వాటిని గుప్తీకరించదు.",
   };
 
   // ============================================================
@@ -7147,6 +7193,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "मदत",
+    "settings.pin.disclaimer": "पिन फक्त स्क्रीनला अनवधानाने पाहण्यापासून लॉक करतो — या डिव्हाइसवर आधीच जतन केलेल्या गोष्टींना एन्क्रिप्ट करत नाही.",
   };
 
   // ============================================================
@@ -7445,6 +7493,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "મદદ",
+    "settings.pin.disclaimer": "PIN ફક્ત સ્ક્રીનને આકસ્મિક નજરથી લૉક કરે છે — આ ડિવાઇસ પર પહેલેથી સાચવેલી વસ્તુઓને એન્ક્રિપ્ટ કરતું નથી.",
   };
 
   // ============================================================
@@ -7743,6 +7793,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "ಸಹಾಯ",
+    "settings.pin.disclaimer": "PIN ಪರದೆಯನ್ನು ಆಕಸ್ಮಿಕ ನೋಟದಿಂದ ಮಾತ್ರ ಲಾಕ್ ಮಾಡುತ್ತದೆ — ಈ ಸಾಧನದಲ್ಲಿ ಈಗಾಗಲೇ ಉಳಿಸಲಾದದನ್ನು ಎನ್‌ಕ್ರಿಪ್ಟ್ ಮಾಡುವುದಿಲ್ಲ.",
   };
 
   // ============================================================
@@ -8041,6 +8093,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "സഹായം",
+    "settings.pin.disclaimer": "PIN സ്ക്രീനിനെ യാദൃശ്ചികമായ നോട്ടത്തിൽ നിന്ന് മാത്രമേ ലോക്ക് ചെയ്യൂ — ഈ ഉപകരണത്തിൽ ഇതിനകം സംരക്ഷിച്ചവയെ എൻക്രിപ്റ്റ് ചെയ്യുന്നില്ല.",
   };
 
   // ============================================================
@@ -8339,6 +8393,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "সহায়তা",
+    "settings.pin.disclaimer": "পিন শুধু স্ক্রিনকে আকস্মিক দৃষ্টি থেকে লক করে — এই ডিভাইসে ইতিমধ্যে সংরক্ষিত কিছু এনক্রিপ্ট করে না।",
   };
 
   // ============================================================
@@ -8637,6 +8693,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "ਮਦਦ",
+    "settings.pin.disclaimer": "ਪਿੰਨ ਸਿਰਫ਼ ਸਕ੍ਰੀਨ ਨੂੰ ਅਚਾਨਕ ਨਜ਼ਰ ਤੋਂ ਲਾਕ ਕਰਦਾ ਹੈ — ਇਹ ਇਸ ਡਿਵਾਈਸ 'ਤੇ ਪਹਿਲਾਂ ਤੋਂ ਸੰਭਾਲੀਆਂ ਚੀਜ਼ਾਂ ਨੂੰ ਇਨਕ੍ਰਿਪਟ ਨਹੀਂ ਕਰਦਾ।",
   };
 
   // ============================================================
@@ -8935,6 +8993,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Msaada",
+    "settings.pin.disclaimer": "PIN inafunga tu skrini dhidi ya mtazamo wa bahati mbaya — haisimbi kile ambacho tayari kimehifadhiwa kwenye kifaa hiki.",
   };
 
   // ============================================================
@@ -9233,6 +9293,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "እገዛ",
+    "settings.pin.disclaimer": "ፒን ማያ ገጹን ካላሰበ እይታ ብቻ ይቆልፋል — በዚህ መሣሪያ ላይ አስቀድሞ የተቀመጠውን አያመስጥርም።",
   };
 
   // ============================================================
@@ -9531,6 +9593,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Taimako",
+    "settings.pin.disclaimer": "PIN yana kulle allo ne kawai daga kallo na haɗari — ba ya ɓoye abin da aka riga aka ajiye a wannan na'ura.",
   };
 
   // ============================================================
@@ -9829,6 +9893,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Ìrànlọ́wọ́",
+    "settings.pin.disclaimer": "PIN kàn dí ojú-ìwé lọ́wọ́ ìwo àìròtẹ́lẹ̀ — kò fi pamọ́ ohun tí a ti fi pamọ́ sórí ẹ̀rọ yìí tẹ́lẹ̀.",
   };
 
   // ============================================================
@@ -10127,6 +10193,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "עזרה",
+    "settings.pin.disclaimer": "קוד ה-PIN רק נועל את המסך מפני מבט מזדמן — הוא אינו מצפין את מה שכבר שמור במכשיר זה.",
   };
 
   // ============================================================
@@ -10425,6 +10493,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Ajutor",
+    "settings.pin.disclaimer": "PIN-ul doar blochează ecranul de o privire întâmplătoare — nu criptează ce este deja stocat pe acest dispozitiv.",
   };
 
   // ============================================================
@@ -10723,6 +10793,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Nápověda",
+    "settings.pin.disclaimer": "PIN pouze zamyká obrazovku před náhodným pohledem — nešifruje to, co je již uloženo v tomto zařízení.",
   };
 
   // ============================================================
@@ -11021,6 +11093,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Hjälp",
+    "settings.pin.disclaimer": "PIN-koden låser bara skärmen mot en tillfällig blick — den krypterar inte det som redan är sparat på enheten.",
   };
   // ============================================================
   // NORWEGIAN — Norsk
@@ -11318,6 +11392,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Hjelp",
+    "settings.pin.disclaimer": "PIN-koden låser bare skjermen mot et tilfeldig blikk — den krypterer ikke det som allerede er lagret på denne enheten.",
   };
 
   // ============================================================
@@ -11616,6 +11692,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Hjælp",
+    "settings.pin.disclaimer": "PIN-koden låser kun skærmen mod et tilfældigt blik — den krypterer ikke det, der allerede er gemt på denne enhed.",
   };
 
   // ============================================================
@@ -11914,6 +11992,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Ohje",
+    "settings.pin.disclaimer": "PIN-koodi vain lukitsee näytön satunnaiselta katseelta — se ei salaa sitä, mikä on jo tallennettu tähän laitteeseen.",
   };
 
   // ============================================================
@@ -12212,6 +12292,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Βοήθεια",
+    "settings.pin.disclaimer": "Το PIN απλώς κλειδώνει την οθόνη από μια τυχαία ματιά — δεν κρυπτογραφεί όσα είναι ήδη αποθηκευμένα σε αυτή τη συσκευή.",
   };
 
   // ============================================================
@@ -12510,6 +12592,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Súgó",
+    "settings.pin.disclaimer": "A PIN csak a véletlen pillantástól zárja le a képernyőt — nem titkosítja azt, ami már el van mentve ezen az eszközön.",
   };
 
   // ============================================================
@@ -12808,6 +12892,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Помощ",
+    "settings.pin.disclaimer": "ПИН кодът само заключва екрана от случаен поглед — не криптира вече запазеното на това устройство.",
   };
 
   // ============================================================
@@ -13106,6 +13192,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Помоћ",
+    "settings.pin.disclaimer": "ПИН само закључава екран од случајног погледа — не шифрује оно што је већ сачувано на овом уређају.",
   };
 
   // ============================================================
@@ -13404,6 +13492,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Pomoć",
+    "settings.pin.disclaimer": "PIN samo zaključava zaslon od slučajnog pogleda — ne šifrira ono što je već spremljeno na ovom uređaju.",
   };
 
   // ============================================================
@@ -13702,6 +13792,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Pomocník",
+    "settings.pin.disclaimer": "PIN iba uzamyká obrazovku pred náhodným pohľadom — nešifruje to, čo je už uložené v tomto zariadení.",
   };
 
   // ============================================================
@@ -14000,6 +14092,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Pomoč",
+    "settings.pin.disclaimer": "PIN samo zaklene zaslon pred naključnim pogledom — ne šifrira tega, kar je že shranjeno v tej napravi.",
   };
 
   // ============================================================
@@ -14298,6 +14392,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Pagalba",
+    "settings.pin.disclaimer": "PIN kodas tik užrakina ekraną nuo atsitiktinio žvilgsnio — jis nešifruoja to, kas jau išsaugota šiame įrenginyje.",
   };
 
   // ============================================================
@@ -14596,6 +14692,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Palīdzība",
+    "settings.pin.disclaimer": "PIN kods tikai bloķē ekrānu no nejauša skatiena — tas nešifrē to, kas jau saglabāts šajā ierīcē.",
   };
 
   // ============================================================
@@ -14894,6 +14992,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Abi",
+    "settings.pin.disclaimer": "PIN-kood lukustab ekraani ainult juhusliku pilgu eest — see ei krüpti seda, mis on juba seadmesse salvestatud.",
   };
 
   // ============================================================
@@ -15192,6 +15292,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Ndihmë",
+    "settings.pin.disclaimer": "PIN-i vetëm bllokon ekranin nga një vështrim i rastësishëm — nuk enkripton atë që tashmë është ruajtur në këtë pajisje.",
   };
 
   // ============================================================
@@ -15490,6 +15592,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Помош",
+    "settings.pin.disclaimer": "ПИН-от само го заклучува екранот од случаен поглед — не го криптира она што веќе е зачувано на овој уред.",
   };
 
   // ============================================================
@@ -15788,6 +15892,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Pomoć",
+    "settings.pin.disclaimer": "PIN samo zaključava ekran od slučajnog pogleda — ne šifrira ono što je već sačuvano na ovom uređaju.",
   };
 
   // ============================================================
@@ -16086,6 +16192,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Даведка",
+    "settings.pin.disclaimer": "PIN толькі блакуе экран ад выпадковага позірку — ён не шыфруе тое, што ўжо захавана на гэтай прыладзе.",
   };
 
   // ============================================================
@@ -16384,6 +16492,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "დახმარება",
+    "settings.pin.disclaimer": "PIN მხოლოდ ბლოკავს ეკრანს შემთხვევითი მზერისგან — ის არ შიფრავს იმას, რაც უკვე შენახულია ამ მოწყობილობაზე.",
   };
 
   // ============================================================
@@ -16682,6 +16792,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Օգնություն",
+    "settings.pin.disclaimer": "PIN կոդը միայն արգելափակում է էկրանը պատահական հայացքից — այն չի գաղտնագրում այն, ինչ արդեն պահված է այս սարքում։",
   };
 
   // ============================================================
@@ -16980,6 +17092,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Kömək",
+    "settings.pin.disclaimer": "PIN yalnız ekranı təsadüfi baxışdan kilidləyir — bu cihazda artıq saxlanılanları şifrələmir.",
   };
   // ============================================================
   // KAZAKH — Қазақша
@@ -17277,6 +17391,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Анықтама",
+    "settings.pin.disclaimer": "PIN тек экранды кездейсоқ қараудан құлыптайды — бұл құрылғыда бұрыннан сақталғанды шифрламайды.",
   };
 
   // ============================================================
@@ -17575,6 +17691,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Yordam",
+    "settings.pin.disclaimer": "PIN faqat ekranni tasodifiy qarashdan qulflaydi — bu qurilmada allaqachon saqlangan narsalarni shifrlamaydi.",
   };
 
   // ============================================================
@@ -17873,6 +17991,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Жардам",
+    "settings.pin.disclaimer": "PIN экранды кокустан көз чаптыруудан гана кулпулайт — бул түзмөктө мурунтан сакталгандарды шифрлебейт.",
   };
 
   // ============================================================
@@ -18171,6 +18291,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Кӯмак",
+    "settings.pin.disclaimer": "PIN танҳо экранро аз назари тасодуфӣ қулф мекунад — он чизеро, ки аллакай дар ин дастгоҳ захира шудааст, рамзгузорӣ намекунад.",
   };
 
   // ============================================================
@@ -18469,6 +18591,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Тусламж",
+    "settings.pin.disclaimer": "PIN нь дэлгэцийг зөвхөн санамсаргүй хараас түгжинэ — энэ төхөөрөмжид аль хэдийн хадгалагдсан зүйлийг шифрлэхгүй.",
   };
 
   // ============================================================
@@ -18767,6 +18891,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "मद्दत",
+    "settings.pin.disclaimer": "PIN ले स्क्रिनलाई केवल आकस्मिक नजरबाट लक गर्छ — यो यन्त्रमा पहिले नै सुरक्षित गरिएका कुराहरूलाई इन्क्रिप्ट गर्दैन।",
   };
 
   // ============================================================
@@ -19065,6 +19191,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "උදව්",
+    "settings.pin.disclaimer": "PIN එක තිරය අහම්බෙන් බැලීමකින් පමණක් අගුළු දමයි — මෙම උපාංගයේ දැනටමත් සුරැකි දේ සංකේතනය නොකරයි.",
   };
 
   // ============================================================
@@ -19363,6 +19491,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "အကူအညီ",
+    "settings.pin.disclaimer": "PIN သည် မျက်နှာပြင်ကို မတော်တဆကြည့်ခြင်းမှသာ လော့ခ်ချပေးသည် — ဤစက်ပေါ်တွင် ရှိပြီးသား သိမ်းဆည်းထားသည်များကို စာဝှက်ခြင်းမပြုပါ။",
   };
   // ============================================================
   // KHMER — ខ្មែរ
@@ -19660,6 +19790,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "ជំនួយ",
+    "settings.pin.disclaimer": "PIN គ្រាន់តែចាក់សោអេក្រង់ពីការមើលដោយចៃដន្យប៉ុណ្ណោះ — វាមិនអ៊ិនគ្រីបអ្វីដែលបានរក្សាទុករួចហើយនៅលើឧបករណ៍នេះទេ។",
   };
 
   // ============================================================
@@ -19958,6 +20090,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "ຊ່ວຍເຫຼືອ",
+    "settings.pin.disclaimer": "PIN ພຽງແຕ່ລັອກໜ້າຈໍຈາກການເຫັນໂດຍບັງເອີນ — ມັນບໍ່ໄດ້ເຂົ້າລະຫັດສິ່ງທີ່ຖືກບັນທຶກໄວ້ແລ້ວໃນອຸປະກອນນີ້.",
   };
 
   // ============================================================
@@ -20256,6 +20390,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Tulong",
+    "settings.pin.disclaimer": "Ang PIN ay naglo-lock lang ng screen mula sa hindi sinasadyang pagtingin — hindi nito ini-encrypt ang mga naka-save na sa device na ito.",
   };
 
   // ============================================================
@@ -20554,6 +20690,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Bantuan",
+    "settings.pin.disclaimer": "PIN mung ngunci layar saka pandelengan sing ora disengaja — ora ngenkripsi sing wis kasimpen ing piranti iki.",
   };
   // ============================================================
   // SUNDANESE — Basa Sunda
@@ -20851,6 +20989,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Bantuan",
+    "settings.pin.disclaimer": "PIN ngan ukur ngonci layar tina panempo teu dihaja — henteu ngenkripsi anu parantos disimpen dina alat ieu.",
   };
 
   // ============================================================
@@ -21149,6 +21289,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Tabang",
+    "settings.pin.disclaimer": "Ang PIN naglock lang sa screen gikan sa dili tinuyo nga pagtan-aw — dili niini gi-encrypt ang naa nang na-save niini nga device.",
   };
 
   // ============================================================
@@ -21447,6 +21589,8 @@
     "help.privacy.body": "Messages are end-to-end encrypted — only you and the other person can read them, not the server. The server only helps two devices find each other and briefly holds an encrypted envelope if the recipient is offline. You can set a PIN code in Settings to lock the app when it's not in use; this only hides the screen from a casual glance, it does not add extra encryption to what's already stored on your device.",
     "help.settingsHelp.title": "Settings",
     "help.settingsHelp.body": "In Settings you can change your display name, interface language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Advanced diagnostic tools are hidden by default — tap the \"Settings\" title at the top of this screen 5 times to reveal them.",
+    "settings.help": "Довідка",
+    "settings.pin.disclaimer": "PIN лише блокує екран від випадкового погляду — він не шифрує те, що вже збережено на цьому пристрої.",
   };
 
   // ============================================================

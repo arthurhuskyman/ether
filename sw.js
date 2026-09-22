@@ -1,4 +1,4 @@
-const CACHE_VERSION = "ether-shell-v35";
+const CACHE_VERSION = "ether-shell-v36";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -46,7 +46,22 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   const url = new URL(event.request.url);
   if (url.origin !== location.origin) return;
-  if (url.search) return;
+  if (url.search) {
+    // Навигационные запросы с query-строкой (например ?call=... или
+    // ?chat=... — так открывается декларативное push-уведомление) должны
+    // получить закешированную оболочку приложения, а не уйти мимо кеша:
+    // офлайн-клик по такому уведомлению иначе открывал бы пустую
+    // страницу. Сами query-параметры разбирает уже JS приложения после
+    // загрузки (см. handleNotificationNavigateParams в app.js) — для
+    // Service Worker это не имеет значения, какая версия index.html
+    // отдана, лишь бы отдана была.
+    if (event.request.mode === "navigate") {
+      event.respondWith(
+        caches.match("./index.html").then((cached) => cached || fetch(event.request))
+      );
+    }
+    return;
+  }
   event.respondWith(
     caches.match(event.request).then((cached) => {
       const network = fetch(event.request)
