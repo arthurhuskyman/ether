@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "generate-vapid": "node generate-vapid.js",
-    "test": "node test-two-clients.js && node test-e2e-webrtc.js && node test-race-condition.js && node test-crypto.js && node test-call-renegotiation.js && node test-link-preview.js && node test-file-transfer.js && node test-group-chat-logic.js && node test-voice-duration.js && node test-video-call.js"
+    "test": "node test-two-clients.js && node test-e2e-webrtc.js && node test-race-condition.js && node test-crypto.js && node test-call-renegotiation.js && node test-link-preview.js && node test-file-transfer.js && node test-group-chat-logic.js && node test-voice-duration.js && node test-video-call.js && node test-declarative-push.js"
   },
   "engines": {
     "node": ">=18"

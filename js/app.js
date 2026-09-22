@@ -277,6 +277,13 @@ const _connectInFlight = new Set();
 
 const pendingCall = { contactId: null, timer: null };
 const pendingRemoteStreams = new Map();
+// Отслеживание "новых" сообщений при входе в чат — id первого непрочитанного
+// на момент открытия, contactId -> msgId. Пока запись есть, бейдж и
+// разделитель "Непрочитанные сообщения" остаются на месте; снимается
+// только когда пользователь реально долистал до конца (см. wireChatScreen
+// обработчик scroll) — не сразу при открытии чата.
+const unreadDividerFor = new Map();
+let __lastRenderedChatId = null;
 let callTimerInterval = null;
 let globalAudioCtx = null;
 let ringtoneTimer = null;
@@ -313,6 +320,16 @@ function getSoundEl(src, loop) {
     el.setAttribute("playsinline", "");
     document.body.appendChild(el);
     soundPool.set(src, el);
+    // Уведомления и рингтон должны быть слышны сразу, громко — если ОС
+    // по умолчанию направила бы их в наушник (как иногда бывает во время
+    // активного звонка), явно просим динамик. Асинхронно, не блокируя
+    // немедленное воспроизведение — на первый звук может не успеть,
+    // но дальше (элементы переиспользуются из пула) точно сработает.
+    if (typeof el.setSinkId === "function") {
+      findAudioOutputDevice(/speaker|loud/i).then((deviceId) => {
+        if (deviceId) el.setSinkId(deviceId).catch(() => {});
+      }).catch(() => {});
+    }
   }
   return el;
 }
@@ -531,6 +548,38 @@ function ensureGlobalAudioCtx() {
   }
   return globalAudioCtx;
 }
+let backgroundAudioEl = null;
+const SILENT_WAV_DATA_URI = "data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSADAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==";
+// Неофициальный, недокументированный приём для iOS: активная "медиасессия"
+// с типом playback иногда продлевает время жизни PWA в фоне — достаточно,
+// чтобы успел дойти push с входящим звонком. Не гарантирует ничего, но
+// не вредит (звук абсолютно тихий) и не требует дополнительных разрешений
+// сверх уже запрошенного разрешения на уведомления. Запускается только
+// после настоящего пользовательского жеста — иначе браузер всё равно
+// заблокирует автовоспроизведение, и раньше времени просить нет смысла.
+function startBackgroundAudioSession() {
+  if (backgroundAudioEl || !Store.notificationsEnabled) return;
+  try {
+    const el = document.createElement("audio");
+    el.src = SILENT_WAV_DATA_URI;
+    el.loop = true;
+    el.volume = 0;
+    el.setAttribute("playsinline", "");
+    el.style.display = "none";
+    document.body.appendChild(el);
+    const p = el.play();
+    if (p && p.catch) p.catch(() => {});
+    backgroundAudioEl = el;
+    if ("mediaSession" in navigator) {
+      try {
+        navigator.mediaSession.metadata = new MediaMetadata({ title: (T("app.name") || "Эфир") + " — " + T("audio.background.title") });
+        navigator.mediaSession.playbackState = "playing";
+        navigator.mediaSession.setActionHandler("play", () => { try { el.play().catch(() => {}); } catch (e) {} });
+        navigator.mediaSession.setActionHandler("pause", () => {}); // не даём системе трактовать паузу как повод освободить сессию
+      } catch (e) {}
+    }
+  } catch (e) {}
+}
 function initAudioWarmup() {
   const warm = () => {
     try {
@@ -554,6 +603,7 @@ function initAudioWarmup() {
       etherLog("warn", "[audio] warmup failed:", String(e));
     }
     try { unlockSoundPool(); } catch (e) {}
+    try { startBackgroundAudioSession(); } catch (e) {}
   };
   document.addEventListener("touchstart", warm, { passive: true });
   document.addEventListener("click", warm);
@@ -863,6 +913,8 @@ function startApp() {
     migrateServerAckedFlags();
   } catch (e) { etherLog("error", "[startApp] load data:", String(e)); }
 
+  try { handleNotificationNavigateParams(); } catch (e) { etherLog("error", "[startApp] notification params:", String(e)); }
+
   try {
     const incoming = SignalingCodec.extractCodeFromLocation();
     history.replaceState(null, "", location.pathname + location.search);
@@ -907,10 +959,17 @@ function setupLanguageSelector() {
   if (!sel) return;
   sel.innerHTML = "";
   const langs = I18N.languages.slice().sort((a, b) => a.english.localeCompare(b.english, "en"));
+  // Всегда показываем обе части (раньше пара пропадала для языков, где
+  // native === english — English, Hausa, Filipino, Cebuano — совпадение
+  // ошибочно трактовалось как "нечего добавлять"). Выравниваем точки по
+  // одной колонке — дополняем английское название пробелами до самого
+  // длинного среди всех 72 языков; для реального визуального выравнивания
+  // нужен моноширинный шрифт (задан в CSS для #settings-language).
+  const maxLen = Math.max(...langs.map((l) => l.english.length));
   for (const lang of langs) {
     const opt = document.createElement("option");
     opt.value = lang.code;
-    opt.textContent = lang.native + (lang.english !== lang.native ? " · " + lang.english : "");
+    opt.textContent = lang.english.padEnd(maxLen, "\u00A0") + " · " + lang.native;
     sel.appendChild(opt);
   }
   sel.value = I18N.current;
@@ -979,6 +1038,39 @@ function maybeShowOnboardingHint() {
   localStorage.setItem(ONBOARDING_HINT_SHOWN, "1");
 }
 
+function openFromNotification(contactId, kind) {
+  if (!contactId) return;
+  window.focus();
+  state.chatId = contactId;
+  renderTab();
+  if (kind === "call") {
+    if (state.callId === contactId && state.callPhase === "ringing") {
+      openCallScreen(contactId, "ringing");
+      if (!ringtoneAudioEl || ringtoneAudioEl.paused) { try { ensureAudioCtx(); } catch (e) {} playRingtone(); }
+    } else {
+      toast(T("toast.missedCall"));
+    }
+  }
+}
+// Открытие по клику на декларативное push-уведомление (Safari/iOS): в
+// этом случае notificationclick в sw.js не срабатывает вовсе — платформа
+// сразу переходит по URL из поля "navigate", минуя Service Worker. Единственный
+// канал передать, что именно открыть — сам URL, поэтому читаем его здесь.
+function handleNotificationNavigateParams() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const callId = params.get("call");
+    const chatId = params.get("chat");
+    if (callId) openFromNotification(callId, "call");
+    else if (chatId) openFromNotification(chatId, "message");
+    if (callId || chatId) {
+      const url = new URL(window.location.href);
+      url.search = "";
+      window.history.replaceState({}, "", url.toString());
+    }
+  } catch (e) {}
+}
+
 function wireServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
   navigator.serviceWorker.register("./sw.js").then((reg) => {
@@ -988,16 +1080,7 @@ function wireServiceWorker() {
   navigator.serviceWorker.addEventListener("message", (ev) => {
     const data = ev.data || {};
     if (data.type === "open-contact" && data.contactId) {
-      window.focus();
-      state.chatId = data.contactId;
-      renderTab();
-      if (data.kind === "call") {
-        if (state.callId === data.contactId && state.callPhase === "ringing") {
-          openCallScreen(data.contactId, "ringing");
-        } else {
-          toast(T("toast.missedCall"));
-        }
-      }
+      openFromNotification(data.contactId, data.kind);
     }
     if (data.type === "push-subscription-changed") {
       ensurePushSubscription().catch(() => {});
@@ -1106,10 +1189,15 @@ function updateNotifBanner() {
   banner.classList.remove("hidden");
 }
 function updateAppBadge() {
+  let total = 0;
+  for (const c of state.contacts.values()) total += unreadCount(c);
+  const tabBadge = $("#tab-chats-badge");
+  if (tabBadge) {
+    if (total > 0) { tabBadge.textContent = total > 99 ? "99+" : String(total); tabBadge.classList.remove("hidden"); }
+    else tabBadge.classList.add("hidden");
+  }
   try {
     if (!("setAppBadge" in navigator)) return;
-    let total = 0;
-    for (const c of state.contacts.values()) total += unreadCount(c);
     if (total > 0) navigator.setAppBadge(total);
     else if ("clearAppBadge" in navigator) navigator.clearAppBadge();
   } catch (e) {}
@@ -1296,7 +1384,7 @@ function renderChatsList() {
     const muteIcon = c.muted ? `<span class="muted-icon" title="Mute">🔕</span>` : "";
     const blockIcon = c.blocked ? `<span class="muted-icon" title="Blocked">🚫</span>` : "";
     let preview = last
-      ? (last.file ? escapeHtml(T("chat.file.preview." + last.file.kind)) : (last.contactCard ? escapeHtml(T("chat.contactCard.preview", { name: last.contactCard.name || T("sys.someone") })) : escapeHtml(truncate(last.text, 42))))
+      ? (last.from === "system" && last.textKey ? escapeHtml(renderSystemMessageText(last)) : last.file ? escapeHtml(T("chat.file.preview." + last.file.kind)) : (last.contactCard ? escapeHtml(T("chat.contactCard.preview", { name: last.contactCard.name || T("sys.someone") })) : escapeHtml(truncate(last.text, 42))))
       : escapeHtml(contactStatusLabel(c));
     if (query && last && (last.text || "").toLowerCase().includes(query)) preview = highlightRaw(escapeHtml(truncate(last.text, 42)), state.searchQuery);
     row.innerHTML = `
@@ -1306,7 +1394,7 @@ function renderChatsList() {
           <span class="chat-row-name">${escapeHtml(c.name || T("sys.someone"))} ${muteIcon}${blockIcon}</span>
           <span class="chat-row-status ${contactStatusClass(c)}"${isGroup(c) ? ' style="display:none;"' : ""}>●</span>
         </div>
-        <div class="chat-row-sub">${preview}${badge}</div>
+        <div class="chat-row-sub"><span class="chat-row-preview-text">${preview}</span>${badge}</div>
       </div>`;
     row.addEventListener("click", () => { state.chatId = c.id; renderTab(); });
     list.appendChild(row);
@@ -1396,7 +1484,7 @@ function renderContactCard() {
   const n = $("#contact-name"); if (n) n.textContent = c.name || T("sys.someone");
   const navT = $("#nav-contact-title"); if (navT) navT.textContent = c.name || T("sys.someone");
   const st = $("#contact-status"); if (st) st.textContent = contactStatusLabel(c);
-  const idEl = $("#contact-info-id"); if (idEl) idEl.textContent = c.raw || "—";
+  const idEl = $("#contact-info-id"); if (idEl) idEl.textContent = c.raw || T("chat.contact.identifier.unknown");
   const mutedEl = $("#contact-info-muted"); if (mutedEl) mutedEl.textContent = c.muted ? "🔕" : "🔔";
   const blockBtn = $("#contact-block-btn"); if (blockBtn) blockBtn.textContent = c.blocked ? T("chat.contact.unblock") : T("chat.contact.block");
   const archBtn = $("#contact-archive-btn"); if (archBtn) archBtn.textContent = T("chat.contact.archive");
@@ -1487,6 +1575,17 @@ function renderChatThread() { try { renderChatThreadInner(); } catch (e) { ether
 function renderChatThreadInner() {
   const c = state.contacts.get(state.chatId);
   if (!c) { state.chatId = null; renderTab(); return; }
+  if (state.chatId !== __lastRenderedChatId) {
+    // Свежий вход в чат (а не повторный рендер того же самого) — если
+    // есть непрочитанные, запоминаем id первого из них один раз здесь.
+    // Дальше, пока пользователь не долистает вниз, ни бейдж, ни
+    // разделитель не трогаем — специально НЕ зовём markThreadRead тут.
+    if (!unreadDividerFor.has(c.id)) {
+      const firstUnread = c.messages.find((m) => m.from === "them" && !m.readAckSent);
+      if (firstUnread) unreadDividerFor.set(c.id, firstUnread.id);
+    }
+    __lastRenderedChatId = state.chatId;
+  }
   if (c.messages.some((m) => m.ttl && Date.now() > m.ts + m.ttl)) {
     const expired = c.messages.filter((m) => m.ttl && Date.now() > m.ts + m.ttl);
     cleanupExpiredFileBlobs(expired);
@@ -1506,8 +1605,10 @@ function renderChatThreadInner() {
     else { statusEl.textContent = typing ? T("chat.typing") : contactStatusLabel(c); statusEl.classList.toggle("typing", typing); }
   }
   const canCall = !isGroup(c) && (isReachable(c) || (c.managed && c.online));
-  const ccb = $("#chat-call-btn"); if (ccb) ccb.disabled = !canCall;
-  const vcb = $("#chat-video-call-btn"); if (vcb) vcb.disabled = !canCall;
+  const ccb = $("#chat-call-btn");
+  if (ccb) { ccb.disabled = isGroup(c) ? false : !canCall; ccb.classList.toggle("call-unavailable", isGroup(c)); }
+  const vcb = $("#chat-video-call-btn");
+  if (vcb) { vcb.disabled = isGroup(c) ? false : !canCall; vcb.classList.toggle("call-unavailable", isGroup(c)); }
 
   const badge = $("#chat-transport-badge");
   const link = (mesh && !isGroup(c)) ? mesh.get(c.id) : null;
@@ -1531,12 +1632,29 @@ function renderChatThreadInner() {
   let lastDay = "";
   const urlsToFetch = new Set();
   let prevMsg = null;
+  const unreadAnchorId = unreadDividerFor.get(c.id);
+  let unreadDividerEl = null;
   for (const m of c.messages) {
+    if (unreadAnchorId && m.id === unreadAnchorId) {
+      const div = document.createElement("div");
+      div.className = "unread-divider";
+      const span = document.createElement("span");
+      span.textContent = T("chat.unreadDivider");
+      div.appendChild(span);
+      frag.appendChild(div);
+      unreadDividerEl = div;
+      prevMsg = null; // разделитель тоже разрывает визуальную группировку подряд идущих сообщений
+    }
     if (m.from === "system") {
       const sys = document.createElement("div");
       sys.className = "system-message";
       const label = document.createElement("span");
-      label.textContent = m.text;
+      // Новые системные сообщения хранят ключ+параметры перевода и
+      // переводятся здесь, при показе — на текущем языке, а не на том,
+      // что был активен в момент создания сообщения. m.text остаётся как
+      // запасной вариант для уже сохранённых старых записей (обратная
+      // совместимость) и на случай, если ключ вдруг не найдётся.
+      label.textContent = renderSystemMessageText(m);
       const time = document.createElement("span");
       time.className = "system-message-time";
       time.textContent = formatTime(m.ts);
@@ -1563,7 +1681,6 @@ function renderChatThreadInner() {
     const grouped = !!(prevMsg && prevMsg.from === m.from && (m.from !== "them" || !isGroup(c) || prevMsg.fromId === m.fromId) && m.ts - prevMsg.ts < 5 * 60 * 1000);
     const bubble = document.createElement("div");
     bubble.className = "bubble-row " + (m.from === "me" ? "mine" : "theirs") + (grouped ? " grouped" : "");
-    prevMsg = m;
     const tick = m.from === "me" ? ackGlyph(m.ack) : "";
     const editedMark = m.edited ? `<span class="bubble-edited">${escapeHtml(T("chat.edit"))}</span>` : "";
     const ttlMark = m.ttl ? `<span class="bubble-ttl" title="${escapeHtml(disappearingTimerLabel(m.ttl))}">⏳</span>` : "";
@@ -1611,16 +1728,30 @@ function renderChatThreadInner() {
     attachSwipeReply(inner, m, c);
     bubble.appendChild(inner);
     frag.appendChild(bubble);
+    prevMsg = m;
   }
   wrap.appendChild(frag);
   urlsToFetch.forEach((u) => renderLinkPreviewInto(u));
   hydrateFileSlots(wrap);
-  if (wasAtBottom) wrap.scrollTop = wrap.scrollHeight;
+  if (unreadDividerEl) {
+    // Свежий вход в чат с непрочитанными — показываем место, где они
+    // начинаются, а не сразу прыгаем в самый низ (иначе пользователь
+    // никогда бы не увидел разделитель).
+    unreadDividerEl.scrollIntoView({ block: "center" });
+  } else if (wasAtBottom) {
+    wrap.scrollTop = wrap.scrollHeight;
+  }
   updateScrollBottomButton();
   const input = $("#chat-input");
   if (input && state.drafts[c.id] && !state.editingMessageId) input.value = state.drafts[c.id];
   updateSendVsMic();
-  markThreadRead(c);
+  // markThreadRead — только если сейчас реально видно низ переписки (короткий
+  // чат, разделитель и так уместился на экране без прокрутки). Иначе ждём,
+  // пока пользователь сам долистает — см. обработчик scroll в wireChatScreen.
+  if (!unreadDividerFor.has(c.id) || isNearBottom(wrap)) {
+    unreadDividerFor.delete(c.id);
+    markThreadRead(c);
+  }
 
   if (state.chatSearchQuery) {
     if (__chatSearchScrollTimer) clearTimeout(__chatSearchScrollTimer);
@@ -1670,7 +1801,10 @@ function markThreadRead(c) {
   for (const m of c.messages) if (m.from === "them" && !m.readAckSent) { m.readAckSent = true; toAck.push(m.id); }
   if (toAck.length === 0) return;
   persistContacts();
-  sendAckBatch(c.id, toAck, "read");
+  // Групповых read-квитанций пока нет — слать их некому одному конкретному
+  // адресату (группа — не P2P-узел), а сообщение без publicKey зависло бы
+  // в pendingNoKey навсегда. Локально как прочитанное всё равно отмечаем.
+  if (!isGroup(c)) sendAckBatch(c.id, toAck, "read");
   updateAppBadge();
   if (state.tab === "chats") renderChatsList();
 }
@@ -1721,7 +1855,7 @@ async function sendChatMessage(contactId, text, replyTo) {
   if (state.tab === "chats") renderChatsList();
   playOutgoingSound();
   const payload = { kind: "chat", id: msgId, text, ts };
-  if (replyTo) payload.replyTo = { id: replyTo.msgId, text: replyTo.text, from: replyTo.from };
+  if (replyTo) payload.replyTo = { id: replyTo.msgId, text: replyTo.text, authorName: replyTo.authorName };
   if (c.disappearingTimer) payload.ttl = c.disappearingTimer;
   await trySendOrQueue(c, msgId, payload);
 }
@@ -1785,6 +1919,17 @@ function addContactFromCard(id, name) {
 // Исчезающие сообщения
 // =====================================================================
 const DISAPPEARING_PRESETS = [0, 3600000, 86400000, 604800000]; // выкл, 1ч, 1д, 1нед
+// Единая точка перевода системных сообщений при показе (не при создании) —
+// используется и в ленте чата, и в превью списка чатов, чтобы язык всегда
+// был текущим, а не тем, что был активен в момент создания записи.
+function renderSystemMessageText(m) {
+  if (!m.textKey) return m.text;
+  let params = m.textParams;
+  if (m.textKey === "chat.disappearing.systemOnYou" || m.textKey === "chat.disappearing.systemOnThem") {
+    params = Object.assign({}, m.textParams, { duration: disappearingTimerLabel((m.textParams && m.textParams.msValue) || 0) });
+  }
+  return T(m.textKey, params);
+}
 function disappearingTimerLabel(ms) {
   if (ms === 3600000) return T("chat.disappearing.1h");
   if (ms === 86400000) return T("chat.disappearing.1d");
@@ -1792,10 +1937,18 @@ function disappearingTimerLabel(ms) {
   return T("chat.disappearing.off");
 }
 function addDisappearingSystemMessage(c, ms, byMe) {
+  const key = ms
+    ? (byMe ? "chat.disappearing.systemOnYou" : "chat.disappearing.systemOnThem")
+    : (byMe ? "chat.disappearing.systemOffYou" : "chat.disappearing.systemOffThem");
+  // duration — вложенный перевод (зависит от текущего языка на момент
+  // показа, не создания), поэтому не кладём готовую строку в params —
+  // держим сырое значение таймера и досчитываем duration при рендере
+  // (см. ветку system-message в renderChatThreadInner).
+  const params = ms ? { name: c.name || T("sys.someone"), msValue: ms } : { name: c.name || T("sys.someone") };
   const text = ms
     ? (byMe ? T("chat.disappearing.systemOnYou", { duration: disappearingTimerLabel(ms) }) : T("chat.disappearing.systemOnThem", { name: c.name || T("sys.someone"), duration: disappearingTimerLabel(ms) }))
     : (byMe ? T("chat.disappearing.systemOffYou") : T("chat.disappearing.systemOffThem", { name: c.name || T("sys.someone") }));
-  c.messages.push({ id: crypto.randomUUID(), from: "system", text, ts: Date.now() });
+  c.messages.push({ id: crypto.randomUUID(), from: "system", text, textKey: key, textParams: params, ts: Date.now() });
   trimMessages(c);
 }
 async function setDisappearingTimer(contactId, ms) {
@@ -2223,7 +2376,7 @@ async function sendGroupMessage(groupId, text, replyTo) {
   if (state.tab === "chats") renderChatsList();
   playOutgoingSound();
   const payload = { kind: "chat", id: msgId, text, ts, groupId, senderName: Store.name || T("sys.someone") };
-  if (replyTo) payload.replyTo = { id: replyTo.msgId, text: replyTo.text, from: replyTo.from };
+  if (replyTo) payload.replyTo = { id: replyTo.msgId, text: replyTo.text, authorName: replyTo.authorName };
   if (g.disappearingTimer) payload.ttl = g.disappearingTimer;
   for (const m of g.members) {
     if (m.id === Store.myId) continue;
@@ -2240,7 +2393,7 @@ function addGroupMember(groupId, memberId) {
   if (g.members.length >= MAX_GROUP_MEMBERS) { toast(T("toast.groupTooBig", { max: MAX_GROUP_MEMBERS })); return; }
   const c = state.contacts.get(memberId);
   g.members.push({ id: memberId, name: (c && c.name) || T("sys.someone") });
-  g.messages.push({ id: crypto.randomUUID(), from: "system", text: T("group.systemAdded", { name: (c && c.name) || T("sys.someone") }), ts: Date.now() });
+  g.messages.push({ id: crypto.randomUUID(), from: "system", text: T("group.systemAdded", { name: (c && c.name) || T("sys.someone") }), textKey: "group.systemAdded", textParams: { name: (c && c.name) || T("sys.someone") }, ts: Date.now() });
   g.lastActivity = Date.now();
   persistContacts();
   broadcastGroupRoster(g);
@@ -2255,7 +2408,7 @@ function removeGroupMember(groupId, memberId, leftBySelf) {
   if (!wasIn) return;
   const removedName = (g.members.find((m) => m.id === memberId) || {}).name || T("sys.someone");
   g.members = g.members.filter((m) => m.id !== memberId);
-  g.messages.push({ id: crypto.randomUUID(), from: "system", text: leftBySelf ? T("group.systemLeft", { name: removedName }) : T("group.systemRemoved", { name: removedName }), ts: Date.now() });
+  g.messages.push({ id: crypto.randomUUID(), from: "system", text: leftBySelf ? T("group.systemLeft", { name: removedName }) : T("group.systemRemoved", { name: removedName }), textKey: leftBySelf ? "group.systemLeft" : "group.systemRemoved", textParams: { name: removedName }, ts: Date.now() });
   g.lastActivity = Date.now();
   persistContacts();
   // И при добровольном выходе (чтобы остальные узнали, что меня больше
@@ -2271,7 +2424,7 @@ function renameGroup(groupId, name) {
   const g = state.contacts.get(groupId); if (!g || !g.isGroup) return;
   name = (name || "").trim(); if (!name || name === g.name) return;
   g.name = name;
-  g.messages.push({ id: crypto.randomUUID(), from: "system", text: T("group.systemRenamed", { name }), ts: Date.now() });
+  g.messages.push({ id: crypto.randomUUID(), from: "system", text: T("group.systemRenamed", { name }), textKey: "group.systemRenamed", textParams: { name }, ts: Date.now() });
   g.lastActivity = Date.now();
   persistContacts();
   broadcastGroupRoster(g);
@@ -2411,6 +2564,7 @@ function resumeUnsentMessages() {
   if (!Store.myPublicKeyJwk) return;
   const now = Date.now();
   for (const c of state.contacts.values()) {
+    if (isGroup(c)) continue; // групповой fan-out ретраев не поддержан — некуда слать одному "получателю"-группе
     for (const m of c.messages) {
       if (m.from !== "me") continue;
       if (m.serverAcked) continue;
@@ -2418,6 +2572,8 @@ function resumeUnsentMessages() {
       if (outbox.has(m.id)) continue;
       if (now - m.ts > RESUME_MAX_AGE_MS) continue;
       const payload = { kind: "chat", id: m.id, text: m.text, ts: m.ts };
+      if (m.replyTo) payload.replyTo = { id: m.replyTo.id, text: m.replyTo.text, authorName: m.replyTo.authorName };
+      if (m.ttl) payload.ttl = m.ttl;
       addToOutbox(m.id, c.id, payload);
       flushOutboxItem(m.id);
     }
@@ -2800,7 +2956,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
         members: payload.members, messages: [], lastActivity: Date.now(), archived: false, muted: false,
         createdBy: from, managed: true };
       state.contacts.set(payload.groupId, g);
-      g.messages.push({ id: crypto.randomUUID(), from: "system", text: T("group.systemCreated", { name: g.name }), ts: Date.now() });
+      g.messages.push({ id: crypto.randomUUID(), from: "system", text: T("group.systemCreated", { name: g.name }), textKey: "group.systemCreated", textParams: { name: g.name }, ts: Date.now() });
     } else {
       g.members = payload.members;
       if (payload.groupName) g.name = payload.groupName;
@@ -3123,6 +3279,8 @@ function wireGroupInfo() {
     renameGroup(groupId, renameInput ? renameInput.value : "");
     toast(T("toast.saved"));
   });
+  const callBtn = $("#group-info-call-btn");
+  if (callBtn) callBtn.addEventListener("click", () => toast(T("toast.callGroupsUnsupported")));
   const addBtn = $("#group-info-add-btn");
   if (addBtn) addBtn.addEventListener("click", () => {
     const groupId = state.activeGroupContext; const g = state.contacts.get(groupId);
@@ -3387,7 +3545,13 @@ async function handleMessageAction(action, msgId, contactId) {
   else if (action === "retry") {
     m.serverAcked = false;
     if (outbox.has(msgId)) { flushOutboxItem(msgId); }
-    else { addToOutbox(msgId, contactId, { kind: "chat", id: msgId, text: m.text, ts: m.ts }); flushOutboxItem(msgId); }
+    else {
+      const payload = { kind: "chat", id: msgId, text: m.text, ts: m.ts };
+      if (m.replyTo) payload.replyTo = { id: m.replyTo.id, text: m.replyTo.text, authorName: m.replyTo.authorName };
+      if (m.ttl) payload.ttl = m.ttl;
+      addToOutbox(msgId, contactId, payload);
+      flushOutboxItem(msgId);
+    }
   }
 }
 function startEditing(msgId) {
@@ -3618,6 +3782,7 @@ function openCallScreen(id, phase) {
     state._callUserAccepted = false;
     state._callAcceptInFlight = false;
     state._callMuteOnAnswer = false;
+    speakerOn = false; // новый звонок всегда начинается с внутреннего динамика
   }
   state.callId = id;
   state.callPhase = phase;
@@ -3636,6 +3801,7 @@ function openCallScreen(id, phase) {
   const incoming = phase === "ringing";
   const ci = $("#call-controls-incoming"); if (ci) ci.classList.toggle("hidden", !incoming);
   const ca = $("#call-controls-active"); if (ca) ca.classList.toggle("hidden", incoming);
+  const cv = $(".call-volume"); if (cv) cv.classList.toggle("hidden", incoming);
   // Уровень громкости.
   const vs = $("#call-volume-slider"); if (vs) vs.value = String(Store.callVolume);
   clearInterval(callTimerInterval);
@@ -3669,6 +3835,7 @@ function setCallPhaseActive() {
   stopCallSounds();
   const ci = $("#call-controls-incoming"); if (ci) ci.classList.add("hidden");
   const ca = $("#call-controls-active"); if (ca) ca.classList.remove("hidden");
+  const cv = $(".call-volume"); if (cv) cv.classList.remove("hidden");
   startCallTimer();
   updateCallRecordStatus("active");
   if (state.callId && pendingRemoteStreams.has(state.callId)) {
@@ -3679,6 +3846,39 @@ function setCallPhaseActive() {
   }
 }
 
+let speakerOn = false; // по умолчанию — внутренний динамик (наушник), как просили
+async function findAudioOutputDevice(pattern) {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const found = devices.find((d) => d.kind === "audiooutput" && pattern.test(d.label || ""));
+    return found ? found.deviceId : null;
+  } catch (e) { return null; }
+}
+// Веб-платформа не даёт напрямую переключить "наушник vs громкая связь" —
+// единственный стандартный механизм — Audio Output Devices API
+// (setSinkId), и то он выбирает КОНКРЕТНОЕ устройство вывода, а не
+// абстрактный "режим". Поддержка сильно зависит от браузера/ОС — там,
+// где API недоступен, честно сообщаем об этом, а не делаем вид, что
+// переключили.
+async function toggleSpeaker() {
+  const id = state.callId; if (!id) return;
+  const audioEl = document.getElementById("remote-audio-" + id);
+  if (!audioEl || typeof audioEl.setSinkId !== "function") {
+    toast(T("toast.speakerUnsupported"));
+    return;
+  }
+  const wantSpeaker = !speakerOn;
+  try {
+    const deviceId = wantSpeaker
+      ? (await findAudioOutputDevice(/speaker|loud/i)) || "default"
+      : (await findAudioOutputDevice(/earpiece|receiver/i)) || "default";
+    await audioEl.setSinkId(deviceId);
+    speakerOn = wantSpeaker;
+    const btn = $("#call-speaker-btn"); if (btn) btn.classList.toggle("active", speakerOn);
+  } catch (e) {
+    toast(T("toast.speakerUnsupported"));
+  }
+}
 function attachRemoteAudio(id, stream) {
   if (!stream) { etherLog("warn", "[audio] empty stream"); return; }
   let audioEl = document.getElementById("remote-audio-" + id);
@@ -3755,15 +3955,13 @@ function systemMessageForCall(rec, reason) {
   const isOut = rec.direction === "out";
   if (reason === "completed" && rec.answeredAt) {
     const d = formatDuration(rec.durationMs || 0);
-    return `${isOut ? T("calls.outgoing") : T("calls.incoming")} · ${d}`;
+    return { key: isOut ? "calls.systemCompletedOut" : "calls.systemCompletedIn", params: { duration: d } };
   }
-  if (reason === "missed") {
-    return isOut ? T("calls.noAnswer") : T("calls.missed");
-  }
-  if (reason === "cancelled") return T("calls.cancelled");
-  if (reason === "declined") return T("calls.declined");
-  if (reason === "busy") return T("calls.busy");
-  if (reason === "failed") return T("calls.failed");
+  if (reason === "missed") return { key: isOut ? "calls.noAnswer" : "calls.missed" };
+  if (reason === "cancelled") return { key: "calls.cancelled" };
+  if (reason === "declined") return { key: "calls.declined" };
+  if (reason === "busy") return { key: "calls.busy" };
+  if (reason === "failed") return { key: "calls.failed" };
   return null;
 }
 
@@ -3782,6 +3980,8 @@ function closeCallScreen(reason) {
   endCallRecord(reason);
   const cs = $("#call-screen"); if (cs) cs.classList.add("hidden");
   const cm = $("#call-mute-btn"); if (cm) cm.classList.remove("active");
+  const spkBtn = $("#call-speaker-btn"); if (spkBtn) spkBtn.classList.remove("active");
+  speakerOn = false;
   const lbl = $("#call-mute-label"); if (lbl) lbl.textContent = T("call.mute");
   if (state.callId) pendingRemoteStreams.delete(state.callId);
   state.callId = null;
@@ -3791,9 +3991,9 @@ function closeCallScreen(reason) {
   if (rec && rec.contactId) {
     const c = state.contacts.get(rec.contactId);
     if (c) {
-      const text = systemMessageForCall(rec, reason);
-      if (text) {
-        c.messages.push({ id: crypto.randomUUID(), from: "system", text, ts: Date.now() });
+      const sysMsg = systemMessageForCall(rec, reason);
+      if (sysMsg) {
+        c.messages.push({ id: crypto.randomUUID(), from: "system", text: T(sysMsg.key, sysMsg.params), textKey: sysMsg.key, textParams: sysMsg.params, ts: Date.now() });
         c.lastActivity = Date.now();
         persistContacts();
         if (state.chatId === rec.contactId) renderChatThread();
@@ -3843,6 +4043,8 @@ function wireCallScreen() {
   if (switchCamBtn) switchCamBtn.addEventListener("click", () => {
     const link = mesh.get(state.callId); if (link) link.switchCamera();
   });
+  const speakerBtn = $("#call-speaker-btn");
+  if (speakerBtn) speakerBtn.addEventListener("click", () => toggleSpeaker());
   const accept = $("#call-accept-btn");
   if (accept) accept.addEventListener("click", () => acceptCall(false));
   const muteAccept = $("#call-mute-accept-btn");
@@ -3958,6 +4160,11 @@ function updateSearchCounter() {
 // Настройки
 // =====================================================================
 function wireSettingsScreen() {
+  const helpBtn = $("#help-btn");
+  if (helpBtn) helpBtn.addEventListener("click", () => {
+    renderHelp();
+    const el = $("#help-sheet"); if (el) el.classList.remove("hidden");
+  });
   const nameEl = $("#settings-name");
   if (nameEl) nameEl.addEventListener("change", (e) => {
     const v = e.target.value.trim();
@@ -4080,6 +4287,17 @@ function wireNavTitleTaps() {
     }
   });
 }
+const HELP_SECTIONS = [
+  "start", "contacts", "messaging", "media", "disappearing", "groups", "calls", "privacy", "settingsHelp",
+];
+function renderHelp() {
+  const el = $("#help-content"); if (!el) return;
+  el.innerHTML = HELP_SECTIONS.map((key) => {
+    const title = T("help." + key + ".title");
+    const body = T("help." + key + ".body");
+    return `<h3>${escapeHtml(title)}</h3><p>${escapeHtml(body).replace(/\n/g, "<br>")}</p>`;
+  }).join("");
+}
 function wireDebugScreen() {
   const diag = $("#diagnostics-btn");
   if (diag) diag.addEventListener("click", () => { renderDiagnostics(); const el = $("#diagnostics-sheet"); if (el) el.classList.remove("hidden"); });
@@ -4112,6 +4330,8 @@ function wireDebugScreen() {
   if (storageBtn) storageBtn.addEventListener("click", () => { renderStorageSheet(); const el = $("#storage-sheet"); if (el) el.classList.remove("hidden"); });
   const storageClose = $("#storage-close");
   if (storageClose) storageClose.addEventListener("click", () => { const el = $("#storage-sheet"); if (el) el.classList.add("hidden"); });
+  const exportDiag = $("#export-diagnostics-btn");
+  if (exportDiag) exportDiag.addEventListener("click", exportFullDiagnostics);
 
   const expBackup = $("#export-backup-btn");
   if (expBackup) expBackup.addEventListener("click", exportBackup);
@@ -4174,6 +4394,21 @@ function renderStorageSheet() {
 function buildEnvText() {
   return `<hr><div>UA: ${escapeHtml(navigator.userAgent)}</div>`;
 }
+function buildStorageText() {
+  const items = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (!k || !k.startsWith("ether.")) continue;
+    const v = localStorage.getItem(k) || "";
+    items.push({ key: k, size: v.length });
+  }
+  items.sort((a, b) => b.size - a.size);
+  const totalBytes = items.reduce((s, x) => s + x.size, 0);
+  const lines = [`localStorage: ${(totalBytes / 1024).toFixed(1)} KB, ${items.length} keys`];
+  for (const it of items) lines.push(`  ${it.key}: ${it.size} B`);
+  lines.push("UA: " + navigator.userAgent);
+  return lines.join("\n");
+}
 function buildDiagnosticsText() {
   const lines = [];
   lines.push("Ether — diagnostics");
@@ -4207,6 +4442,20 @@ function buildWebRtcText() {
 // =====================================================================
 // Экспорт/импорт
 // =====================================================================
+function buildFullDiagnosticsText() {
+  const sections = [
+    ["=== " + T("debug.diagnostics") + " ===", buildDiagnosticsText()],
+    ["=== " + T("debug.webrtc") + " ===", buildWebRtcText()],
+    ["=== " + T("debug.storage") + " ===", buildStorageText()],
+    ["=== " + T("debug.eventLog") + " ===", buildLogsText()],
+  ];
+  return sections.map(([title, body]) => title + "\n" + body).join("\n\n");
+}
+function exportFullDiagnostics() {
+  const blob = new Blob([buildFullDiagnosticsText()], { type: "text/plain" });
+  downloadBlob(blob, `ether-diagnostics-${new Date().toISOString().slice(0, 10)}.txt`);
+  toast(T("toast.diagnosticsSaved"));
+}
 function exportBackup() {
   const data = {};
   for (let i = 0; i < localStorage.length; i++) {
@@ -4439,7 +4688,18 @@ function wireChatScreen() {
     const wrap = $("#chat-messages"); if (wrap) wrap.scrollTo({ top: wrap.scrollHeight, behavior: "smooth" });
   });
   const wrap = $("#chat-messages");
-  if (wrap) wrap.addEventListener("scroll", () => updateScrollBottomButton());
+  if (wrap) wrap.addEventListener("scroll", () => {
+    updateScrollBottomButton();
+    if (state.chatId && unreadDividerFor.has(state.chatId) && isNearBottom(wrap)) {
+      const c = state.contacts.get(state.chatId);
+      if (c) {
+        unreadDividerFor.delete(state.chatId);
+        markThreadRead(c);
+        const div = wrap.querySelector(".unread-divider");
+        if (div) div.remove();
+      }
+    }
+  });
 }
 
 // =====================================================================
@@ -4468,6 +4728,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   try {
     await restoreFromIDB().catch(() => {});
     try { I18N.init(); } catch (e) {}
+    try { applyStaticTranslations(); } catch (e) {} // экран блокировки показывается ДО startApp() — переводим его до этого момента, а не после
     initBoot();
     clearTimeout(bootWatchdog);
   } catch (e) { etherLog("error", "[boot]", String(e)); showBootRecovery(); }
@@ -4520,6 +4781,16 @@ document.addEventListener("visibilitychange", () => {
         if (ca) ca.classList.remove("hidden");
       }
     }
-    if (state.chatId) { const c = state.contacts.get(state.chatId); if (c) markThreadRead(c); }
+    if (state.chatId) {
+      const c = state.contacts.get(state.chatId);
+      const wrap = $("#chat-messages");
+      // Как и при открытии чата — помечаем прочитанным только если сейчас
+      // реально виден низ переписки, а не потому что приложение просто
+      // вернулось на передний план.
+      if (c && (!unreadDividerFor.has(state.chatId) || isNearBottom(wrap))) {
+        unreadDividerFor.delete(state.chatId);
+        markThreadRead(c);
+      }
+    }
   }
 });

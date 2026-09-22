@@ -1,4 +1,4 @@
-const CACHE_VERSION = "ether-shell-v33";
+const CACHE_VERSION = "ether-shell-v35";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -82,20 +82,32 @@ self.addEventListener("message", (event) => {
 });
 
 self.addEventListener("push", (event) => {
-  let data = { title: "Эфир", body: "", contactId: null, kind: "message", tag: "ether" };
+  // Formats Declarative Web Push (web_push: 8030) — на браузерах, которые
+  // ещё не умеют показывать такие уведомления сами (не Safari), payload
+  // долетает сюда как обычно, и мы вручную вызываем showNotification() с
+  // теми же полями, что были бы использованы платформой нативно.
+  let raw = null;
   if (event.data) {
-    try { data = { ...data, ...event.data.json() }; }
-    catch (e) { data.body = event.data.text() || ""; }
+    try { raw = event.data.json(); } catch (e) { raw = null; }
   }
+  let n = raw && raw.web_push === 8030 && raw.notification ? raw.notification : null;
+  if (!n) {
+    // На случай payload в старом плоском формате или совсем без данных —
+    // не роняем показ уведомления, показываем то, что есть.
+    n = { title: "Эфир", body: "", tag: "ether", data: {} };
+    if (raw && typeof raw === "object") Object.assign(n, raw);
+  }
+  const data = n.data || {};
   event.waitUntil(
-    self.registration.showNotification(data.title || "Эфир", {
-      body: data.body || "",
-      tag: data.tag || "ether",
+    self.registration.showNotification(n.title || "Эфир", {
+      body: n.body || "",
+      tag: n.tag || "ether",
       badge: "./icons/icon-192.png",
       icon: "./icons/icon-192.png",
-      data: { contactId: data.contactId || null, kind: data.kind || "message" },
-      vibrate: data.kind === "call" ? [300, 150, 300, 150, 300] : [100, 50, 100],
-      requireInteraction: data.kind === "call",
+      data: { contactId: data.contactId || null, kind: data.kind || "message", navigate: data.navigate || n.navigate || null },
+      vibrate: n.vibrate || (data.kind === "call" ? [300, 150, 300, 150, 300] : [100, 50, 100]),
+      requireInteraction: !!n.requireInteraction || data.kind === "call",
+      renotify: !!n.renotify,
     })
   );
 });

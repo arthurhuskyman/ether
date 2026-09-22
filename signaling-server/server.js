@@ -292,6 +292,10 @@ if (ALLOWED_ORIGIN === "*") {
   console.warn("[ice] ALLOWED_ORIGIN не задан — /ice отдаёт TURN-credentials любому источнику. " +
     "Перед публичным релизом задайте ALLOWED_ORIGIN=https://ваш-домен в переменных окружения.");
 }
+// Тот же origin используем для поля "navigate" в декларативных push-уведомлениях
+// (Declarative Web Push требует абсолютный URL — см. ниже). Если ALLOWED_ORIGIN
+// не задан явно, откатываемся на известный адрес деплоя проекта.
+const APP_ORIGIN = (ALLOWED_ORIGIN !== "*" ? ALLOWED_ORIGIN : "https://arthurhuskyman.github.io/ether").replace(/\/+$/, "");
 const httpServer = http.createServer(async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
   res.setHeader("Vary", "Origin");
@@ -412,10 +416,40 @@ function savePushSubs() {
 loadPushSubs();
 
 // ---------- Базовая отправка push ----------
+// Собирает push-уведомление в формате Declarative Web Push (W3C, поле
+// web_push: 8030) — платформа (в первую очередь Safari/iOS 16.4+) может
+// показать уведомление САМА, без всякого участия Service Worker. Это
+// заметно надёжнее, чем полагаться на то, что SW успеет проснуться и
+// вызвать showNotification() сам — именно в этом узкое место, из-за
+// которого звонки на iOS исторически не добуживались при закрытом или
+// выгруженном PWA. mutable:false — уведомление показывается напрямую,
+// платформа не ждёт от SW никакой трансформации.
+// На браузерах, которые декларативный формат ещё не понимают (сейчас —
+// Chrome/Firefox на Android), тот же самый JSON просто долетает до
+// обработчика push в sw.js как обычный payload — тот же формат работает
+// в обоих случаях, никакой отдельной ветки на сервере не нужно.
+function buildDeclarativePush(payload) {
+  const isCall = payload.kind === "call";
+  const navigate = APP_ORIGIN + "/" + (isCall ? ("?call=" + encodeURIComponent(payload.contactId || "")) : ("?chat=" + encodeURIComponent(payload.contactId || "")));
+  const notification = {
+    title: payload.title || "Эфир",
+    body: payload.body || "",
+    navigate,
+    tag: payload.tag || "ether",
+    icon: APP_ORIGIN + "/icons/icon-192.png",
+    badge: APP_ORIGIN + "/icons/icon-192.png",
+    vibrate: isCall ? [300, 150, 300, 150, 300] : [100, 50, 100],
+    requireInteraction: isCall,
+    renotify: isCall,
+    data: { contactId: payload.contactId || null, kind: payload.kind || "message", navigate },
+  };
+  return { web_push: 8030, notification, mutable: false };
+}
+
 async function actuallySendPush(sub, payload) {
   if (!PUSH_ENABLED) return false;
   try {
-    await webpush.sendNotification(sub, JSON.stringify(payload), {
+    await webpush.sendNotification(sub, JSON.stringify(buildDeclarativePush(payload)), {
       TTL: 3600,
       urgency: payload.kind === "call" ? "high" : "normal",
     });
