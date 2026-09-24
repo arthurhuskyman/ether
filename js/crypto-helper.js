@@ -53,14 +53,24 @@ const CryptoHelper = (() => {
     return bytes;
   }
 
+  // v: 1 — версия формата конверта (не самого алгоритма AES-GCM/ECDH,
+  // а именно структуры {iv, ct, v}). Если формат когда-нибудь придётся
+  // менять, decryptJson сможет отличить старые сообщения от новых,
+  // вместо того чтобы просто упасть на непонятной структуре.
+  const ENVELOPE_VERSION = 1;
   async function encryptJson(sharedKey, obj) {
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const bytes = new TextEncoder().encode(JSON.stringify(obj));
     const cipherBuf = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, sharedKey, bytes);
-    return { iv: toBase64(iv), ct: toBase64(new Uint8Array(cipherBuf)) };
+    return { iv: toBase64(iv), ct: toBase64(new Uint8Array(cipherBuf)), v: ENVELOPE_VERSION };
   }
 
-  async function decryptJson(sharedKey, { iv, ct }) {
+  async function decryptJson(sharedKey, { iv, ct, v }) {
+    // v отсутствует — конверт от версии до введения этого поля;
+    // обрабатываем как v1 (единственный формат, который когда-либо
+    // существовал). Неизвестная БУДУЩАЯ версия (v > текущей) — явная
+    // ошибка, а не попытка расшифровать несовместимый формат вслепую.
+    if (v !== undefined && v > ENVELOPE_VERSION) throw new Error("unsupported envelope version: " + v);
     const plainBuf = await crypto.subtle.decrypt(
       { name: "AES-GCM", iv: fromBase64(iv) },
       sharedKey,

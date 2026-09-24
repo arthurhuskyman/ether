@@ -58,11 +58,16 @@ const SignalingCodec = (() => {
   }
 
   async function decode(code) {
+    // Код приглашения — то, что пользователь вставляет сам; реалистичный
+    // максимум с запасом (SDP с ICE-кандидатами, сжатый и base64) — пара
+    // КБ. Без проверки случайно вставленный огромный текст ушёл бы в
+    // gunzip/TextDecoder и мог заметно подвесить вкладку.
+    if (typeof code !== "string" || code.length > 8192) throw new Error("toast.badInviteCode");
     const clean = code.trim().replace(/^ether:\/\//i, "");
     const version = clean[0];
     const flag = clean[1];
     const body = clean.slice(2);
-    if (version !== "1") throw new Error("Неизвестный формат кода связи");
+    if (version !== "1") throw new Error("toast.badInviteCode");
     let bytes = fromBase64Url(body);
     if (flag === "1") bytes = await gunzip(bytes);
     const json = new TextDecoder().decode(bytes);

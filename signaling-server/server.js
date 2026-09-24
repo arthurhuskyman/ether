@@ -36,6 +36,8 @@ const PUSH_THROTTLE_MS = 30 * 1000;
 const PUSH_DEDUP_TTL_MS = 10 * 60 * 1000;
 const PUSH_AFTER_MS = 5000;
 const pushSentForMsgId = new Map();
+const callInvitePushSent = new Map(); // packet.x -> ts — от повторной отправки ОДНОГО И ТОГО ЖЕ call-invite (например, ретрай после переподключения клиента) получатель не должен получать второй push на ту же самую попытку звонка
+const CALL_INVITE_PUSH_DEDUP_TTL_MS = 60 * 1000;
 
 // ---------- Metered (TURN) ----------
 const METERED_API_KEY = process.env.METERED_API_KEY || "";
@@ -81,6 +83,27 @@ function registerRateLimitOk(ip) {
     for (const [k, v] of registerHits) if (now - v.start > 120_000) registerHits.delete(k);
   }
   return w.n <= REGISTER_RATE_LIMIT_PER_MIN;
+}
+
+// На /ice, /link-preview и register лимиты уже были — на signal/deliver
+// не было вовсе, хотя это WS-сообщения, а не HTTP-запросы: один
+// скомпрометированный/сбойный клиент мог бы залить сервер тысячами
+// пакетов в секунду. Лимитируем по myId (уже зарегистрированное
+// соединение), не по IP — тут это точнее отражает угрозу.
+const SIGNAL_RATE_LIMIT_PER_MIN = 120; // выше, чем deliver — сюда же идут SDP offer/answer/ICE-кандидаты при живом WebRTC-согласовании, всплеск легитимен
+const DELIVER_RATE_LIMIT_PER_MIN = 60;
+const signalHits = new Map();
+const deliverHits = new Map();
+function wsRateLimitOk(map, key, limitPerMin) {
+  const now = Date.now();
+  const w = map.get(key) || { start: now, n: 0 };
+  if (now - w.start > 60_000) { w.start = now; w.n = 0; }
+  w.n++;
+  map.set(key, w);
+  if (map.size > 5000) {
+    for (const [k, v] of map) if (now - v.start > 120_000) map.delete(k);
+  }
+  return w.n <= limitPerMin;
 }
 
 async function fetchMeteredIce() {
@@ -155,6 +178,19 @@ function linkPreviewRateLimitOk(ip) {
   linkPreviewHits.set(ip, w);
   if (linkPreviewHits.size > 5000) {
     for (const [k, v] of linkPreviewHits) if (now - v.start > 120_000) linkPreviewHits.delete(k);
+    if (linkPreviewHits.size > 5000) {
+      // Та же логика, что и для linkPreviewCache выше: если все записи
+      // всё ещё "свежие" (много разных IP за короткое окно), очистка по
+      // возрасту ничего не найдёт — жёсткий предел по количеству как
+      // подстраховка.
+      const toRemove = linkPreviewHits.size - 4500;
+      let removed = 0;
+      for (const k of linkPreviewHits.keys()) {
+        if (removed >= toRemove) break;
+        linkPreviewHits.delete(k);
+        removed++;
+      }
+    }
   }
   return w.n <= LINK_PREVIEW_RATE_LIMIT_PER_MIN;
 }
@@ -188,7 +224,7 @@ function resolveHostSafe(hostname) {
       for (const a of addresses) {
         if (isPrivateIp(a.address)) return reject(new Error("private address blocked"));
       }
-      resolve(addresses[0].address);
+      resolve(addresses[0]); // { address, family } — отдаём целиком, не только строку
     });
   });
 }
@@ -196,11 +232,19 @@ function resolveHostSafe(hostname) {
 async function fetchUrlSafe(targetUrl, redirectsLeft) {
   const u = new URL(targetUrl);
   if (u.protocol !== "http:" && u.protocol !== "https:") throw new Error("scheme not allowed");
-  await resolveHostSafe(u.hostname); // бросит исключение, если хост резолвится в приватный адрес (SSRF-защита)
+  // TOCTOU/DNS rebinding: резолвим и проверяем IP здесь, а затем ЯВНО
+  // передаём именно ЭТОТ IP в http.get через lookup — если этого не
+  // сделать, http.get() резолвит хост ЗАНОВО сам, своим собственным
+  // вызовом DNS, и между двумя резолвами атакующий с коротким TTL на
+  // своём DNS-сервере может успеть подменить публичный IP на приватный
+  // (127.0.0.1 и т.п.), обходя проверку выше полностью.
+  const safe = await resolveHostSafe(u.hostname);
+  const customLookup = (hostname, options, callback) => callback(null, safe.address, safe.family);
 
   const mod = u.protocol === "https:" ? https : http;
   return new Promise((resolve, reject) => {
     const req = mod.get(u, {
+      lookup: customLookup,
       headers: {
         "User-Agent": "Mozilla/5.0 (compatible; EtherLinkPreview/1.0; +https://github.com/)",
         "Accept": "text/html,application/xhtml+xml",
@@ -279,9 +323,23 @@ async function getLinkPreview(targetUrl) {
   const data = extractMeta(html, targetUrl);
   linkPreviewCache.set(targetUrl, { at: now, data });
   if (linkPreviewCache.size > 2000) {
-    // грубая очистка — держим кеш в разумных пределах
+    // Сначала — по возрасту (как и раньше). Но если абсолютно все записи
+    // всё ещё "свежие" (кто-то целенаправленно шлёт много РАЗНЫХ ссылок
+    // в пределах часа), этот цикл ничего не найдёт — кеш продолжал бы
+    // расти без ограничения (вектор DoS по памяти). Поэтому следом —
+    // жёсткий предел по количеству: убираем самые старые по порядку
+    // вставки, пока не впишемся в разумный размер, независимо от возраста.
     const cutoff = now - LINK_PREVIEW_CACHE_MS;
     for (const [k, v] of linkPreviewCache) if (v.at < cutoff) linkPreviewCache.delete(k);
+    if (linkPreviewCache.size > 2000) {
+      const toRemove = linkPreviewCache.size - 1800;
+      let removed = 0;
+      for (const k of linkPreviewCache.keys()) {
+        if (removed >= toRemove) break;
+        linkPreviewCache.delete(k);
+        removed++;
+      }
+    }
   }
   return data;
 }
@@ -414,7 +472,10 @@ function loadPushSubs() {
     if (!Array.isArray(arr)) return;
     for (const entry of arr) {
       if (Array.isArray(entry) && typeof entry[0] === "string" && entry[1]) {
-        pushSubs.set(entry[0], entry[1]);
+        // Обратная совместимость: старый формат хранил голую подписку
+        // (объект с .endpoint), новый — { subscription, lang }.
+        const v = entry[1];
+        pushSubs.set(entry[0], v && v.subscription ? v : { subscription: v, lang: "en" });
       }
     }
     console.log("[push] восстановлено подписок:", pushSubs.size);
@@ -444,7 +505,45 @@ loadPushSubs();
 // Chrome/Firefox на Android), тот же самый JSON просто долетает до
 // обработчика push в sw.js как обычный payload — тот же формат работает
 // в обоих случаях, никакой отдельной ветки на сервере не нужно.
-function buildDeclarativePush(payload) {
+// Небольшая таблица переводов ИМЕННО для текста push-уведомлений —
+// полный 72-язычный словарь приложения живёт в клиенте (js/languages.js)
+// и на сервер не годится копировать целиком ради нескольких строк.
+// Покрывает крупнейшие языки; для остальных — честный английский, а не
+// русский по умолчанию, как было раньше (сервер теперь знает язык
+// получателя из push-subscribe).
+const PUSH_TEXT = {
+  en: { call: "Call", incomingCall: "Incoming call", newMessage: "New message", aggregatedMessages: (n) => `${n} new messages` },
+  ru: { call: "Звонок", incomingCall: "Входящий вызов", newMessage: "Новое сообщение", aggregatedMessages: (n) => `${n} новых сообщений` },
+  es: { call: "Llamada", incomingCall: "Llamada entrante", newMessage: "Mensaje nuevo", aggregatedMessages: (n) => `${n} mensajes nuevos` },
+  pt: { call: "Chamada", incomingCall: "Chamada recebida", newMessage: "Nova mensagem", aggregatedMessages: (n) => `${n} novas mensagens` },
+  fr: { call: "Appel", incomingCall: "Appel entrant", newMessage: "Nouveau message", aggregatedMessages: (n) => `${n} nouveaux messages` },
+  de: { call: "Anruf", incomingCall: "Eingehender Anruf", newMessage: "Neue Nachricht", aggregatedMessages: (n) => `${n} neue Nachrichten` },
+  it: { call: "Chiamata", incomingCall: "Chiamata in arrivo", newMessage: "Nuovo messaggio", aggregatedMessages: (n) => `${n} nuovi messaggi` },
+  zh: { call: "通话", incomingCall: "来电", newMessage: "新消息", aggregatedMessages: (n) => `${n} 条新消息` },
+  ja: { call: "通話", incomingCall: "着信", newMessage: "新着メッセージ", aggregatedMessages: (n) => `新着メッセージ ${n} 件` },
+  ko: { call: "통화", incomingCall: "수신 전화", newMessage: "새 메시지", aggregatedMessages: (n) => `새 메시지 ${n}개` },
+  ar: { call: "مكالمة", incomingCall: "مكالمة واردة", newMessage: "رسالة جديدة", aggregatedMessages: (n) => `${n} رسائل جديدة` },
+  hi: { call: "कॉल", incomingCall: "आने वाली कॉल", newMessage: "नया संदेश", aggregatedMessages: (n) => `${n} नए संदेश` },
+  tr: { call: "Arama", incomingCall: "Gelen arama", newMessage: "Yeni mesaj", aggregatedMessages: (n) => `${n} yeni mesaj` },
+  vi: { call: "Cuộc gọi", incomingCall: "Cuộc gọi đến", newMessage: "Tin nhắn mới", aggregatedMessages: (n) => `${n} tin nhắn mới` },
+  pl: { call: "Połączenie", incomingCall: "Połączenie przychodzące", newMessage: "Nowa wiadomość", aggregatedMessages: (n) => `${n} nowych wiadomości` },
+  nl: { call: "Oproep", incomingCall: "Inkomend gesprek", newMessage: "Nieuw bericht", aggregatedMessages: (n) => `${n} nieuwe berichten` },
+  th: { call: "โทร", incomingCall: "สายเรียกเข้า", newMessage: "ข้อความใหม่", aggregatedMessages: (n) => `ข้อความใหม่ ${n} รายการ` },
+  id: { call: "Panggilan", incomingCall: "Panggilan masuk", newMessage: "Pesan baru", aggregatedMessages: (n) => `${n} pesan baru` },
+  fa: { call: "تماس", incomingCall: "تماس ورودی", newMessage: "پیام جدید", aggregatedMessages: (n) => `${n} پیام جدید` },
+  uk: { call: "Дзвінок", incomingCall: "Вхідний дзвінок", newMessage: "Нове повідомлення", aggregatedMessages: (n) => `${n} нових повідомлень` },
+};
+function pushText(lang, key, params) {
+  const base = (lang || "en").toLowerCase().split(/[-_]/)[0];
+  const table = PUSH_TEXT[base] || PUSH_TEXT.en;
+  const val = table[key] !== undefined ? table[key] : PUSH_TEXT.en[key];
+  const resolved = typeof val === "function" ? val(params && params.n) : val;
+  // Если ключа нет даже в en (опечатка при добавлении нового ключа) —
+  // не отдаём undefined в заголовок/текст уведомления.
+  return resolved === undefined ? key : resolved;
+}
+
+function buildDeclarativePush(payload, lang) {
   const isCall = payload.kind === "call";
   const navigate = APP_ORIGIN + "/" + (isCall ? ("?call=" + encodeURIComponent(payload.contactId || "")) : ("?chat=" + encodeURIComponent(payload.contactId || "")));
   const notification = {
@@ -462,10 +561,10 @@ function buildDeclarativePush(payload) {
   return { web_push: 8030, notification, mutable: false };
 }
 
-async function actuallySendPush(sub, payload) {
+async function actuallySendPush(subEntry, payload) {
   if (!PUSH_ENABLED) return false;
   try {
-    await webpush.sendNotification(sub, JSON.stringify(buildDeclarativePush(payload)), {
+    await webpush.sendNotification(subEntry.subscription, JSON.stringify(buildDeclarativePush(payload, subEntry.lang)), {
       TTL: 3600,
       urgency: payload.kind === "call" ? "high" : "normal",
     });
@@ -479,11 +578,11 @@ async function actuallySendPush(sub, payload) {
 
 async function sendPushTo(recipientId, senderId, payload, opts = {}) {
   if (!PUSH_ENABLED) return;
-  const sub = pushSubs.get(recipientId);
-  if (!sub) return;
+  const subEntry = pushSubs.get(recipientId);
+  if (!subEntry) return;
 
   if (opts.force || payload.kind === "call") {
-    const res = await actuallySendPush(sub, payload);
+    const res = await actuallySendPush(subEntry, payload);
     if (res === "gone") { pushSubs.delete(recipientId); savePushSubs(); }
     return;
   }
@@ -495,7 +594,7 @@ async function sendPushTo(recipientId, senderId, payload, opts = {}) {
   if (!entry || now - entry.lastAt >= PUSH_THROTTLE_MS) {
     if (entry && entry.timer) { clearTimeout(entry.timer); entry.timer = null; }
     pushThrottle.set(key, { lastAt: now, count: 0, timer: null });
-    const res = await actuallySendPush(sub, payload);
+    const res = await actuallySendPush(subEntry, payload);
     if (res === "gone") { pushSubs.delete(recipientId); savePushSubs(); }
     return;
   }
@@ -516,7 +615,7 @@ async function sendPushTo(recipientId, senderId, payload, opts = {}) {
       const n = cur.count + 1;
       cur.lastAt = Date.now();
       cur.count = 0;
-      const aggregated = { ...payload, body: n > 1 ? `${n} новых сообщений` : payload.body };
+      const aggregated = { ...payload, body: n > 1 ? pushText(subNow.lang, "aggregatedMessages", { n }) : payload.body };
       const res = await actuallySendPush(subNow, aggregated);
       if (res === "gone") { pushSubs.delete(recipientId); savePushSubs(); }
     }, delay);
@@ -590,7 +689,7 @@ wss.on("connection", (ws, req) => {
       return;
     }
 
-    if (msg.type === "register" && typeof msg.id === "string" && msg.id) {
+    if (msg.type === "register" && typeof msg.id === "string" && msg.id && msg.id.length <= 128) {
       if (!registerRateLimitOk(clientIp)) {
         safeSend(ws, { type: "register-rate-limited" });
         return;
@@ -624,7 +723,7 @@ wss.on("connection", (ws, req) => {
 
     if (msg.type === "push-subscribe" && myId && msg.subscription) {
       try {
-        pushSubs.set(myId, msg.subscription);
+        pushSubs.set(myId, { subscription: msg.subscription, lang: typeof msg.lang === "string" ? msg.lang : "en" });
         savePushSubs();
         safeSend(ws, { type: "push-subscribed" });
         console.log("[push] подписка сохранена для", shortId(myId), "всего=" + pushSubs.size);
@@ -638,7 +737,8 @@ wss.on("connection", (ws, req) => {
       return;
     }
 
-    if (msg.type === "signal" && myId && typeof msg.to === "string") {
+    if (msg.type === "signal" && myId && typeof msg.to === "string" && msg.to.length <= 128) {
+      if (!wsRateLimitOk(signalHits, myId, SIGNAL_RATE_LIMIT_PER_MIN)) return;
       const target = clients.get(msg.to);
       const payload = { type: "signal", from: myId, data: msg.data };
       if (target) {
@@ -649,11 +749,20 @@ wss.on("connection", (ws, req) => {
         console.log("[sig] " + shortId(myId) + " → UNREACHABLE " + shortId(msg.to) + " t=" + (msg.data && msg.data.t));
       }
       if (msg.data && msg.data.t === "call-invite") {
+        // Дедупликация по packet.x — если это повторная отправка ТОГО ЖЕ
+        // самого приглашения (например, ретрай после переподключения
+        // клиента), получатель уже получил push на эту попытку звонка.
+        // На клиенте isDuplicateSignal защищает от повторной обработки
+        // сигнала, но push к тому моменту уже был бы отправлен повторно.
+        const inviteNonce = msg.data.x;
+        if (inviteNonce && callInvitePushSent.has(inviteNonce)) return;
+        if (inviteNonce) callInvitePushSent.set(inviteNonce, Date.now());
         const me = clients.get(myId);
-        const myName = (me && me.name) || "Звонок";
+        const recipientLang = (pushSubs.get(msg.to) || {}).lang;
+        const myName = (me && me.name) || pushText(recipientLang, "call");
         sendPushTo(msg.to, myId, {
           title: "📞 " + myName,
-          body: "Входящий вызов",
+          body: pushText(recipientLang, "incomingCall"),
           tag: "ether-call-" + myId,
           contactId: myId,
           kind: "call",
@@ -663,7 +772,8 @@ wss.on("connection", (ws, req) => {
     }
 
     // ---------- Доставка зашифрованного конверта ----------
-    if (msg.type === "deliver" && myId && typeof msg.to === "string" && typeof msg.msgId === "string") {
+    if (msg.type === "deliver" && myId && typeof msg.to === "string" && msg.to.length <= 128 && typeof msg.msgId === "string" && msg.msgId.length <= 128) {
+      if (!wsRateLimitOk(deliverHits, myId, DELIVER_RATE_LIMIT_PER_MIN)) return;
       if (!isValidEnvelope(msg.envelope)) {
         safeSend(ws, { type: "deliver-ack", msgId: msg.msgId, error: "invalid-envelope" });
         return;
@@ -696,10 +806,11 @@ wss.on("connection", (ws, req) => {
           if (pushSentForMsgId.has(mid)) return;
           pushSentForMsgId.set(mid, Date.now());
           const me = clients.get(myId);
-          const myName = (me && me.name) || "Новое сообщение";
+          const recipientLang = (pushSubs.get(msg.to) || {}).lang;
+          const myName = (me && me.name) || pushText(recipientLang, "newMessage");
           sendPushTo(msg.to, myId, {
             title: myName,
-            body: "Новое сообщение",
+            body: pushText(recipientLang, "newMessage"),
             tag: "ether-msg-" + myId,
             contactId: myId,
             kind: "message",
@@ -749,6 +860,27 @@ setInterval(() => {
     if (now - ts > PUSH_DEDUP_TTL_MS) pushSentForMsgId.delete(msgId);
   }
 }, 60 * 1000);
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [x, ts] of callInvitePushSent) {
+    if (now - ts > CALL_INVITE_PUSH_DEDUP_TTL_MS) callInvitePushSent.delete(x);
+  }
+}, 60 * 1000);
+
+setInterval(() => {
+  // Запись вида { lastAt, count: 0, timer: null } создаётся при
+  // немедленной (не отложенной) отправке и остаётся в pushThrottle
+  // НАВСЕГДА, если от этого отправителя этому получателю больше не
+  // придёт сообщений (только тогда сработал бы clearThrottleForRecipient
+  // на реконнекте) — у записей БЕЗ активного timer нет своего
+  // встроенного момента очистки. При долгоживущем процессе и множестве
+  // разных пар отправитель/получатель карта будет медленно расти.
+  const now = Date.now();
+  for (const [key, entry] of pushThrottle) {
+    if (!entry.timer && now - entry.lastAt > PUSH_THROTTLE_MS * 10) pushThrottle.delete(key);
+  }
+}, 5 * 60 * 1000);
 
 function shutdown() {
   console.log("Завершаем работу…");

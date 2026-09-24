@@ -1,4 +1,4 @@
-const CACHE_VERSION = "ether-shell-v36";
+const CACHE_VERSION = "ether-shell-v50";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -17,9 +17,14 @@ const SHELL_FILES = [
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/apple-touch-icon.png",
+  "./icons/favicon-32.png",
+  // ring-soft.mp3 и ring-bell.mp3 — АЛЬТЕРНАТИВНЫЕ рингтоны на выбор
+  // (Store.ringtone по умолчанию — "ring-classic"), большинство
+  // пользователей их никогда не выберут. Не кешируем заранее — на
+  // медленном канале первый запуск иначе тянул бы лишние МБ. Браузер
+  // закеширует их сам при первом реальном использовании (сам fetch-
+  // обработчик ниже это уже умеет для любого запроса с того же origin).
   "./sounds/ring-classic.mp3",
-  "./sounds/ring-soft.mp3",
-  "./sounds/ring-bell.mp3",
   "./sounds/msg-icq-style.mp3",
   "./sounds/call-dialing.mp3",
   "./sounds/call-busy.mp3",
@@ -105,13 +110,16 @@ self.addEventListener("push", (event) => {
   if (event.data) {
     try { raw = event.data.json(); } catch (e) { raw = null; }
   }
-  let n = raw && raw.web_push === 8030 && raw.notification ? raw.notification : null;
-  if (!n) {
-    // На случай payload в старом плоском формате или совсем без данных —
-    // не роняем показ уведомления, показываем то, что есть.
-    n = { title: "Эфир", body: "", tag: "ether", data: {} };
-    if (raw && typeof raw === "object") Object.assign(n, raw);
-  }
+  // Раньше при payload вида {notification: {...}} БЕЗ web_push:8030
+  // (гипотетический другой формат/сервер) второй Object.assign(n, raw)
+  // копировал raw.notification КАК ЕСТЬ (вложенным объектом) в n.notification,
+  // не разворачивая его — n.title/n.body оставались дефолтными "Эфир"/"",
+  // и уведомление показывалось пустым. Теперь явно разворачиваем
+  // raw.notification, если он есть, вместо raw целиком.
+  let n = raw && raw.notification && typeof raw.notification === "object"
+    ? raw.notification
+    : (raw && typeof raw === "object" ? raw : null);
+  if (!n) n = { title: "Эфир", body: "", tag: "ether", data: {} };
   const data = n.data || {};
   event.waitUntil(
     self.registration.showNotification(n.title || "Эфир", {
@@ -140,6 +148,14 @@ self.addEventListener("notificationclick", (event) => {
   const data = event.notification.data || {};
   const contactId = data.contactId;
   const kind = data.kind || "message";
+  // data.navigate — полный URL с ?call=<id>/?chat=<id>, который читает
+  // app.js при загрузке (handleNotificationNavigateParams). Раньше при
+  // полностью закрытом приложении (нет ни одного открытого окна) тут
+  // открывался голый "./" без этого параметра — приложение стартовало
+  // на обычном экране чатов, а не на входящем звонке. Именно это и
+  // означало "звонки не работают при закрытом приложении": пуш
+  // приходил, уведомление показывалось, но тап по нему никуда не вёл.
+  const navigateUrl = data.navigate || "./";
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
       for (const c of list) {
@@ -148,7 +164,7 @@ self.addEventListener("notificationclick", (event) => {
           return c.focus();
         }
       }
-      if (self.clients.openWindow) return self.clients.openWindow("./");
+      if (self.clients.openWindow) return self.clients.openWindow(navigateUrl);
     })
   );
 });

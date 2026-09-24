@@ -104,6 +104,7 @@ class PeerLink extends EventTarget {
     this._muteRecheckTimer = null;
     this._pendingNegotiation = false;
     this._renegotiationRetryTimer = null;
+    this._negotiationQueuedIceRestart = false;
     this._negotiationPendingOnOpen = false; // если addTrack сработал раньше, чем открылся dc — не теряем это молча
     this._makingOffer = false; // для Perfect Negotiation (устранение glare при одновременном createOffer с двух сторон)
     this._polite = getMyId() < id; // детерминированно и одинаково с обеих сторон: у кого id меньше — тот "вежливый" (уступает при столкновении)

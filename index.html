@@ -52,6 +52,7 @@
   <header id="nav-bar" class="glass">
     <div id="nav-list-mode" class="nav-mode-list">
       <h1 id="nav-title">Chats</h1>
+      <button type="button" id="nav-conn-indicator" class="nav-conn-indicator hidden" data-i18n="status.offline">Offline</button>
     </div>
     <div id="nav-chat-mode" class="nav-mode-chat hidden">
       <button type="button" id="chat-back" class="icon-btn back-btn">‹</button>
@@ -101,19 +102,19 @@
         <input id="global-search" type="text" placeholder="Search chats" data-i18n-ph="chats.search" class="search-input" autocomplete="off" />
       </div>
       <div id="chats-empty" class="empty-state hidden">
-        <div class="empty-icon">💬</div>
+        <div class="empty-icon"><svg viewBox="0 0 24 24" width="48" height="48"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 4V6a2 2 0 0 1 2-2z"/></svg></div>
         <h2 data-i18n="chats.empty.title">No one is online yet</h2>
         <p data-i18n="chats.empty.sub">Open the Contacts tab to add your first peer.</p>
       </div>
       <div id="chats-list" class="chats-list"></div>
       <div id="chats-archived-toggle" class="link-toggle-wrap hidden">
-        <button type="button" id="toggle-archived" class="link-toggle" data-i18n="chats.archive.show">Show archive ›</button>
+        <button type="button" id="toggle-archived" class="link-toggle" data-i18n="chats.archive.show">Show archive</button>
       </div>
     </section>
 
     <section id="screen-calls" class="screen hidden">
       <div id="calls-empty" class="empty-state hidden">
-        <div class="empty-icon">📞</div>
+        <div class="empty-icon"><svg viewBox="0 0 24 24" width="48" height="48"><path fill="currentColor" d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.7 21 3 13.3 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.4 0 .8-.2 1L6.6 10.8z"/></svg></div>
         <h2 data-i18n="calls.empty.title">No calls yet</h2>
       </div>
       <div id="calls-list" class="calls-list"></div>
@@ -194,7 +195,7 @@
       <div class="settings-group glass-content">
         <div class="settings-row column">
           <span><span data-i18n="settings.server">Signaling server</span> <span id="signaling-status-dot" class="status-dot"></span></span>
-          <input id="settings-signaling-url" type="text" placeholder="wss://your-server.example.com" />
+          <input id="settings-signaling-url" type="text" data-i18n-ph="settings.signalingUrl.placeholder" placeholder="Leave empty to use the default server" />
           <button type="button" id="save-signaling-btn" class="btn-secondary settings-btn-full" data-i18n="settings.save">Save and connect</button>
           <span id="signaling-status-text" class="fine muted"></span>
         </div>
@@ -214,6 +215,7 @@
         </label>
         <button type="button" id="settings-ringtone-preview" class="settings-row link-row"><span data-i18n="settings.ringtone.preview">Play preview</span><span class="chevron">›</span></button>
         <label class="settings-row"><span data-i18n="settings.pinlock">PIN code on start</span><input id="settings-pinlock" type="checkbox" class="switch" /></label>
+        <button type="button" id="change-pin-btn" class="settings-row link-row hidden"><span data-i18n="settings.pin.change">Change PIN</span><span class="chevron">›</span></button>
       </div>
       <div class="settings-group glass-content">
         <label class="settings-row"><span data-i18n="settings.language">Language</span>
@@ -223,7 +225,7 @@
       <div class="settings-group glass-content">
         <div class="settings-row column">
           <span data-i18n="settings.glass">Glass transparency</span> <span id="glass-slider-value" class="fine muted"></span>
-          <input id="glass-slider" type="range" min="0.18" max="0.85" step="0.01" />
+          <input id="glass-slider" type="range" min="0" max="1" step="0.01" />
         </div>
         <div class="settings-row column">
           <span data-i18n="settings.theme">Appearance</span>
@@ -236,7 +238,9 @@
       </div>
       <div class="settings-group glass-content">
         <div class="settings-row column" style="align-items:center; text-align:center;">
-          <span class="fine muted" data-i18n="settings.designedBy">Designed by AIK in Moscow</span>
+          <span class="about-app-name">Ether</span>
+          <span id="about-version" class="fine muted"></span>
+          <span class="fine muted about-designed-by">Designed by AIK in Moscow, Holy Russia, Planet Earth, Solar System, Local Interstellar Cloud, Local Bubble, Orion Arm, Milky Way Galaxy, Local Group of Galaxies, Virgo Supercluster, Laniakea Supercluster, Pisces–Cetus Supercluster Complex, Observable Universe, Universe</span>
         </div>
       </div>
     </section>
@@ -251,6 +255,7 @@
       </div>
       <div class="settings-group glass-content">
         <button type="button" id="export-backup-btn" class="settings-row link-row"><span data-i18n="debug.exportData">Export all data</span><span class="chevron">›</span></button>
+        <p class="fine muted" style="margin:-8px 0 10px;" data-i18n="debug.exportDataNote">Includes contacts, messages and settings. Photos, videos and voice messages sent or received are stored only on this device and are not included.</p>
         <button type="button" id="import-backup-btn" class="settings-row link-row"><span data-i18n="debug.importData">Import data from file</span><span class="chevron">›</span></button>
       </div>
       <div class="settings-group glass-content">
@@ -266,7 +271,7 @@
       </div>
     </section>
 
-    <section id="screen-chat" class="screen hidden">
+    <section id="screen-chat" class="screen hidden" role="region" aria-label="Chat">
       <div id="chat-search-bar" class="search-bar glass hidden">
         <input id="chat-search-input" type="text" placeholder="Search in chat" data-i18n-ph="chat.search" class="search-input-inline" autocomplete="off" />
         <span id="chat-search-counter" class="search-counter"></span>
@@ -277,7 +282,7 @@
 
       <button type="button" id="scroll-bottom-btn" class="scroll-bottom-btn hidden" aria-label="To last" data-i18n-aria="a11y.toLast">
         <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 16 6 10l1.41-1.41L12 13.17l4.59-4.58L18 10z"/></svg>
-        <span id="scroll-bottom-count" class="scroll-bottom-count"></span>
+        <span id="scroll-bottom-count" class="scroll-bottom-count hidden"></span>
       </button>
 
       <div id="reply-banner" class="edit-banner glass hidden">
@@ -360,6 +365,7 @@
     </button>
     <button type="button" class="tab-btn" data-tab="calls">
       <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.7 21 3 13.3 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.4 0 .8-.2 1L6.6 10.8z"/></svg>
+      <span id="tab-calls-badge" class="tab-badge hidden">0</span>
       <span data-i18n="nav.calls">Calls</span>
     </button>
     <button type="button" class="tab-btn" data-tab="connect">
@@ -376,7 +382,7 @@
     </button>
   </nav>
 
-  <div id="call-screen" class="hidden">
+  <div id="call-screen" class="hidden" role="dialog" aria-modal="true" aria-label="Call">
     <div class="call-bg"></div>
     <video id="call-remote-video" class="hidden" autoplay playsinline></video>
     <video id="call-local-video" class="hidden" autoplay playsinline muted></video>
@@ -595,6 +601,23 @@
 </div>
 
 <div id="toast"></div>
+
+<div id="media-viewer" class="hidden">
+  <button type="button" id="media-viewer-close" class="icon-btn media-viewer-close" aria-label="Close"><svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg></button>
+  <img id="media-viewer-img" alt="" />
+  <video id="media-viewer-video" controls playsinline class="hidden"></video>
+</div>
+
+<div id="link-action-sheet" class="sheet hidden">
+  <div class="sheet-backdrop"></div>
+  <div class="sheet-panel glass-content">
+    <div class="sheet-handle"></div>
+    <p id="link-action-url" class="fine muted link-action-url"></p>
+    <button type="button" id="link-action-open" class="settings-row link-row"><span data-i18n="chat.link.open">Open link</span><span class="chevron">›</span></button>
+    <button type="button" id="link-action-copy" class="settings-row link-row"><span data-i18n="chat.link.copy">Copy link</span><span class="chevron">›</span></button>
+    <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="link-action-sheet" data-i18n="sys.cancel">Cancel</button>
+  </div>
+</div>
 <input type="file" id="import-backup-input" class="hidden" accept="application/json" />
 
 <div id="boot-recovery" class="hidden">

@@ -32,6 +32,12 @@ class SignalingClient extends EventTarget {
     this._retryDelay = 1000;
     this._retryTimer = null;
     this.connected = false;
+    // connected=true уже при открытии WS-соединения (до подтверждения
+    // регистрации сервером) — исторически так, и почти весь app.js на
+    // это полагается, менять рискованно. registered — более точный
+    // флаг для случаев, где важно именно "сервер подтвердил, кто я" —
+    // становится true только по сообщению "registered".
+    this.registered = false;
     this._stopped = false;
     this._pushSubscription = null;
     this._pingTimer = null;
@@ -49,6 +55,7 @@ class SignalingClient extends EventTarget {
     this.shouldRun = false;
     this._stopped = true;
     this.connected = false;
+    this.registered = false;
     this._stopHeartbeat();
     if (this._retryTimer) { clearTimeout(this._retryTimer); this._retryTimer = null; }
     if (this.ws) {
@@ -95,9 +102,16 @@ class SignalingClient extends EventTarget {
       }
 
       if (msg.type === "registered") {
+        this.registered = true;
         const users = (Array.isArray(msg.online) ? msg.online : []).map(normalizeRosterEntry).filter(Boolean);
         etherLog("info", "[signaling] зарегистрирован, онлайн:", users.length);
         this.dispatchEvent(new CustomEvent("online-list", { detail: { users } }));
+      } else if (msg.type === "register-rate-limited") {
+        // Сервер отклонил регистрацию по лимиту попыток — раньше клиент
+        // это молча игнорировал, и пользователь просто видел "офлайн" без
+        // объяснения причины.
+        etherLog("warn", "[signaling] регистрация отклонена — превышен лимит попыток");
+        this.dispatchEvent(new CustomEvent("register-rate-limited"));
       } else if (msg.type === "vapid-key" && typeof msg.key === "string") {
         etherLog("info", "[push] получен VAPID-ключ от сервера");
         this.dispatchEvent(new CustomEvent("vapid-key", { detail: { key: msg.key } }));
@@ -142,6 +156,7 @@ class SignalingClient extends EventTarget {
       if (this.ws !== ws) return;
       this.ws = null;
       this.connected = false;
+      this.registered = false;
       etherLog("info", "[signaling] соединение закрыто, переподключаюсь…");
       this.dispatchEvent(new CustomEvent("disconnected"));
       this._scheduleRetry();
@@ -214,7 +229,9 @@ class SignalingClient extends EventTarget {
   sendPushSubscription(subscription) {
     if (!subscription) return false;
     this._pushSubscription = subscription;
-    return this.send("push-subscribe", { subscription });
+    let lang = "en";
+    try { if (typeof I18N !== "undefined" && I18N.current) lang = I18N.current; } catch (e) {}
+    return this.send("push-subscribe", { subscription, lang });
   }
 
   sendPushUnsubscribe() {
@@ -229,9 +246,15 @@ const Identity = (() => {
     const trimmed = String(raw || "").trim();
     if (!trimmed) return { type: "email", value: "" };
     if (trimmed.includes("@")) return { type: "email", value: trimmed.toLowerCase() };
-    const plus = trimmed.startsWith("+") ? "+" : "";
+    // "+15551234" и "15551234" — один и тот же номер для человека, но
+    // раньше давали РАЗНЫЙ id (плюс просто сохранялся, только если сам
+    // ввёл): переписывались один и тот же телефон в разных чатах никогда
+    // бы не совпали друг с другом. Приложение ещё в разработке,
+    // пользователей с уже закреплённым id нет — можно исправить сейчас,
+    // не откладывая: всегда добавляем "+", независимо от того, что ввёл
+    // пользователь.
     const digits = trimmed.replace(/\D/g, "");
-    return { type: "phone", value: plus + digits };
+    return { type: "phone", value: "+" + digits };
   }
 
   async function hashId(normalizedValue) {
@@ -242,12 +265,12 @@ const Identity = (() => {
 
   async function idFor(raw) {
     const { type, value } = normalize(raw);
-    if (!value || value === "+") throw new Error("Пустое значение");
+    if (!value || value === "+") throw new Error("toast.emptyId");
     if (type === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-      throw new Error("Похоже, это не email и не телефон");
+      throw new Error("toast.invalidIdFormat");
     }
     if (type === "phone" && value.replace(/\D/g, "").length < 6) {
-      throw new Error("Похоже, это не email и не телефон");
+      throw new Error("toast.invalidIdFormat");
     }
     const id = await hashId(value);
     return { id, normalized: value, type };
