@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.31.3";
+const APP_VERSION = "V.31.5";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 const MAX_MESSAGE_LENGTH = 4000;
@@ -1587,12 +1587,16 @@ function renderTabInner() {
   $$(".screen").forEach((s) => s.classList.add("hidden"));
   const tb = $("#tab-bar");
   if (tb) {
-    // Раньше таб-бар был виден ВСЕГДА, включая открытый чат — вместе с
-    // #chat-form это давало ДВА футера друг над другом одновременно
-    // (~139px на iPhone с safe-area, около 21% высоты экрана SE).
-    // Стандарт индустрии (Telegram/WhatsApp/Signal/iMessage) — в чате
-    // нижней навигации нет вовсе, только кнопка "назад" в шапке.
-    tb.classList.toggle("hidden", !!(state.chatId || state.contactCardId || state.callId));
+    // Пользователь явно попросил обратное решение: таб-бар должен
+    // оставаться видимым ВСЕГДА, контролы чата/звонка — появляться НАД
+    // ним, не вместо него. #call-screen уже переведён на обычный
+    // flex-элемент (см. его CSS) специально для этого — но эта строка
+    // всё ещё скрывала таб-бар отдельно для чата/карточки контакта,
+    // хотя тот же принцип должен применяться и здесь. Раньше двойной
+    // футер получался из-за position:absolute у #call-screen поверх
+    // всего #app-shell — сейчас оба (#content и #call-screen) обычные
+    // flex-сиблинги с явным order, лишнего наложения не будет.
+    tb.classList.remove("hidden");
   }
 
   if (state.chatId) {
