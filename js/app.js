@@ -3,11 +3,23 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.32.10";
+const APP_VERSION = "V.32.15";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 const MAX_MESSAGE_LENGTH = 4000;
-const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15 МБ — см. README: файлы идут только "вживую" через P2P, без офлайн-очереди
+// Раньше был единый потолок 15МБ на "живую" P2P-передачу, без разницы
+// между "что можно выбрать" и "что реально уходит". Пользователь попросил
+// жёсткий потолок в 2МБ на РЕЗУЛЬТАТ (то, что реально отправляется) — с
+// автоматической оптимизацией/сжатием, если исходник больше. Поэтому
+// теперь два разных числа: щедрый входной потолок (есть что сжимать) и
+// строгий целевой — то, что фактически уйдёт получателю. Раз целевой
+// потолок (2МБ) меньше серверного MAX_PAYLOAD (8МБ, см.
+// signaling-server/server.js) с большим запасом даже на base64-накладные
+// расходы, отдельный, больший потолок специально для офлайн-очереди
+// больше не нужен — один и тот же 2МБ работает и для живой P2P, и для
+// очереди через сервер.
+const MAX_FILE_SIZE_INPUT = 20 * 1024 * 1024; // 20 МБ — что можно ВЫБРАТЬ (даёт сжатию картинок что уменьшать)
+const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2 МБ — целевой потолок того, что РЕАЛЬНО отправляется
 const FILE_CHUNK_SIZE = 48 * 1024; // кратно 3 — ровные base64-куски без паддинга внутри потока
 const OUTBOX_LIMIT = 500;
 const SEEN_DELIVER_LIMIT = 500;
@@ -469,7 +481,14 @@ async function fetchLinkPreview(url) {
   try {
     const base = signalingHttpBase();
     if (!base) throw new Error("no signaling server configured");
-    const r = await fetch(base + "/link-preview?url=" + encodeURIComponent(url), { cache: "default" });
+    // Раньше здесь не было таймаута вовсе — на медленном/холодном сервере
+    // (Render.com бесплатного тарифа засыпает при простое) fetch мог
+    // зависнуть практически бесконечно. Слот превью (min-height: 2px)
+    // так и оставался пустым и незаметным НАВСЕГДА — пользователь видел
+    // только сырую ссылку без единого признака ошибки. Явный таймаут
+    // гарантирует, что попытка рано или поздно завершится — либо успехом,
+    // либо честным исчезновением слота (см. renderLinkPreviewInto).
+    const r = await fetch(base + "/link-preview?url=" + encodeURIComponent(url), { cache: "default", signal: AbortSignal.timeout(10000) });
     if (r.status === 204) { linkPreviewCache.set(url, { status: "none", data: null }); return null; }
     if (!r.ok) throw new Error("HTTP " + r.status);
     const data = await r.json();
@@ -2736,16 +2755,82 @@ async function ensureLiveLink(contactId, timeoutMs) {
   }
   return null;
 }
+// Сжатие изображений перед отправкой — canvas, прогрессивное снижение
+// качества/разрешения, пока не уложится в целевой размер (или пока не
+// кончатся попытки). PNG с прозрачностью тоже конвертируется в JPEG
+// (белая подложка вместо прозрачности) — для типичного случая "отправить
+// фото" это подходящий компромисс; если после этого всё равно больше
+// целевого размера, возвращаем null — вызывающий код решает, что делать
+// (отклонить с понятной ошибкой, а не молча отправить гигантский файл).
+async function compressImageToTarget(file, maxBytes) {
+  if (!file.type || file.type.indexOf("image/") !== 0) return null;
+  if (file.type === "image/svg+xml" || file.type === "image/gif") return null; // векторные/анимация — сжимать растрово нет смысла
+  let bitmap;
+  try { bitmap = await createImageBitmap(file); }
+  catch (e) { return null; }
+  const MAX_DIM = 1920; // разумное разрешение для сообщения в чате, не для печати
+  let { width, height } = bitmap;
+  if (width > MAX_DIM || height > MAX_DIM) {
+    const scale = MAX_DIM / Math.max(width, height);
+    width = Math.round(width * scale);
+    height = Math.round(height * scale);
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = width; canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, width, height); // подложка под прозрачность
+  ctx.drawImage(bitmap, 0, 0, width, height);
+  bitmap.close && bitmap.close();
+  const qualities = [0.85, 0.7, 0.55, 0.4];
+  for (const q of qualities) {
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", q));
+    if (blob && blob.size <= maxBytes) return blob;
+  }
+  // Качество исчерпано — последняя попытка: уменьшаем ещё разрешение вдвое.
+  if (width > 640 && height > 640) {
+    canvas.width = Math.round(width / 2); canvas.height = Math.round(height / 2);
+    const ctx2 = canvas.getContext("2d");
+    ctx2.fillStyle = "#fff"; ctx2.fillRect(0, 0, canvas.width, canvas.height);
+    ctx2.drawImage(canvas, 0, 0, width, height, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.6));
+    if (blob && blob.size <= maxBytes) return blob;
+  }
+  return null;
+}
 async function sendFileMessage(contactId, file) {
   const c = state.contacts.get(contactId); if (!c) return;
   if (isGroup(c)) { toast(T("toast.fileGroupsUnsupported")); return; }
   if (c.blocked) { toast(T("toast.blocked")); return; }
-  if (file.size > MAX_FILE_SIZE) { toast(T("toast.fileTooLarge", { size: formatFileSize(MAX_FILE_SIZE) })); return; }
+  if (file.size > MAX_FILE_SIZE_INPUT) { toast(T("toast.fileTooLarge", { size: formatFileSize(MAX_FILE_SIZE_INPUT) })); return; }
+  // Целевой потолок того, что реально уходит — 2МБ. Если исходник
+  // больше и это изображение — пробуем сжать автоматически, вместо
+  // того чтобы сразу отказывать. Итоговый Blob подменяет исходный
+  // file для всего остального пути (P2P/офлайн-очередь его не
+  // различают — им важен только размер и содержимое).
+  if (file.size > MAX_FILE_SIZE) {
+    const compressed = await compressImageToTarget(file, MAX_FILE_SIZE);
+    if (compressed) {
+      const origName = file.name || "photo.jpg";
+      const newName = origName.replace(/\.[^.]+$/, "") + ".jpg";
+      file = new File([compressed], newName, { type: "image/jpeg" });
+    } else {
+      toast(T("toast.fileTooLarge", { size: formatFileSize(MAX_FILE_SIZE) }));
+      return;
+    }
+  }
   const existingLink = mesh.get(contactId);
   const alreadyLive = existingLink && (existingLink.status === "connected" || existingLink.status === "in-call");
   if (!alreadyLive) toast(T("toast.connecting"));
   const link = alreadyLive ? existingLink : await ensureLiveLink(contactId, 8000);
-  if (!link) { toast(T("toast.fileNeedsLive")); return; }
+  if (!link) {
+    // Раньше тут просто отказывали — теперь, поскольку file гарантированно
+    // уже ≤ MAX_FILE_SIZE (2МБ, с большим запасом до серверного
+    // MAX_PAYLOAD в 8МБ даже с учётом base64), шлём через тот же
+    // зашифрованный почтовый ящик сервера, что и текст (sendFileOffline
+    // ниже), вместо жёсткого отказа.
+    await sendFileOffline(contactId, file);
+    return;
+  }
 
   const msgId = crypto.randomUUID();
   const ts = Date.now();
@@ -2776,9 +2861,37 @@ async function sendFileMessage(contactId, file) {
   if (!ok) toast(T("toast.fileSendFailed"));
 }
 
-// =====================================================================
-// Голосовые сообщения
-// =====================================================================
+// Путь через почтовый ящик сервера для небольших файлов, когда
+// собеседник офлайн (P2P недоступен даже после ensureLiveLink). Один
+// зашифрованный payload одним сообщением — БЕЗ чанкования, в отличие
+// от живой P2P-передачи (там chunks через link.sendFile). Переиспользует
+// ровно тот же trySendOrQueue/почтовый ящик, что и текстовые сообщения
+// — сервер не видит содержимого файла, только зашифрованный envelope,
+// как и для текста.
+async function sendFileOffline(contactId, file) {
+  const c = state.contacts.get(contactId); if (!c) return;
+  const msgId = crypto.randomUUID();
+  const ts = Date.now();
+  const rec = {
+    id: msgId, from: "me", text: "", ts, ack: "sent", serverAcked: false,
+    file: { name: file.name, mime: file.type || "application/octet-stream", size: file.size, kind: fileKindFromMime(file.type), pending: true },
+  };
+  c.messages.push(rec); trimMessages(c); c.lastActivity = ts; persistContacts();
+  if (state.chatId === contactId) { renderChatThreadInner(); const wrap = $("#chat-messages"); if (wrap) wrap.scrollTop = wrap.scrollHeight; }
+  if (state.tab === "chats") renderChatsList();
+
+  let buffer;
+  try { buffer = await file.arrayBuffer(); }
+  catch (e) { rec.file.pending = false; rec.ack = "failed"; persistContacts(); if (state.chatId === contactId) renderChatThreadInner(); return; }
+  try { await IDB.set("file:" + msgId, new Blob([buffer], { type: rec.file.mime })); } catch (e) {}
+
+  const payload = { kind: "file", id: msgId, name: file.name, mime: rec.file.mime, size: file.size, dataB64: arrayBufferToBase64(buffer) };
+  await trySendOrQueue(c, msgId, payload);
+  rec.file.pending = false;
+  persistContacts();
+  if (state.chatId === contactId) renderChatThreadInner();
+  if (state.tab === "chats") renderChatsList();
+}
 // Переиспользует ровно ту же инфраструктуру, что и обычные файлы (P2P
 // только "вживую", хранение блоба в IndexedDB) — отличается только UI
 // записи и типом отрисовки пузыря (проигрыватель вместо файла).
@@ -2791,7 +2904,12 @@ async function sendVoiceMessage(contactId, blob, durationSec) {
   const alreadyLive2 = existingLink2 && (existingLink2.status === "connected" || existingLink2.status === "in-call");
   if (!alreadyLive2) toast(T("toast.connecting"));
   const link = alreadyLive2 ? existingLink2 : await ensureLiveLink(contactId, 8000);
-  if (!link) { toast(T("toast.fileNeedsLive")); return; }
+  if (!link) {
+    // Размер уже гарантированно ≤ MAX_FILE_SIZE (проверка чуть выше) —
+    // офлайн-путь всегда доступен, отдельная проверка не нужна.
+    await sendVoiceOffline(contactId, blob, durationSec);
+    return;
+  }
 
   const msgId = crypto.randomUUID();
   const ts = Date.now();
@@ -2821,6 +2939,34 @@ async function sendVoiceMessage(contactId, blob, durationSec) {
   if (state.chatId === contactId) renderChatThreadInner();
   if (state.tab === "chats") renderChatsList();
   if (!ok) toast(T("toast.fileSendFailed"));
+}
+// Голосовой аналог sendFileOffline — тот же принцип (один зашифрованный
+// payload через почтовый ящик сервера, без чанкования), плюс duration
+// в записи для правильной отрисовки плеера.
+async function sendVoiceOffline(contactId, blob, durationSec) {
+  const c = state.contacts.get(contactId); if (!c) return;
+  const msgId = crypto.randomUUID();
+  const ts = Date.now();
+  const mime = blob.type || "audio/webm";
+  const rec = {
+    id: msgId, from: "me", text: "", ts, ack: "sent", serverAcked: false,
+    file: { name: "voice-message", mime, size: blob.size, kind: "audio", duration: durationSec, pending: true },
+  };
+  c.messages.push(rec); trimMessages(c); c.lastActivity = ts; persistContacts();
+  if (state.chatId === contactId) { renderChatThreadInner(); const wrap = $("#chat-messages"); if (wrap) wrap.scrollTop = wrap.scrollHeight; }
+  if (state.tab === "chats") renderChatsList();
+
+  let buffer;
+  try { buffer = await blob.arrayBuffer(); }
+  catch (e) { rec.file.pending = false; rec.ack = "failed"; persistContacts(); if (state.chatId === contactId) renderChatThreadInner(); return; }
+  try { await IDB.set("file:" + msgId, new Blob([buffer], { type: mime })); } catch (e) {}
+
+  const payload = { kind: "file", id: msgId, name: "voice-message", mime, size: blob.size, duration: durationSec, dataB64: arrayBufferToBase64(buffer) };
+  await trySendOrQueue(c, msgId, payload);
+  rec.file.pending = false;
+  persistContacts();
+  if (state.chatId === contactId) renderChatThreadInner();
+  if (state.tab === "chats") renderChatsList();
 }
 
 function pickVoiceMimeType() {
@@ -3996,6 +4142,36 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     // renderChatThread, которая честно проверяет прокрутку). Теперь
     // полагаемся только на неё — она сама решит, когда действительно
     // отправить квитанцию, и корректно учтёт группы (см. markThreadRead).
+    updateAppBadge();
+  } else if (kind === "file") {
+    // Файл/голосовое, пришедшее ЦЕЛИКОМ одним payload'ом — путь через
+    // почтовый ящик сервера (sendFileOffline/sendVoiceOffline), в
+    // отличие от чанкованного P2P-протокола (kind начинается с "file-",
+    // см. handleFilePayload/finishIncomingFile — та запись сначала
+    // "pending", потом дозаполняется). Тут вся информация уже есть
+    // сразу, собирать по частям нечего.
+    const c = ensureContactEntry(from, null);
+    if (c.messages.some((m) => m.id === payload.id)) return;
+    let blob;
+    try { blob = new Blob([base64ToUint8Array(payload.dataB64)], { type: payload.mime || "application/octet-stream" }); }
+    catch (e) { etherLog("error", "[file] decode failed:", String(e)); return; }
+    const rec = {
+      id: payload.id, from: "them", text: "", ts: payload.ts || Date.now(), readAckSent: false, deliveryId: envelopeMsgId,
+      file: { name: payload.name || "file", mime: payload.mime || "application/octet-stream", size: payload.size || blob.size, kind: fileKindFromMime(payload.mime), duration: payload.duration, pending: false },
+    };
+    IDB.set("file:" + payload.id, blob).catch(() => {});
+    c.messages.push(rec); trimMessages(c); c.lastActivity = Date.now();
+    persistContacts();
+    const isOpen = state.chatId === from;
+    if (isOpen) { renderChatThread(); playMessageSound(); vibrate([80, 40, 80]); }
+    else {
+      const label = T("chat.file.preview." + rec.file.kind);
+      toast(`${c.name}: ${label}`);
+      if (!c.muted) showNotification(c.name || T("app.name"), label, { tag: "ether-msg-" + c.id, contactId: c.id, kind: "message" });
+      playMessageSound();
+      vibrate([80, 40, 80]);
+    }
+    if (state.tab === "chats") renderChatsList();
     updateAppBadge();
   } else if (kind === "group-invite") {
     if (!Array.isArray(payload.members) || payload.members.length === 0 || payload.members.length > MAX_GROUP_MEMBERS) return;
@@ -5588,10 +5764,24 @@ async function acceptCall(withMute) {
       }
       return;
     }
-    // Соединение недоступно ровно в момент принятия — не показываем ложный
-    // "звонок принят", а честно закрываем экран как несостоявшийся звонок.
-    toast(T("calls.failed"));
-    closeCallScreen("failed");
+    // РЕГРЕССИЯ, найденная пользователем: связь в момент нажатия "Ответить"
+    // почти НИКОГДА не находится в статусе "connected" ещё — сам смысл
+    // фазы "звонит" в том, что P2P-рукопожатие идёт ПАРАЛЛЕЛЬНО с показом
+    // экрана звонка. Раньше (до правки link.status в этой же сессии) этот
+    // случай просто ничего не делал здесь — state._callUserAccepted=true
+    // уже выставлен выше, и ОТДЕЛЬНЫЙ обработчик "connected" в
+    // wireMeshEvents подхватывал завершение приёма звонка, когда связь
+    // реально устанавливалась. Я по ошибке добавил тут немедленный отказ
+    // ("звонок не состоялся") ровно в этом самом обычном случае — звонок
+    // проваливался почти всегда, а не только когда связь ДЕЙСТВИТЕЛЬНО не
+    // смогла установиться. Ждём молча, если линк вообще существует —
+    // отказываем только если его нет совсем (это уже настоящая ошибка).
+    if (!link) {
+      toast(T("calls.failed"));
+      closeCallScreen("failed");
+    }
+    // else: линк есть, просто ещё не "connected" — ждём "connected" из
+    // wireMeshEvents, ничего больше делать здесь не нужно.
   } catch (e) {
     etherLog("error", "[call] accept handler failed:", String(e));
   } finally {
