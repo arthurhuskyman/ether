@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.31.7";
+const APP_VERSION = "V.32.9";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 const MAX_MESSAGE_LENGTH = 4000;
@@ -338,7 +338,7 @@ const RINGTONES = {
   "ring-bell": "sounds/ring-bell.mp3",
 };
 const SOUND_FILES = {
-  message: "sounds/msg-icq-style.mp3",
+  message: "sounds/msg.mp3",
   dialing: "sounds/call-dialing.mp3",
   busy: "sounds/call-busy.mp3",
   noanswer: "sounds/call-noanswer.mp3",
@@ -960,16 +960,30 @@ function wireLockScreen() {
 function bootAfterUnlock() {
   if (__appStarted) return;
   if (Store.name && Store.myId) {
-    Promise.all([
-      ensureKeyPair().catch(() => {}),
-      window.__etherIceReady || Promise.resolve(),
-    ]).then(() => {
+    // Раньше здесь ЖДАЛИ window.__etherIceReady (ответ /ice с сервера)
+    // ПЕРЕД тем, как вообще показать приложение — хотя ICE-серверы
+    // нужны только в момент РЕАЛЬНОГО соединения (звонок, автоподключение
+    // к чату), не для того, чтобы просто открыть список чатов. Если
+    // сервер "холодный" (спит после простоя), это превращалось в
+    // многосекундную задержку самого ПОКАЗА приложения — пользователь
+    // видел пустой экран, хотя список чатов и все настройки уже давно
+    // доступны локально. PeerLink теперь сам подстрахуется резервным
+    // STUN, если ICE_SERVERS к моменту реального соединения ещё пуст
+    // (см. webrtc.js) — ждать здесь стало не нужно вовсе.
+    ensureKeyPair().catch(() => {}).then(() => {
       try { startApp(); }
       catch (e) { etherLog("error", "[startApp]", String(e)); }
     }).catch(() => {
       try { startApp(); } catch (e) {}
     });
   } else {
+    // Предложение сменить язык теперь вызывается ЗДЕСЬ, до показа формы
+    // регистрации — раньше maybeOfferSystemLanguage() вызывалась только
+    // внутри startApp(), которая для нового пользователя срабатывает
+    // уже ПОСЛЕ заполнения формы. #lang-offer вынесен из #app-shell
+    // специально для этого (см. комментарий в CSS) — иначе физически
+    // не мог бы показаться раньше.
+    try { maybeOfferSystemLanguage(); } catch (e) {}
     const o = $("#onboarding"); if (o) o.classList.remove("hidden");
     wireOnboardingOnce();
   }
@@ -980,12 +994,52 @@ function initBoot() {
   bootAfterUnlock();
 }
 let __onboardingWired = false;
+// Подключение change-обработчика для #import-backup-input — раньше
+// жило только внутри wireDebugScreen(), которая запускается лишь
+// ПОСЛЕ startApp(). На экране онбординга (до входа в приложение,
+// сразу после переустановки) startApp() ещё не вызывался — кнопка
+// импорта там открыла бы выбор файла, но сам выбор ничего бы не делал.
+// Отдельная идемпотентная функция — вызывается и из онбординга, и из
+// wireDebugScreen, но обработчик вешается не больше одного раза.
+let __importBackupInputWired = false;
+function wireImportBackupInput() {
+  if (__importBackupInputWired) return;
+  __importBackupInputWired = true;
+  const impInput = $("#import-backup-input");
+  if (impInput) impInput.addEventListener("change", importBackup);
+}
 function wireOnboardingOnce() {
   if (__onboardingWired) return;
   __onboardingWired = true;
   if (Store.name) { const el = $("#onboarding-name"); if (el) el.value = Store.name; }
+  // Восстановление из файла бэкапа прямо с экрана регистрации — раньше
+  // это было спрятано в скрытом Debug-экране (5 тапов по заголовку),
+  // куда обычный пользователь никогда бы не попал, особенно СРАЗУ после
+  // переустановки, когда он ещё даже не внутри приложения. importBackup
+  // сама перезагружает страницу после успешного импорта — онбординг
+  // корректно пропустится, раз Store.name/myId уже заполнены из бэкапа.
+  wireImportBackupInput();
+  const impBtn = $("#onboarding-import-backup-btn");
+  if (impBtn) impBtn.addEventListener("click", () => { const el = $("#import-backup-input"); if (el) el.click(); });
   const form = $("#onboarding-form");
   if (!form) return;
+  // Живая подсветка формата телефона/email по мере ввода — раньше её не
+  // было вовсе, ошибка формата обнаруживалась только в момент отправки
+  // (жёсткая блокировка уже была, но пользователь узнавал об этом
+  // только post-factum, без подсказки заранее). idFor() тут вызывается
+  // только ради проверки формата — результат (id/хэш) отбрасывается,
+  // сама проверка достаточно дешёвая для запуска на каждый ввод.
+  const idField = $("#onboarding-identity");
+  if (idField) {
+    idField.addEventListener("input", () => {
+      const v = idField.value.trim();
+      if (!v) { idField.classList.remove("input-invalid"); return; }
+      Identity.idFor(v).then(
+        () => idField.classList.remove("input-invalid"),
+        () => idField.classList.add("input-invalid")
+      );
+    });
+  }
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const nameVal = $("#onboarding-name").value.trim();
@@ -993,7 +1047,7 @@ function wireOnboardingOnce() {
     if (!nameVal || !idVal) return;
     let identity;
     try { identity = await Identity.idFor(idVal); }
-    catch (err) { toast(T(err.message)); return; }
+    catch (err) { toast(T(err.message)); idField && idField.classList.add("input-invalid"); return; }
     Store.name = nameVal;
     Store.myIdentityRaw = identity.normalized;
     Store.myId = identity.id;
@@ -1167,14 +1221,23 @@ function setupLanguageSelector() {
   }
   sel.value = I18N.current;
   sel.addEventListener("change", () => {
-    I18N.setLang(sel.value);
-    applyStaticTranslations();
-    try { renderTab(); } catch (e) {}
-    if (state.chatId) renderChatThread();
-    if (state.contactCardId) renderContactCard();
-    if (state.tab === "chats" && state.chatsSegment === "calls") renderCallsList();
-    refreshSignalingStatusText();
-    renderOnlineRosterList();
+    const code = sel.value;
+    // Словарь новой (ещё не выбранной) вкладки может быть не загружен —
+    // подгружаем лениво (js/lang/<code>.js, обычно 15-30КБ, а не все
+    // 72 языка разом) и только после этого переключаемся.
+    sel.disabled = true;
+    I18N.ensureLoaded(code, (ok) => {
+      sel.disabled = false;
+      if (!ok) { toast(T("toast.langLoadFailed")); sel.value = I18N.current; return; }
+      I18N.setLang(code);
+      applyStaticTranslations();
+      try { renderTab(); } catch (e) {}
+      if (state.chatId) renderChatThread();
+      if (state.contactCardId) renderContactCard();
+      if (state.tab === "chats" && state.chatsSegment === "calls") renderCallsList();
+      refreshSignalingStatusText();
+      renderOnlineRosterList();
+    });
   });
 }
 
@@ -1190,12 +1253,15 @@ function maybeOfferSystemLanguage() {
   if (yes) {
     yes.textContent = T("lang.offer.yes");
     yes.addEventListener("click", () => {
-      I18N.setLang(sys);
-      I18N.markOfferShown();
-      banner.classList.add("hidden");
-      applyStaticTranslations();
-      try { renderTab(); } catch (e) {}
-      const sel = $("#settings-language"); if (sel) sel.value = I18N.current;
+      I18N.ensureLoaded(sys, (ok) => {
+        if (!ok) { toast(T("toast.langLoadFailed")); return; }
+        I18N.setLang(sys);
+        I18N.markOfferShown();
+        banner.classList.add("hidden");
+        applyStaticTranslations();
+        try { renderTab(); } catch (e) {}
+        const sel = $("#settings-language"); if (sel) sel.value = I18N.current;
+      });
     });
   }
   const no = $("#lang-offer-no");
@@ -3209,12 +3275,23 @@ function createGroup(name, memberIds) {
 // Рассылает текущий состав/название группы всем участникам — при
 // создании, добавлении/удалении участника или переименовании.
 function broadcastGroupRoster(g) {
-  const payload = { kind: "group-invite", id: crypto.randomUUID(), groupId: g.id, groupName: g.name, members: g.members };
   for (const m of g.members) {
     if (m.id === Store.myId) continue;
-    const mc = ensureContactEntry(m.id, m.name);
-    trySendOrQueue(mc, crypto.randomUUID(), payload).catch(() => {});
+    sendGroupRosterTo(g, m.id);
   }
+}
+// Единственная точка отправки ростера ОДНОМУ конкретному участнику —
+// переиспользуется и явной рассылкой всем (выше), и авто-восстановлением
+// при переподключении (ниже). Раньше группа синхронизировалась только
+// при явном действии (добавили/убрали участника) — если у ОРГАНИЗАТОРА
+// (или любого участника) локальные данные исчезли (переустановка
+// приложения — своего сервер-бэкапа контактов/групп у приложения нет),
+// НИЧЕГО не пересылало ему ростер заново, пока кто-то не совершит новое
+// действие в группе. Группа просто не появлялась у него снова.
+function sendGroupRosterTo(g, memberId) {
+  const payload = { kind: "group-invite", id: crypto.randomUUID(), groupId: g.id, groupName: g.name, members: g.members };
+  const mc = ensureContactEntry(memberId, (g.members.find((m) => m.id === memberId) || {}).name);
+  trySendOrQueue(mc, crypto.randomUUID(), payload).catch(() => {});
 }
 async function sendGroupMessage(groupId, text, replyTo) {
   const g = state.contacts.get(groupId); if (!g || !g.isGroup) return;
@@ -4352,13 +4429,22 @@ function wireConnectScreen() {
     renderTab();
   });
   const addBtn = $("#add-contact-btn");
+  const addValEl = $("#add-contact-value");
+  if (addValEl) addValEl.addEventListener("input", () => {
+    const v = addValEl.value.trim();
+    if (!v) { addValEl.classList.remove("input-invalid"); return; }
+    Identity.idFor(v).then(
+      () => addValEl.classList.remove("input-invalid"),
+      () => addValEl.classList.add("input-invalid")
+    );
+  });
   if (addBtn) addBtn.addEventListener("click", async () => {
     const nameVal = $("#add-contact-name").value.trim();
     const raw = $("#add-contact-value").value.trim();
     if (!raw) { toast(T("toast.emptyId")); return; }
     let identity;
     try { identity = await Identity.idFor(raw); }
-    catch (e) { toast(T(e.message)); return; }
+    catch (e) { toast(T(e.message)); if (addValEl) addValEl.classList.add("input-invalid"); return; }
     if (identity.id === Store.myId) { toast(T("toast.ownId")); return; }
     if (state.contacts.has(identity.id)) toast(T("toast.alreadyAdded"));
     else {
@@ -4484,11 +4570,13 @@ function copyText(text, msg) {
 // =====================================================================
 // Шиты
 // =====================================================================
-const __camera = { stream: null, facing: "environment", capturedBlob: null, contactId: null };
+const __camera = { stream: null, facing: "environment", capturedBlob: null, capturedKind: "photo", contactId: null,
+  recorder: null, recordedChunks: [], recordStartedAt: 0, recordTimerId: null, longPressTimerId: null, isRecording: false };
 async function openCameraScreen(contactId) {
   const screen = $("#camera-screen"); if (!screen) return;
   __camera.contactId = contactId;
   __camera.capturedBlob = null;
+  __camera.capturedKind = "photo";
   screen.classList.remove("hidden");
   showCameraLiveState();
   await startCameraStream(__camera.facing);
@@ -4516,17 +4604,100 @@ function stopCameraStream() {
   if (__camera.stream) { try { __camera.stream.getTracks().forEach((t) => t.stop()); } catch (e) {} __camera.stream = null; }
 }
 function closeCameraScreen() {
+  stopVideoRecording(true); // true = отменить, не сохранять — закрытие экрана посреди записи не должно молча отправлять недописанное видео
   stopCameraStream();
   __camera.capturedBlob = null;
   const screen = $("#camera-screen"); if (screen) screen.classList.add("hidden");
 }
 function showCameraLiveState() {
-  const video = $("#camera-preview"), img = $("#camera-captured-img");
+  const video = $("#camera-preview"), img = $("#camera-captured-img"), capVideo = $("#camera-captured-video");
   const live = $("#camera-controls-live"), preview = $("#camera-controls-preview");
+  const hint = $("#camera-shutter-hint");
   if (video) video.classList.remove("hidden");
   if (img) img.classList.add("hidden");
+  if (capVideo) { capVideo.pause(); if (capVideo.src) URL.revokeObjectURL(capVideo.src); capVideo.src = ""; capVideo.classList.add("hidden"); }
+  if (hint) hint.classList.remove("hidden");
   if (live) live.classList.remove("hidden");
   if (preview) preview.classList.add("hidden");
+}
+function pickVideoMimeType() {
+  const candidates = ["video/mp4", "video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"];
+  for (const c of candidates) {
+    if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(c)) return c;
+  }
+  return "";
+}
+function updateCameraRecTimer() {
+  const el = $("#camera-rec-timer"); if (!el) return;
+  const sec = Math.floor((Date.now() - __camera.recordStartedAt) / 1000);
+  el.textContent = Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0");
+}
+const CAMERA_MAX_VIDEO_SEC = 60; // разумный потолок для видео-сообщения, не полноценной видеосъёмки
+async function startVideoRecording() {
+  if (__camera.isRecording || !__camera.stream) return;
+  if (!window.MediaRecorder) { toast(T("toast.videoUnsupported")); return; }
+  // Превью-поток снимался БЕЗ звука (audio:false) — чтобы не спрашивать
+  // разрешение на микрофон у тех, кто только фотографирует. Для видео
+  // звук нужен — добираем аудиодорожку отдельным вызовом и объединяем
+  // с уже идущим видеопотоком в один MediaStream для рекордера.
+  let audioStream = null;
+  try { audioStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch (e) { /* без звука лучше, чем совсем без видео — продолжаем без аудиодорожки */ }
+  const tracks = [...__camera.stream.getVideoTracks()];
+  if (audioStream) tracks.push(...audioStream.getAudioTracks());
+  const combined = new MediaStream(tracks);
+  __camera.recordedChunks = [];
+  const mimeType = pickVideoMimeType();
+  try {
+    __camera.recorder = mimeType ? new MediaRecorder(combined, { mimeType }) : new MediaRecorder(combined);
+  } catch (e) {
+    toast(T("toast.videoUnsupported"));
+    if (audioStream) audioStream.getTracks().forEach((t) => t.stop());
+    return;
+  }
+  __camera._audioStream = audioStream; // для остановки дорожек отдельно от превью-потока при завершении
+  __camera.recorder.ondataavailable = (ev) => { if (ev.data && ev.data.size > 0) __camera.recordedChunks.push(ev.data); };
+  __camera.recorder.onstop = () => onVideoRecordingStopped(mimeType);
+  __camera.recorder.start();
+  __camera.isRecording = true;
+  __camera.recordStartedAt = Date.now();
+  const shutterBtn = $("#camera-shutter-btn"); if (shutterBtn) shutterBtn.classList.add("recording");
+  const hint = $("#camera-shutter-hint"); if (hint) hint.classList.add("hidden");
+  const rec = $("#camera-rec-indicator"); if (rec) rec.classList.remove("hidden");
+  updateCameraRecTimer();
+  __camera.recordTimerId = setInterval(() => {
+    updateCameraRecTimer();
+    if (Date.now() - __camera.recordStartedAt >= CAMERA_MAX_VIDEO_SEC * 1000) stopVideoRecording(false);
+  }, 250);
+}
+function stopVideoRecording(cancel) {
+  if (!__camera.isRecording) return;
+  __camera.isRecording = false;
+  if (__camera.recordTimerId) { clearInterval(__camera.recordTimerId); __camera.recordTimerId = null; }
+  const shutterBtn = $("#camera-shutter-btn"); if (shutterBtn) shutterBtn.classList.remove("recording");
+  const rec = $("#camera-rec-indicator"); if (rec) rec.classList.add("hidden");
+  __camera._cancelPending = !!cancel;
+  if (__camera.recorder && __camera.recorder.state !== "inactive") __camera.recorder.stop();
+  if (__camera._audioStream) { __camera._audioStream.getTracks().forEach((t) => t.stop()); __camera._audioStream = null; }
+}
+function onVideoRecordingStopped(mimeType) {
+  const cancel = __camera._cancelPending;
+  __camera._cancelPending = false;
+  __camera.recorder = null;
+  if (cancel || __camera.recordedChunks.length === 0) { __camera.recordedChunks = []; return; }
+  const blob = new Blob(__camera.recordedChunks, { type: mimeType || "video/webm" });
+  __camera.recordedChunks = [];
+  // Слишком короткое удержание (дрогнула рука, не успел записать ничего
+  // осмысленного) — не показываем превью на долю секунды видео.
+  if (Date.now() - __camera.recordStartedAt < 500) return;
+  __camera.capturedBlob = blob;
+  __camera.capturedKind = "video";
+  const v = $("#camera-captured-video");
+  if (v) { v.src = URL.createObjectURL(blob); v.classList.remove("hidden"); v.play().catch(() => {}); }
+  const live = $("#camera-preview"); if (live) live.classList.add("hidden");
+  const liveControls = $("#camera-controls-live"), preview = $("#camera-controls-preview");
+  if (liveControls) liveControls.classList.add("hidden");
+  if (preview) preview.classList.remove("hidden");
 }
 function capturePhoto() {
   const video = $("#camera-preview"), canvas = $("#camera-canvas");
@@ -4541,6 +4712,7 @@ function capturePhoto() {
   canvas.toBlob((blob) => {
     if (!blob) return;
     __camera.capturedBlob = blob;
+    __camera.capturedKind = "photo";
     const img = $("#camera-captured-img");
     if (img) { img.src = URL.createObjectURL(blob); img.classList.remove("hidden"); }
     const video2 = $("#camera-preview"); if (video2) video2.classList.add("hidden");
@@ -4563,7 +4735,38 @@ function wireCameraScreen() {
   const switchBtn = $("#camera-switch-btn");
   if (switchBtn) switchBtn.addEventListener("click", () => { haptic("light"); startCameraStream(__camera.facing === "environment" ? "user" : "environment"); });
   const shutterBtn = $("#camera-shutter-btn");
-  if (shutterBtn) shutterBtn.addEventListener("click", () => { haptic("medium"); capturePhoto(); });
+  if (shutterBtn) {
+    // Тап — фото, удержание (350мс+) — видео. pointerdown/up вместо
+    // отдельных touch/mouse обработчиков — единый API работает и на
+    // сенсорных, и на мышиных устройствах без дублирования логики.
+    let pressStarted = false;
+    shutterBtn.addEventListener("pointerdown", (ev) => {
+      ev.preventDefault();
+      pressStarted = true;
+      __camera.longPressTimerId = setTimeout(() => {
+        __camera.longPressTimerId = null;
+        if (pressStarted) { haptic("medium"); startVideoRecording(); }
+      }, 350);
+    });
+    const releaseShutter = () => {
+      if (!pressStarted) return;
+      pressStarted = false;
+      if (__camera.longPressTimerId) {
+        // Отпустили ДО срабатывания долгого нажатия — это был обычный
+        // тап, видеозапись даже не начиналась.
+        clearTimeout(__camera.longPressTimerId);
+        __camera.longPressTimerId = null;
+        haptic("medium");
+        capturePhoto();
+      } else if (__camera.isRecording) {
+        haptic("light");
+        stopVideoRecording(false);
+      }
+    };
+    shutterBtn.addEventListener("pointerup", releaseShutter);
+    shutterBtn.addEventListener("pointercancel", releaseShutter);
+    shutterBtn.addEventListener("pointerleave", releaseShutter);
+  }
   const retakeBtn = $("#camera-retake-btn");
   if (retakeBtn) retakeBtn.addEventListener("click", () => {
     const img = $("#camera-captured-img");
@@ -4574,7 +4777,14 @@ function wireCameraScreen() {
   const sendBtn = $("#camera-send-btn");
   if (sendBtn) sendBtn.addEventListener("click", () => {
     if (!__camera.capturedBlob || !__camera.contactId) return;
-    const file = new File([__camera.capturedBlob], "photo-" + Date.now() + ".jpg", { type: "image/jpeg" });
+    // Раньше тут ВСЕГДА собирался файл как "photo-*.jpg" с типом
+    // image/jpeg — даже если только что записали видео (тип реального
+    // Blob'а от MediaRecorder игнорировался полностью, а получатель
+    // увидел бы испорченный "jpg", который на самом деле видео).
+    const isVideo = __camera.capturedKind === "video";
+    const ext = isVideo ? (__camera.capturedBlob.type.includes("mp4") ? "mp4" : "webm") : "jpg";
+    const mime = isVideo ? (__camera.capturedBlob.type || "video/webm") : "image/jpeg";
+    const file = new File([__camera.capturedBlob], (isVideo ? "video-" : "photo-") + Date.now() + "." + ext, { type: mime });
     const contactId = __camera.contactId;
     closeCameraScreen();
     sendFileMessage(contactId, file);
@@ -5104,7 +5314,31 @@ function attachRemoteAudio(id, stream) {
     document.body.appendChild(audioEl);
   }
   audioEl.volume = Store.callVolume;
-  audioEl.srcObject = stream;
+  // Раньше srcObject ставился НАПРЯМУЮ из WebRTC-потока — на iOS/iPadOS
+  // 26+ (Safari впервые получил HTMLMediaElement.setSinkId() именно в
+  // этой версии) вызов setSinkId() на ТАКОМ элементе тихо игнорируется:
+  // WebRTC-звук у Apple идёт через отдельный внутренний путь до
+  // AVAudioSession, а setSinkId управляет только "обычным" путём
+  // воспроизведения (AVPlayer). Пропускаем поток через Web Audio API
+  // (MediaStreamAudioDestinationNode) — это превращает его в ОБЫЧНЫЙ
+  // управляемый источник, на котором setSinkId уже реально работает.
+  const ctx = ensureGlobalAudioCtx();
+  if (ctx && window.MediaStreamAudioDestinationNode) {
+    try {
+      if (audioEl._relaySource) { try { audioEl._relaySource.disconnect(); } catch (e) {} }
+      const source = ctx.createMediaStreamSource(stream);
+      const dest = ctx.createMediaStreamDestination();
+      source.connect(dest);
+      audioEl._relaySource = source;
+      audioEl._relayDest = dest;
+      audioEl.srcObject = dest.stream;
+    } catch (e) {
+      etherLog("warn", "[audio] relay через Web Audio не удался, играю поток напрямую:", String(e));
+      audioEl.srcObject = stream;
+    }
+  } else {
+    audioEl.srcObject = stream;
+  }
   const p = audioEl.play();
   if (p && p.catch) p.catch(() => {
     const resume = () => { try { audioEl.play().catch(() => {}); } catch (e) {} };
@@ -5409,6 +5643,14 @@ function wireSettingsScreen() {
     renderHelp();
     const el = $("#help-sheet"); if (el) el.classList.remove("hidden");
   });
+  // Тот же export/importBackup, что в Debug — только точка входа теперь
+  // на виду, а не спрятана в скрытом экране, куда обычный пользователь
+  // никогда не попадёт (5 тапов по заголовку). #import-backup-input —
+  // один и тот же file input на двух кнопках (Debug и Settings).
+  const sExpBackup = $("#settings-export-backup-btn");
+  if (sExpBackup) sExpBackup.addEventListener("click", exportBackup);
+  const sImpBackup = $("#settings-import-backup-btn");
+  if (sImpBackup) sImpBackup.addEventListener("click", () => { const el = $("#import-backup-input"); if (el) el.click(); });
   const nameEl = $("#settings-name");
   if (nameEl) nameEl.addEventListener("change", (e) => {
     const v = e.target.value.trim();
@@ -5422,16 +5664,27 @@ function wireSettingsScreen() {
     }
   });
   const idEl = $("#settings-identity");
-  if (idEl) idEl.addEventListener("change", async (e) => {
-    const v = e.target.value.trim(); if (!v) return;
-    try {
-      const identity = await Identity.idFor(v);
-      Store.myIdentityRaw = identity.normalized;
-      Store.myId = identity.id;
-      toast(T("toast.idUpdated"));
-      initSignaling();
-    } catch (err) { toast(T(err.message)); e.target.value = Store.myIdentityRaw; }
-  });
+  if (idEl) {
+    idEl.addEventListener("input", () => {
+      const v = idEl.value.trim();
+      if (!v) { idEl.classList.remove("input-invalid"); return; }
+      Identity.idFor(v).then(
+        () => idEl.classList.remove("input-invalid"),
+        () => idEl.classList.add("input-invalid")
+      );
+    });
+    idEl.addEventListener("change", async (e) => {
+      const v = e.target.value.trim(); if (!v) return;
+      try {
+        const identity = await Identity.idFor(v);
+        Store.myIdentityRaw = identity.normalized;
+        Store.myId = identity.id;
+        idEl.classList.remove("input-invalid");
+        toast(T("toast.idUpdated"));
+        initSignaling();
+      } catch (err) { toast(T(err.message)); e.target.value = Store.myIdentityRaw; idEl.classList.remove("input-invalid"); }
+    });
+  }
   const save = $("#save-signaling-btn");
   if (save) save.addEventListener("click", () => {
     const el = $("#settings-signaling-url");
@@ -5631,8 +5884,7 @@ function wireDebugScreen() {
   if (expBackup) expBackup.addEventListener("click", exportBackup);
   const impBackup = $("#import-backup-btn");
   if (impBackup) impBackup.addEventListener("click", () => { const el = $("#import-backup-input"); if (el) el.click(); });
-  const impInput = $("#import-backup-input");
-  if (impInput) impInput.addEventListener("change", importBackup);
+  wireImportBackupInput();
 
   const reset = $("#reset-all-btn");
   if (reset) reset.addEventListener("click", () => {
@@ -5798,6 +6050,16 @@ function wireMeshEvents() {
         clearAutoConnectTimer(id);
         if (state.pendingOutgoing && state.pendingOutgoing.id === id) resetConnectScreen();
         sendPrivacyPrefsTo(id);
+        // Если этот контакт состоит в ОБЩЕЙ со мной группе — пересылаю
+        // ему актуальный ростер при каждом переподключении. Раньше
+        // ростер уходил ТОЛЬКО при явном действии в группе (добавили/
+        // убрали участника) — если у НЕГО данные группы пропали
+        // (переустановка приложения, своего бэкапа контактов/групп нет),
+        // ничего не пересылало её заново, пока кто-то не совершит новое
+        // действие. Группа просто не появлялась у вернувшегося участника.
+        for (const g of state.contacts.values()) {
+          if (g.isGroup && g.members.some((m) => m.id === id)) sendGroupRosterTo(g, id);
+        }
 
         if (state.callId === id && link) {
           if (state.callPhase === "calling") {

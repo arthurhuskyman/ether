@@ -93,7 +93,16 @@ class PeerLink extends EventTarget {
     this._iceErrors = [];
     this._createdAt = Date.now();
 
-    this.pc = new RTCPeerConnection({ iceServers: ICE_SERVERS, iceCandidatePoolSize: 4 });
+    // Раньше тут читался модульный ICE_SERVERS напрямую — если линк
+    // создаётся ДО того, как /ice успел ответить (особенно на холодном
+    // сервере после простоя), ICE_SERVERS ещё [] и RTCPeerConnection
+    // создаётся вовсе БЕЗ STUN/TURN, что резко ухудшает прохождение NAT
+    // и правдоподобно объясняет "звонок долго устанавливается". Раньше
+    // это ещё усугублялось тем, что boot всего приложения ждал именно
+    // эту загрузку (см. bootAfterUnlock в app.js) — теперь не ждёт, так
+    // что связь может понадобиться и раньше, чем /ice успеет ответить.
+    const effectiveIceServers = ICE_SERVERS.length > 0 ? ICE_SERVERS : FALLBACK_ICE;
+    this.pc = new RTCPeerConnection({ iceServers: effectiveIceServers, iceCandidatePoolSize: 4 });
     this.dc = null;
     this.localAudioTrack = null;
     this.localStream = null;

@@ -266,11 +266,18 @@ const Identity = (() => {
   async function idFor(raw) {
     const { type, value } = normalize(raw);
     if (!value || value === "+") throw new Error("toast.emptyId");
-    if (type === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+    if (type === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value)) {
       throw new Error("toast.invalidIdFormat");
     }
-    if (type === "phone" && value.replace(/\D/g, "").length < 6) {
-      throw new Error("toast.invalidIdFormat");
+    if (type === "phone") {
+      // Раньше проверялось только "6+ цифр" без верхней границы — почти
+      // любой набор цифр проходил, даже совсем не похожий на реальный
+      // номер (например "123456"). E.164 (международный стандарт
+      // нумерации) укладывается в 7-15 цифр включая код страны —
+      // используем эти границы как разумную проверку формата, не
+      // строгую валидацию по операторским правилам конкретной страны.
+      const digitCount = value.replace(/\D/g, "").length;
+      if (digitCount < 7 || digitCount > 15) throw new Error("toast.invalidIdFormat");
     }
     const id = await hashId(value);
     return { id, normalized: value, type };

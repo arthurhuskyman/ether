@@ -1,6 +1,8 @@
 /**
  * i18n.js — движок интернационализации для Ether.
- * Зависит от languages.js (глобальный объект window.LANGUAGES / global.LANGUAGES).
+ * Зависит от languages-meta.js (глобальный объект window.LANGUAGES — только
+ * метаданные языков без словарей) и window.__LANG_DICTS (словари, грузятся
+ * лениво через js/lang/<code>.js, см. ensureLoaded ниже).
  *
  * Публичный API (используется в app.js):
  *   T(key, params)               — глобальная функция перевода
@@ -8,6 +10,8 @@
  *   I18N.init(preferredCode)     — инициализация (авто-детект языка системы)
  *   I18N.setLanguage(code)       — смена языка (+ авто-применение dir="rtl")
  *   I18N.setLang(code)           — алиас для setLanguage
+ *   I18N.ensureLoaded(code, cb)  — лениво подгрузить словарь языка (js/lang/<code>.js),
+ *                                  cb(true|false) вызывается когда готово (или сразу, если уже загружен)
  *   I18N.getLanguage()           — текущий код
  *   I18N.current                 — геттер, текущий код (для app.js)
  *   I18N.applyLanguage(code)     — применить язык к DOM
@@ -37,7 +41,7 @@
     (global.LANGUAGES && typeof global.LANGUAGES === "object") ? global.LANGUAGES : null;
 
   if (!registry) {
-    console.error("[i18n] LANGUAGES не найден. Подключите languages.js перед i18n.js.");
+    console.error("[i18n] LANGUAGES не найден. Подключите languages-meta.js перед i18n.js.");
   }
 
   let current = DEFAULT_LANG;
@@ -59,11 +63,45 @@
   }
 
   function dictFor(code) {
-    const entry = registry && registry[code];
-    if (entry && entry.dict) return entry.dict;
-    const fallback = registry && registry[DEFAULT_LANG];
-    return (fallback && fallback.dict) || {};
+    // Раньше словарь брался из registry[code].dict — теперь сам словарь
+    // грузится лениво отдельным файлом (js/lang/<code>.js) и живёт в
+    // window.__LANG_DICTS, а registry (languages-meta.js) содержит
+    // только имя/native/rtl. Если словарь ещё не загружен — берём
+    // английский (он гарантированно предзагружен синхронно в <head>
+    // до этого места), не пустой объект.
+    const dicts = global.__LANG_DICTS || {};
+    if (dicts[code]) return dicts[code];
+    return dicts[DEFAULT_LANG] || {};
   }
+
+  // Ленивая загрузка словаря конкретного языка — если он уже загружен
+  // (window.__LANG_DICTS[code] существует), callback вызывается сразу
+  // синхронно. Иначе динамически подключается js/lang/<code>.js и
+  // callback вызывается после его выполнения (сам файл, загрузившись,
+  // кладёт словарь в window.__LANG_DICTS и дёргает __onLangDictReady).
+  const __pendingLangCallbacks = {};
+  function ensureLoaded(code, callback) {
+    const c = normalize(code);
+    if (!isSupported(c)) { if (callback) callback(false); return; }
+    const dicts = global.__LANG_DICTS || (global.__LANG_DICTS = {});
+    if (dicts[c]) { if (callback) callback(true); return; }
+    if (!__pendingLangCallbacks[c]) __pendingLangCallbacks[c] = [];
+    __pendingLangCallbacks[c].push(callback);
+    if (__pendingLangCallbacks[c].length > 1) return; // уже грузится
+    const script = document.createElement("script");
+    script.src = "js/lang/" + c + ".js";
+    script.onerror = function () {
+      const cbs = __pendingLangCallbacks[c] || [];
+      delete __pendingLangCallbacks[c];
+      cbs.forEach(function (fn) { if (fn) fn(false); });
+    };
+    document.head.appendChild(script);
+  }
+  global.__onLangDictReady = function (code) {
+    const cbs = __pendingLangCallbacks[code] || [];
+    delete __pendingLangCallbacks[code];
+    cbs.forEach(function (fn) { if (fn) fn(true); });
+  };
 
   // ---------- определение языка системы ----------
   function detectSystemLanguage() {
@@ -210,6 +248,7 @@
     init: init,
     setLanguage: setLanguage,
     setLang: setLanguage,          // alias для app.js
+    ensureLoaded: ensureLoaded,    // NEW: лениво подгрузить словарь конкретного языка
     getLanguage: getLanguage,
     applyLanguage: applyLanguage,
     detectSystemLanguage: detectSystemLanguage,
