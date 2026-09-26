@@ -220,7 +220,16 @@ html[data-theme="light"] .glass-content {
 .btn-secondary { background: var(--input-bg); color: var(--accent); flex: 1; }
 .btn-tertiary { background: transparent; color: var(--ink-dim); font-weight: 500; }
 
-#app-shell { height: 100dvh; display: flex; flex-direction: column; position: relative; }
+#app-shell {
+  height: 100dvh; display: flex; flex-direction: column; position: relative;
+  /* Защитное укрепление: жёстко изолируем и обрезаем ЛЮБОЕ содержимое,
+     которое по какой-то причине (пока не удалось точно определить)
+     оказывается выше 100dvh — независимо от точной причины внутри.
+     contain создаёт собственный containing block и не даёт потомкам
+     "вылезти" за пределы этого блока ни при каких обстоятельствах. */
+  overflow: hidden;
+  contain: layout paint;
+}
 #nav-bar {
   padding: calc(env(safe-area-inset-top) + 10px) 16px 12px;
   border-radius: 0 0 var(--radius-l) var(--radius-l);

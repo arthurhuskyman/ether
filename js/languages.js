@@ -343,6 +343,7 @@
     "safety.explain": "Compare these numbers with your contact in person, by phone, or through another trusted channel. If they match, your connection is not being intercepted.",
     "toast.safetyNumberNoKey": "Not connected yet — safety number isn't available until a key exchange happens",
     "nav.hub": "Talk",
+    "toast.connecting": "Connecting…",
   };
 
   // ============================================================
@@ -690,6 +691,7 @@
     "safety.explain": "Сверьте эти числа с собеседником лично, по телефону или через другой доверенный канал. Если они совпадают, ваше соединение не перехвачено.",
     "toast.safetyNumberNoKey": "Ещё нет соединения — номер безопасности появится после обмена ключами",
     "nav.hub": "Общение",
+    "toast.connecting": "Подключаемся…",
   };
 
   // ============================================================
@@ -1037,6 +1039,7 @@
     "safety.explain": "请与联系人当面、通过电话或其他可信渠道核对这些数字。如果一致，说明您的连接未被拦截。",
     "toast.safetyNumberNoKey": "尚未连接——需要完成密钥交换后才能显示安全码",
     "nav.hub": "交流",
+    "toast.connecting": "正在连接…",
   };
 
   // ============================================================
@@ -1384,6 +1387,7 @@
     "safety.explain": "इन नंबरों की तुलना अपने संपर्क से व्यक्तिगत रूप से, फोन पर, या किसी अन्य विश्वसनीय माध्यम से करें। यदि वे मेल खाते हैं, तो आपका कनेक्शन इंटरसेप्ट नहीं किया जा रहा है।",
     "toast.safetyNumberNoKey": "अभी तक कनेक्ट नहीं हुआ — कुंजी विनिमय होने तक सुरक्षा नंबर उपलब्ध नहीं है",
     "nav.hub": "बातचीत",
+    "toast.connecting": "कनेक्ट हो रहा है…",
   };
 
   // ============================================================
@@ -1731,6 +1735,7 @@
     "safety.explain": "Compara estos números con tu contacto en persona, por teléfono o por otro canal de confianza. Si coinciden, tu conexión no está siendo interceptada.",
     "toast.safetyNumberNoKey": "Aún no conectado — el número de seguridad no está disponible hasta que ocurra un intercambio de claves",
     "nav.hub": "Conversar",
+    "toast.connecting": "Conectando…",
   };
 
   // ============================================================
@@ -2078,6 +2083,7 @@
     "safety.explain": "قارن هذه الأرقام مع جهة اتصالك شخصيًا أو عبر الهاتف أو عبر قناة موثوقة أخرى. إذا تطابقت، فاتصالك غير معترَض.",
     "toast.safetyNumberNoKey": "لم يتم الاتصال بعد — رقم الأمان غير متاح حتى يحدث تبادل المفاتيح",
     "nav.hub": "التواصل",
+    "toast.connecting": "جارٍ الاتصال…",
   };
 
   // ============================================================
@@ -2425,6 +2431,7 @@
     "safety.explain": "Compare estes números com seu contato pessoalmente, por telefone ou por outro canal confiável. Se coincidirem, sua conexão não está sendo interceptada.",
     "toast.safetyNumberNoKey": "Ainda não conectado — o número de segurança não está disponível até ocorrer a troca de chaves",
     "nav.hub": "Conversas",
+    "toast.connecting": "Conectando…",
   };
 
   // ============================================================
@@ -2772,6 +2779,7 @@
     "safety.explain": "これらの数字を、対面・電話・その他信頼できる方法で相手と照合してください。一致していれば、通信は傍受されていません。",
     "toast.safetyNumberNoKey": "まだ接続されていません — 鍵交換が完了するまでセーフティナンバーは表示できません",
     "nav.hub": "やりとり",
+    "toast.connecting": "接続中…",
   };
 
   // ============================================================
@@ -3119,6 +3127,7 @@
     "safety.explain": "Vergleiche diese Zahlen mit deinem Kontakt persönlich, per Telefon oder über einen anderen vertrauenswürdigen Kanal. Stimmen sie überein, wird deine Verbindung nicht abgefangen.",
     "toast.safetyNumberNoKey": "Noch nicht verbunden — die Sicherheitsnummer ist erst nach einem Schlüsselaustausch verfügbar",
     "nav.hub": "Kontakt",
+    "toast.connecting": "Verbinde…",
   };
 
    // ============================================================
@@ -3466,6 +3475,7 @@
     "safety.explain": "Comparez ces numéros avec votre contact en personne, par téléphone ou via un autre canal de confiance. S'ils correspondent, votre connexion n'est pas interceptée.",
     "toast.safetyNumberNoKey": "Pas encore connecté — le numéro de sécurité n'est disponible qu'après un échange de clés",
     "nav.hub": "Échanges",
+    "toast.connecting": "Connexion…",
   };
 
   // ============================================================
@@ -3813,6 +3823,7 @@
     "safety.explain": "Confronta questi numeri con il tuo contatto di persona, per telefono o tramite un altro canale affidabile. Se corrispondono, la tua connessione non è intercettata.",
     "toast.safetyNumberNoKey": "Non ancora connesso — il numero di sicurezza non è disponibile finché non avviene lo scambio di chiavi",
     "nav.hub": "Contatti",
+    "toast.connecting": "Connessione…",
   };
 
   // ============================================================
@@ -4160,6 +4171,7 @@
     "safety.explain": "이 숫자를 대면, 전화 또는 다른 신뢰할 수 있는 채널을 통해 상대방과 대조하세요. 일치하면 연결이 가로채이지 않은 것입니다.",
     "toast.safetyNumberNoKey": "아직 연결되지 않았습니다 — 키 교환이 이루어질 때까지 안전 번호를 사용할 수 없습니다",
     "nav.hub": "소통",
+    "toast.connecting": "연결 중…",
   };
 
   // ============================================================
@@ -4507,6 +4519,7 @@
     "safety.explain": "Bu sayıları kişinizle yüz yüze, telefonla veya başka güvenilir bir kanaldan karşılaştırın. Eşleşiyorsa bağlantınız araya girilmemiştir.",
     "toast.safetyNumberNoKey": "Henüz bağlı değil — anahtar değişimi gerçekleşene kadar güvenlik numarası kullanılamaz",
     "nav.hub": "İletişim",
+    "toast.connecting": "Bağlanıyor…",
   };
   // ============================================================
   // VIETNAMESE — Tiếng Việt
@@ -4853,6 +4866,7 @@
     "safety.explain": "So sánh các số này với liên hệ của bạn trực tiếp, qua điện thoại hoặc qua kênh đáng tin cậy khác. Nếu khớp, kết nối của bạn không bị chặn.",
     "toast.safetyNumberNoKey": "Chưa kết nối — số an toàn chỉ khả dụng sau khi trao đổi khóa",
     "nav.hub": "Trò chuyện",
+    "toast.connecting": "Đang kết nối…",
   };
 
   // ============================================================
@@ -5200,6 +5214,7 @@
     "safety.explain": "Porównaj te liczby ze swoim kontaktem osobiście, przez telefon lub inny zaufany kanał. Jeśli się zgadzają, Twoje połączenie nie jest przechwytywane.",
     "toast.safetyNumberNoKey": "Jeszcze nie połączono — numer bezpieczeństwa będzie dostępny po wymianie kluczy",
     "nav.hub": "Kontakt",
+    "toast.connecting": "Łączenie…",
   };
 
   // ============================================================
@@ -5547,6 +5562,7 @@
     "safety.explain": "Vergelijk deze getallen persoonlijk, telefonisch of via een ander vertrouwd kanaal met je contact. Komen ze overeen, dan wordt je verbinding niet onderschept.",
     "toast.safetyNumberNoKey": "Nog niet verbonden — het veiligheidsnummer is pas beschikbaar na sleuteluitwisseling",
     "nav.hub": "Contact",
+    "toast.connecting": "Verbinden…",
   };
 
   // ============================================================
@@ -5894,6 +5910,7 @@
     "safety.explain": "เปรียบเทียบตัวเลขเหล่านี้กับผู้ติดต่อของคุณด้วยตนเอง ทางโทรศัพท์ หรือผ่านช่องทางที่เชื่อถือได้อื่น หากตรงกัน แสดงว่าการเชื่อมต่อของคุณไม่ถูกดักฟัง",
     "toast.safetyNumberNoKey": "ยังไม่ได้เชื่อมต่อ — หมายเลขความปลอดภัยจะไม่พร้อมใช้งานจนกว่าจะมีการแลกเปลี่ยนคีย์",
     "nav.hub": "สื่อสาร",
+    "toast.connecting": "กำลังเชื่อมต่อ…",
   };
 
   // ============================================================
@@ -6241,6 +6258,7 @@
     "safety.explain": "Bandingkan angka-angka ini dengan kontak Anda secara langsung, melalui telepon, atau saluran tepercaya lainnya. Jika cocok, koneksi Anda tidak sedang disadap.",
     "toast.safetyNumberNoKey": "Belum terhubung — nomor keamanan tidak tersedia sampai pertukaran kunci terjadi",
     "nav.hub": "Obrolan",
+    "toast.connecting": "Menghubungkan…",
   };
 
   // ============================================================
@@ -6588,6 +6606,7 @@
     "safety.explain": "Bandingkan nombor ini dengan kenalan anda secara bersemuka, melalui telefon, atau saluran dipercayai lain. Jika sepadan, sambungan anda tidak dipintas.",
     "toast.safetyNumberNoKey": "Belum disambungkan — nombor keselamatan tidak tersedia sehingga pertukaran kunci berlaku",
     "nav.hub": "Komunikasi",
+    "toast.connecting": "Menyambung…",
   };
 
   // ============================================================
@@ -6935,6 +6954,7 @@
     "safety.explain": "این اعداد را حضوری، از طریق تلفن یا کانال معتبر دیگری با مخاطب خود مقایسه کنید. اگر مطابقت داشتند، اتصال شما رهگیری نشده است.",
     "toast.safetyNumberNoKey": "هنوز متصل نشده — شماره امنیتی تا زمان تبادل کلید در دسترس نیست",
     "nav.hub": "ارتباط",
+    "toast.connecting": "در حال اتصال…",
   };
 
   // ============================================================
@@ -7282,6 +7302,7 @@
     "safety.explain": "ان نمبروں کا اپنے رابطے سے ذاتی طور پر، فون پر، یا کسی اور قابل اعتماد ذریعے سے موازنہ کریں۔ اگر مماثل ہوں تو آپ کا کنکشن روکا نہیں جا رہا۔",
     "toast.safetyNumberNoKey": "ابھی جڑا نہیں — کی ایکسچینج ہونے تک حفاظتی نمبر دستیاب نہیں",
     "nav.hub": "رابطہ",
+    "toast.connecting": "مربوط ہو رہا ہے…",
   };
 
   // ============================================================
@@ -7629,6 +7650,7 @@
     "safety.explain": "இந்த எண்களை உங்கள் தொடர்புடன் நேரில், தொலைபேசி மூலம் அல்லது நம்பகமான வேறு வழியில் ஒப்பிடுங்கள். பொருந்தினால், உங்கள் இணைப்பு ஊடுருவப்படவில்லை.",
     "toast.safetyNumberNoKey": "இன்னும் இணைக்கப்படவில்லை — முக்கிய பரிமாற்றம் நடக்கும் வரை பாதுகாப்பு எண் கிடைக்காது",
     "nav.hub": "தொடர்பு",
+    "toast.connecting": "இணைக்கிறது…",
   };
 
   // ============================================================
@@ -7976,6 +7998,7 @@
     "safety.explain": "ఈ సంఖ్యలను మీ పరిచయంతో నేరుగా, ఫోన్‌లో లేదా మరో నమ్మకమైన మార్గంలో పోల్చండి. అవి సరిపోలితే, మీ కనెక్షన్ అడ్డగించబడలేదు.",
     "toast.safetyNumberNoKey": "ఇంకా కనెక్ట్ కాలేదు — కీ మార్పిడి జరిగే వరకు భద్రతా సంఖ్య అందుబాటులో ఉండదు",
     "nav.hub": "సంభాషణ",
+    "toast.connecting": "కనెక్ట్ అవుతోంది…",
   };
 
   // ============================================================
@@ -8323,6 +8346,7 @@
     "safety.explain": "ही संख्या तुमच्या संपर्काशी प्रत्यक्ष, फोनवर किंवा इतर विश्वासार्ह माध्यमातून जुळवा. जुळल्यास, तुमचे कनेक्शन इंटरसेप्ट केलेले नाही.",
     "toast.safetyNumberNoKey": "अद्याप कनेक्ट झालेले नाही — की एक्सचेंज होईपर्यंत सुरक्षा क्रमांक उपलब्ध नाही",
     "nav.hub": "संवाद",
+    "toast.connecting": "कनेक्ट होत आहे…",
   };
 
   // ============================================================
@@ -8670,6 +8694,7 @@
     "safety.explain": "આ નંબરોને તમારા સંપર્ક સાથે રૂબરૂ, ફોન પર અથવા અન્ય વિશ્વસનીય માધ્યમથી સરખાવો. જો મેળ ખાય, તો તમારું જોડાણ અટકાવાયું નથી.",
     "toast.safetyNumberNoKey": "હજુ જોડાયેલ નથી — કી વિનિમય થાય ત્યાં સુધી સુરક્ષા નંબર ઉપલબ્ધ નથી",
     "nav.hub": "સંવાદ",
+    "toast.connecting": "કનેક્ટ થઈ રહ્યું છે…",
   };
 
   // ============================================================
@@ -9017,6 +9042,7 @@
     "safety.explain": "ಈ ಸಂಖ್ಯೆಗಳನ್ನು ನಿಮ್ಮ ಸಂಪರ್ಕದೊಂದಿಗೆ ಖುದ್ದಾಗಿ, ಫೋನ್‌ನಲ್ಲಿ ಅಥವಾ ಇತರ ವಿಶ್ವಾಸಾರ್ಹ ಮಾಧ್ಯಮದ ಮೂಲಕ ಹೋಲಿಸಿ. ಹೊಂದಿದರೆ, ನಿಮ್ಮ ಸಂಪರ್ಕ ತಡೆಹಿಡಿಯಲ್ಪಟ್ಟಿಲ್ಲ.",
     "toast.safetyNumberNoKey": "ಇನ್ನೂ ಸಂಪರ್ಕಗೊಂಡಿಲ್ಲ — ಕೀ ವಿನಿಮಯ ಆಗುವವರೆಗೆ ಸುರಕ್ಷತಾ ಸಂಖ್ಯೆ ಲಭ್ಯವಿಲ್ಲ",
     "nav.hub": "ಸಂವಹನ",
+    "toast.connecting": "ಸಂಪರ್ಕಿಸಲಾಗುತ್ತಿದೆ…",
   };
 
   // ============================================================
@@ -9364,6 +9390,7 @@
     "safety.explain": "ഈ സംഖ്യകൾ നിങ്ങളുടെ കോൺടാക്റ്റുമായി നേരിട്ട്, ഫോണിൽ അല്ലെങ്കിൽ മറ്റൊരു വിശ്വസനീയ മാർഗത്തിലൂടെ താരതമ്യം ചെയ്യുക. പൊരുത്തപ്പെട്ടാൽ, നിങ്ങളുടെ കണക്ഷൻ തടസ്സപ്പെട്ടിട്ടില്ല.",
     "toast.safetyNumberNoKey": "ഇതുവരെ ബന്ധിപ്പിച്ചിട്ടില്ല — കീ കൈമാറ്റം നടക്കുന്നതുവരെ സുരക്ഷാ നമ്പർ ലഭ്യമല്ല",
     "nav.hub": "സംവാദം",
+    "toast.connecting": "ബന്ധിപ്പിക്കുന്നു…",
   };
 
   // ============================================================
@@ -9711,6 +9738,7 @@
     "safety.explain": "এই সংখ্যাগুলি আপনার পরিচিতির সাথে সরাসরি, ফোনে বা অন্য বিশ্বস্ত মাধ্যমে মিলিয়ে নিন। মিলে গেলে, আপনার সংযোগ আটকানো হচ্ছে না।",
     "toast.safetyNumberNoKey": "এখনও সংযুক্ত হয়নি — কী বিনিময় না হওয়া পর্যন্ত নিরাপত্তা নম্বর উপলব্ধ নয়",
     "nav.hub": "যোগাযোগ",
+    "toast.connecting": "সংযোগ হচ্ছে…",
   };
 
   // ============================================================
@@ -10058,6 +10086,7 @@
     "safety.explain": "ਇਹਨਾਂ ਨੰਬਰਾਂ ਦੀ ਆਪਣੇ ਸੰਪਰਕ ਨਾਲ ਖੁਦ, ਫ਼ੋਨ 'ਤੇ, ਜਾਂ ਕਿਸੇ ਹੋਰ ਭਰੋਸੇਯੋਗ ਢੰਗ ਨਾਲ ਤੁਲਨਾ ਕਰੋ। ਜੇ ਮੇਲ ਖਾਂਦੇ ਹਨ, ਤਾਂ ਤੁਹਾਡਾ ਕਨੈਕਸ਼ਨ ਰੋਕਿਆ ਨਹੀਂ ਜਾ ਰਿਹਾ।",
     "toast.safetyNumberNoKey": "ਅਜੇ ਕਨੈਕਟ ਨਹੀਂ ਹੋਇਆ — ਕੁੰਜੀ ਵਟਾਂਦਰਾ ਹੋਣ ਤੱਕ ਸੁਰੱਖਿਆ ਨੰਬਰ ਉਪਲਬਧ ਨਹੀਂ",
     "nav.hub": "ਗੱਲਬਾਤ",
+    "toast.connecting": "ਕਨੈਕਟ ਹੋ ਰਿਹਾ ਹੈ…",
   };
 
   // ============================================================
@@ -10405,6 +10434,7 @@
     "safety.explain": "Linganisha nambari hizi na anwani yako ana kwa ana, kwa simu, au njia nyingine ya kuaminika. Zikilingana, muunganisho wako haukamatwi.",
     "toast.safetyNumberNoKey": "Bado haujaunganishwa — nambari ya usalama haipatikani hadi ubadilishanaji wa funguo utokee",
     "nav.hub": "Mawasiliano",
+    "toast.connecting": "Inaunganisha…",
   };
 
   // ============================================================
@@ -10752,6 +10782,7 @@
     "safety.explain": "እነዚህን ቁጥሮች ከእውቂያዎ ጋር በአካል፣ በስልክ ወይም በሌላ የታመነ መንገድ ያወዳድሩ። ከተዛመዱ፣ ግንኙነትዎ አልተጠለፈም።",
     "toast.safetyNumberNoKey": "እስካሁን አልተገናኘም — የቁልፍ ልውውጥ እስኪደረግ ድረስ የደህንነት ቁጥር አይገኝም",
     "nav.hub": "ግንኙነት",
+    "toast.connecting": "በመገናኘት ላይ…",
   };
 
   // ============================================================
@@ -11099,6 +11130,7 @@
     "safety.explain": "Kwatanta waɗannan lambobi da mai lambar ka fuska da fuska, ta waya, ko wata hanya amintacciya. Idan sun dace, haɗin ka ba a katse shi ba.",
     "toast.safetyNumberNoKey": "Ba a haɗa ba tukuna — lambar tsaro ba ta samuwa sai an yi musayar makullai",
     "nav.hub": "Sadarwa",
+    "toast.connecting": "Ana haɗawa…",
   };
 
   // ============================================================
@@ -11446,6 +11478,7 @@
     "safety.explain": "Fi àwọn nọ́mbà wọ̀nyí wéra pẹ̀lú olùbáṣepọ̀ rẹ lójú kọ́jú, lórí fóònù, tàbí ọ̀nà ìgbẹ́kẹ̀lé mìíràn. Bí wọ́n bá jọra, a kò dá ìsopọ̀ rẹ dúró.",
     "toast.safetyNumberNoKey": "Kò tíì sopọ̀ — nọ́mbà ààbò kò sí títí ìpààrọ̀ kọ́kọ́rọ́ yóò fi ṣẹlẹ̀",
     "nav.hub": "Ìbánisọ̀rọ̀",
+    "toast.connecting": "Ń so pọ̀…",
   };
 
   // ============================================================
@@ -11793,6 +11826,7 @@
     "safety.explain": "השווה מספרים אלה עם איש הקשר שלך פנים אל פנים, בטלפון, או בערוץ מהימן אחר. אם הם תואמים, החיבור שלך אינו מיורט.",
     "toast.safetyNumberNoKey": "עדיין לא מחובר — מספר הבטיחות לא זמין עד שיתבצע חילופי מפתחות",
     "nav.hub": "תקשורת",
+    "toast.connecting": "מתחבר…",
   };
 
   // ============================================================
@@ -12140,6 +12174,7 @@
     "safety.explain": "Compară aceste numere cu contactul tău în persoană, prin telefon sau printr-un alt canal de încredere. Dacă se potrivesc, conexiunea ta nu este interceptată.",
     "toast.safetyNumberNoKey": "Încă neconectat — numărul de siguranță nu este disponibil până nu are loc schimbul de chei",
     "nav.hub": "Discuții",
+    "toast.connecting": "Se conectează…",
   };
 
   // ============================================================
@@ -12487,6 +12522,7 @@
     "safety.explain": "Porovnejte tato čísla se svým kontaktem osobně, telefonicky nebo přes jiný důvěryhodný kanál. Pokud se shodují, vaše spojení není odposloucháváno.",
     "toast.safetyNumberNoKey": "Zatím nepřipojeno — bezpečnostní číslo není k dispozici, dokud nedojde k výměně klíčů",
     "nav.hub": "Komunikace",
+    "toast.connecting": "Připojování…",
   };
 
   // ============================================================
@@ -12834,6 +12870,7 @@
     "safety.explain": "Jämför dessa siffror med din kontakt personligen, via telefon eller en annan betrodd kanal. Om de matchar avlyssnas inte din anslutning.",
     "toast.safetyNumberNoKey": "Inte ansluten ännu — säkerhetsnumret är inte tillgängligt förrän ett nyckelutbyte sker",
     "nav.hub": "Kontakt",
+    "toast.connecting": "Ansluter…",
   };
   // ============================================================
   // NORWEGIAN — Norsk
@@ -13180,6 +13217,7 @@
     "safety.explain": "Sammenlign disse tallene med kontakten din personlig, på telefon eller via en annen pålitelig kanal. Hvis de stemmer overens, blir ikke forbindelsen din avlyttet.",
     "toast.safetyNumberNoKey": "Ikke tilkoblet ennå — sikkerhetsnummeret er ikke tilgjengelig før en nøkkelutveksling skjer",
     "nav.hub": "Kontakt",
+    "toast.connecting": "Kobler til…",
   };
 
   // ============================================================
@@ -13527,6 +13565,7 @@
     "safety.explain": "Sammenlign disse tal med din kontakt personligt, over telefon eller via en anden pålidelig kanal. Hvis de stemmer overens, bliver din forbindelse ikke opsnappet.",
     "toast.safetyNumberNoKey": "Ikke forbundet endnu — sikkerhedsnummeret er ikke tilgængeligt, før en nøgleudveksling finder sted",
     "nav.hub": "Kontakt",
+    "toast.connecting": "Forbinder…",
   };
 
   // ============================================================
@@ -13874,6 +13913,7 @@
     "safety.explain": "Vertaa näitä numeroita yhteystietosi kanssa kasvotusten, puhelimitse tai muun luotetun kanavan kautta. Jos ne täsmäävät, yhteyttäsi ei siepata.",
     "toast.safetyNumberNoKey": "Ei vielä yhdistetty — turvanumero ei ole käytettävissä ennen avainten vaihtoa",
     "nav.hub": "Yhteydet",
+    "toast.connecting": "Yhdistetään…",
   };
 
   // ============================================================
@@ -14221,6 +14261,7 @@
     "safety.explain": "Συγκρίνετε αυτούς τους αριθμούς με την επαφή σας αυτοπροσώπως, τηλεφωνικά ή μέσω άλλου αξιόπιστου καναλιού. Αν ταιριάζουν, η σύνδεσή σας δεν παρακολουθείται.",
     "toast.safetyNumberNoKey": "Δεν έχει συνδεθεί ακόμη — ο αριθμός ασφαλείας δεν είναι διαθέσιμος μέχρι να γίνει ανταλλαγή κλειδιών",
     "nav.hub": "Επικοινωνία",
+    "toast.connecting": "Σύνδεση…",
   };
 
   // ============================================================
@@ -14568,6 +14609,7 @@
     "safety.explain": "Hasonlítsd össze ezeket a számokat a kapcsolatoddal személyesen, telefonon vagy más megbízható csatornán. Ha egyeznek, a kapcsolatodat nem hallgatják le.",
     "toast.safetyNumberNoKey": "Még nincs csatlakozva — a biztonsági szám csak kulcscsere után érhető el",
     "nav.hub": "Kapcsolat",
+    "toast.connecting": "Csatlakozás…",
   };
 
   // ============================================================
@@ -14915,6 +14957,7 @@
     "safety.explain": "Сравнете тези числа с вашия контакт лично, по телефона или чрез друг доверен канал. Ако съвпадат, връзката ви не е прихваната.",
     "toast.safetyNumberNoKey": "Все още не е свързано — номерът за сигурност не е наличен, докато не се извърши размяна на ключове",
     "nav.hub": "Общуване",
+    "toast.connecting": "Свързване…",
   };
 
   // ============================================================
@@ -15262,6 +15305,7 @@
     "safety.explain": "Упоредите ове бројеве са контактом лично, телефоном или преко другог поузданог канала. Ако се подударају, ваша веза није пресретнута.",
     "toast.safetyNumberNoKey": "Још увек није повезано — број безбедности није доступан док се не изврши размена кључева",
     "nav.hub": "Комуникација",
+    "toast.connecting": "Повезивање…",
   };
 
   // ============================================================
@@ -15609,6 +15653,7 @@
     "safety.explain": "Usporedite ove brojeve sa svojim kontaktom osobno, telefonom ili drugim pouzdanim kanalom. Ako se podudaraju, vaša veza nije presretnuta.",
     "toast.safetyNumberNoKey": "Još nije povezano — sigurnosni broj nije dostupan dok se ne izvrši razmjena ključeva",
     "nav.hub": "Komunikacija",
+    "toast.connecting": "Povezivanje…",
   };
 
   // ============================================================
@@ -15956,6 +16001,7 @@
     "safety.explain": "Porovnajte tieto čísla so svojím kontaktom osobne, telefonicky alebo iným dôveryhodným kanálom. Ak sa zhodujú, vaše spojenie nie je odpočúvané.",
     "toast.safetyNumberNoKey": "Zatiaľ nepripojené — bezpečnostné číslo nie je k dispozícii, kým nedôjde k výmene kľúčov",
     "nav.hub": "Komunikácia",
+    "toast.connecting": "Pripája sa…",
   };
 
   // ============================================================
@@ -16303,6 +16349,7 @@
     "safety.explain": "Primerjajte ti števili s svojim stikom osebno, po telefonu ali prek drugega zaupanja vrednega kanala. Če se ujemata, vaša povezava ni prestrezana.",
     "toast.safetyNumberNoKey": "Še ni povezano — varnostna številka ni na voljo, dokler ne pride do izmenjave ključev",
     "nav.hub": "Komunikacija",
+    "toast.connecting": "Povezovanje…",
   };
 
   // ============================================================
@@ -16650,6 +16697,7 @@
     "safety.explain": "Palyginkite šiuos skaičius su savo kontaktu asmeniškai, telefonu ar kitu patikimu kanalu. Jei jie sutampa, jūsų ryšys nėra perimamas.",
     "toast.safetyNumberNoKey": "Dar neprisijungta — saugos numeris neprieinamas, kol neįvyks raktų apsikeitimas",
     "nav.hub": "Bendravimas",
+    "toast.connecting": "Jungiamasi…",
   };
 
   // ============================================================
@@ -16997,6 +17045,7 @@
     "safety.explain": "Salīdziniet šos skaitļus ar savu kontaktpersonu klātienē, pa tālruni vai citā uzticamā veidā. Ja tie sakrīt, jūsu savienojums netiek pārtverts.",
     "toast.safetyNumberNoKey": "Vēl nav izveidots savienojums — drošības numurs nav pieejams, kamēr nenotiek atslēgu apmaiņa",
     "nav.hub": "Saziņa",
+    "toast.connecting": "Savienojas…",
   };
 
   // ============================================================
@@ -17344,6 +17393,7 @@
     "safety.explain": "Võrdle neid numbreid oma kontaktiga isiklikult, telefoni teel või muu usaldusväärse kanali kaudu. Kui need kattuvad, siis su ühendust ei pealt kuulata.",
     "toast.safetyNumberNoKey": "Veel ühendamata — turvanumber pole saadaval enne võtmevahetuse toimumist",
     "nav.hub": "Suhtlus",
+    "toast.connecting": "Ühendamine…",
   };
 
   // ============================================================
@@ -17691,6 +17741,7 @@
     "safety.explain": "Krahasoni këto numra me kontaktin tuaj personalisht, me telefon, ose përmes një kanali tjetër të besuar. Nëse përputhen, lidhja juaj nuk po përgjohet.",
     "toast.safetyNumberNoKey": "Ende i palidhur — numri i sigurisë nuk është i disponueshëm derisa të ndodhë shkëmbimi i çelësave",
     "nav.hub": "Bisedat",
+    "toast.connecting": "Duke u lidhur…",
   };
 
   // ============================================================
@@ -18038,6 +18089,7 @@
     "safety.explain": "Спорeдете ги овие броеви со вашиот контакт лично, преку телефон или друг доверлив канал. Ако се совпаѓаат, вашата врска не е пресретната.",
     "toast.safetyNumberNoKey": "Сè уште не е поврзано — бројот за безбедност не е достапен додека не се изврши размена на клучеви",
     "nav.hub": "Комуникација",
+    "toast.connecting": "Поврзување…",
   };
 
   // ============================================================
@@ -18385,6 +18437,7 @@
     "safety.explain": "Uporedite ove brojeve sa svojim kontaktom lično, telefonom ili drugim pouzdanim kanalom. Ako se podudaraju, vaša veza nije presretnuta.",
     "toast.safetyNumberNoKey": "Još nije povezano — sigurnosni broj nije dostupan dok se ne izvrši razmjena ključeva",
     "nav.hub": "Komunikacija",
+    "toast.connecting": "Povezivanje…",
   };
 
   // ============================================================
@@ -18732,6 +18785,7 @@
     "safety.explain": "Параўнайце гэтыя лічбы з вашым кантактам асабіста, па тэлефоне або праз іншы давераны канал. Калі яны супадаюць, ваша злучэнне не перахоплена.",
     "toast.safetyNumberNoKey": "Яшчэ не злучана — нумар бяспекі недаступны, пакуль не адбудзецца абмен ключамі",
     "nav.hub": "Зносіны",
+    "toast.connecting": "Злучэнне…",
   };
 
   // ============================================================
@@ -19079,6 +19133,7 @@
     "safety.explain": "შეადარეთ ეს რიცხვები თქვენს კონტაქტს პირადად, ტელეფონით ან სხვა სანდო არხით. თუ ემთხვევა, თქვენი კავშირი არ არის გადაჭერილი.",
     "toast.safetyNumberNoKey": "ჯერ არ არის დაკავშირებული — უსაფრთხოების ნომერი მიუწვდომელია გასაღებების გაცვლამდე",
     "nav.hub": "კომუნიკაცია",
+    "toast.connecting": "დაკავშირება…",
   };
 
   // ============================================================
@@ -19426,6 +19481,7 @@
     "safety.explain": "Համեմատեք այս թվերը ձեր կոնտակտի հետ անձամբ, հեռախոսով կամ այլ վստահելի ուղիով։ Եթե դրանք համընկնում են, ձեր կապը չի գաղտնալսվում։",
     "toast.safetyNumberNoKey": "Դեռ կապակցված չէ — անվտանգության համարը հասանելի չէ մինչև բանալիների փոխանակումը",
     "nav.hub": "Հաղորդակցում",
+    "toast.connecting": "Կապակցում…",
   };
 
   // ============================================================
@@ -19773,6 +19829,7 @@
     "safety.explain": "Bu rəqəmləri kontaktınızla üz-üzə, telefonla və ya başqa etibarlı kanalla müqayisə edin. Uyğun gəlirsə, əlaqəniz ələ keçirilmir.",
     "toast.safetyNumberNoKey": "Hələ qoşulmayıb — açar mübadiləsi baş verənə qədər təhlükəsizlik nömrəsi əlçatan deyil",
     "nav.hub": "Ünsiyyət",
+    "toast.connecting": "Qoşulur…",
   };
   // ============================================================
   // KAZAKH — Қазақша
@@ -20119,6 +20176,7 @@
     "safety.explain": "Бұл сандарды байланысыңызбен жүздесіп, телефон арқылы немесе басқа сенімді арна арқылы салыстырыңыз. Егер сәйкес келсе, байланысыңыз ұсталмаған.",
     "toast.safetyNumberNoKey": "Әлі қосылмаған — кілттермен алмасу болғанша қауіпсіздік нөмірі қолжетімсіз",
     "nav.hub": "Байланыс",
+    "toast.connecting": "Байланысуда…",
   };
 
   // ============================================================
@@ -20466,6 +20524,7 @@
     "safety.explain": "Ushbu raqamlarni kontaktingiz bilan yuzma-yuz, telefon orqali yoki boshqa ishonchli kanal orqali solishtiring. Agar mos kelsa, ulanishingiz ushlanmagan.",
     "toast.safetyNumberNoKey": "Hali ulanmagan — kalit almashinuvi bo'lmaguncha xavfsizlik raqami mavjud emas",
     "nav.hub": "Muloqot",
+    "toast.connecting": "Ulanmoqda…",
   };
 
   // ============================================================
@@ -20813,6 +20872,7 @@
     "safety.explain": "Бул сандарды байланышыңыз менен жүзмө-жүз, телефон аркылуу же башка ишенимдүү канал аркылуу салыштырыңыз. Дал келсе, байланышыңыз кармалган эмес.",
     "toast.safetyNumberNoKey": "Азырынча туташкан жок — ачкыч алмашуу болгонго чейин коопсуздук номери жеткиликсиз",
     "nav.hub": "Баарлашуу",
+    "toast.connecting": "Туташууда…",
   };
 
   // ============================================================
@@ -21160,6 +21220,7 @@
     "safety.explain": "Ин рақамҳоро бо тамоси худ рӯ ба рӯ, тавассути телефон ё дигар канали боэътимод муқоиса кунед. Агар мувофиқат кунанд, пайвасти шумо дастрас нашудааст.",
     "toast.safetyNumberNoKey": "Ҳанӯз пайваст нашудааст — рақами амният то мубодилаи калидҳо дастрас нест",
     "nav.hub": "Муошират",
+    "toast.connecting": "Пайваст шуда истодааст…",
   };
 
   // ============================================================
@@ -21507,6 +21568,7 @@
     "safety.explain": "Эдгээр тоог харилцагчтайгаа биечлэн, утсаар эсвэл өөр итгэмжлэгдсэн сувгаар харьцуулна уу. Хэрэв таарвал, таны холболтыг тандаагүй байна.",
     "toast.safetyNumberNoKey": "Хараахан холбогдоогүй байна — түлхүүр солилцоо хийгдэх хүртэл аюулгүй байдлын дугаар боломжгүй",
     "nav.hub": "Харилцаа",
+    "toast.connecting": "Холбогдож байна…",
   };
 
   // ============================================================
@@ -21854,6 +21916,7 @@
     "safety.explain": "यी नम्बरहरूलाई आफ्नो सम्पर्कसँग व्यक्तिगत रूपमा, फोनमा, वा अर्को भरपर्दो माध्यमबाट तुलना गर्नुहोस्। मिले भने, तपाईंको जडान अवरोध गरिएको छैन।",
     "toast.safetyNumberNoKey": "अझै जडान भएको छैन — कुञ्जी आदानप्रदान नभएसम्म सुरक्षा नम्बर उपलब्ध हुँदैन",
     "nav.hub": "कुराकानी",
+    "toast.connecting": "जडान हुँदै…",
   };
 
   // ============================================================
@@ -22201,6 +22264,7 @@
     "safety.explain": "මෙම අංක ඔබේ සම්බන්ධතාවය සමඟ මුහුණට මුහුණ, දුරකථනයෙන් හෝ වෙනත් විශ්වාසදායක මාර්ගයකින් සසඳන්න. ඒවා ගැලපේ නම්, ඔබේ සම්බන්ධතාව අවහිර කර නැත.",
     "toast.safetyNumberNoKey": "තවම සම්බන්ධ වී නැත — යතුරු හුවමාරුවක් සිදු වන තෙක් ආරක්ෂණ අංකය නොලැබේ",
     "nav.hub": "සන්නිවේදනය",
+    "toast.connecting": "සම්බන්ධ වෙමින්…",
   };
 
   // ============================================================
@@ -22548,6 +22612,7 @@
     "safety.explain": "ဤနံပါတ်များကို သင်၏အဆက်အသွယ်နှင့် တိုက်ရိုက်တွေ့၊ ဖုန်းဖြင့် သို့မဟုတ် အခြားယုံကြည်ရသော နည်းလမ်းဖြင့် နှိုင်းယှဉ်ပါ။ ကိုက်ညီပါက သင်၏ ချိတ်ဆက်မှုကို ကြားဖြတ်နေခြင်း မရှိပါ။",
     "toast.safetyNumberNoKey": "မချိတ်ဆက်ရသေးပါ — key ဖလှယ်မှု မပြုလုပ်မချင်း လုံခြုံရေးနံပါတ် မရနိုင်ပါ",
     "nav.hub": "ဆက်သွယ်ရေး",
+    "toast.connecting": "ချိတ်ဆက်နေသည်…",
   };
   // ============================================================
   // KHMER — ខ្មែរ
@@ -22894,6 +22959,7 @@
     "safety.explain": "ប្រៀបធៀបលេខទាំងនេះជាមួយទំនាក់ទំនងរបស់អ្នកដោយផ្ទាល់ តាមទូរស័ព្ទ ឬតាមរយៈផ្លូវការជឿទុកចិត្តផ្សេងទៀត។ ប្រសិនបើវាត្រូវគ្នា ការតភ្ជាប់របស់អ្នកមិនត្រូវបានស្ទាក់ចាប់ទេ។",
     "toast.safetyNumberNoKey": "មិនទាន់បានតភ្ជាប់ទេ — លេខសុវត្ថិភាពមិនអាចប្រើបានទេ រហូតដល់មានការផ្លាស់ប្តូរកូនសោ",
     "nav.hub": "ទំនាក់ទំនង",
+    "toast.connecting": "កំពុងភ្ជាប់…",
   };
 
   // ============================================================
@@ -23241,6 +23307,7 @@
     "safety.explain": "ປຽບທຽບຕົວເລກເຫຼົ່ານີ້ກັບຜູ້ຕິດຕໍ່ຂອງທ່ານດ້ວຍຕົນເອງ, ທາງໂທລະສັບ, ຫຼືຜ່ານຊ່ອງທາງທີ່ເຊື່ອຖືໄດ້ອື່ນ. ຖ້າກົງກັນ, ການເຊື່ອມຕໍ່ຂອງທ່ານບໍ່ຖືກດັກຟັງ.",
     "toast.safetyNumberNoKey": "ຍັງບໍ່ໄດ້ເຊື່ອມຕໍ່ — ເລກຄວາມປອດໄພຈະບໍ່ພ້ອມໃຊ້ງານຈົນກວ່າຈະມີການແລກປ່ຽນກະແຈ",
     "nav.hub": "ການສື່ສານ",
+    "toast.connecting": "ກຳລັງເຊື່ອມຕໍ່…",
   };
 
   // ============================================================
@@ -23588,6 +23655,7 @@
     "safety.explain": "Ihambing ang mga numerong ito sa iyong kontak nang personal, sa telepono, o sa ibang pinagkakatiwalaang channel. Kung tumutugma, hindi hina-harang ang iyong koneksyon.",
     "toast.safetyNumberNoKey": "Hindi pa nakakonekta — hindi available ang safety number hangga't hindi nagaganap ang key exchange",
     "nav.hub": "Usapan",
+    "toast.connecting": "Kumokonekta…",
   };
 
   // ============================================================
@@ -23935,6 +24003,7 @@
     "safety.explain": "Bandhingake nomer-nomer iki karo kontak sampeyan kanthi langsung, liwat telpon, utawa liwat saluran dipercaya liyane. Yen padha, sambungan sampeyan ora dijupuk.",
     "toast.safetyNumberNoKey": "Durung nyambung — nomer kaamanan ora kasedhiya nganti pertukaran kunci kelakon",
     "nav.hub": "Komunikasi",
+    "toast.connecting": "Nyambung…",
   };
   // ============================================================
   // SUNDANESE — Basa Sunda
@@ -24281,6 +24350,7 @@
     "safety.explain": "Bandingkeun angka ieu jeung kontak anjeun sacara langsung, ku telepon, atawa ngaliwatan saluran dipercaya sanésna. Upami cocog, sambungan anjeun teu dicegat.",
     "toast.safetyNumberNoKey": "Teu acan disambungkeun — nomer kaamanan teu sayaga dugi ka aya pertukaran konci",
     "nav.hub": "Komunikasi",
+    "toast.connecting": "Nyambung…",
   };
 
   // ============================================================
@@ -24628,6 +24698,7 @@
     "safety.explain": "Itandi kining mga numeroha sa imong kontak sa personal, sa telepono, o sa laing kasaligan nga kanal. Kung magtugma, wala giharang ang imong koneksyon.",
     "toast.safetyNumberNoKey": "Wala pa maka-connect — dili available ang safety number hangtod nga mahitabo ang key exchange",
     "nav.hub": "Komunikasyon",
+    "toast.connecting": "Nagkonekta…",
   };
 
   // ============================================================
@@ -24975,6 +25046,7 @@
     "safety.explain": "Порівняйте ці числа зі своїм контактом особисто, по телефону або через інший надійний канал. Якщо вони збігаються, ваше з'єднання не перехоплюється.",
     "toast.safetyNumberNoKey": "Ще не підключено — номер безпеки недоступний, поки не відбудеться обмін ключами",
     "nav.hub": "Спілкування",
+    "toast.connecting": "З'єднання…",
   };
 
   // ============================================================

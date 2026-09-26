@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.31.5";
+const APP_VERSION = "V.31.7";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 const MAX_MESSAGE_LENGTH = 4000;
@@ -2651,17 +2651,35 @@ function formatFileSize(bytes) {
 const fileBlobUrlCache = new Map(); // msgId -> object URL, чтобы не пересоздавать при каждом ре-рендере
 const FILE_BLOB_URL_CACHE_MAX = 300; // выше, чем у превью ссылок: если "on-screen" картинка/видео ссылается на blob URL, а мы его отзовём — она сломается, поэтому вытесняем осторожнее и только при реальном избытке
 
+// Файлы/голосовые требовали, чтобы P2P-связь была уже установлена ДО
+// вызова — в отличие от текста (который через trySendOrQueue сам
+// пытается подключиться), это падало сразу, даже если собеседник
+// онлайн и связь установилась бы за пару секунд, просто рукопожатие
+// ещё не завершилось. Активно пытаемся подключиться и ждём немного,
+// прежде чем сдаться.
+async function ensureLiveLink(contactId, timeoutMs) {
+  let link = mesh.get(contactId);
+  if (link && (link.status === "connected" || link.status === "in-call")) return link;
+  scheduleAutoConnect(contactId);
+  attemptConnectViaRelay(contactId).catch(() => {});
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 300));
+    link = mesh.get(contactId);
+    if (link && (link.status === "connected" || link.status === "in-call")) return link;
+  }
+  return null;
+}
 async function sendFileMessage(contactId, file) {
   const c = state.contacts.get(contactId); if (!c) return;
   if (isGroup(c)) { toast(T("toast.fileGroupsUnsupported")); return; }
   if (c.blocked) { toast(T("toast.blocked")); return; }
   if (file.size > MAX_FILE_SIZE) { toast(T("toast.fileTooLarge", { size: formatFileSize(MAX_FILE_SIZE) })); return; }
-  const link = mesh.get(contactId);
-  // Во время звонка link.status === "in-call", не "connected" — но
-  // data channel остаётся полностью рабочим (sendFile сама проверяет
-  // только dc.readyState). trySendOrQueue для текста уже учитывает оба
-  // статуса — файлы были явно рассинхронизированы с этим.
-  if (!link || (link.status !== "connected" && link.status !== "in-call")) { toast(T("toast.fileNeedsLive")); return; }
+  const existingLink = mesh.get(contactId);
+  const alreadyLive = existingLink && (existingLink.status === "connected" || existingLink.status === "in-call");
+  if (!alreadyLive) toast(T("toast.connecting"));
+  const link = alreadyLive ? existingLink : await ensureLiveLink(contactId, 8000);
+  if (!link) { toast(T("toast.fileNeedsLive")); return; }
 
   const msgId = crypto.randomUUID();
   const ts = Date.now();
@@ -2703,12 +2721,11 @@ async function sendVoiceMessage(contactId, blob, durationSec) {
   if (isGroup(c)) { toast(T("toast.fileGroupsUnsupported")); return; }
   if (c.blocked) { toast(T("toast.blocked")); return; }
   if (blob.size > MAX_FILE_SIZE) { toast(T("toast.fileTooLarge", { size: formatFileSize(MAX_FILE_SIZE) })); return; }
-  const link = mesh.get(contactId);
-  // Во время звонка link.status === "in-call", не "connected" — но
-  // data channel остаётся полностью рабочим (sendFile сама проверяет
-  // только dc.readyState). trySendOrQueue для текста уже учитывает оба
-  // статуса — файлы были явно рассинхронизированы с этим.
-  if (!link || (link.status !== "connected" && link.status !== "in-call")) { toast(T("toast.fileNeedsLive")); return; }
+  const existingLink2 = mesh.get(contactId);
+  const alreadyLive2 = existingLink2 && (existingLink2.status === "connected" || existingLink2.status === "in-call");
+  if (!alreadyLive2) toast(T("toast.connecting"));
+  const link = alreadyLive2 ? existingLink2 : await ensureLiveLink(contactId, 8000);
+  if (!link) { toast(T("toast.fileNeedsLive")); return; }
 
   const msgId = crypto.randomUUID();
   const ts = Date.now();
@@ -4680,14 +4697,17 @@ async function handleMessageAction(action, msgId, contactId) {
   } else if (action === "forward") openForwardSheet((toId) => forwardMessage(msgId, contactId, toId));
   else if (action === "retry") {
     m.serverAcked = false;
-    if (outbox.has(msgId)) { flushOutboxItem(msgId); }
-    else {
-      const payload = { kind: "chat", id: msgId, text: m.text, ts: m.ts };
-      if (m.replyTo) payload.replyTo = { id: m.replyTo.id, text: m.replyTo.text, authorName: m.replyTo.authorName };
-      if (m.ttl) payload.ttl = m.ttl;
-      addToOutbox(msgId, contactId, payload);
-      flushOutboxItem(msgId);
-    }
+    m.ack = "sent";
+    // Раньше retry шёл СРАЗУ через outbox/flushOutboxItem — то есть
+    // только релей через сервер, минуя прямой P2P, даже если связь к
+    // этому моменту уже восстановилась. trySendOrQueue — та же логика,
+    // что использует обычная отправка: сначала пробует P2P напрямую,
+    // и только при неудаче падает на сервер.
+    if (outbox.has(msgId)) outbox.delete(msgId);
+    const payload = { kind: "chat", id: msgId, text: m.text, ts: m.ts };
+    if (m.replyTo) payload.replyTo = { id: m.replyTo.id, text: m.replyTo.text, authorName: m.replyTo.authorName };
+    if (m.ttl) payload.ttl = m.ttl;
+    trySendOrQueue(c, msgId, payload);
   }
 }
 function startEditing(msgId) {
@@ -4920,7 +4940,12 @@ async function beginCall(id, withVideo) {
   signaling.signal(id, { t: "call-invite", n: Store.name, x: crypto.randomUUID() });
 
   const link = mesh.get(id);
-  if (link && isReachable(c)) {
+  // Раньше здесь проверялся c.status (кэшированное поле контакта,
+  // обновляемое отдельным обработчиком) вместо link.status
+  // (актуальное состояние самого соединения) — при рассинхроне между
+  // ними звонок мог либо пытаться стартовать на мёртвой связи, либо
+  // ждать нового подключения, хотя рабочая связь уже была.
+  if (link && (link.status === "connected" || link.status === "in-call")) {
     try { await link.startCall(withVideo); if (withVideo) showLocalVideoPreview(link); }
     catch (e) {
       // Раньше тут ВСЕГДА показывался toast.noServer, даже когда причина —
@@ -5296,9 +5321,15 @@ async function acceptCall(withMute) {
     const c = state.contacts.get(cid);
     const link = mesh.get(cid);
 
-    if (link && c && isReachable(c)) {
+    // Тот же фикс, что и в beginCall — проверяем актуальное link.status
+    // напрямую, а не кэшированное c.status.
+    if (link && (link.status === "connected" || link.status === "in-call")) {
       try {
-        await link.answerCall();
+        // Передаём state.callWantsVideo — теперь корректно выставлен из
+        // payload.video входящего сигнала "ringing" (см. выше), вместо
+        // того чтобы вызывать answerCall() без аргумента вовсе.
+        await link.answerCall(state.callWantsVideo);
+        if (state.callWantsVideo) showLocalVideoPreview(link);
         if (withMute) {
           link.setMuted(true);
           const mb = $("#call-mute-btn");
@@ -5770,11 +5801,20 @@ function wireMeshEvents() {
 
         if (state.callId === id && link) {
           if (state.callPhase === "calling") {
+            // Раньше видео зависело от !link._audioAdded — если аудио
+            // УЖЕ было добавлено (например, после повторной попытки
+            // соединения), весь блок пропускался целиком, и видео НЕ
+            // включалось вовсе, хотя пользователь просил видеозвонок.
+            // Аудио и видео — независимые проверки.
             if (!link._audioAdded) {
               link.startCall(state.callWantsVideo).then(() => { if (state.callWantsVideo) showLocalVideoPreview(link); }).catch((e) => etherLog("error", "[call] caller startCall failed:", String(e)));
+            } else if (state.callWantsVideo && !link._videoAdded) {
+              link.enableVideo().then((ok) => { if (ok) showLocalVideoPreview(link); }).catch((e) => etherLog("error", "[call] caller enableVideo failed:", String(e)));
             }
           } else if (state._callUserAccepted && state.callPhase !== "active") {
-            link.answerCall().then(() => {
+            // Тот же пропущенный video-флаг, что и в acceptCall().
+            link.answerCall(state.callWantsVideo).then(() => {
+              if (state.callWantsVideo) showLocalVideoPreview(link);
               if (state._callMuteOnAnswer) {
                 link.setMuted(true);
                 const mb = $("#call-mute-btn");
@@ -5820,6 +5860,12 @@ function wireMeshEvents() {
             if (l) { try { l.declineCall("busy"); } catch (e) {} }
             return;
           }
+          // Раньше payload.video (отправляется звонящим в startCall)
+          // тут вообще не читался — сигнал "это видеозвонок" терялся
+          // на принимающей стороне, и answerCall() дальше вызывался без
+          // аргумента, то есть видео никогда не включалось у того, кто
+          // принимает, даже если звонили именно с видео.
+          state.callWantsVideo = !!payload.video;
           openCallScreen(id, "ringing");
           try { ensureAudioCtx(); } catch (e) {}
           playRingtone();
