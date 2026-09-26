@@ -458,6 +458,13 @@ input.switch:checked::before { transform: translateX(18px); }
 #screen-chat.screen {
   padding: 0; display: flex; flex-direction: column;
   overflow: hidden;
+  /* Без этого .scroll-bottom-btn (position:absolute) и другие
+     абсолютно спозиционированные дети (reply/edit-banner) считали
+     отступы от #app-shell целиком, а не от самого экрана чата — пока
+     таб-бар был скрыт во время просмотра чата, это несоответствие
+     было менее заметно; после того как таб-бар стал видимым всегда
+     (см. соответствующий фикс), позиция сместилась заметнее. */
+  position: relative;
 }
 .nav-mode-chat { padding: 2px 0; }
 .icon-btn { border: none; background: transparent; color: var(--accent); cursor: pointer; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; }
@@ -675,7 +682,7 @@ html[data-theme="auto"] .bubble-row.theirs .bubble-time { color: rgba(235, 235, 
 .scroll-bottom-btn {
   position: absolute;
   inset-inline-end: 16px;
-  bottom: 78px;
+  bottom: 56px;
   width: 44px; height: 44px; border-radius: 50%;
   background: var(--content-bg);
   border: 1px solid var(--content-border);
