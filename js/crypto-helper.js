@@ -79,5 +79,35 @@ const CryptoHelper = (() => {
     return JSON.parse(new TextDecoder().decode(plainBuf));
   }
 
-  return { generateKeyPair, deriveSharedKey, encryptJson, decryptJson };
+  // Safety number — детерминированный отпечаток пары публичных ключей
+  // (мой + собеседника), не зависящий от того, кто его вычисляет: обе
+  // стороны получают ОДНУ и ту же строку, если сверяют один и тот же
+  // разговор. Меняется при подмене ЛЮБОГО из двух ключей (обнаруживает
+  // MITM). Не воспроизводит алгоритм Signal один-в-один — сверка идёт
+  // между двумя сторонами этого же приложения, не между приложениями.
+  function canonicalJwk(jwk) {
+    // JWK может сериализоваться с полями в разном порядке — сортируем
+    // ключи объекта, чтобы один и тот же ключ всегда давал одну и ту
+    // же строку независимо от порядка полей.
+    return JSON.stringify(jwk, Object.keys(jwk).sort());
+  }
+  async function computeSafetyNumber(myJwk, theirJwk) {
+    const a = canonicalJwk(myJwk), b = canonicalJwk(theirJwk);
+    // Сортируем сами строки — оба участника разговора получают
+    // одинаковый порядок независимо от того, кто "я", а кто "собеседник".
+    const combined = a < b ? a + "|" + b : b + "|" + a;
+    const bytes = new TextEncoder().encode(combined);
+    const hashBuf = await crypto.subtle.digest("SHA-256", bytes);
+    const hash = new Uint8Array(hashBuf);
+    // 12 групп по 5 цифр = 60 цифр, по 2 байта хэша на группу
+    // (0..65535 укладывается в 5 десятичных знаков с ведущими нулями).
+    const groups = [];
+    for (let i = 0; i < 12; i++) {
+      const n = (hash[i * 2] << 8) | hash[i * 2 + 1];
+      groups.push(String(n).padStart(5, "0"));
+    }
+    return groups;
+  }
+
+  return { generateKeyPair, deriveSharedKey, encryptJson, decryptJson, computeSafetyNumber };
 })();

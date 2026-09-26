@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.28.8";
+const APP_VERSION = "V.31.2";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 const MAX_MESSAGE_LENGTH = 4000;
@@ -158,6 +158,17 @@ const Store = {
   set signalingUrl(v) { localStorage.setItem("ether.signalingUrl", v); },
   get discoverable() { return localStorage.getItem("ether.discoverable") !== "0"; },
   set discoverable(v) { localStorage.setItem("ether.discoverable", v ? "1" : "0"); },
+  // Три тумблера приватности — независимы от discoverable (тот про
+  // публичный ростер для незнакомцев, эти про то, что видят уже
+  // добавленные контакты). Двусторонне: моё значение влияет на то, что
+  // видят ОНИ (через P2P privacy-pref payload), не на то, что вижу я
+  // сам про них — это решает уже ИХ собственное значение.
+  get receiptsEnabled() { return localStorage.getItem("ether.receiptsEnabled") !== "0"; },
+  set receiptsEnabled(v) { localStorage.setItem("ether.receiptsEnabled", v ? "1" : "0"); broadcastPrivacyPrefs(); },
+  get lastSeenVisible() { return localStorage.getItem("ether.lastSeenVisible") !== "0"; },
+  set lastSeenVisible(v) { localStorage.setItem("ether.lastSeenVisible", v ? "1" : "0"); broadcastPrivacyPrefs(); },
+  get presenceVisible() { return localStorage.getItem("ether.presenceVisible") !== "0"; },
+  set presenceVisible(v) { localStorage.setItem("ether.presenceVisible", v ? "1" : "0"); broadcastPrivacyPrefs(); },
   get linkPreviewsEnabled() { return localStorage.getItem("ether.linkPreviews") !== "0"; },
   set linkPreviewsEnabled(v) { localStorage.setItem("ether.linkPreviews", v ? "1" : "0"); scheduleIDBBackup(); },
   get contactsJson() { return localStorage.getItem("ether.contacts") || "[]"; },
@@ -184,6 +195,14 @@ const Store = {
   set soundsEnabled(v) { localStorage.setItem("ether.sounds", v ? "1" : "0"); scheduleIDBBackup(); },
   get ringtone() { return localStorage.getItem("ether.ringtone") || "ring-classic"; },
   set ringtone(v) { localStorage.setItem("ether.ringtone", v); scheduleIDBBackup(); },
+  // Быстрые реакции — раньше меню реакций всегда показывало ВСЕ 110
+  // эмодзи целиком, самая частая жалоба на перегруженность. Теперь
+  // показываем недавно использованные, полная сетка — по кнопке "+".
+  get recentReactions() {
+    try { const v = JSON.parse(localStorage.getItem("ether.recentReactions") || "[]"); return Array.isArray(v) ? v : []; }
+    catch (e) { return []; }
+  },
+  set recentReactions(arr) { try { localStorage.setItem("ether.recentReactions", JSON.stringify(arr.slice(0, 6))); } catch (e) {} },
   get vapidPublicKey() { return localStorage.getItem("ether.vapidPublicKey") || ""; },
   set vapidPublicKey(v) { if (v) { localStorage.setItem("ether.vapidPublicKey", v); scheduleIDBBackup(); } },
   get pushSubscriptionJson() { return localStorage.getItem("ether.pushSubscription") || ""; },
@@ -235,6 +254,7 @@ var etherLog = window.etherLog;
 // =====================================================================
 const state = {
   tab: "chats",
+  chatsSegment: "chats", // "chats" | "calls" — сегмент внутри вкладки Chats; отдельной вкладки "Звонки" больше нет
   chatId: null,
   contactCardId: null,
   callId: null,
@@ -277,7 +297,7 @@ const autoConnectTimers = new Map();
 const recentSignalNonces = new Set();
 const outbox = new Map();
 const pendingNoKey = new Map();
-const seenDeliverIds = new Set();
+const seenDeliverIds = new Set(); // ключ — "from|msgId", не голый msgId (см. ниже)
 const _connectInFlight = new Set();
 
 const pendingCall = { contactId: null, timer: null };
@@ -525,6 +545,22 @@ function toast(message) {
   clearTimeout(toast._t); toast._t = setTimeout(() => el.classList.remove("show"), 2600);
 }
 
+// aria-live на самом #chat-messages спамил бы скринридеру весь список
+// заново при КАЖДОЙ перерисовке (wrap.innerHTML пересобирается целиком
+// на любое изменение, не только на новое сообщение) — отдельный
+// скрытый узел с aria-live озвучивает только то, что реально нужно
+// объявить, один раз, без переписывания рендера на инкрементальный.
+function prefersReducedMotion() {
+  try { return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) { return false; }
+}
+function announceToScreenReader(text) {
+  const el = $("#sr-announcer"); if (!el || !text) return;
+  el.textContent = "";
+  // Пустая строка -> новый текст в следующем тике: одинаковый текст два
+  // раза подряд иначе не был бы замечен как "изменение" для aria-live.
+  setTimeout(() => { el.textContent = text; }, 30);
+}
+
 function formatTime(ts) { try { return new Date(ts).toLocaleTimeString(I18N.current, { hour: "2-digit", minute: "2-digit" }); } catch (e) { return ""; } }
 function formatDay(ts) { try { return new Date(ts).toLocaleDateString(I18N.current, { day: "2-digit", month: "2-digit", year: "2-digit" }); } catch (e) { return ""; } }
 function formatDayGroup(ts) {
@@ -575,7 +611,15 @@ function applyGlassAlpha(v) {
   const label = document.getElementById("glass-slider-value");
   if (label) label.textContent = Math.round(transparency * 100) + "%";
 }
-function applyTheme(theme) { document.documentElement.dataset.theme = theme; }
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  // theme-color был жёстко чёрным всегда — в светлой теме статус-бар/
+  // рамка PWA у системы выглядели неуместно (тёмная полоса поверх
+  // светлого интерфейса).
+  const isLight = theme === "light" || (theme === "auto" && window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", isLight ? "#eef0f4" : "#000000");
+}
 
 function urlBase64ToUint8Array(base64String) {
   const padding = "=".repeat((4 - base64String.length % 4) % 4);
@@ -734,6 +778,15 @@ function vibrate(pattern) {
   if (navigator.vibrate) {
     try { navigator.vibrate(pattern); } catch (e) {}
   }
+}
+// Отдельная от vibrate() лёгкая haptic-обёртка для UI-действий (реакция,
+// свайп-архив, ошибка отправки) — короткие, "тактильные" импульсы, не
+// завязанные на настройку звука (это про ощущение нажатия, не про
+// звуковые уведомления), но уважающие prefers-reduced-motion.
+function haptic(kind) {
+  if (prefersReducedMotion()) return;
+  if (!navigator.vibrate) return;
+  try { navigator.vibrate(kind === "light" ? 10 : kind === "medium" ? 20 : [40, 30, 40]); } catch (e) {}
 }
 
 function currentRingtoneSrc() {
@@ -993,6 +1046,7 @@ function startApp() {
   safeCall(wireSettingsScreen, "wireSettingsScreen");
   safeCall(wireDebugScreen, "wireDebugScreen");
   safeCall(wireSheetBackdrops, "wireSheetBackdrops");
+  safeCall(wireCameraScreen, "wireCameraScreen");
   safeCall(wireSearchHandlers, "wireSearchHandlers");
   safeCall(wireNotificationPermission, "wireNotificationPermission");
   safeCall(wireServiceWorker, "wireServiceWorker");
@@ -1020,6 +1074,9 @@ function startApp() {
     const si = $("#settings-identity"); if (si) si.value = Store.myIdentityRaw;
     const ss = $("#settings-signaling-url"); if (ss) ss.value = Store.signalingUrl || "";
     const sd = $("#settings-discoverable"); if (sd) sd.checked = Store.discoverable;
+    const sr = $("#settings-receipts"); if (sr) sr.checked = Store.receiptsEnabled;
+    const sls = $("#settings-last-seen"); if (sls) sls.checked = Store.lastSeenVisible;
+    const sp = $("#settings-presence"); if (sp) sp.checked = Store.presenceVisible;
     const snn = $("#settings-notifications"); if (snn) snn.checked = Store.notificationsEnabled;
     const slp = $("#settings-link-previews"); if (slp) slp.checked = Store.linkPreviewsEnabled;
     const ssn = $("#settings-sounds"); if (ssn) ssn.checked = Store.soundsEnabled;
@@ -1073,6 +1130,12 @@ function applyStaticTranslations() {
     const k = el.getAttribute("data-i18n-aria");
     if (k) el.setAttribute("aria-label", T(k));
   });
+  // <title> и meta description не переводились вовсе (нет data-i18n) —
+  // пользователь видел английский заголовок вкладки/PWA-плитки и в
+  // поиске браузера независимо от выбранного языка приложения.
+  document.title = T("app.title");
+  const metaDesc = document.querySelector('meta[name="description"]');
+  if (metaDesc) metaDesc.setAttribute("content", T("app.description"));
 }
 
 function setupLanguageSelector() {
@@ -1100,7 +1163,7 @@ function setupLanguageSelector() {
     try { renderTab(); } catch (e) {}
     if (state.chatId) renderChatThread();
     if (state.contactCardId) renderContactCard();
-    if (state.tab === "calls") renderCallsList();
+    if (state.tab === "chats" && state.chatsSegment === "calls") renderCallsList();
     refreshSignalingStatusText();
     renderOnlineRosterList();
   });
@@ -1363,10 +1426,18 @@ function updateAppBadge() {
 // (rec.seen === false) считаем и показываем на вкладке "Звонки".
 function updateCallsBadge() {
   const missed = state.callLog.filter((r) => r.status === "missed" && !r.seen).length;
-  const badge = $("#tab-calls-badge");
-  if (!badge) return;
-  if (missed > 0) { badge.textContent = missed > 99 ? "99+" : String(missed); badge.classList.remove("hidden"); }
-  else badge.classList.add("hidden");
+  // Раньше был один #tab-calls-badge на отдельной вкладке. Теперь два
+  // индикатора: число на кнопке сегмента "Звонки" (видна, только когда
+  // открыта вкладка Chats) и маленькая точка на иконке самой вкладки
+  // Chats внизу — чтобы пропущенный звонок был заметен, даже если
+  // пользователь сейчас смотрит сегмент "Чаты" или другую вкладку.
+  const segBadge = $("#chats-segment-calls-badge");
+  if (segBadge) {
+    if (missed > 0) { segBadge.textContent = missed > 99 ? "99+" : String(missed); segBadge.classList.remove("hidden"); }
+    else segBadge.classList.add("hidden");
+  }
+  const dot = $("#tab-chats-missed-dot");
+  if (dot) dot.classList.toggle("hidden", missed === 0);
 }
 function markMissedCallsSeen() {
   let changed = false;
@@ -1465,7 +1536,13 @@ function wireTabBar() {
       state.tab = btn.dataset.tab;
       state.chatId = null;
       state.contactCardId = null;
-      if (state.tab === "calls") markMissedCallsSeen();
+      renderTab();
+    });
+  });
+  $$("#chats-segment button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.chatsSegment = btn.dataset.segment;
+      if (state.chatsSegment === "calls") markMissedCallsSeen();
       renderTab();
     });
   });
@@ -1479,6 +1556,7 @@ function wireTabBar() {
 function closeChatSafely() {
   const prevId = state.chatId;
   cancelVoiceRecordingIfLeavingChat(null);
+  pauseAllVoicePlayback();
   try { saveCurrentDraft(); } catch (e) {} // ДО обнуления chatId — иначе saveCurrentDraft() сразу выходит (проверяет state.chatId) и черновик теряется
   state.chatId = null;
   try { if (prevId) sendTypingStop(prevId); } catch (e) {}
@@ -1498,7 +1576,15 @@ function setNavMode(mode) {
 function renderTabInner() {
   $$(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === state.tab));
   $$(".screen").forEach((s) => s.classList.add("hidden"));
-  const tb = $("#tab-bar"); if (tb) tb.classList.remove("hidden"); // нижняя навигация теперь видна всегда
+  const tb = $("#tab-bar");
+  if (tb) {
+    // Раньше таб-бар был виден ВСЕГДА, включая открытый чат — вместе с
+    // #chat-form это давало ДВА футера друг над другом одновременно
+    // (~139px на iPhone с safe-area, около 21% высоты экрана SE).
+    // Стандарт индустрии (Telegram/WhatsApp/Signal/iMessage) — в чате
+    // нижней навигации нет вовсе, только кнопка "назад" в шапке.
+    tb.classList.toggle("hidden", !!(state.chatId || state.contactCardId || state.callId));
+  }
 
   if (state.chatId) {
     const sc = $("#screen-chat"); if (sc) sc.classList.remove("hidden");
@@ -1514,7 +1600,19 @@ function renderTabInner() {
   }
   setNavMode("list");
   const map = { chats: "#screen-chats", calls: "#screen-calls", connect: "#screen-connect", settings: "#screen-settings", debug: "#screen-debug" };
-  const el = $(map[state.tab]); if (el) el.classList.remove("hidden");
+  // "Звонки" больше не отдельная вкладка — сегмент внутри "Chats"
+  // (Signal/WhatsApp/Telegram всё же держат звонки отдельной вкладкой,
+  // но у нас, в отличие от них, было 4 видимых вкладки против их 3-4,
+  // и сегмент внутри Chats снижает это число, не убирая звонки в
+  // глубь навигации на лишний тап). Показываем нужный экран по
+  // сегменту, а не по вкладке напрямую.
+  const effectiveScreenKey = state.tab === "chats" ? state.chatsSegment : state.tab;
+  const el = $(map[effectiveScreenKey]); if (el) el.classList.remove("hidden");
+  const seg = $("#chats-segment");
+  if (seg) {
+    seg.classList.toggle("hidden", state.tab !== "chats");
+    $$("#chats-segment button").forEach((b) => b.classList.toggle("active", b.dataset.segment === state.chatsSegment));
+  }
   const titles = {
     chats: T("nav.chats"),
     calls: T("nav.calls"),
@@ -1523,8 +1621,8 @@ function renderTabInner() {
     debug: T("nav.debug"),
   };
   const nt = $("#nav-title"); if (nt) nt.textContent = titles[state.tab] || T("app.name");
-  if (state.tab === "chats") renderChatsList();
-  if (state.tab === "calls") renderCallsList();
+  if (state.tab === "chats" && state.chatsSegment === "chats") renderChatsList();
+  if (state.tab === "chats" && state.chatsSegment === "calls") renderCallsList();
   if (state.tab === "connect") { renderContactsList(); renderOnlineRosterList(); }
 }
 
@@ -1534,16 +1632,22 @@ function contactStatusLabel(c) {
   if (c.status === "connected") return T("status.connected");
   if (c.status === "connecting" || c.status === "new" || c.status === "awaiting-answer") return T("status.connecting");
   if (c.managed) {
-    if (c.online) return T("status.online");
-    const seen = state.lastSeen[c.id];
-    if (seen) return T("status.lastSeen", { ago: timeAgo(seen) });
+    // Тумблеры приватности собеседника (пришли через P2P privacy-pref) —
+    // отсутствие поля (старый клиент, ещё не подключался) трактуем как
+    // "не скрыто". Онлайн-статус и время последнего визита — РАЗНЫЕ
+    // тумблеры, каждый скрывается независимо.
+    if (c.online && c.peerPresenceVisible !== false) return T("status.online");
+    if (c.peerLastSeenVisible !== false) {
+      const seen = state.lastSeen[c.id];
+      if (seen) return T("status.lastSeen", { ago: timeAgo(seen) });
+    }
     return T("status.offline");
   }
   return T("status.offline");
 }
 function contactStatusClass(c) {
   if (c.status === "connected" || c.status === "in-call") return "status-connected";
-  if (c.managed && c.online) return "status-connected";
+  if (c.managed && c.online && c.peerPresenceVisible !== false) return "status-connected";
   if (c.status === "connecting" || c.status === "new" || c.status === "awaiting-answer") return "status-connecting";
   return "status-disconnected";
 }
@@ -1585,27 +1689,53 @@ function renderChatsList() {
   for (const c of items) {
     const last = c.messages[c.messages.length - 1];
     const unread = unreadCount(c);
+    const wrapper = document.createElement("div");
+    wrapper.className = "chat-row-wrapper";
     const row = document.createElement("button");
     row.type = "button";
-    row.className = "chat-row glass-content" + (c.archived ? " archived" : "");
+    row.className = "chat-row flat-content" + (c.archived ? " archived" : "");
     const badge = unread > 0 ? `<span class="unread-badge">${unread > 99 ? "99+" : unread}</span>` : "";
-    const muteIcon = c.muted ? `<span class="muted-icon" title="Mute">🔕</span>` : "";
-    const blockIcon = c.blocked ? `<span class="muted-icon" title="Blocked">🚫</span>` : "";
+    const muteIcon = c.muted ? `<span class="muted-icon" title="Mute"><svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M12 2a1 1 0 0 1 1 1v.6a6 6 0 0 1 5 5.9v4l1.6 2.4a1 1 0 0 1-.8 1.6H5.2a1 1 0 0 1-.8-1.6L6 13.5v-4a6 6 0 0 1 5-5.9V3a1 1 0 0 1 1-1zm-2 18a2 2 0 0 0 4 0h-4z"/><line x1="3.5" y1="20.5" x2="20.5" y2="3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>` : "";
+    const blockIcon = c.blocked ? `<span class="muted-icon" title="Blocked"><svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><line x1="6" y1="18" x2="18" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>` : "";
     let preview = last
       ? (last.from === "system" && last.textKey ? escapeHtml(renderSystemMessageText(last)) : last.file ? escapeHtml(T("chat.file.preview." + last.file.kind)) : (last.contactCard ? escapeHtml(T("chat.contactCard.preview", { name: last.contactCard.name || T("sys.someone") })) : escapeHtml(truncate(last.text, 42))))
       : escapeHtml(contactStatusLabel(c));
     if (query && last && (last.text || "").toLowerCase().includes(query)) preview = highlightRaw(escapeHtml(truncate(last.text, 42)), state.searchQuery);
+    // "Печатает…" перекрывает обычное превью — раньше это было видно
+    // только в шапке уже открытого треда, хотя состояние (typingTimers)
+    // уже отслеживалось и для списка чатов, просто не использовалось.
+    const isTyping = !isGroup(c) && state.typingTimers.has(c.id);
+    if (isTyping) preview = `<em class="chat-row-typing">${escapeHtml(T("chat.typing"))}</em>`;
     row.innerHTML = `
       <div class="avatar" style="background:${avatarGradient(c.name)}">${escapeHtml(initials(c.name))}</div>
       <div class="chat-row-body">
         <div class="chat-row-top">
-          <span class="chat-row-name">${escapeHtml(c.name || T("sys.someone"))} ${muteIcon}${blockIcon}</span>
+          <span class="chat-row-name${unread > 0 ? " unread" : ""}">${escapeHtml(c.name || T("sys.someone"))} ${muteIcon}${blockIcon}</span>
           <span class="chat-row-status ${contactStatusClass(c)}"${isGroup(c) ? ' style="display:none;"' : ""}>●</span>
         </div>
         <div class="chat-row-sub"><span class="chat-row-preview-text">${preview}</span>${badge}</div>
       </div>`;
+    // Свайп открывает фоновые действия (архив/удалить) — сама кнопка
+    // строки едет поверх них через translateX. Раньше список чатов был
+    // просто <button> без единого жеста — тап открывал чат, и больше
+    // ничего. Структура: wrapper > [фон с действиями] + [сама строка].
+    wrapper.innerHTML = `
+      <div class="chat-row-actions chat-row-actions-start">
+        <button type="button" class="chat-row-action-btn chat-row-action-archive" data-action="archive">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M20.5 4h-17A1.5 1.5 0 0 0 2 5.5v2A1.5 1.5 0 0 0 3.5 9H4v9.5A2.5 2.5 0 0 0 6.5 21h11a2.5 2.5 0 0 0 2.5-2.5V9h.5A1.5 1.5 0 0 0 22 7.5v-2A1.5 1.5 0 0 0 20.5 4zM18 18.5a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5V9h12v9.5zM20 7H4V6h16v1z"/><path fill="currentColor" d="M9.5 13h5a.5.5 0 0 0 0-1h-5a.5.5 0 0 0 0 1z"/></svg>
+          <span>${escapeHtml(c.archived ? T("chats.action.unarchive") : T("chats.action.archive"))}</span>
+        </button>
+      </div>
+      <div class="chat-row-actions chat-row-actions-end">
+        <button type="button" class="chat-row-action-btn chat-row-action-delete" data-action="delete">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M6 7h12l-1 13.5a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 7 20.5L6 7zm3.5-4h5l1 2H19v1.5H5V5h4.5l1-2z"/></svg>
+          <span>${escapeHtml(T("chats.action.delete"))}</span>
+        </button>
+      </div>`;
+    wrapper.appendChild(row);
     row.addEventListener("click", () => { cancelVoiceRecordingIfLeavingChat(c.id); state.chatId = c.id; renderTab(); });
-    list.appendChild(row);
+    attachChatRowSwipe(wrapper, row, c);
+    list.appendChild(wrapper);
   }
 }
 function avatarGradient(name) {
@@ -1693,7 +1823,12 @@ function renderContactCard() {
   const navT = $("#nav-contact-title"); if (navT) navT.textContent = c.name || T("sys.someone");
   const st = $("#contact-status"); if (st) st.textContent = contactStatusLabel(c);
   const idEl = $("#contact-info-id"); if (idEl) idEl.textContent = c.raw || T("chat.contact.identifier.unknown");
-  const mutedEl = $("#contact-info-muted"); if (mutedEl) mutedEl.textContent = c.muted ? "🔕" : "🔔";
+  const mutedEl = $("#contact-info-muted");
+  if (mutedEl) {
+    const bellPath = '<path fill="currentColor" d="M12 2a1 1 0 0 1 1 1v.6a6 6 0 0 1 5 5.9v4l1.6 2.4a1 1 0 0 1-.8 1.6H5.2a1 1 0 0 1-.8-1.6L6 13.5v-4a6 6 0 0 1 5-5.9V3a1 1 0 0 1 1-1zm-2 18a2 2 0 0 0 4 0h-4z"/>';
+    const slash = '<line x1="3.5" y1="20.5" x2="20.5" y2="3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>';
+    mutedEl.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16">${bellPath}${c.muted ? slash : ""}</svg>`;
+  }
   const blockBtn = $("#contact-block-btn"); if (blockBtn) blockBtn.textContent = c.blocked ? T("chat.contact.unblock") : T("chat.contact.block");
   const archBtn = $("#contact-archive-btn"); if (archBtn) archBtn.textContent = T("chat.contact.archive");
   const muteBtn = $("#contact-mute-btn"); if (muteBtn) muteBtn.textContent = T("chat.contact.mute");
@@ -1751,6 +1886,21 @@ function wireContactCard() {
     const fromId = state.contactCardId; if (!fromId) return;
     openForwardSheet((toId) => forwardContact(fromId, toId));
   });
+  const safetyBtn = $("#contact-safety-btn");
+  if (safetyBtn) safetyBtn.addEventListener("click", async () => {
+    const cid = state.contactCardId; const c = cid && state.contacts.get(cid); if (!c) return;
+    if (!c.publicKey || !Store.myPublicKeyJwk) { toast(T("toast.safetyNumberNoKey")); return; }
+    const digitsEl = $("#safety-number-digits");
+    if (digitsEl) digitsEl.textContent = "…";
+    const sheet = $("#safety-number-sheet"); if (sheet) sheet.classList.remove("hidden");
+    try {
+      const groups = await CryptoHelper.computeSafetyNumber(Store.myPublicKeyJwk, c.publicKey);
+      if (digitsEl) digitsEl.innerHTML = groups.map((g) => `<span>${escapeHtml(g)}</span>`).join("");
+    } catch (e) {
+      if (digitsEl) digitsEl.textContent = "";
+      toast(T("toast.safetyNumberNoKey"));
+    }
+  });
   const clear = $("#contact-clear-btn");
   if (clear) clear.addEventListener("click", () => {
     const c = state.contacts.get(state.contactCardId); if (!c) return;
@@ -1771,10 +1921,18 @@ function wireContactCard() {
 // Тред
 // =====================================================================
 function ackGlyph(ack) {
-  if (ack === "failed") return `<span class="ack-tick ack-failed">!</span>`;
-  if (ack === "read") return `<span class="ack-tick ack-read">✓✓</span>`;
-  if (ack === "delivered") return `<span class="ack-tick ack-delivered">✓✓</span>`;
-  return `<span class="ack-tick ack-sent">✓</span>`;
+  // 5 состояний, различимых по ФОРМЕ, не только по цвету (важно для
+  // дальтоников и ч/б скриншотов): pending — вращающийся ободок,
+  // sent/delivered — контурные галочки (через -webkit-text-stroke в
+  // CSS), read — та же ✓✓, но залитая и чуть крупнее, failed — "!" в
+  // кружке, кликабельна. У каждой role="img" и локализованный
+  // aria-label — раньше скринридер читал их как "галочка галочка".
+  const lbl = (k) => `role="img" aria-label="${escapeHtml(T("ack." + k))}"`;
+  if (ack === "failed") return `<span class="ack-tick ack-failed" ${lbl("failed")} data-retry="1">!</span>`;
+  if (ack === "read") return `<span class="ack-tick ack-read" ${lbl("read")}>✓✓</span>`;
+  if (ack === "delivered") return `<span class="ack-tick ack-delivered" ${lbl("delivered")}>✓✓</span>`;
+  if (ack === "pending") return `<span class="ack-tick ack-pending" ${lbl("pending")}>◷</span>`;
+  return `<span class="ack-tick ack-sent" ${lbl("sent")}>✓</span>`;
 }
 const NEAR_BOTTOM_PX = 80;
 function isNearBottom(el) { if (!el) return true; return el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX; }
@@ -1786,6 +1944,9 @@ function renderChatThreadInner() {
   if (!c) { state.chatId = null; renderTab(); return; }
   const screenEl = $("#screen-chat"); if (screenEl) screenEl.setAttribute("aria-label", c.name || T("sys.someone"));
   if (state.chatId !== __lastRenderedChatId) {
+    // Тот же баг, что и в closeChatSafely — переключение МЕЖДУ чатами
+    // не останавливало играющее голосовое из предыдущего чата.
+    pauseAllVoicePlayback();
     // Свежий вход в чат (а не повторный рендер того же самого) — если
     // есть непрочитанные, запоминаем id первого из них один раз здесь.
     // Дальше, пока пользователь не долистает вниз, ни бейдж, ни
@@ -1825,6 +1986,7 @@ function renderChatThreadInner() {
   // updateSendVsMic() (там же учитывается видимость от текста в поле —
   // два независимых переключателя одного и того же .hidden конфликтовали бы).
   const attachBtn = $("#chat-attach-btn"); if (attachBtn) attachBtn.classList.toggle("hidden", isGroup(c));
+  const cameraBtn = $("#chat-camera-btn"); if (cameraBtn) cameraBtn.classList.toggle("hidden", isGroup(c) || !__cameraAvailable);
 
   const badge = $("#chat-transport-badge");
   const link = (mesh && !isGroup(c)) ? mesh.get(c.id) : null;
@@ -1843,6 +2005,20 @@ function renderChatThreadInner() {
   if (!wrap) return;
   const wasAtBottom = isNearBottom(wrap);
   const savedScrollTop = wrap.scrollTop; // для случая "читал старое, не внизу, разделителя нет" — см. ниже
+  // Якорь на первом видимом сообщении — savedScrollTop сам по себе
+  // корректен, только если контент ВЫШЕ текущей позиции не меняется по
+  // высоте между рендерами. Это верно для новых входящих (они всегда
+  // добавляются в конец), но НЕ верно, если сообщения сверху исчезли
+  // (TTL-очистка просроченных, обрезка истории) — тогда тот же
+  // scrollTop указывал бы на другой контент, пользователя дёрнуло бы.
+  let anchorMsgId = null, anchorTopBefore = 0;
+  if (!wasAtBottom) {
+    const wrapRect = wrap.getBoundingClientRect();
+    for (const el of wrap.querySelectorAll("[data-msg-id]")) {
+      const r = el.getBoundingClientRect();
+      if (r.bottom > wrapRect.top) { anchorMsgId = el.getAttribute("data-msg-id"); anchorTopBefore = r.top; break; }
+    }
+  }
   wrap.innerHTML = "";
   const frag = document.createDocumentFragment();
   const q = state.chatSearchQuery.toLowerCase();
@@ -1903,6 +2079,7 @@ function renderChatThreadInner() {
     const ttlMark = m.ttl ? `<span class="bubble-ttl" title="${escapeHtml(disappearingTimerLabel(m.ttl))}">⏳</span>` : "";
     const inner = document.createElement("div");
     inner.className = "bubble " + (m.from === "me" ? "" : "glass-content");
+    inner.setAttribute("data-msg-id", m.id); // для прокрутки к оригиналу по тапу на цитате ответа
     const body = m.file ? fileBubbleHtml(m.id, m.file) : (m.contactCard ? contactCardBubbleHtml(m.contactCard) : linkifyAndHighlight(m.text, q));
     const senderLabel = (isGroup(c) && m.from === "them" && m.fromId && (!prevMsg || prevMsg.fromId !== m.fromId || prevMsg.from !== "them"))
       ? `<div class="bubble-sender">${escapeHtml(m.fromName || T("sys.someone"))}</div>` : "";
@@ -1921,7 +2098,7 @@ function renderChatThreadInner() {
       }
     }
     let replyHtml = "";
-    if (m.replyTo) replyHtml = `<div class="bubble-reply"><div class="bubble-reply-author">${escapeHtml(m.replyTo.authorName || "")}</div><div class="bubble-reply-text">${escapeHtml(truncate(m.replyTo.text || "", 80))}</div></div>`;
+    if (m.replyTo) replyHtml = `<div class="bubble-reply" data-reply-to-id="${escapeHtml(m.replyTo.msgId || "")}"><div class="bubble-reply-author">${escapeHtml(m.replyTo.authorName || "")}</div><div class="bubble-reply-text">${escapeHtml(truncate(m.replyTo.text || "", 80))}</div></div>`;
     const fwdMark = m.forwarded ? `<div class="bubble-forwarded">${escapeHtml(T("chat.forward"))}</div>` : "";
     let reactionsHtml = "";
     if (m.reactions && typeof m.reactions === "object") {
@@ -1972,6 +2149,28 @@ function renderChatThreadInner() {
         if (cardId) addContactFromCard(cardId, cardName);
         return;
       }
+      // Тап по цитате ответа — прокрутка к оригинальному сообщению, а
+      // не общее меню поверх него. Проверяем раньше остальных веток,
+      // т.к. цитата может быть частью пузыря любого типа (текст, файл).
+      // Тап по "!" (недоставленное) сразу открывает меню сообщения —
+      // раньше "Повторить" было спрятано в шите, куда добирается
+      // меньшинство пользователей; статус-иконка была мёртвым маркером.
+      const retryEl = ev.target.closest(".ack-failed[data-retry]");
+      if (retryEl) { ev.stopPropagation(); openMessageSheet(m.id, c.id); return; }
+      const replyQuoteEl = ev.target.closest(".bubble-reply[data-reply-to-id]");
+      if (replyQuoteEl) {
+        ev.stopPropagation();
+        const targetId = replyQuoteEl.getAttribute("data-reply-to-id");
+        const targetEl = targetId && wrap.querySelector(`[data-msg-id="${CSS.escape(targetId)}"]`);
+        if (targetEl) {
+          targetEl.scrollIntoView({ block: "center", behavior: prefersReducedMotion() ? "auto" : "smooth" });
+          targetEl.classList.add("highlight-origin");
+          setTimeout(() => targetEl.classList.remove("highlight-origin"), 1500);
+        } else {
+          toast(T("chat.replyOriginalGone"));
+        }
+        return;
+      }
       // Ссылка (обычный текст со ссылкой или карточка превью) — своё
       // меню выбора действия, а не переход напрямую и не общее меню
       // сообщения одновременно (раньше срабатывало и то, и другое).
@@ -1991,6 +2190,24 @@ function renderChatThreadInner() {
       }
       if (m.file && (m.file.kind === "image" || m.file.kind === "video") && !m.file.pending) {
         getFileBlobUrl(m.id).then((url) => { if (url) openMediaViewer(url, m.file.kind); });
+        return;
+      }
+      // Двойной тап по обычному тексту пузыря — быстрая реакция (❤️ или
+      // последняя использованная), без открытия меню сообщения. Открытие
+      // меню по одиночному тапу откладывается на короткое окно (220мс),
+      // достаточное, чтобы отличить один тап от двух, но не заметное на
+      // глаз как задержка.
+      if (!isGroup(c)) {
+        const prev = __bubbleTapState.get(m.id);
+        if (prev && Date.now() - prev.time < 320) {
+          clearTimeout(prev.timer);
+          __bubbleTapState.delete(m.id);
+          const quickEmoji = (Store.recentReactions[0]) || "❤️";
+          toggleReaction(c.id, m.id, quickEmoji);
+          return;
+        }
+        const timer = setTimeout(() => { __bubbleTapState.delete(m.id); if (state.chatId === c.id) openMessageSheet(m.id, c.id); }, 220);
+        __bubbleTapState.set(m.id, { time: Date.now(), timer });
         return;
       }
       openMessageSheet(m.id, c.id);
@@ -2015,12 +2232,19 @@ function renderChatThreadInner() {
   } else if (!unreadDividerEl) {
     // Пользователь читал старую переписку (не у низа, разделителя нет —
     // либо уже снят, либо его и не было). wrap.innerHTML = "" выше
-    // полностью пересобирает DOM на КАЖДЫЙ рендер (например, пришло
-    // новое сообщение) — без этого позиция прокрутки сбрасывалась бы
-    // браузером, обычно в начало списка. Контент выше текущей позиции
-    // не меняется по высоте (новое добавляется только в конец), поэтому
-    // просто восстанавливаем тот же scrollTop.
-    wrap.scrollTop = savedScrollTop;
+    // полностью пересобирает DOM на КАЖДЫЙ рендер. Если есть якорное
+    // сообщение и оно всё ещё существует после пересборки — подгоняем
+    // scrollTop так, чтобы оно осталось в той же позиции на экране
+    // (компенсирует изменение высоты контента выше, если сверху что-то
+    // исчезло — TTL, обрезка истории). Если якоря нет или само якорное
+    // сообщение тоже пропало — откатываемся на старое поведение.
+    const anchorEl = anchorMsgId ? wrap.querySelector(`[data-msg-id="${CSS.escape(anchorMsgId)}"]`) : null;
+    if (anchorEl) {
+      const anchorTopAfter = anchorEl.getBoundingClientRect().top;
+      wrap.scrollTop += anchorTopAfter - anchorTopBefore;
+    } else {
+      wrap.scrollTop = savedScrollTop;
+    }
   }
   updateScrollBottomButton();
   const input = $("#chat-input");
@@ -2047,6 +2271,88 @@ function renderChatThreadInner() {
       if (marks.length > 0) marks[0].scrollIntoView({ behavior: "smooth", block: "center" });
     }, 200);
   }
+}
+const __bubbleTapState = new Map(); // msgId -> { time, timer } — для различения одиночного/двойного тапа по пузырю
+let __openChatRowWrapper = null; // только одна открытая свайпом строка одновременно — стандартный паттерн (iOS Mail, Gmail)
+function closeOpenChatRow() {
+  if (__openChatRowWrapper) {
+    const r = __openChatRowWrapper.querySelector(".chat-row");
+    if (r) r.style.transform = "";
+    __openChatRowWrapper.classList.remove("swiped-start", "swiped-end");
+    __openChatRowWrapper = null;
+  }
+}
+const CHAT_ROW_REVEAL_PX = 84;
+function attachChatRowSwipe(wrapper, row, c) {
+  let startX = 0, startY = 0, dragging = false, currentX = 0;
+  const isRtl = document.documentElement.dir === "rtl";
+  // .chat-row-actions-start (архив) — inset-inline-start: физически
+  // слева в LTR, физически СПРАВА в RTL (логические CSS-свойства сами
+  // разворачиваются). Перетаскивание всегда 1:1 следует за пальцем без
+  // единой инверсии — это единственный вариант, который не выглядит
+  // сломанным ни в LTR, ни в RTL. RTL влияет ТОЛЬКО на то, какую панель
+  // означает положительный/отрицательный сдвиг — это решается один раз,
+  // в момент отпускания, а не размазано по вычислению координат.
+  row.addEventListener("touchstart", (e) => {
+    startX = e.touches[0].clientX; startY = e.touches[0].clientY;
+    dragging = false;
+    if (__openChatRowWrapper && __openChatRowWrapper !== wrapper) closeOpenChatRow();
+    currentX = wrapper.classList.contains("swiped-start") ? CHAT_ROW_REVEAL_PX : wrapper.classList.contains("swiped-end") ? -CHAT_ROW_REVEAL_PX : 0;
+    row.style.transition = "none";
+  }, { passive: true });
+  row.addEventListener("touchmove", (e) => {
+    const rawDx = e.touches[0].clientX - startX + currentX;
+    const dy = Math.abs(e.touches[0].clientY - startY);
+    if (!dragging && Math.abs(rawDx - currentX) > 10 && Math.abs(rawDx - currentX) > dy) dragging = true;
+    if (!dragging) return;
+    const dx = Math.max(-CHAT_ROW_REVEAL_PX * 1.3, Math.min(CHAT_ROW_REVEAL_PX * 1.3, rawDx));
+    row.style.transform = `translateX(${dx}px)`;
+  }, { passive: true });
+  row.addEventListener("touchend", () => {
+    row.style.transition = "";
+    if (!dragging) return;
+    const m1 = row.style.transform.match(/translateX\((-?\d+(?:\.\d+)?)px\)/);
+    const dx = m1 ? parseFloat(m1[1]) : 0;
+    // Положительный сдвиг открывает панель, которая физически СЛЕВА —
+    // это "start" в LTR, но "end" в RTL (см. комментарий выше).
+    const wantsPhysicalLeftPanel = dx > CHAT_ROW_REVEAL_PX / 2;
+    const wantsPhysicalRightPanel = dx < -CHAT_ROW_REVEAL_PX / 2;
+    const opensStart = isRtl ? wantsPhysicalRightPanel : wantsPhysicalLeftPanel;
+    const opensEnd = isRtl ? wantsPhysicalLeftPanel : wantsPhysicalRightPanel;
+    if (opensStart) {
+      row.style.transform = `translateX(${CHAT_ROW_REVEAL_PX}px)`;
+      wrapper.classList.add("swiped-start"); wrapper.classList.remove("swiped-end");
+      __openChatRowWrapper = wrapper;
+      haptic("light");
+    } else if (opensEnd) {
+      row.style.transform = `translateX(${-CHAT_ROW_REVEAL_PX}px)`;
+      wrapper.classList.add("swiped-end"); wrapper.classList.remove("swiped-start");
+      __openChatRowWrapper = wrapper;
+      haptic("light");
+    } else {
+      row.style.transform = "";
+      wrapper.classList.remove("swiped-start", "swiped-end");
+      if (__openChatRowWrapper === wrapper) __openChatRowWrapper = null;
+    }
+    dragging = false;
+  });
+  // Если строка открыта свайпом, тап по НЕЙ САМОЙ закрывает её вместо
+  // перехода в чат — навигация возвращается только когда строка закрыта.
+  row.addEventListener("click", (ev) => {
+    if (wrapper.classList.contains("swiped-start") || wrapper.classList.contains("swiped-end")) {
+      ev.stopImmediatePropagation();
+      closeOpenChatRow();
+    }
+  }, true);
+  wrapper.querySelector(".chat-row-action-archive").addEventListener("click", () => {
+    closeOpenChatRow();
+    c.archived = !c.archived; persistContacts(); haptic("light"); renderChatsList();
+  });
+  wrapper.querySelector(".chat-row-action-delete").addEventListener("click", () => {
+    if (!confirm(T("toast.confirmDeleteContact", { name: c.name }))) { closeOpenChatRow(); return; }
+    closeOpenChatRow();
+    deleteContact(c.id);
+  });
 }
 function attachSwipeReply(el, m, c) {
   let startX = 0, startY = 0, swiping = false;
@@ -2103,22 +2409,27 @@ function markThreadRead(c) {
   for (const m of c.messages) if (m.from === "them" && !m.readAckSent) { m.readAckSent = true; toAck.push(m); }
   if (toAck.length === 0) return;
   persistContacts();
-  if (isGroup(c)) {
-    // У группы нет своего mesh-линка — это набор отдельных P2P-связей с
-    // каждым участником. sendAckBatch(groupId, ...) тут ничего не находит
-    // (mesh.get(groupId) === undefined) и запись просто зависает в
-    // pendingNoKey навсегда. Правильно — слать квитанцию РЕАЛЬНОМУ АВТОРУ
-    // каждого сообщения (m.fromId), а не группе как единому адресату;
-    // разные сообщения в одной группе могли написать разные люди.
-    const byAuthor = new Map();
-    for (const m of toAck) {
-      const authorId = m.fromId; if (!authorId) continue;
-      if (!byAuthor.has(authorId)) byAuthor.set(authorId, []);
-      byAuthor.get(authorId).push(m.deliveryId || m.id);
+  // receiptsEnabled=false — не отправляем read-квитанции вовсе (но
+  // readAckSent выше всё равно проставлен: это ЛОКАЛЬНЫЙ учёт для
+  // счётчика непрочитанных, не сигнал собеседнику).
+  if (Store.receiptsEnabled) {
+    if (isGroup(c)) {
+      // У группы нет своего mesh-линка — это набор отдельных P2P-связей с
+      // каждым участником. sendAckBatch(groupId, ...) тут ничего не находит
+      // (mesh.get(groupId) === undefined) и запись просто зависает в
+      // pendingNoKey навсегда. Правильно — слать квитанцию РЕАЛЬНОМУ АВТОРУ
+      // каждого сообщения (m.fromId), а не группе как единому адресату;
+      // разные сообщения в одной группе могли написать разные люди.
+      const byAuthor = new Map();
+      for (const m of toAck) {
+        const authorId = m.fromId; if (!authorId) continue;
+        if (!byAuthor.has(authorId)) byAuthor.set(authorId, []);
+        byAuthor.get(authorId).push(m.deliveryId || m.id);
+      }
+      for (const [authorId, ids] of byAuthor) sendAckBatch(authorId, ids, "read");
+    } else {
+      sendAckBatch(c.id, toAck.map((m) => m.deliveryId || m.id), "read");
     }
-    for (const [authorId, ids] of byAuthor) sendAckBatch(authorId, ids, "read");
-  } else {
-    sendAckBatch(c.id, toAck.map((m) => m.deliveryId || m.id), "read");
   }
   updateAppBadge();
   if (state.tab === "chats") renderChatsList();
@@ -2137,7 +2448,7 @@ function wireKeyboardFix() {
     const screen = document.getElementById("screen-chat");
     if (!screen || screen.classList.contains("hidden")) return;
     const bar = document.querySelector(".chat-input-bar"); if (!bar) return;
-    const kb = Math.max(0, window.innerHeight - vv.height);
+    const kb = Math.max(0, window.innerHeight - vv.height - (vv.offsetTop || 0));
     if (kb > 60) bar.style.transform = `translateY(-${kb}px)`;
     else bar.style.transform = "";
     const wrap = document.getElementById("chat-messages");
@@ -2169,6 +2480,7 @@ async function sendChatMessage(contactId, text, replyTo) {
   }
   if (state.tab === "chats") renderChatsList();
   playOutgoingSound();
+  haptic("light");
   const payload = { kind: "chat", id: msgId, text, ts };
   if (replyTo) payload.replyTo = { id: replyTo.msgId, text: replyTo.text, authorName: replyTo.authorName };
   if (c.disappearingTimer) payload.ttl = c.disappearingTimer;
@@ -2331,7 +2643,11 @@ async function sendFileMessage(contactId, file) {
   if (c.blocked) { toast(T("toast.blocked")); return; }
   if (file.size > MAX_FILE_SIZE) { toast(T("toast.fileTooLarge", { size: formatFileSize(MAX_FILE_SIZE) })); return; }
   const link = mesh.get(contactId);
-  if (!link || link.status !== "connected") { toast(T("toast.fileNeedsLive")); return; }
+  // Во время звонка link.status === "in-call", не "connected" — но
+  // data channel остаётся полностью рабочим (sendFile сама проверяет
+  // только dc.readyState). trySendOrQueue для текста уже учитывает оба
+  // статуса — файлы были явно рассинхронизированы с этим.
+  if (!link || (link.status !== "connected" && link.status !== "in-call")) { toast(T("toast.fileNeedsLive")); return; }
 
   const msgId = crypto.randomUUID();
   const ts = Date.now();
@@ -2374,7 +2690,11 @@ async function sendVoiceMessage(contactId, blob, durationSec) {
   if (c.blocked) { toast(T("toast.blocked")); return; }
   if (blob.size > MAX_FILE_SIZE) { toast(T("toast.fileTooLarge", { size: formatFileSize(MAX_FILE_SIZE) })); return; }
   const link = mesh.get(contactId);
-  if (!link || link.status !== "connected") { toast(T("toast.fileNeedsLive")); return; }
+  // Во время звонка link.status === "in-call", не "connected" — но
+  // data channel остаётся полностью рабочим (sendFile сама проверяет
+  // только dc.readyState). trySendOrQueue для текста уже учитывает оба
+  // статуса — файлы были явно рассинхронизированы с этим.
+  if (!link || (link.status !== "connected" && link.status !== "in-call")) { toast(T("toast.fileNeedsLive")); return; }
 
   const msgId = crypto.randomUUID();
   const ts = Date.now();
@@ -2629,6 +2949,13 @@ async function getFileBlobUrl(msgId) {
     let removed = 0;
     for (const [k, u] of fileBlobUrlCache) {
       if (removed >= toRemove) break;
+      // Раньше вытеснение шло вслепую по возрасту записи — если URL в
+      // этот момент реально отображается в DOM (<img>/<video> в открытом
+      // чате), revokeObjectURL() ломает уже показанную картинку (у
+      // пользователя с длинной перепиской с фото это выглядело как
+      // внезапно пропавшее превью). Пропускаем то, что сейчас на экране,
+      // и вытесняем следующую по возрасту запись вместо неё.
+      if (document.querySelector(`[data-file-id="${CSS.escape(k)}"]`)) continue;
       URL.revokeObjectURL(u);
       fileBlobUrlCache.delete(k);
       removed++;
@@ -2641,7 +2968,7 @@ function fileBubbleHtml(msgId, fileInfo) {
     return `<div class="file-bubble file-bubble-pending"><div class="file-spinner"></div><span>${escapeHtml(T("chat.file.sending"))}</span></div>`;
   }
   if (fileInfo.failed) {
-    return `<div class="file-bubble file-bubble-failed">⚠️ <span>${escapeHtml(T("chat.file.failed"))}</span></div>`;
+    return `<div class="file-bubble file-bubble-failed"><svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 2 1 21h22L12 2zm0 6 6.5 11h-13L12 8zm-1 2.5v4h2v-4h-2zm0 5.5v2h2v-2h-2z"/></svg> <span>${escapeHtml(T("chat.file.failed"))}</span></div>`;
   }
   const sizeStr = formatFileSize(fileInfo.size);
   if (fileInfo.kind === "image") {
@@ -2659,7 +2986,7 @@ function fileBubbleHtml(msgId, fileInfo) {
     </div>`;
   }
   return `<a class="file-bubble file-bubble-doc" data-file-id="${escapeHtml(msgId)}" data-file-kind="file" href="#">
-    <span class="file-doc-icon">📄</span>
+    <span class="file-doc-icon"><svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm8 1.5V8h4.5L14 3.5zM7 12h10v1.5H7V12zm0 4h10v1.5H7V16zm0-8h5v1.5H7V8z"/></svg></span>
     <span class="file-doc-info"><span class="file-doc-name">${escapeHtml(fileInfo.name)}</span><span class="file-doc-size">${escapeHtml(sizeStr)}</span></span>
   </a>`;
 }
@@ -2669,6 +2996,15 @@ function formatVoiceDuration(sec) {
   return m + ":" + String(s).padStart(2, "0");
 }
 const voiceAudioCache = new Map(); // msgId -> { audio, playing } — переиспользуем между рендерами
+// Раньше при уходе из чата (в список чатов или в другой чат) голосовое,
+// если оно играло, продолжало звучать в фоне — кнопки для остановки
+// уже не было, а сам Audio() из кеша никто не ставил на паузу.
+function pauseAllVoicePlayback() {
+  for (const entry of voiceAudioCache.values()) {
+    if (entry.playing) { entry.audio.pause(); entry.playing = false; }
+  }
+  document.querySelectorAll(".voice-play-btn").forEach((b) => { b.textContent = "▶"; });
+}
 function hydrateFileSlots(root) {
   root.querySelectorAll(".file-media-slot[data-file-id], .file-bubble-doc[data-file-id]").forEach((el) => {
     const msgId = el.getAttribute("data-file-id");
@@ -2711,7 +3047,26 @@ function hydrateFileSlots(root) {
       // Кешируем по msgId и переиспользуем один и тот же Audio между рендерами,
       // перепривязывая обработчики к актуальным (пересозданным) DOM-элементам.
       let entry = voiceAudioCache.get(msgId);
-      if (!entry) { entry = { audio: new Audio(url), playing: false }; voiceAudioCache.set(msgId, entry); }
+      if (!entry) {
+        entry = { audio: new Audio(url), playing: false };
+        voiceAudioCache.set(msgId, entry);
+        // fileBlobUrlCache и linkPreviewCache уже ограничены по размеру,
+        // а voiceAudioCache — нет: рос на каждый когда-либо проигранный
+        // голосовой за сессию, чистился только при удалении сообщения.
+        // За долгую активную переписку с голосовыми — сотни живых
+        // HTMLAudioElement. Вытесняем только НЕ играющие сейчас записи.
+        if (voiceAudioCache.size > 200) {
+          const toRemove = voiceAudioCache.size - 180;
+          let removed = 0;
+          for (const [k, v] of voiceAudioCache) {
+            if (removed >= toRemove) break;
+            if (v.playing) continue; // не вытесняем то, что сейчас реально играет
+            try { v.audio.pause(); } catch (e) {}
+            voiceAudioCache.delete(k);
+            removed++;
+          }
+        }
+      }
       const audio = entry.audio;
       playBtn.disabled = false;
       playBtn.textContent = entry.playing ? "⏸" : "▶";
@@ -2952,10 +3307,24 @@ async function forwardMessage(msgId, fromContactId, toContactId) {
   await trySendOrQueue(to, msgId2, payload);
 }
 async function trySendOrQueue(contact, msgId, payloadObj) {
+  // Раньше ack сразу оптимистично выставлялся в "sent" при создании
+  // записи — это была маленькая ложь: на плохой сети между "нажал
+  // отправить" и реальной отправкой (P2P или через сервер) может пройти
+  // 2-5 секунд. Честный pending-статус на этот момент.
+  const mPending = contact.messages.find((x) => x.id === msgId);
+  if (mPending && mPending.ack === "sent") {
+    mPending.ack = "pending";
+    if (state.chatId === contact.id) renderChatThread();
+  }
   const link = mesh.get(contact.id);
   const p2pSent = link && (link.status === "connected" || link.status === "in-call") && link.send(payloadObj);
   addToOutbox(msgId, contact.id, payloadObj);
   if (p2pSent) {
+    if (mPending && mPending.ack === "pending") {
+      mPending.ack = "sent";
+      persistContacts();
+      if (state.chatId === contact.id) renderChatThread();
+    }
     setTimeout(() => { if (!outbox.has(msgId)) return; flushOutboxItem(msgId); }, P2P_FALLBACK_MS);
     return;
   }
@@ -3001,7 +3370,7 @@ async function flushOutboxItem(msgId) {
     else if (kind === "chat") {
       const c = state.contacts.get(entry.to);
       const m = c && c.messages.find((x) => x.id === msgId);
-      if (m && m.ack === "failed") m.ack = "sent";
+      if (m && (m.ack === "failed" || m.ack === "pending")) m.ack = "sent";
       persistContacts();
     }
   } catch (e) { etherLog("error", "[crypto] encrypt:", String(e)); markMessageAck(entry.to, msgId, "failed"); }
@@ -3084,6 +3453,12 @@ function sendAckBatch(contactId, originalMsgIds, ackState) {
 }
 
 function markMessageAck(contactId, msgId, ack) {
+  if (ack === "failed") haptic("medium");
+  // Симметрично markThreadRead: если МОИ receipts выключены, я не вижу
+  // read-статус на СВОИХ сообщениях, даже если собеседник его всё-таки
+  // прислал (у него могло быть включено). Это тот же принцип, что в
+  // Signal — тумблер симметричен по эффекту, не только по отправке.
+  if (ack === "read" && !Store.receiptsEnabled) ack = "delivered";
   const rank = { failed: -1, sent: 0, delivered: 1, read: 2 };
   // Для групповых сообщений msgId, который приходит в ack, — это id
   // ДОСТАВКИ (свой у каждого участника, чтобы не сталкивались ключи в
@@ -3139,6 +3514,17 @@ function sendTypingStop(contactId) {
       .catch(() => {});
   }
 }
+// Три тумблера приватности сообщаются собеседнику через P2P (тот же
+// принцип, что и typing-статус) — сервер тут ни при чём, это прямое
+// сообщение между уже связанными пирами.
+function sendPrivacyPrefsTo(contactId) {
+  const link = mesh.get(contactId);
+  if (!link || (link.status !== "connected" && link.status !== "in-call")) return;
+  link.send({ kind: "privacy-pref", receiptsEnabled: Store.receiptsEnabled, lastSeenVisible: Store.lastSeenVisible, presenceVisible: Store.presenceVisible });
+}
+function broadcastPrivacyPrefs() {
+  for (const c of state.contacts.values()) if (!isGroup(c)) sendPrivacyPrefsTo(c.id);
+}
 function handleIncomingTyping(contactId, active) {
   const t = state.typingTimers.get(contactId);
   if (t) { clearTimeout(t); state.typingTimers.delete(contactId); }
@@ -3146,19 +3532,31 @@ function handleIncomingTyping(contactId, active) {
     state.typingTimers.set(contactId, setTimeout(() => {
       state.typingTimers.delete(contactId);
       if (state.chatId === contactId) renderChatThread();
+      if (state.tab === "chats") renderChatsList();
     }, TYPING_AUTO_CLEAR_MS));
   }
   if (state.chatId === contactId) renderChatThread();
+  // Раньше "печатает…" было видно только в шапке открытого треда —
+  // список чатов ничего не показывал, хотя состояние уже отслеживается.
+  if (state.tab === "chats") renderChatsList();
+}
+// Использованная реакция становится самой первой в "недавних" —
+// дедуп, кап на 6.
+function recordRecentReaction(emoji) {
+  const cur = Store.recentReactions.filter((e) => e !== emoji);
+  cur.unshift(emoji);
+  Store.recentReactions = cur;
 }
 async function toggleReaction(contactId, msgId, emoji) {
   const c = state.contacts.get(contactId); if (!c) return;
   const m = c.messages.find((x) => x.id === msgId); if (!m) return;
+  haptic("light");
   if (!m.reactions || typeof m.reactions !== "object") m.reactions = {};
   if (!Array.isArray(m.reactions[emoji])) m.reactions[emoji] = [];
   const meIdx = m.reactions[emoji].indexOf(Store.myId);
   let remove = false;
   if (meIdx >= 0) { m.reactions[emoji].splice(meIdx, 1); remove = true; if (m.reactions[emoji].length === 0) delete m.reactions[emoji]; }
-  else m.reactions[emoji].push(Store.myId);
+  else { m.reactions[emoji].push(Store.myId); recordRecentReaction(emoji); }
   persistContacts();
   if (state.chatId === contactId) renderChatThread();
   const actionId = crypto.randomUUID();
@@ -3421,11 +3819,16 @@ function wireSignalingEvents(sig) {
       if (kind === "chat") sendAckBatch(from, [msgId], "delivered");
       return;
     }
-    if (seenDeliverIds.has(msgId)) {
+    if (seenDeliverIds.has(from + "|" + msgId)) {
       if (kind === "chat") sendAckBatch(from, [msgId], "delivered");
       return;
     }
-    seenDeliverIds.add(msgId);
+    seenDeliverIds.add(from + "|" + msgId);
+    // Раньше ключом был голый msgId — два РАЗНЫХ контакта, приславшие
+    // сообщение с одинаковым msgId (в теории UUID-коллизия исключена,
+    // но нарочный спам совпадающими id уже нет — прежняя схема просто
+    // отбросила бы второе сообщение от другого человека), теперь не
+    // мешают друг другу: ключ включает отправителя.
     if (seenDeliverIds.size > SEEN_DELIVER_LIMIT) seenDeliverIds.delete(seenDeliverIds.values().next().value);
     let payload;
     try {
@@ -3463,8 +3866,13 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     persistContacts();
     const displayName = c.name;
     const previewPrefix = groupId ? `${rec.fromName}: ` : "";
-    if (isOpen) { renderChatThread(); playMessageSound(); vibrate([80, 40, 80]); }
-    else {
+    if (isOpen) {
+      renderChatThread(); playMessageSound(); vibrate([80, 40, 80]);
+      // aria-live на #chat-messages спамил бы весь список на каждую
+      // перерисовку — объявляем только реально новое сообщение через
+      // отдельный скрытый узел.
+      announceToScreenReader(T("sr.newMessage", { name: groupId ? rec.fromName : displayName, text: truncate(payload.text, 80) }));
+    } else {
       toast(`${displayName}: ${previewPrefix}${truncate(payload.text, 40)}`);
       if (!c.muted) showNotification(displayName || T("app.name"), previewPrefix + truncate(payload.text, 80), { tag: "ether-msg-" + c.id, contactId: c.id, kind: "message" });
       playMessageSound();
@@ -3521,6 +3929,19 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     }
   } else if (kind === "typing") {
     handleIncomingTyping(from, !!payload.active);
+  } else if (kind === "privacy-pref") {
+    const c = state.contacts.get(from);
+    if (c) {
+      // Значения собеседника о ТРЁХ тумблерах приватности — влияют на
+      // то, что я вижу про НЕГО (моё отображение), а не на мои
+      // собственные значения. Отсутствие поля (старый клиент, ещё не
+      // успел прислать) трактуем как "не скрыто" — разрешительно по
+      // умолчанию, а не наоборот.
+      c.peerReceiptsEnabled = payload.receiptsEnabled !== false;
+      c.peerLastSeenVisible = payload.lastSeenVisible !== false;
+      c.peerPresenceVisible = payload.presenceVisible !== false;
+      if (state.chatId === from || state.tab === "chats") renderTab();
+    }
   } else if (kind === "reaction") {
     applyReaction(from, payload);
   } else if (kind === "contact-card") {
@@ -4027,6 +4448,102 @@ function copyText(text, msg) {
 // =====================================================================
 // Шиты
 // =====================================================================
+const __camera = { stream: null, facing: "environment", capturedBlob: null, contactId: null };
+async function openCameraScreen(contactId) {
+  const screen = $("#camera-screen"); if (!screen) return;
+  __camera.contactId = contactId;
+  __camera.capturedBlob = null;
+  screen.classList.remove("hidden");
+  showCameraLiveState();
+  await startCameraStream(__camera.facing);
+}
+async function startCameraStream(facing) {
+  stopCameraStream();
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing }, audio: false });
+    __camera.stream = stream;
+    __camera.facing = facing;
+    const video = $("#camera-preview");
+    if (video) video.srcObject = stream;
+  } catch (e) {
+    // Отказ в доступе или отсутствие камеры — тот же честный подход,
+    // что и для микрофона при звонке: не молчим и не показываем общую
+    // ошибку "нет связи с сервером".
+    const name = e && e.name;
+    if (name === "NotAllowedError" || name === "PermissionDeniedError") toast(T("toast.cameraPermissionDenied"));
+    else if (name === "NotFoundError" || name === "DevicesNotFoundError") toast(T("toast.cameraNotFound"));
+    else toast(T("toast.cameraPermissionDenied"));
+    closeCameraScreen();
+  }
+}
+function stopCameraStream() {
+  if (__camera.stream) { try { __camera.stream.getTracks().forEach((t) => t.stop()); } catch (e) {} __camera.stream = null; }
+}
+function closeCameraScreen() {
+  stopCameraStream();
+  __camera.capturedBlob = null;
+  const screen = $("#camera-screen"); if (screen) screen.classList.add("hidden");
+}
+function showCameraLiveState() {
+  const video = $("#camera-preview"), img = $("#camera-captured-img");
+  const live = $("#camera-controls-live"), preview = $("#camera-controls-preview");
+  if (video) video.classList.remove("hidden");
+  if (img) img.classList.add("hidden");
+  if (live) live.classList.remove("hidden");
+  if (preview) preview.classList.add("hidden");
+}
+function capturePhoto() {
+  const video = $("#camera-preview"), canvas = $("#camera-canvas");
+  if (!video || !canvas || !video.videoWidth) return;
+  canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+  const ctx = canvas.getContext("2d");
+  // Фронтальная камера превью зеркалится для привычного вида "как в
+  // зеркале" — сам снимок сохраняем НЕзеркальным (как его видит
+  // собеседник, а не как видел себя отправитель).
+  if (__camera.facing === "user") { ctx.translate(canvas.width, 0); ctx.scale(-1, 1); }
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  canvas.toBlob((blob) => {
+    if (!blob) return;
+    __camera.capturedBlob = blob;
+    const img = $("#camera-captured-img");
+    if (img) { img.src = URL.createObjectURL(blob); img.classList.remove("hidden"); }
+    const video2 = $("#camera-preview"); if (video2) video2.classList.add("hidden");
+    const live = $("#camera-controls-live"), preview = $("#camera-controls-preview");
+    if (live) live.classList.add("hidden");
+    if (preview) preview.classList.remove("hidden");
+  }, "image/jpeg", 0.9);
+}
+let __cameraAvailable = true;
+function wireCameraScreen() {
+  const openBtn = $("#chat-camera-btn");
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    __cameraAvailable = false;
+    if (openBtn) openBtn.classList.add("hidden");
+    return;
+  }
+  if (openBtn) openBtn.addEventListener("click", () => { if (state.chatId) openCameraScreen(state.chatId); });
+  const closeBtn = $("#camera-close-btn");
+  if (closeBtn) closeBtn.addEventListener("click", closeCameraScreen);
+  const switchBtn = $("#camera-switch-btn");
+  if (switchBtn) switchBtn.addEventListener("click", () => { haptic("light"); startCameraStream(__camera.facing === "environment" ? "user" : "environment"); });
+  const shutterBtn = $("#camera-shutter-btn");
+  if (shutterBtn) shutterBtn.addEventListener("click", () => { haptic("medium"); capturePhoto(); });
+  const retakeBtn = $("#camera-retake-btn");
+  if (retakeBtn) retakeBtn.addEventListener("click", () => {
+    const img = $("#camera-captured-img");
+    if (img && img.src) { URL.revokeObjectURL(img.src); img.src = ""; }
+    __camera.capturedBlob = null;
+    showCameraLiveState();
+  });
+  const sendBtn = $("#camera-send-btn");
+  if (sendBtn) sendBtn.addEventListener("click", () => {
+    if (!__camera.capturedBlob || !__camera.contactId) return;
+    const file = new File([__camera.capturedBlob], "photo-" + Date.now() + ".jpg", { type: "image/jpeg" });
+    const contactId = __camera.contactId;
+    closeCameraScreen();
+    sendFileMessage(contactId, file);
+  });
+}
 function wireSheetBackdrops() {
   $$(".sheet-backdrop").forEach((el) => {
     el.addEventListener("click", () => { const s = el.closest(".sheet"); if (s) s.classList.add("hidden"); });
@@ -4073,12 +4590,29 @@ function openMessageSheet(msgId, contactId) {
   if (bar) {
     bar.innerHTML = "";
     if (!groupCtx) {
-      for (const emoji of REACTION_EMOJIS) {
+      const DEFAULT_QUICK_REACTIONS = ["❤️", "👍", "👎", "😂", "😮", "😢"];
+      const recent = Store.recentReactions;
+      const quickSet = (recent.length > 0 ? recent : DEFAULT_QUICK_REACTIONS).slice(0, 6);
+      const renderEmojiBtn = (emoji) => {
         const b = document.createElement("button");
         b.type = "button"; b.className = "reaction-emoji"; b.textContent = emoji;
         b.addEventListener("click", () => { const ms = $("#message-sheet"); if (ms) ms.classList.add("hidden"); toggleReaction(contactId, msgId, emoji); });
-        bar.appendChild(b);
-      }
+        return b;
+      };
+      quickSet.forEach((emoji) => bar.appendChild(renderEmojiBtn(emoji)));
+      // "+" открывает полную сетку из 110 — раньше она была видна
+      // ВСЕГДА целиком, теперь только по явному запросу.
+      const expandBtn = document.createElement("button");
+      expandBtn.type = "button"; expandBtn.className = "reaction-emoji reaction-expand";
+      expandBtn.setAttribute("aria-label", T("chat.reactionMore"));
+      expandBtn.textContent = "+";
+      expandBtn.addEventListener("click", () => {
+        bar.innerHTML = "";
+        bar.classList.add("reaction-bar-expanded");
+        REACTION_EMOJIS.forEach((emoji) => bar.appendChild(renderEmojiBtn(emoji)));
+      });
+      bar.appendChild(expandBtn);
+      bar.classList.remove("reaction-bar-expanded");
     }
   }
   const isOwn = m.from === "me";
@@ -4281,7 +4815,10 @@ function endCallRecord(finalStatus) {
   updateCallsBadge();
 }
 function callStatusLabel(rec) {
-  if (rec.status === "completed") return `${T("status.inCall")} · ${formatDuration(rec.durationMs)}`;
+  if (rec.status === "completed") {
+    const key = rec.direction === "out" ? "calls.systemCompletedOut" : "calls.systemCompletedIn";
+    return T(key, { duration: formatDuration(rec.durationMs) });
+  }
   if (rec.status === "declined") return T("calls.declined");
   if (rec.status === "missed") return T("calls.missed");
   if (rec.status === "cancelled") return T("calls.cancelled");
@@ -4300,25 +4837,37 @@ function renderCallsList() {
   for (const rec of items) {
     const c = state.contacts.get(rec.contactId);
     const name = (c && c.name) || rec.contactName || T("sys.someone");
-    const isFailed = rec.status !== "completed";
-    const dirIcon = isFailed ? "missed" : (rec.direction === "in" ? "in" : "out");
+    // Раньше любой неуспешный статус (busy/declined/failed/cancelled)
+    // красился как "пропущенный" (красный) — в том числе отменённый
+    // САМИМ пользователем исходящий звонок, будто ему не ответили.
+    const isMissed = rec.status === "missed";
+    const dirIcon = isMissed ? "missed" : (rec.direction === "in" ? "in" : "out");
     const arrowSvg = rec.direction === "in"
       ? `<svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>`
       : `<svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M4 11h12.17l-5.59-5.59L12 4l8 8-8 8-1.41-1.41L16.17 13H4v-2z"/></svg>`;
     const row = document.createElement("div");
-    row.className = "call-row glass-content";
+    row.className = "call-row flat-content";
+    const canOpen = state.contacts.has(rec.contactId);
     row.innerHTML = `
-      <div class="call-direction-icon ${dirIcon}">${arrowSvg}</div>
-      <div class="call-body">
-        <div class="call-name">${escapeHtml(name)}</div>
-        <div class="call-sub">${escapeHtml(callStatusLabel(rec))} · ${escapeHtml(formatDay(rec.startedAt))} ${escapeHtml(formatTime(rec.startedAt))}</div>
-      </div>
-      <button type="button" class="call-back-btn" aria-label="Call" ${c ? "" : "disabled"}>
+      <button type="button" class="call-row-main"${canOpen ? "" : " disabled"}>
+        <div class="call-direction-icon ${dirIcon}">${arrowSvg}</div>
+        <div class="call-body">
+          <div class="call-name">${escapeHtml(name)}</div>
+          <div class="call-sub">${escapeHtml(callStatusLabel(rec))} · ${escapeHtml(formatDay(rec.startedAt))} ${escapeHtml(formatTime(rec.startedAt))}</div>
+        </div>
+      </button>
+      <button type="button" class="call-back-btn" aria-label="${escapeHtml(T("chat.call"))}" ${c ? "" : "disabled"}>
         <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.7 21 3 13.3 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.4 0 .8-.2 1L6.6 10.8z"/></svg>
       </button>`;
     const backBtn = row.querySelector(".call-back-btn");
     if (backBtn && c) backBtn.addEventListener("click", (e) => { e.stopPropagation(); beginCall(rec.contactId); });
-    row.addEventListener("click", () => { if (state.contacts.has(rec.contactId)) { state.chatId = rec.contactId; renderTab(); } });
+    // Раньше вся строка была <div> с click-обработчиком — без role, tabindex
+    // или клавиатурного управления пользователь с клавиатурой/Switch Control
+    // не мог открыть чат из истории звонков. Кнопка-обёртка для "открыть
+    // чат" отдельно от кнопки "перезвонить" — вложенные <button> внутри
+    // <button> невалидны и ведут себя непредсказуемо в браузерах.
+    const mainBtn = row.querySelector(".call-row-main");
+    if (mainBtn) mainBtn.addEventListener("click", () => { if (state.contacts.has(rec.contactId)) { state.chatId = rec.contactId; renderTab(); } });
     list.appendChild(row);
   }
 }
@@ -4329,7 +4878,7 @@ async function beginCall(id, withVideo) {
   if (!c) return;
   if (isGroup(c)) { toast(T("toast.callGroupsUnsupported")); return; }
   if (c.blocked) { toast(T("toast.blocked")); return; }
-  if (state.callId && state.callId !== id) { return; }
+  if (state.callId && state.callId !== id) { toast(T("toast.alreadyInCall")); return; }
   if (state.callId === id) { openCallScreen(id, state.callPhase || "calling"); return; }
 
   etherLog("info", "[call] beginCall to " + String(id).slice(0, 10) + "…");
@@ -4387,6 +4936,10 @@ async function beginCall(id, withVideo) {
 }
 
 function openCallScreen(id, phase) {
+  // #media-viewer (z-index 950) выше #call-screen (z-index 60) — если
+  // входящий звонок пришёл, пока пользователь смотрит фото, звонок
+  // оказался бы полностью скрыт под просмотрщиком. Закрываем его.
+  const mv = $("#media-viewer"); if (mv && !mv.classList.contains("hidden")) mv.classList.add("hidden");
   if (state.callId !== id) {
     state._callUserAccepted = false;
     state._callAcceptInFlight = false;
@@ -4602,7 +5155,7 @@ function closeCallScreen(reason) {
   }
   state.callId = null;
   state.callPhase = null;
-  if (state.tab === "calls") renderCallsList();
+  if (state.tab === "chats" && state.chatsSegment === "calls") renderCallsList();
 
   if (rec && rec.contactId) {
     const c = state.contacts.get(rec.contactId);
@@ -4624,8 +5177,15 @@ function wireCallScreen() {
     const cid = state.callId;
     const link = mesh.get(cid);
     if (link) {
+      // mesh.remove(cid) тут был лишним и единственным местом, где он
+      // вызывается после завершения звонка — endCall() уже сам корректно
+      // восстанавливает status в "connected", если data channel остался
+      // открыт. Разрыв mesh-связи здесь означал, что после КАЖДОГО
+      // исходящего "отбоя" P2P рвался без причины: следующее сообщение
+      // уходило через сервер, а scheduleAutoConnect пересобирал связь
+      // заново через 4 секунды — пользователь видел это как "после
+      // звонка связь на секунду пропала".
       try { link.endCall(); } catch (e) {}
-      try { mesh.remove(cid); } catch (e) {}
     }
     if (signaling && signaling.connected && cid) signaling.signal(cid, { t: "call-ended" });
     stopRingtone();
@@ -4823,6 +5383,12 @@ function wireSettingsScreen() {
   if (disc) disc.addEventListener("change", (e) => {
     Store.discoverable = e.target.checked; initSignaling();
   });
+  const rcpt = $("#settings-receipts");
+  if (rcpt) rcpt.addEventListener("change", (e) => { Store.receiptsEnabled = e.target.checked; });
+  const lsv = $("#settings-last-seen");
+  if (lsv) lsv.addEventListener("change", (e) => { Store.lastSeenVisible = e.target.checked; });
+  const pv = $("#settings-presence");
+  if (pv) pv.addEventListener("change", (e) => { Store.presenceVisible = e.target.checked; });
   const sounds = $("#settings-sounds");
   if (sounds) sounds.addEventListener("change", (e) => {
     Store.soundsEnabled = e.target.checked;
@@ -5172,6 +5738,7 @@ function wireMeshEvents() {
         toast(T("toast.peerOnline", { name: c.name }));
         clearAutoConnectTimer(id);
         if (state.pendingOutgoing && state.pendingOutgoing.id === id) resetConnectScreen();
+        sendPrivacyPrefsTo(id);
 
         if (state.callId === id && link) {
           if (state.callPhase === "calling") {
@@ -5393,7 +5960,15 @@ function showBootRecovery() {
   // applyStaticTranslations() ещё не успели отработать (например,
   // ошибка ДО DOMContentLoaded) — заголовок иначе остался бы на
   // английском независимо от языка устройства.
-  try { if (typeof I18N !== "undefined" && !I18N.current) I18N.init(); } catch (e) {}
+  // Раньше тут стояла проверка !I18N.current — она никогда не истинна:
+  // current инициализируется как DEFAULT_LANG на уровне модуля, до
+  // всякого реального init(), так что I18N.init() по факту никогда не
+  // вызывался этим путём. init() безопасен для повторного вызова
+  // (просто перечитывает сохранённый язык из localStorage) — вызываем
+  // безусловно, чтобы при раннем крэше (до нормального boot) заголовок
+  // всё равно перевёлся на реальный язык пользователя, а не остался
+  // на DEFAULT_LANG.
+  try { if (typeof I18N !== "undefined") I18N.init(); } catch (e) {}
   try { applyStaticTranslations(); } catch (e) {}
 }
 function bootDidNotRender() {

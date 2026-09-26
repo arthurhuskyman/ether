@@ -1,4 +1,4 @@
-const CACHE_VERSION = "ether-shell-v50";
+const CACHE_VERSION = "ether-shell-v62";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -18,6 +18,7 @@ const SHELL_FILES = [
   "./icons/icon-512.png",
   "./icons/apple-touch-icon.png",
   "./icons/favicon-32.png",
+  "./fonts/InterVariable.woff2",
   // ring-soft.mp3 и ring-bell.mp3 — АЛЬТЕРНАТИВНЫЕ рингтоны на выбор
   // (Store.ringtone по умолчанию — "ring-classic"), большинство
   // пользователей их никогда не выберут. Не кешируем заранее — на
