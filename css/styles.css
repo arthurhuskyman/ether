@@ -207,6 +207,7 @@ html[data-theme="light"] .glass-content {
   outline: none; text-align: center;
 }
 #onboarding-name::placeholder, #onboarding-identity::placeholder { color: var(--ink-faint); }
+.input-invalid { border-color: var(--red) !important; }
 .onboarding-fine { font-size: 12px; line-height: 1.5; color: var(--ink-faint); margin: 18px 0 0; }
 
 .btn-primary, .btn-secondary, .btn-tertiary {
@@ -249,6 +250,14 @@ html[data-theme="light"] .glass-content {
 .screen { height: 100%; overflow-y: auto; padding: 16px 16px calc(clamp(0px, env(safe-area-inset-bottom, 0px), 40px) + 100px); }
 
 .notif-banner { display: flex; align-items: center; gap: 10px; margin: 8px 12px 0; padding: 10px 12px; border-radius: var(--radius-m); font-size: 13px; }
+/* #lang-offer раньше жил внутри #app-shell — физически не мог
+   показаться, пока пользователь ещё не прошёл регистрацию (app-shell
+   скрыт до этого момента). Теперь это сиблинг и #onboarding, и
+   #app-shell — единственный способ показать его ДО регистрации, а не
+   только после. position:fixed нужен именно поэтому: обычное
+   позиционирование в потоке документа предполагало, что элемент уже
+   внутри чьего-то flex-контейнера (nav-bar), а теперь он сам по себе. */
+#lang-offer { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 12px); inset-inline: 12px; z-index: 500; margin: 0; }
 .notif-banner-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .notif-banner-text strong { font-size: 14px; }
 .notif-banner-text span { font-size: 12px; color: var(--ink-dim); }
@@ -602,8 +611,20 @@ html[data-theme="auto"] .bubble-row.theirs .bubble-time { color: rgba(235, 235, 
   color: rgba(255,255,255,0.45); font-size: 12px;
   display: inline-block; animation: ack-pending-spin 1.4s linear infinite;
 }
-.ack-tick.ack-sent { color: rgba(255,255,255,0.85); font-size: 13px; -webkit-text-stroke: 0.3px rgba(255,255,255,0.9); }
-.ack-tick.ack-delivered { color: rgba(255,255,255,0.85); font-size: 13px; -webkit-text-stroke: 0.3px rgba(255,255,255,0.9); }
+/* Тело галочки прозрачное (просвечивает фон пузыря) — виден только
+   контур. -webkit-text-stroke не поддерживается в Firefox: без
+   @supports-фолбэка там залитая ПОЛНОСТЬЮ прозрачным цветом галочка
+   была бы невидима целиком, а не просто менее аккуратной — это уже
+   не косметика, а потеря информации. Фолбэк — приглушённая, но
+   видимая заливка, как было раньше. */
+.ack-tick.ack-sent, .ack-tick.ack-delivered {
+  color: rgba(255,255,255,0.45); font-size: 13px;
+}
+@supports (-webkit-text-stroke: 1px black) {
+  .ack-tick.ack-sent, .ack-tick.ack-delivered {
+    color: transparent; -webkit-text-stroke: 1px rgba(255,255,255,0.9);
+  }
+}
 .ack-tick.ack-read { color: #ffffff; font-size: 14px; }
 .ack-tick.ack-failed {
   color: #ff453a;
@@ -631,7 +652,7 @@ html[data-theme="auto"] .bubble-row.theirs .bubble-time { color: rgba(235, 235, 
   gap: 8px;
   width: 100%;
   box-sizing: border-box;
-  padding: 10px 12px calc(10px + clamp(0px, env(safe-area-inset-bottom, 0px), 40px));
+  padding: 6px 12px calc(6px + clamp(0px, env(safe-area-inset-bottom, 0px), 20px));
   flex-shrink: 0;
   border-radius: var(--radius-l) var(--radius-l) 0 0;
 }
@@ -642,8 +663,8 @@ html[data-theme="auto"] .bubble-row.theirs .bubble-time { color: rgba(235, 235, 
   box-sizing: border-box;
   border: 1px solid var(--input-border);
   background: var(--content-bg);
-  border-radius: 20px;
-  padding: 11px 16px;
+  border-radius: 18px;
+  padding: 8px 16px;
   font-size: 16px;
   outline: none;
   color: var(--ink);
@@ -676,8 +697,8 @@ html[data-theme="auto"] .bubble-row.theirs .bubble-time { color: rgba(235, 235, 
   display: flex; align-items: center; justify-content: center;
 }
 
-#tab-bar { display: flex; padding: 4px 4px clamp(8px, env(safe-area-inset-bottom, 0px), 40px); border-radius: 0; border-bottom: none; z-index: 20; flex-shrink: 0; order: 1; }
-.tab-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 2px 0; border: none; background: none; color: var(--ink-faint); cursor: pointer; font-size: 11px; font-weight: 500; min-width: 0; position: relative; }
+#tab-bar { display: flex; padding: 2px 4px clamp(6px, env(safe-area-inset-bottom, 0px), 20px); border-radius: 0; border-bottom: none; z-index: 20; flex-shrink: 0; order: 1; }
+.tab-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 1px 0; border: none; background: none; color: var(--ink-faint); cursor: pointer; font-size: 11px; font-weight: 500; min-width: 0; position: relative; }
 .tab-badge {
   position: absolute; top: 1px; inset-inline-start: 50%; margin-inline-start: 4px;
   background: var(--accent); color: #fff; font-size: 10px; font-weight: 700; line-height: 1;
@@ -856,11 +877,18 @@ html[data-theme="auto"] .bubble-row.theirs .bubble-time { color: rgba(235, 235, 
   display: flex; align-items: center; justify-content: center;
   overflow: hidden;
 }
-#camera-preview, #camera-captured-img { width: 100%; height: 100%; object-fit: cover; }
+#camera-preview, #camera-captured-img, #camera-captured-video { width: 100%; height: 100%; object-fit: cover; }
 .camera-close-btn {
   position: absolute; top: calc(env(safe-area-inset-top) + 12px); inset-inline-start: 16px; z-index: 2;
   color: #fff; background: rgba(255,255,255,0.15); border-radius: 50%;
 }
+.camera-rec-indicator {
+  position: absolute; top: calc(env(safe-area-inset-top) + 12px); inset-inline: 0; z-index: 2;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  color: #fff; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.camera-rec-dot { width: 10px; height: 10px; border-radius: 50%; background: #ff453a; animation: camera-rec-blink 1s ease-in-out infinite; }
+@keyframes camera-rec-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
 .camera-controls {
   position: absolute; bottom: calc(clamp(0px, env(safe-area-inset-bottom, 0px), 40px) + 28px); inset-inline: 0; z-index: 2;
   display: flex; align-items: center; justify-content: space-between;
@@ -872,15 +900,26 @@ html[data-theme="auto"] .bubble-row.theirs .bubble-time { color: rgba(235, 235, 
   display: flex; align-items: center; justify-content: center;
 }
 .camera-shutter-btn {
+  position: relative;
   width: 68px; height: 68px; border-radius: 50%;
   border: 4px solid #fff; background: rgba(255,255,255,0.25);
   cursor: pointer;
+  transition: border-radius 0.2s ease, background 0.2s ease;
 }
 .camera-shutter-btn:active { background: rgba(255,255,255,0.5); }
+/* Долгое нажатие пишет видео — та же логика, что в стандартной камере
+   iOS (тап = фото, удержание = видео). Кнопка при записи превращается
+   в скруглённый квадрат, привычный визуальный сигнал "идёт запись". */
+.camera-shutter-btn.recording { border-radius: 18px; background: #ff453a; border-color: rgba(255,255,255,0.6); }
+.camera-shutter-hint {
+  position: absolute; top: 100%; inset-inline: -40px; margin-top: 10px;
+  color: rgba(255,255,255,0.7); font-size: 11px; text-align: center; white-space: nowrap;
+}
 #camera-controls-preview { justify-content: center; gap: 16px; padding: 0 24px; }
 #camera-controls-preview button { flex: 1; max-width: 160px; padding: 12px; border-radius: var(--radius-m); font-size: 15px; font-weight: 600; border: none; cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   .camera-shutter-btn { transition: none; }
+  .camera-rec-dot { animation: none; }
 }
 #toast {
   position: fixed;

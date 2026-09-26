@@ -59,8 +59,20 @@
       <input id="onboarding-identity" type="text" placeholder="Phone or email" data-i18n-ph="onboarding.id.placeholder" autocomplete="tel" maxlength="80" required />
       <button type="submit" class="btn-primary" data-i18n="onboarding.start">Start</button>
     </form>
-    <p class="onboarding-fine" data-i18n="onboarding.hint">If you registered before — enter the same name and phone/email: the account will be restored.</p>
+    <p class="onboarding-fine" data-i18n="onboarding.hint">Registered on this phone/email before? Entering the same info restores your identity, but not your contacts, groups or message history — those live only on the device that had them, unless you import a backup below.</p>
+    <button type="button" id="onboarding-import-backup-btn" class="btn-tertiary" data-i18n="onboarding.importBackup">Restore from a backup file</button>
   </div>
+</div>
+
+<div id="lang-offer" class="notif-banner glass-content hidden">
+  <div class="notif-banner-text">
+    <strong id="lang-offer-title">Change language?</strong>
+    <span id="lang-offer-text"></span>
+  </div>
+  <button type="button" id="lang-offer-yes" class="btn-primary notif-banner-btn">Switch</button>
+  <button type="button" id="lang-offer-no" class="icon-btn small" aria-label="Close" data-i18n-aria="sys.close">
+    <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
+  </button>
 </div>
 
 <div id="app-shell" class="hidden">
@@ -91,17 +103,6 @@
       <span class="icon-btn" style="visibility:hidden;">‹</span>
     </div>
   </header>
-
-  <div id="lang-offer" class="notif-banner glass-content hidden">
-    <div class="notif-banner-text">
-      <strong id="lang-offer-title">Change language?</strong>
-      <span id="lang-offer-text"></span>
-    </div>
-    <button type="button" id="lang-offer-yes" class="btn-primary notif-banner-btn">Switch</button>
-    <button type="button" id="lang-offer-no" class="icon-btn small" aria-label="Close" data-i18n-aria="sys.close">
-      <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
-    </button>
-  </div>
 
   <div id="notif-banner" class="notif-banner glass-content hidden">
     <div class="notif-banner-text">
@@ -242,6 +243,12 @@
         <button type="button" id="settings-ringtone-preview" class="settings-row link-row"><span data-i18n="settings.ringtone.preview">Play preview</span><span class="chevron">›</span></button>
         <label class="settings-row"><span data-i18n="settings.pinlock">PIN code on start</span><input id="settings-pinlock" type="checkbox" class="switch" /></label>
         <button type="button" id="change-pin-btn" class="settings-row link-row hidden"><span data-i18n="settings.pin.change">Change PIN</span><span class="chevron">›</span></button>
+      </div>
+      <div class="settings-group flat-content">
+        <div class="settings-row column"><span class="settings-group-title" data-i18n="settings.backup.title">Backup</span></div>
+        <p class="fine muted" style="margin:0 0 10px;" data-i18n="settings.backup.explain">Ether has no server backup — everything lives only on this device. If you lose or replace this device, contacts, groups and messages are gone unless you save a backup file yourself.</p>
+        <button type="button" id="settings-export-backup-btn" class="settings-row link-row"><span data-i18n="debug.exportData">Export all data</span><span class="chevron">›</span></button>
+        <button type="button" id="settings-import-backup-btn" class="settings-row link-row"><span data-i18n="debug.importData">Import data from file</span><span class="chevron">›</span></button>
       </div>
       <div class="settings-group flat-content">
         <label class="settings-row"><span data-i18n="settings.language">Language</span>
@@ -639,10 +646,12 @@
   <video id="camera-preview" autoplay playsinline muted></video>
   <canvas id="camera-canvas" class="hidden"></canvas>
   <img id="camera-captured-img" class="hidden" alt="" />
+  <video id="camera-captured-video" class="hidden" playsinline controls loop></video>
+  <div id="camera-rec-indicator" class="camera-rec-indicator hidden"><span class="camera-rec-dot"></span><span id="camera-rec-timer">0:00</span></div>
   <button type="button" id="camera-close-btn" class="icon-btn camera-close-btn" aria-label="Close" data-i18n-aria="chat.close"><svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg></button>
   <div id="camera-controls-live" class="camera-controls">
     <button type="button" id="camera-switch-btn" class="icon-btn camera-side-btn" aria-label="Switch camera" data-i18n-aria="chat.camera.switch"><svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M12 5V2L8 6l4 4V7a5 5 0 0 1 5 5c0 .6-.11 1.17-.32 1.69l1.46 1.46A6.95 6.95 0 0 0 19 12a7 7 0 0 0-7-7zm-4.68 1.85-1.46-1.46A6.95 6.95 0 0 0 5 12a7 7 0 0 0 7 7v3l4-4-4-4v3a5 5 0 0 1-5-5c0-.6.11-1.17.32-1.69z"/></svg></button>
-    <button type="button" id="camera-shutter-btn" class="camera-shutter-btn" aria-label="Take photo" data-i18n-aria="chat.camera.shutter"></button>
+    <button type="button" id="camera-shutter-btn" class="camera-shutter-btn" aria-label="Take photo" data-i18n-aria="chat.camera.shutter"><span id="camera-shutter-hint" class="camera-shutter-hint" data-i18n="chat.camera.holdForVideo">Hold for video</span></button>
     <span class="camera-side-btn" aria-hidden="true"></span>
   </div>
   <div id="camera-controls-preview" class="camera-controls hidden">
@@ -680,7 +689,25 @@
   </div>
 </div>
 
-<script src="js/languages.js"></script>
+<script src="js/languages-meta.js"></script>
+<script>
+// Раньше здесь грузился весь languages.js (72 языка сразу, ~1.76МБ
+// несжатым) — при каждом сбросе кеша service worker'а (а CACHE_VERSION
+// поднимается на каждый релиз) это качалось заново целиком, отсюда
+// резко выросшее время первой загрузки. Теперь словари лежат по
+// отдельности (js/lang/<code>.js, ~15-30КБ каждый) и грузится СИНХРОННО
+// только тот, что реально нужен прямо сейчас — остальные 71 подгружаются
+// лениво через I18N.ensureLoaded() только при явном переключении языка.
+(function () {
+  var saved = null;
+  try { saved = localStorage.getItem("ether.lang"); } catch (e) {}
+  // Совпадает с фолбэком в I18N.init(): при первом запуске (saved нет)
+  // всегда английский — язык системы только ПРЕДЛАГАЕТСЯ отдельно,
+  // не применяется автоматически.
+  var code = (saved && window.LANGUAGES && window.LANGUAGES[saved]) ? saved : "en";
+  document.write('<scr' + 'ipt src="js/lang/' + code + '.js"></scr' + 'ipt>');
+})();
+</script>
 <script src="js/i18n.js"></script>
 <script src="js/vendor/qrcode-generator.js"></script>
 <script src="js/vendor/qrcode-generator-utf8.js"></script>

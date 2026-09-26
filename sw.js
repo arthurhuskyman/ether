@@ -1,10 +1,11 @@
-const CACHE_VERSION = "ether-shell-v67";
+const CACHE_VERSION = "ether-shell-v77";
 const SHELL_FILES = [
   "./",
   "./index.html",
   "./manifest.webmanifest",
   "./css/styles.css",
-  "./js/languages.js",
+  "./js/languages-meta.js",
+  "./js/lang/en.js",
   "./js/i18n.js",
   "./js/app.js",
   "./js/webrtc.js",
@@ -26,7 +27,7 @@ const SHELL_FILES = [
   // закеширует их сам при первом реальном использовании (сам fetch-
   // обработчик ниже это уже умеет для любого запроса с того же origin).
   "./sounds/ring-classic.mp3",
-  "./sounds/msg-icq-style.mp3",
+  "./sounds/msg.mp3",
   "./sounds/call-dialing.mp3",
   "./sounds/call-busy.mp3",
   "./sounds/call-noanswer.mp3"
