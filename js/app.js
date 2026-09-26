@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.31.2";
+const APP_VERSION = "V.31.3";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 const MAX_MESSAGE_LENGTH = 4000;
@@ -293,6 +293,15 @@ let __navTitleTaps = [];
 let __chatSearchScrollTimer = null;
 const onlineSet = new Set();
 const onlineRoster = new Map();
+// Контакт, которого удалили, но который всё ещё онлайн у СЕБЯ (не
+// удалил меня в ответ), продолжает периодически слать offer через
+// сигнальный сервер по своей собственной логике переподключения
+// (scheduleAutoConnect у НЕГО). handleIncomingOffer у меня раньше
+// безусловно вызывал ensureContactEntry на любой входящий offer —
+// контакт "воскресал" молча при первом же таком пакете после удаления.
+// Блокируем повторное создание для явно удалённых id, пока пользователь
+// сам, осознанно, не добавит этот id заново через обычный флоу.
+const recentlyDeletedIds = new Set();
 const autoConnectTimers = new Map();
 const recentSignalNonces = new Set();
 const outbox = new Map();
@@ -2535,6 +2544,7 @@ function contactCardBubbleHtml(card) {
 function addContactFromCard(id, name) {
   if (id === Store.myId) { toast(T("toast.ownId")); return; }
   if (state.contacts.has(id)) { toast(T("toast.alreadyAdded")); renderChatThread(); return; }
+  recentlyDeletedIds.delete(id); // осознанное повторное добавление снимает блокировку из deleteContact
   ensureContactEntry(id, name);
   persistContacts();
   toast(T("toast.contactAdded"));
@@ -3619,6 +3629,9 @@ function initSignaling() {
 // WebRTC-рукопожатия не должна знать и не знает, через какой транспорт
 // пришёл пакет.
 async function handleIncomingOffer(from, packet, replySignal) {
+  // Удалённый (но всё ещё онлайн у себя) контакт продолжает слать offer
+  // по своей логике переподключения — не даём ему молча воскреснуть.
+  if (recentlyDeletedIds.has(from)) return;
   const existing = mesh.get(from);
   if (existing && existing.role === "answerer" && existing.status === "connected") return;
   if (existing) mesh.remove(from);
@@ -4121,6 +4134,7 @@ function renderOnlineRosterList() {
       <span class="roster-name">${escapeHtml(u.name || T("sys.someone"))}</span>
       <button type="button" class="btn-secondary roster-add-btn">${escapeHtml(T("connect.addButton"))}</button>`;
     row.querySelector(".roster-add-btn").addEventListener("click", () => {
+      recentlyDeletedIds.delete(id); // осознанное повторное добавление снимает блокировку из deleteContact
       state.contacts.set(id, {
         id, name: u.name || T("sys.someone"), raw: "", managed: true,
         publicKey: u.publicKey || null, online: true, status: "disconnected",
@@ -4327,6 +4341,7 @@ function wireConnectScreen() {
     if (identity.id === Store.myId) { toast(T("toast.ownId")); return; }
     if (state.contacts.has(identity.id)) toast(T("toast.alreadyAdded"));
     else {
+      recentlyDeletedIds.delete(identity.id); // осознанное повторное добавление снимает блокировку из deleteContact
       state.contacts.set(identity.id, {
         id: identity.id, name: nameVal || identity.normalized, raw: identity.normalized,
         managed: true, publicKey: null, online: onlineSet.has(identity.id),
@@ -4740,6 +4755,7 @@ function deleteContact(id) {
   if (state.activeContactContext === id) state.activeContactContext = null;
   const audioEl = document.getElementById("remote-audio-" + id); if (audioEl) audioEl.remove();
   state.contacts.delete(id);
+  recentlyDeletedIds.add(id);
   persistContacts();
   if (state.callId === id) closeCallScreen();
   if (state.chatId === id) state.chatId = null;
@@ -4936,10 +4952,17 @@ async function beginCall(id, withVideo) {
 }
 
 function openCallScreen(id, phase) {
-  // #media-viewer (z-index 950) выше #call-screen (z-index 60) — если
-  // входящий звонок пришёл, пока пользователь смотрит фото, звонок
-  // оказался бы полностью скрыт под просмотрщиком. Закрываем его.
+  // media-viewer, будучи position:fixed поверх всего окна, всё равно
+  // закрыл бы обзор звонка, даже когда #call-screen стал обычным
+  // flex-элементом (а не оверлеем, как раньше) — закрываем его.
   const mv = $("#media-viewer"); if (mv && !mv.classList.contains("hidden")) mv.classList.add("hidden");
+  // #call-screen теперь обычный flex-элемент рядом с #content, а не
+  // абсолютный оверлей поверх всего #app-shell — таб-бар остаётся
+  // виден снизу, контролы звонка появляются НАД ним. Но #content и
+  // #call-screen делят одну и ту же flex-ячейку по очереди: пока виден
+  // звонок, список чатов/экраны должны быть скрыты явно, иначе оба
+  // одновременно заняли бы по половине места.
+  const contentEl = $("#content"); if (contentEl) contentEl.classList.add("hidden");
   if (state.callId !== id) {
     state._callUserAccepted = false;
     state._callAcceptInFlight = false;
@@ -5140,6 +5163,7 @@ function closeCallScreen(reason) {
   hideCallVideo();
   endCallRecord(reason);
   const cs = $("#call-screen"); if (cs) cs.classList.add("hidden");
+  const contentEl = $("#content"); if (contentEl) contentEl.classList.remove("hidden");
   const cm = $("#call-mute-btn"); if (cm) cm.classList.remove("active");
   const spkBtn = $("#call-speaker-btn"); if (spkBtn) spkBtn.classList.remove("active");
   speakerOn = false;
@@ -5581,7 +5605,7 @@ function wireDebugScreen() {
     for (const id of Array.from(state.contacts.keys())) mesh.remove(id);
     for (const t of autoConnectTimers.values()) clearTimeout(t);
     autoConnectTimers.clear();
-    onlineSet.clear(); outbox.clear(); pendingNoKey.clear(); seenDeliverIds.clear();
+    onlineSet.clear(); outbox.clear(); pendingNoKey.clear(); seenDeliverIds.clear(); recentlyDeletedIds.clear();
     state.contacts.clear(); state.callLog = []; state.currentCallRecord = null;
     state.lastSeen = {}; state.drafts = {};
     Store.contactsJson = "[]"; Store.outboxJson = "[]"; Store.pendingNoKeyJson = "{}";

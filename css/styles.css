@@ -238,8 +238,8 @@ html[data-theme="light"] .glass-content {
 .nav-mode-list { padding: 0 4px; }
 .nav-mode-chat { display: flex; align-items: center; gap: 4px; }
 .nav-contact-title { flex: 1; text-align: center; font-size: 17px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#content { flex: 1; overflow: hidden; position: relative; }
-.screen { height: 100%; overflow-y: auto; padding: 16px 16px calc(env(safe-area-inset-bottom) + 100px); }
+#content { flex: 1; overflow: hidden; position: relative; order: 0; }
+.screen { height: 100%; overflow-y: auto; padding: 16px 16px calc(clamp(0px, env(safe-area-inset-bottom, 0px), 40px) + 100px); }
 
 .notif-banner { display: flex; align-items: center; gap: 10px; margin: 8px 12px 0; padding: 10px 12px; border-radius: var(--radius-m); font-size: 13px; }
 .notif-banner-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -430,7 +430,7 @@ input.switch:checked::before { transform: translateX(18px); }
 .chats-segment button.active { background: var(--accent); color: #fff; }
 .chats-segment .tab-badge { top: -6px; inset-inline-start: auto; inset-inline-end: 2px; margin-inline-start: 0; position: absolute; }
 
-#screen-contact.screen { padding: 16px 16px calc(env(safe-area-inset-bottom) + 100px); }
+#screen-contact.screen { padding: 16px 16px calc(clamp(0px, env(safe-area-inset-bottom, 0px), 40px) + 100px); }
 .contact-profile { border-radius: var(--radius-xl); padding: 30px 22px 24px; text-align: center; margin-bottom: 16px; }
 .contact-avatar { width: 96px; height: 96px; border-radius: 28px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; font-size: 34px; font-weight: 700; color: #fff; box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.4), 0 8px 24px rgba(0, 0, 0, 0.3); }
 .contact-profile h2 { font-size: 22px; margin: 0 0 6px; }
@@ -624,7 +624,7 @@ html[data-theme="auto"] .bubble-row.theirs .bubble-time { color: rgba(235, 235, 
   gap: 8px;
   width: 100%;
   box-sizing: border-box;
-  padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+  padding: 10px 12px calc(10px + clamp(0px, env(safe-area-inset-bottom, 0px), 40px));
   flex-shrink: 0;
   border-radius: var(--radius-l) var(--radius-l) 0 0;
 }
@@ -669,8 +669,8 @@ html[data-theme="auto"] .bubble-row.theirs .bubble-time { color: rgba(235, 235, 
   display: flex; align-items: center; justify-content: center;
 }
 
-#tab-bar { display: flex; padding: 4px 4px max(env(safe-area-inset-bottom, 0px), 8px); border-radius: 0; border-bottom: none; z-index: 20; flex-shrink: 0; }
-.tab-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 0 2px; border: none; background: none; color: var(--ink-faint); cursor: pointer; font-size: 11px; font-weight: 500; min-width: 0; position: relative; }
+#tab-bar { display: flex; padding: 4px 4px clamp(8px, env(safe-area-inset-bottom, 0px), 40px); border-radius: 0; border-bottom: none; z-index: 20; flex-shrink: 0; order: 1; }
+.tab-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 2px 0; border: none; background: none; color: var(--ink-faint); cursor: pointer; font-size: 11px; font-weight: 500; min-width: 0; position: relative; }
 .tab-badge {
   position: absolute; top: 1px; inset-inline-start: 50%; margin-inline-start: 4px;
   background: var(--accent); color: #fff; font-size: 10px; font-weight: 700; line-height: 1;
@@ -688,14 +688,23 @@ html[data-theme="auto"] .bubble-row.theirs .bubble-time { color: rgba(235, 235, 
 .tab-btn.hidden { display: none !important; }
 
 #call-screen {
-  position: absolute; inset: 0; z-index: 60;
+  /* Раньше position:absolute; inset:0 перекрывал ВСЁ #app-shell, включая
+     taб-бар (тот прятался визуально под z-index:60, хотя технически
+     оставался в DOM). По просьбе пользователя — таб-бар должен
+     оставаться видимым, а контролы звонка появляться НАД ним, не вместо
+     него. Теперь #call-screen — обычный flex-элемент внутри #app-shell,
+     занимает то же место, что и #content (order гарантирует, что оба
+     визуально выше #tab-bar независимо от порядка в DOM). */
+  order: 0;
+  flex: 1; min-height: 0;
   display: flex; flex-direction: column;
   align-items: center; justify-content: space-between;
-  padding: calc(env(safe-area-inset-top) + 60px) 24px calc(env(safe-area-inset-bottom) + 40px);
+  padding: calc(env(safe-area-inset-top) + 60px) 24px 24px;
   color: #fff; overflow: hidden;
   touch-action: manipulation;
   -webkit-user-select: none;
   user-select: none;
+  position: relative; z-index: 5;
 }
 .call-bg {
   position: absolute; inset: 0; z-index: -1;
@@ -789,7 +798,7 @@ html[data-theme="auto"] .bubble-row.theirs .bubble-time { color: rgba(235, 235, 
 
 .sheet { position: fixed; inset: 0; z-index: 70; display: flex; align-items: flex-end; }
 .sheet-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.45); }
-.sheet-panel { position: relative; width: 100%; max-height: 82vh; overflow-y: auto; border-radius: 26px 26px 0 0; padding: 10px 22px calc(env(safe-area-inset-bottom) + 24px); }
+.sheet-panel { position: relative; width: 100%; max-height: 82vh; overflow-y: auto; border-radius: 26px 26px 0 0; padding: 10px 22px calc(clamp(0px, env(safe-area-inset-bottom, 0px), 40px) + 24px); }
 .sheet-handle { width: 36px; height: 5px; border-radius: 3px; background: var(--ink-faint); margin: 6px auto 16px; touch-action: none; position: relative; }
 .sheet-handle::before { content: ""; position: absolute; inset: -16px -22px; } /* реальная зона касания шире видимой полоски — 5px слишком мало для пальца */
 .sheet-panel h2 { font-size: 20px; margin: 0 0 12px; }
@@ -846,7 +855,7 @@ html[data-theme="auto"] .bubble-row.theirs .bubble-time { color: rgba(235, 235, 
   color: #fff; background: rgba(255,255,255,0.15); border-radius: 50%;
 }
 .camera-controls {
-  position: absolute; bottom: calc(env(safe-area-inset-bottom) + 28px); inset-inline: 0; z-index: 2;
+  position: absolute; bottom: calc(clamp(0px, env(safe-area-inset-bottom, 0px), 40px) + 28px); inset-inline: 0; z-index: 2;
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 40px;
 }
@@ -869,7 +878,7 @@ html[data-theme="auto"] .bubble-row.theirs .bubble-time { color: rgba(235, 235, 
 #toast {
   position: fixed;
   left: 50%;
-  bottom: calc(env(safe-area-inset-bottom) + 100px);
+  bottom: calc(clamp(0px, env(safe-area-inset-bottom, 0px), 40px) + 100px);
   transform: translate(-50%, 20px);
   background: rgba(40, 40, 44, 0.92);
   color: #fff;
