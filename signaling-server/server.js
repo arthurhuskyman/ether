@@ -30,7 +30,19 @@ catch (e) { console.warn("[push] пакет web-push не установлен �
 
 const PORT = process.env.PORT || 8787;
 const MAX_MAILBOX_PER_USER = 500;
-const MAX_PAYLOAD = 128 * 1024;
+// Раньше файлы/голосовые НЕ могли идти через mailbox вовсе — требовался
+// живой P2P, без офлайн-очереди (см. README/комментарий в app.js).
+// MAX_PAYLOAD был 128КБ — рассчитан только на текстовые сообщения.
+// Файлы через очередь ограничены СВОИМ, более скромным потолком
+// (MAX_MAILBOX_FILE_SIZE, см. app.js MAX_FILE_SIZE_OFFLINE) — 15МБ
+// (лимит для живого P2P) остались бы небезопасны для серверной памяти
+// при накоплении у многих офлайн-получателей одновременно.
+// 6МБ base64 ≈ 8МБ закодированных — MAX_PAYLOAD с запасом.
+const MAX_PAYLOAD = 8 * 1024 * 1024;
+// Файлы в mailbox не должны копиться вечно — в отличие от текста,
+// каждая запись весит МНОГО больше. 48 часов — разумное окно для
+// "получатель скоро зайдёт в сеть", не бесконечное хранение.
+const MAILBOX_FILE_TTL_MS = 48 * 60 * 60 * 1000;
 
 const PUSH_THROTTLE_MS = 30 * 1000;
 const PUSH_DEDUP_TTL_MS = 10 * 60 * 1000;
@@ -39,9 +51,12 @@ const pushSentForMsgId = new Map();
 const callInvitePushSent = new Map(); // packet.x -> ts — от повторной отправки ОДНОГО И ТОГО ЖЕ call-invite (например, ретрай после переподключения клиента) получатель не должен получать второй push на ту же самую попытку звонка
 const CALL_INVITE_PUSH_DEDUP_TTL_MS = 60 * 1000;
 
-// ---------- Metered (TURN) ----------
-const METERED_API_KEY = process.env.METERED_API_KEY || "";
-const METERED_API_BASE = "https://arthurhusky.metered.live/api/v1/turn/credentials";
+// ---------- TURN (ICE) ----------
+// Metered.ca теперь требует оплаты и не используется — переменная
+// METERED_API_KEY удалена из окружения на Render. Убрана и сама ветка
+// кода, а не просто оставлена мёртвым, никогда не срабатывающим путём.
+// Основной механизм TURN теперь — статические креденшлы (ExpressTURN
+// или любой другой провайдер со статическим логином/паролем).
 const ICE_CACHE_MS = 5 * 60 * 1000;
 const ICE_RATE_LIMIT_PER_MIN = 20;
 
@@ -49,6 +64,22 @@ const FALLBACK_ICE = [
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun1.l.google.com:19302" },
 ];
+// ExpressTURN (или любой другой провайдер со СТАТИЧЕСКИМИ, не
+// генерируемыми на сессию, креденшлами) — задаётся через переменные
+// окружения, подставляется в ответ /ice напрямую, без HTTP-запроса
+// за креденшлами на каждую сессию (в отличие от провайдеров с
+// динамической выдачей учётных данных через свой API).
+// TURN_STATIC_URL пример: "turn:free.expressturn.com:3478"
+const TURN_STATIC_URL = process.env.TURN_STATIC_URL || "";
+const TURN_STATIC_USERNAME = process.env.TURN_STATIC_USERNAME || "";
+const TURN_STATIC_PASSWORD = process.env.TURN_STATIC_PASSWORD || "";
+function staticTurnServers() {
+  if (!TURN_STATIC_URL || !TURN_STATIC_USERNAME || !TURN_STATIC_PASSWORD) return null;
+  return [
+    { urls: TURN_STATIC_URL, username: TURN_STATIC_USERNAME, credential: TURN_STATIC_PASSWORD },
+    { urls: "stun:stun.l.google.com:19302" },
+  ];
+}
 
 let iceCache = { at: 0, servers: null };
 const iceHits = new Map(); // ip -> { start, n }
@@ -106,52 +137,14 @@ function wsRateLimitOk(map, key, limitPerMin) {
   return w.n <= limitPerMin;
 }
 
-async function fetchMeteredIce() {
-  if (!METERED_API_KEY) return null;
-  const url = METERED_API_BASE + "?apiKey=" + encodeURIComponent(METERED_API_KEY);
-  const r = await fetch(url, { cache: "no-store" });
-  if (!r.ok) throw new Error("metered HTTP " + r.status);
-  const list = await r.json();
-  if (!Array.isArray(list) || list.length === 0) return null;
-
-  // ИСПРАВЛЕНО: раньше запись `stun:...` (у неё нет `transport=tcp`)
-  // ошибочно классифицировалась как TURN UDP и блокировала настоящий
-  // TURN UDP-сервер, который в списке Metered идёт следом. Теперь
-  // классифицируем строго по префиксу URL и берём по одной записи
-  // каждого типа:
-  //   1. STUN     — для srflx-кандидатов (прямое P2P без relay)
-  //   2. TURN UDP — самый быстрый путь через релей, когда UDP разрешён
-  //   3. TURN TCP — запасной путь для сетей, где UDP закрыт
-  const byKind = { stun: null, "turn-udp": null, "turn-tcp": null };
-  for (const s of list) {
-    const u = (s.urls || "").toString();
-    if (!u) continue;
-    let kind = null;
-    if (u.startsWith("stuns:") || u.startsWith("stun:")) kind = "stun";
-    else if (u.includes("transport=tcp")) kind = "turn-tcp";
-    else if (u.startsWith("turns:") || u.startsWith("turn:")) kind = "turn-udp";
-    if (!kind || byKind[kind]) continue;
-    byKind[kind] = s;
-  }
-
-  const filtered = [];
-  if (byKind.stun) filtered.push(byKind.stun);
-  if (byKind["turn-udp"]) filtered.push(byKind["turn-udp"]);
-  if (byKind["turn-tcp"]) filtered.push(byKind["turn-tcp"]);
-
-  return filtered.length ? filtered : null;
-}
-
 async function getIceServers() {
   const now = Date.now();
   if (iceCache.servers && now - iceCache.at < ICE_CACHE_MS) return iceCache.servers;
-  let servers = null;
-  try {
-    servers = await fetchMeteredIce();
-    if (servers) console.log("[ice] Metered отдал", servers.length, "серверов");
-  } catch (e) {
-    console.warn("[ice] Metered недоступен:", e.message);
-  }
+  // Статический TURN (ExpressTURN или аналог) — основной механизм.
+  // Metered.ca требует оплаты и больше не используется — код,
+  // обращавшийся к нему, удалён целиком, а не оставлен мёртвой веткой.
+  let servers = staticTurnServers();
+  if (servers) console.log("[ice] используются статические TURN-креденшлы (TURN_STATIC_*)");
   if (!servers) servers = FALLBACK_ICE.slice();
   iceCache = { at: now, servers };
   return servers;
@@ -847,7 +840,14 @@ setInterval(() => {
 }, 30000);
 
 setInterval(() => {
+  const now = Date.now();
   for (const box of mailbox.values()) {
+    // Файлы (в отличие от текста) весят много больше — не даём им
+    // копиться дольше разумного окна ожидания, даже если общий счётчик
+    // per-user ещё не выбран целиком.
+    for (const [msgId, entry] of box) {
+      if (entry.kind && entry.kind !== "chat" && now - entry.ts > MAILBOX_FILE_TTL_MS) box.delete(msgId);
+    }
     if (box.size <= MAX_MAILBOX_PER_USER) continue;
     const entries = Array.from(box.entries()).sort((a, b) => a[1].ts - b[1].ts);
     for (let i = 0; i < entries.length - MAX_MAILBOX_PER_USER; i++) box.delete(entries[i][0]);
@@ -896,7 +896,9 @@ process.on("SIGINT", shutdown);
 
 httpServer.listen(PORT, () => {
   console.log(`Сигнальный релей "Эфир" слушает порт ${PORT}`);
-  console.log(METERED_API_KEY
-    ? "[ice] Metered API-ключ задан, /ice будет проксировать запросы"
-    : "[ice] METERED_API_KEY не задан — /ice будет отдавать только публичные STUN");
+  if (staticTurnServers()) {
+    console.log("[ice] заданы TURN_STATIC_* — используется статический TURN");
+  } else {
+    console.log("[ice] TURN_STATIC_* не заданы — /ice будет отдавать только публичные STUN (не пройдёт двойной/симметричный NAT)");
+  }
 });

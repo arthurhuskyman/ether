@@ -8,7 +8,6 @@
 process.env.PORT = "8790";
 process.env.VAPID_PUBLIC = "";
 process.env.VAPID_PRIVATE = "";
-process.env.METERED_API_KEY = "";
 process.env.ALLOWED_ORIGIN = "https://arthurhuskyman.github.io/ether";
 
 const path = require("path");

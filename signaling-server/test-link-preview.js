@@ -18,7 +18,6 @@ function check(label, cond) {
 process.env.PORT = "8788";
 process.env.VAPID_PUBLIC = "";
 process.env.VAPID_PRIVATE = "";
-process.env.METERED_API_KEY = "";
 
 const path = require("path");
 // server.js сам вызывает httpServer.listen(...) в самом низу — достаточно
