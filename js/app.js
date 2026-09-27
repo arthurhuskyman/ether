@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.32.19";
+const APP_VERSION = "V.32.22";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 const MAX_MESSAGE_LENGTH = 4000;
@@ -779,7 +779,14 @@ function initAudioWarmup() {
       etherLog("warn", "[audio] warmup failed:", String(e));
     }
     try { unlockSoundPool(); } catch (e) {}
-    try { startBackgroundAudioSession(); } catch (e) {}
+    // Закомментировано по просьбе пользователя — бесконечный беззвучный
+    // аудио-луп (startBackgroundAudioSession, см. определение выше)
+    // заметно сажает батарею телефона. Сам приём был неофициальным,
+    // недокументированным и без гарантий с самого начала (см. комментарий
+    // у функции) — не восстанавливать без найденного менее затратного
+    // по батарее решения для той же задачи (продления жизни PWA в фоне
+    // для доставки push о входящем звонке).
+    // try { startBackgroundAudioSession(); } catch (e) {}
   };
   document.addEventListener("touchstart", warm, { passive: true });
   document.addEventListener("click", warm);
@@ -1108,6 +1115,22 @@ async function ensureKeyPair() {
   } catch (e) { etherLog("error", "[crypto] key pair:", String(e)); }
 }
 
+// Блокировка поворота экрана — приложение не рассчитано на альбомную
+// раскладку вовсе. screen.orientation.lock() поддерживается лишь
+// частично (Chrome/Firefox на Android — то есть НЕ iOS Safari, где
+// этот API отсутствует физически, Apple ещё в 2020 отказалась его
+// реализовывать) и требует режима fullscreen на большинстве платформ
+// — который сам по себе достаточно навязчивая смена интерфейса для
+// обычного мессенджера, так что fullscreen тут НЕ запрашиваем,
+// пробуем только сам lock() напрямую. Там, где не поддерживается
+// (в первую очередь iOS) — тихо ничего не происходит, honest best-effort.
+function tryLockPortraitOrientation() {
+  try {
+    if (screen.orientation && typeof screen.orientation.lock === "function") {
+      screen.orientation.lock("portrait").catch(() => {});
+    }
+  } catch (e) {}
+}
 function startApp() {
   if (__appStarted) {
     const o = $("#onboarding"); if (o) o.classList.add("hidden");
@@ -1116,6 +1139,7 @@ function startApp() {
     return;
   }
   __appStarted = true;
+  tryLockPortraitOrientation();
   const o = $("#onboarding"); if (o) o.classList.add("hidden");
   const l = $("#lock-screen"); if (l) l.classList.add("hidden");
   const a = $("#app-shell"); if (a) a.classList.remove("hidden");
@@ -1322,16 +1346,20 @@ function forceViewportRecalc() {
   try {
     const shell = document.getElementById("app-shell");
     if (!shell) return;
-    // Форсируем reflow тем же юнитом (100dvh), что задан в CSS — раньше
-    // здесь временно ставился 100vh, а это ДРУГАЯ единица (не учитывает
-    // схлопывание тулбара Safari так же, как dvh); переключение между
-    // разными юнитами могло само по себе быть источником рассинхрона,
-    // а не только чинить его. auto→100dvh безопаснее: инвалидирует
-    // layout, но не подставляет отличающееся от CSS значение.
+    // Переключение #app-shell на height:auto и обратно (нужно, чтобы
+    // форсировать у iOS Safari пересчёт 100dvh после возврата из
+    // фона — реальный, задокументированный баг WebKit) попутно СБРАСЫВАЛО
+    // scrollTop у #chat-messages в 0 — дочерний элемент временно
+    // оказывается в другом по размеру родителе, и браузер теряет
+    // позицию прокрутки. Явно сохраняем и восстанавливаем её вокруг
+    // переключения, а не полагаемся на то, что браузер сам её удержит.
+    const wrap = document.getElementById("chat-messages");
+    const savedScroll = wrap ? wrap.scrollTop : null;
     shell.style.height = "auto";
     // eslint-disable-next-line no-unused-expressions
     shell.offsetHeight; // принудительный reflow между сбросом и восстановлением
     shell.style.height = "";
+    if (wrap && savedScroll !== null) wrap.scrollTop = savedScroll;
   } catch (e) {}
 }
 function wireViewportRecalc() {
@@ -1734,7 +1762,12 @@ function renderTabInner() {
     $$("#chats-segment button").forEach((b) => b.classList.toggle("active", b.dataset.segment === state.chatsSegment));
   }
   const titles = {
-    chats: T("nav.chats"),
+    // Раньше тут стоял T("nav.chats") ("Чаты") — но сама нижняя вкладка
+    // была переименована в "Общение" (nav.hub) ещё раньше в этой сессии,
+    // и заголовок страницы должен называться так же, как вкладка, а не
+    // расходиться с ней. nav.chats остаётся отдельным ключом — он же
+    // используется для подписи кнопки-сегмента "Чаты" внутри вкладки.
+    chats: T("nav.hub"),
     calls: T("nav.calls"),
     connect: T("nav.contacts"),
     settings: T("nav.settings"),
@@ -5554,6 +5587,19 @@ function attachRemoteAudio(id, stream) {
     document.addEventListener("click", resume, { once: true });
   });
   const sl = $("#call-volume-slider"); if (sl) sl.value = String(Store.callVolume);
+  // На iOS видеозвонки (в отличие от чисто голосовых) переключаются
+  // системой на громкую связь по своей же внутренней эвристике —
+  // независимо от того, что говорит speakerOn в JS. Явно возвращаем на
+  // наушник, если пользователь ничего вручную не переключал — но не
+  // трогаем, если он сам переключился на громкую (speakerOn === true).
+  // Best-effort: если setSinkId недоступен/бросит ошибку (нет
+  // подходящего контекста пользовательского жеста на некоторых
+  // платформах) — тихо оставляем как есть, ничего не ломаем.
+  if (!speakerOn && typeof audioEl.setSinkId === "function") {
+    findAudioOutputDevice(/earpiece|receiver/i).then((deviceId) => {
+      if (deviceId) audioEl.setSinkId(deviceId).catch(() => {});
+    }).catch(() => {});
+  }
 }
 function attachRemoteVideo(id, stream) {
   if (state.callId !== id) return;
