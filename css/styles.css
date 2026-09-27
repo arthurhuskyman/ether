@@ -705,7 +705,22 @@ html[data-theme="auto"] .bubble-row.theirs .bubble-time { color: rgba(235, 235, 
   display: flex; align-items: center; justify-content: center;
 }
 
-#tab-bar { display: flex; align-items: center; padding: 2px 4px 34px; border-radius: 0; border-bottom: none; z-index: 20; flex-shrink: 0; order: 1; }
+#tab-bar {
+  display: flex;
+  align-items: center;
+  /* Раньше высота #tab-bar определялась только содержимым (иконка+
+     подпись), а 34px безопасной зоны шли ПОСЛЕ этого контента как
+     padding-bottom — align-items:center было нечего центрировать
+     внутри, контент и так занимал всю доступную высоту. Визуально
+     иконки прилипали к самому верху, а вся 34-пиксельная зона
+     оставалась пустой снизу. Явная высота интерактивной зоны — теперь
+     ЕСТЬ свободное место для реального центрирования, а 34px заданы
+     ОТДЕЛЬНО через height ниже, не как часть содержимого. */
+  height: 50px;
+  padding: 0 4px 34px;
+  box-sizing: content-box;
+  border-radius: 0; border-bottom: none; z-index: 20; flex-shrink: 0; order: 1;
+}
 .tab-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 1px 0; border: none; background: none; color: var(--ink-faint); cursor: pointer; font-size: 11px; font-weight: 500; min-width: 0; position: relative; }
 .tab-badge {
   position: absolute; top: 1px; inset-inline-start: 50%; margin-inline-start: 4px;
