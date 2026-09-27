@@ -349,5 +349,6 @@ window.__LANG_DICTS["bg"] = {
   "chat.camera.holdForVideo": "Задръжте за видео",
   "toast.videoUnsupported": "Записването на видео не се поддържа на това устройство",
   "toast.waitingForKey": "{name} трябва поне веднъж да се появи онлайн, преди да можете да му изпратите нещо — изчакване",
+  "toast.fileEmpty": "Този файл е празен",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("bg");

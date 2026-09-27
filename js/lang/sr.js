@@ -349,5 +349,6 @@ window.__LANG_DICTS["sr"] = {
   "chat.camera.holdForVideo": "Држите за видео",
   "toast.videoUnsupported": "Снимање видеа није подржано на овом уређају",
   "toast.waitingForKey": "{name} мора бар једном да буде онлајн пре него што му нешто пошаљете — чека се",
+  "toast.fileEmpty": "Овај фајл је празан",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("sr");

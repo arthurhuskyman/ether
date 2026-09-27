@@ -349,5 +349,6 @@ window.__LANG_DICTS["mn"] = {
   "chat.camera.holdForVideo": "Видеонд дараад барина уу",
   "toast.videoUnsupported": "Энэ төхөөрөмж дээр видео бичлэг дэмжигдээгүй",
   "toast.waitingForKey": "{name}-д ямар нэг зүйл илгээхийн өмнө тэр дор хаяж нэг удаа онлайн байх ёстой — хүлээж байна",
+  "toast.fileEmpty": "Энэ файл хоосон байна",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("mn");

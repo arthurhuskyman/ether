@@ -349,5 +349,6 @@ window.__LANG_DICTS["hy"] = {
   "chat.camera.holdForVideo": "Սեղմած պահեք տեսանյութի համար",
   "toast.videoUnsupported": "Այս սարքում տեսանկարահանումը չի աջակցվում",
   "toast.waitingForKey": "{name}-ը պետք է գոնե մեկ անգամ առցանց լինի, նախքան կկարողանաք նրան ինչ-որ բան ուղարկել — սպասում ենք",
+  "toast.fileEmpty": "Այս ֆայլը դատարկ է",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("hy");

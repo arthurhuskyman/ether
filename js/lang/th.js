@@ -349,5 +349,6 @@ window.__LANG_DICTS["th"] = {
   "chat.camera.holdForVideo": "กดค้างเพื่อถ่ายวิดีโอ",
   "toast.videoUnsupported": "อุปกรณ์นี้ไม่รองรับการบันทึกวิดีโอ",
   "toast.waitingForKey": "{name} ต้องออนไลน์อย่างน้อยหนึ่งครั้งก่อนที่คุณจะส่งอะไรได้ — กำลังรอ",
+  "toast.fileEmpty": "ไฟล์นี้ว่างเปล่า",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("th");

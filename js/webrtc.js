@@ -103,6 +103,22 @@ class PeerLink extends EventTarget {
     // что связь может понадобиться и раньше, чем /ice успеет ответить.
     const effectiveIceServers = ICE_SERVERS.length > 0 ? ICE_SERVERS : FALLBACK_ICE;
     this.pc = new RTCPeerConnection({ iceServers: effectiveIceServers, iceCandidatePoolSize: 4 });
+    // Страховка от "вечного connecting": обработчики ниже (iceconnectionstatechange
+    // на "failed"/"disconnected") реагируют, только если браузер ФОРМАЛЬНО
+    // объявит один из этих статусов — а бывают случаи (например, TURN
+    // принял запрос на аллокацию, но реально не смог релеить трафик),
+    // когда соединение просто зависает в "checking"/"new" НАВСЕГДА,
+    // не переходя ни в failed, ни в disconnected, и reInvite() никогда
+    // не срабатывает. Если за разумное время не дошли хотя бы до
+    // "connected" — форсируем reInvite сами, не дожидаясь браузера.
+    this._connectStallTimer = setTimeout(() => {
+      this._connectStallTimer = null;
+      if (this._closed) return;
+      if (this.pc.connectionState !== "connected") {
+        this._log("warn", "[webrtc]", id.slice(0, 10) + "…", "connectionState всё ещё '" + this.pc.connectionState + "' спустя 15с, reInvite()");
+        this.reInvite();
+      }
+    }, 15000);
     this.dc = null;
     this.localAudioTrack = null;
     this.localStream = null;
@@ -203,6 +219,7 @@ class PeerLink extends EventTarget {
         return;
       }
       if (s === "connected") {
+        if (this._connectStallTimer) { clearTimeout(this._connectStallTimer); this._connectStallTimer = null; }
         if (!inCall) this._setStatus("connected");
         return;
       }
@@ -298,13 +315,17 @@ class PeerLink extends EventTarget {
   }
 
   // Отправка файла кусками поверх обычного send() — с учётом bufferedAmount,
-  // чтобы не захлебнуть канал на больших вложениях. Работает только пока
-  // связь P2P жива (как и звонки — без офлайн-очереди через сервер: файл
-  // мог бы быть мегабайты, а серверный почтовый ящик на это не рассчитан).
+  // чтобы не захлебнуть канал на больших вложениях. Живой P2P пробуется
+  // первым (быстрее, не грузит сервер) — офлайн-путь через зашифрованный
+  // почтовый ящик сервера реализован отдельно, на уровне app.js
+  // (sendFileOffline/sendVoiceOffline), не здесь.
   async sendFile(meta, base64Chunks, onProgress) {
     if (!this.dc || this.dc.readyState !== "open") return false;
     const metaPayload = { kind: "file-meta", id: meta.id, name: meta.name, mime: meta.mime, size: meta.size, totalChunks: base64Chunks.length };
-    if (meta.duration) metaPayload.duration = meta.duration;
+    // duration === 0 (например, ошибочно короткая голосовая запись) —
+    // валидное значение, а не "нет duration". if (meta.duration) исключал
+    // бы именно этот случай (0 — falsy).
+    if (meta.duration != null) metaPayload.duration = meta.duration;
     if (!this.send(metaPayload)) return false;
     const BUFFER_THRESHOLD = 262144; // 256KB — не даём буферу канала расти бесконтрольно
     for (let i = 0; i < base64Chunks.length; i++) {
@@ -392,8 +413,36 @@ class PeerLink extends EventTarget {
     try {
       const offer = await this.pc.createOffer(iceRestart ? { iceRestart: true } : undefined);
       await this.pc.setLocalDescription(offer);
+      // Раньше SDP читался из this.pc.localDescription.sdp ПОСЛЕ этого
+      // await — между setLocalDescription(offer) и отправкой есть
+      // await waitForIceGathering (до нескольких секунд при iceRestart).
+      // Если в это окно приходит встречный offer от собеседника (оба
+      // могут запустить ICE-restart почти одновременно — оба видят
+      // проблему связи в одно и то же время), _handleRemoteSdp у
+      // "вежливой" стороны делает rollback + принимает чужой offer +
+      // создаёт СВОЙ answer — pc.localDescription к моменту резолва
+      // waitForIceGathering уже answer, а не offer. Мы бы отправили
+      // answer, подписанный как "offer" — собеседник получил бы
+      // рассинхронизированный SDP. Фиксируем SDP СРАЗУ, до await, и
+      // после await проверяем signalingState — если он уже не
+      // "have-local-offer", кто-то другой перехватил пересогласование,
+      // тихо уходим, не отправляя ничего некорректного.
+      // Отдельное, более узкое окно: если close() случится ровно во
+      // время await setLocalDescription(offer) чуть выше, localDescription
+      // по спеке WebRTC обнулится, и .sdp на null бросил бы TypeError
+      // (падение ушло бы в catch как warning, но без отката состояния).
+      if (this._closed) return;
+      const offerSdp = this.pc.localDescription.sdp;
       if (iceRestart) await waitForIceGathering(this.pc);
-      const ok = this.send({ kind: "sdp", sdpType: "offer", sdp: this.pc.localDescription.sdp });
+      if (this._closed) return;
+      if (this.pc.signalingState !== "have-local-offer") {
+        // Кто-то другой (глубже — "вежливая" сторона в _handleRemoteSdp)
+        // перехватил пересогласование за время ожидания — finally ниже
+        // сам корректно сбросит _makingOffer/_pendingNegotiation.
+        this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "негоциация перехвачена встречным offer во время ICE-gathering — не отправляем");
+        return;
+      }
+      const ok = this.send({ kind: "sdp", sdpType: "offer", sdp: offerSdp });
       if (!ok && !this._closed) {
         // Критично: setLocalDescription(offer) уже перевёл signalingState в
         // "have-local-offer". Без отката это состояние никогда не вернётся
@@ -445,9 +494,28 @@ class PeerLink extends EventTarget {
         this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "glare: откатываю свой offer в пользу встречного");
         try { await this.pc.setLocalDescription({ type: "rollback" }); } catch (e) {}
       }
-      await this.pc.setRemoteDescription({ type: "offer", sdp: payload.sdp });
-      const answer = await this.pc.createAnswer();
-      await this.pc.setLocalDescription(answer);
+      try {
+        await this.pc.setRemoteDescription({ type: "offer", sdp: payload.sdp });
+        const answer = await this.pc.createAnswer();
+        await this.pc.setLocalDescription(answer);
+      } catch (e) {
+        // Раньше исключение здесь просто улетало во внешний .catch
+        // (лог warning) без какого-либо отката состояния — если
+        // setRemoteDescription бросает (несовместимый/битый SDP от
+        // собеседника), PeerLink мог тихо зависнуть в промежуточном
+        // состоянии, ничем не сигнализируя, что согласование сорвалось.
+        this._log("warn", "[webrtc]", this.id.slice(0, 10) + "…", "не удалось применить встречный offer:", String(e));
+        if (!this._closed) this._setStatus("disconnected");
+        return;
+      }
+      // Между setLocalDescription(answer) и этой строкой есть async-разрыв
+      // (сам await) — если pc.close() случится именно в этом окне (например,
+      // пользователь повесил трубку прямо в этот момент), localDescription
+      // по спеке WebRTC обнуляется при close(), и .sdp на null бросил бы
+      // TypeError — тихо потерянный в .catch у вызывающего кода, без
+      // отката состояния. Окно узкое (в начале функции уже есть проверка
+      // _closed), но не нулевое.
+      if (this._closed || !this.pc.localDescription) return;
       this.send({ kind: "sdp", sdpType: "answer", sdp: this.pc.localDescription.sdp });
     } else if (payload.sdpType === "answer") {
       await this.pc.setRemoteDescription({ type: "answer", sdp: payload.sdp });
@@ -575,7 +643,15 @@ class PeerLink extends EventTarget {
 
   endCall() {
     try {
-      const senders = this.pc.getSenders().filter((s) => s.track && s.track.kind === "audio");
+      // Раньше фильтр брал только audio — video-сендер оставался
+      // прикреплённым к pc (с уже остановленным треком) после
+      // окончания видеозвонка. При повторном enableVideo() на ТОМ ЖЕ
+      // PeerLink (переиспользуется при живом P2P-соединении, не
+      // пересоздаётся на каждый звонок) _videoAdded уже false, и
+      // addTrack добавил бы ВТОРОЙ video-сендер поверх непочищенного
+      // первого — в SDP два m=video, собеседник получил бы один
+      // рабочий поток и один пустой/мёртвый.
+      const senders = this.pc.getSenders().filter((s) => s.track && (s.track.kind === "audio" || s.track.kind === "video"));
       senders.forEach((s) => { try { this.pc.removeTrack(s); } catch (e) {} });
     } catch (e) {}
     if (this.localAudioTrack) {
@@ -602,6 +678,7 @@ class PeerLink extends EventTarget {
     if (this._muteRecheckTimer) { clearInterval(this._muteRecheckTimer); this._muteRecheckTimer = null; }
     if (this._renegotiationRetryTimer) { clearTimeout(this._renegotiationRetryTimer); this._renegotiationRetryTimer = null; }
     if (this._iceDisconnectTimer) { clearTimeout(this._iceDisconnectTimer); this._iceDisconnectTimer = null; }
+    if (this._connectStallTimer) { clearTimeout(this._connectStallTimer); this._connectStallTimer = null; }
     try {
       if (this.localStream) {
         try { this.localStream.getTracks().forEach((t) => { try { t.stop(); } catch (e) {} }); } catch (e) {}

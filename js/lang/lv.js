@@ -349,5 +349,6 @@ window.__LANG_DICTS["lv"] = {
   "chat.camera.holdForVideo": "Turiet, lai ierakstītu video",
   "toast.videoUnsupported": "Video ierakstīšana šajā ierīcē netiek atbalstīta",
   "toast.waitingForKey": "{name} vismaz vienreiz jābūt tiešsaistē, pirms varat viņam kaut ko nosūtīt — gaida",
+  "toast.fileEmpty": "Šis fails ir tukšs",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("lv");

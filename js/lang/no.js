@@ -349,5 +349,6 @@ window.__LANG_DICTS["no"] = {
   "chat.camera.holdForVideo": "Hold for video",
   "toast.videoUnsupported": "Videoopptak støttes ikke på denne enheten",
   "toast.waitingForKey": "{name} må være pålogget minst én gang før du kan sende noe — venter",
+  "toast.fileEmpty": "Denne filen er tom",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("no");

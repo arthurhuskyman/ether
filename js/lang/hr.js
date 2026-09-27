@@ -349,5 +349,6 @@ window.__LANG_DICTS["hr"] = {
   "chat.camera.holdForVideo": "Drži za video",
   "toast.videoUnsupported": "Snimanje videa nije podržano na ovom uređaju",
   "toast.waitingForKey": "{name} mora barem jednom biti online prije nego što mu možete nešto poslati — čekanje",
+  "toast.fileEmpty": "Ova datoteka je prazna",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("hr");

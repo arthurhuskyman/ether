@@ -349,5 +349,6 @@ window.__LANG_DICTS["nl"] = {
   "chat.camera.holdForVideo": "Ingedrukt houden voor video",
   "toast.videoUnsupported": "Video-opname wordt niet ondersteund op dit apparaat",
   "toast.waitingForKey": "{name} moet minstens één keer online zijn voordat je iets kunt sturen — wachten",
+  "toast.fileEmpty": "Dit bestand is leeg",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("nl");

@@ -349,5 +349,6 @@ window.__LANG_DICTS["am"] = {
   "chat.camera.holdForVideo": "ለቪዲዮ ተጫነው ይያዙ",
   "toast.videoUnsupported": "በዚህ መሣሪያ ላይ የቪዲዮ ቀረጻ አይደገፍም",
   "toast.waitingForKey": "ለ{name} ማንኛውንም ነገር ከመላክዎ በፊት ቢያንስ አንዴ መስመር ላይ መምጣት አለባቸው — በመጠባበቅ ላይ",
+  "toast.fileEmpty": "ይህ ፋይል ባዶ ነው",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("am");

@@ -349,5 +349,6 @@ window.__LANG_DICTS["et"] = {
   "chat.camera.holdForVideo": "Video jaoks hoia all",
   "toast.videoUnsupported": "Video salvestamine pole selles seadmes toetatud",
   "toast.waitingForKey": "{name} peab vähemalt korra võrgus olema, enne kui saad talle midagi saata — ootel",
+  "toast.fileEmpty": "See fail on tühi",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("et");

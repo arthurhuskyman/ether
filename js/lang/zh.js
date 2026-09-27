@@ -2,7 +2,7 @@ window.__LANG_DICTS = window.__LANG_DICTS || {};
 window.__LANG_DICTS["zh"] = {
     "app.title": "Ether — 直接连接",
     "app.tagline": "设备之间直接收发消息和通话。",
-    "app.name": "Ether",
+    "app.name": "以太",
     "onboarding.name.placeholder": "您的名字",
     "onboarding.id.placeholder": "电话或电子邮件",
     "onboarding.start": "开始",
@@ -349,5 +349,6 @@ window.__LANG_DICTS["zh"] = {
   "chat.camera.holdForVideo": "长按拍摄视频",
   "toast.videoUnsupported": "此设备不支持视频录制",
   "toast.waitingForKey": "需要{name}至少上线一次才能发送内容——正在等待",
+  "toast.fileEmpty": "该文件为空",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("zh");

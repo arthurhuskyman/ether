@@ -349,5 +349,6 @@ window.__LANG_DICTS["tr"] = {
   "chat.camera.holdForVideo": "Video için basılı tutun",
   "toast.videoUnsupported": "Bu cihazda video kaydı desteklenmiyor",
   "toast.waitingForKey": "Bir şey gönderebilmeniz için {name} en az bir kez çevrimiçi olmalı — bekleniyor",
+  "toast.fileEmpty": "Bu dosya boş",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("tr");

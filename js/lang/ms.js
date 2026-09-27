@@ -349,5 +349,6 @@ window.__LANG_DICTS["ms"] = {
   "chat.camera.holdForVideo": "Tahan untuk video",
   "toast.videoUnsupported": "Rakaman video tidak disokong pada peranti ini",
   "toast.waitingForKey": "{name} perlu online sekurang-kurangnya sekali sebelum anda boleh menghantar apa-apa — menunggu",
+  "toast.fileEmpty": "Fail ini kosong",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("ms");

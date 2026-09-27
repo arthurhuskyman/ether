@@ -349,5 +349,6 @@ window.__LANG_DICTS["tl"] = {
   "chat.camera.holdForVideo": "Pindutin nang matagal para sa video",
   "toast.videoUnsupported": "Hindi sinusuportahan ang pag-record ng video sa device na ito",
   "toast.waitingForKey": "Kailangang mag-online si {name} nang kahit isang beses bago ka makapagpadala ng kahit ano — naghihintay",
+  "toast.fileEmpty": "Walang laman ang file na ito",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("tl");

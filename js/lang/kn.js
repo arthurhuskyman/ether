@@ -349,5 +349,6 @@ window.__LANG_DICTS["kn"] = {
   "chat.camera.holdForVideo": "ವೀಡಿಯೋಗಾಗಿ ಒತ್ತಿಹಿಡಿಯಿರಿ",
   "toast.videoUnsupported": "ಈ ಸಾಧನದಲ್ಲಿ ವೀಡಿಯೋ ರೆಕಾರ್ಡಿಂಗ್ ಬೆಂಬಲಿತವಾಗಿಲ್ಲ",
   "toast.waitingForKey": "{name} ಗೆ ಏನನ್ನಾದರೂ ಕಳುಹಿಸುವ ಮೊದಲು ಅವರು ಕನಿಷ್ಠ ಒಮ್ಮೆ ಆನ್‌ಲೈನ್‌ಗೆ ಬರಬೇಕು — ಕಾಯಲಾಗುತ್ತಿದೆ",
+  "toast.fileEmpty": "ಈ ಫೈಲ್ ಖಾಲಿಯಾಗಿದೆ",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("kn");

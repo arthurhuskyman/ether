@@ -349,5 +349,6 @@ window.__LANG_DICTS["es"] = {
   "chat.camera.holdForVideo": "Mantén para grabar video",
   "toast.videoUnsupported": "La grabación de video no es compatible con este dispositivo",
   "toast.waitingForKey": "{name} debe conectarse al menos una vez antes de poder enviarle algo — esperando",
+  "toast.fileEmpty": "Este archivo está vacío",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("es");

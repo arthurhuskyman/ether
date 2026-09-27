@@ -349,5 +349,6 @@ window.__LANG_DICTS["su"] = {
   "chat.camera.holdForVideo": "Teken lila pikeun video",
   "toast.videoUnsupported": "Ngarékam vidéo teu didukung dina alat ieu",
   "toast.waitingForKey": "{name} kedah online sahenteuna sakali samémeh anjeun tiasa ngirim naon waé — ngantosan",
+  "toast.fileEmpty": "File ieu kosong",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("su");

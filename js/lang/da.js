@@ -349,5 +349,6 @@ window.__LANG_DICTS["da"] = {
   "chat.camera.holdForVideo": "Hold for video",
   "toast.videoUnsupported": "Videooptagelse understøttes ikke på denne enhed",
   "toast.waitingForKey": "{name} skal være online mindst én gang, før du kan sende noget — venter",
+  "toast.fileEmpty": "Denne fil er tom",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("da");

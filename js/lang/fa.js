@@ -349,5 +349,6 @@ window.__LANG_DICTS["fa"] = {
   "chat.camera.holdForVideo": "برای ویدیو نگه دارید",
   "toast.videoUnsupported": "ضبط ویدیو در این دستگاه پشتیبانی نمی‌شود",
   "toast.waitingForKey": "{name} باید حداقل یک‌بار آنلاین شود تا بتوانید چیزی برایش بفرستید — در انتظار",
+  "toast.fileEmpty": "این فایل خالی است",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("fa");

@@ -349,5 +349,6 @@ window.__LANG_DICTS["ky"] = {
   "chat.camera.holdForVideo": "Видео үчүн басып туруңуз",
   "toast.videoUnsupported": "Бул түзмөктө видео жаздыруу колдоого алынбайт",
   "toast.waitingForKey": "{name}ге бир нерсе жөнөтүүдөн мурун ал жок дегенде бир жолу онлайн болушу керек — күтүлүүдө",
+  "toast.fileEmpty": "Бул файл бош",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("ky");

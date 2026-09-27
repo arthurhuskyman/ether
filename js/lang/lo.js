@@ -349,5 +349,6 @@ window.__LANG_DICTS["lo"] = {
   "chat.camera.holdForVideo": "ກົດຄ້າງໄວ້ເພື່ອຖ່າຍວິດີໂອ",
   "toast.videoUnsupported": "ອຸປະກອນນີ້ບໍ່ຮອງຮັບການບັນທຶກວິດີໂອ",
   "toast.waitingForKey": "{name} ຕ້ອງອອນລາຍຢ່າງໜ້ອຍໜຶ່ງຄັ້ງກ່ອນທີ່ທ່ານຈະສົ່ງຫຍັງໄດ້ — ກຳລັງລໍຖ້າ",
+  "toast.fileEmpty": "ໄຟລ໌ນີ້ຫວ່າງເປົ່າ",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("lo");

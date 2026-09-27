@@ -349,5 +349,6 @@ window.__LANG_DICTS["kk"] = {
   "chat.camera.holdForVideo": "Видео үшін басып тұрыңыз",
   "toast.videoUnsupported": "Бұл құрылғыда бейне жазу қолдау көрсетілмейді",
   "toast.waitingForKey": "{name}-ге бірдеңе жіберу үшін ол кемінде бір рет онлайн болуы керек — күтілуде",
+  "toast.fileEmpty": "Бұл файл бос",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("kk");

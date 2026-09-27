@@ -349,5 +349,6 @@ window.__LANG_DICTS["jv"] = {
   "chat.camera.holdForVideo": "Tahan kanggo video",
   "toast.videoUnsupported": "Ngrekam video ora didhukung ing piranti iki",
   "toast.waitingForKey": "{name} kudu online paling ora sepisan sadurunge sampeyan bisa ngirim apa-apa — ngenteni",
+  "toast.fileEmpty": "File iki kosong",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("jv");

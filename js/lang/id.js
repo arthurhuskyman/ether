@@ -349,5 +349,6 @@ window.__LANG_DICTS["id"] = {
   "chat.camera.holdForVideo": "Tahan untuk video",
   "toast.videoUnsupported": "Perekaman video tidak didukung di perangkat ini",
   "toast.waitingForKey": "{name} perlu online setidaknya sekali sebelum Anda bisa mengirim sesuatu — menunggu",
+  "toast.fileEmpty": "File ini kosong",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("id");

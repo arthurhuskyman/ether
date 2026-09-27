@@ -349,5 +349,6 @@ window.__LANG_DICTS["pa"] = {
   "chat.camera.holdForVideo": "ਵੀਡੀਓ ਲਈ ਦਬਾ ਕੇ ਰੱਖੋ",
   "toast.videoUnsupported": "ਇਸ ਡਿਵਾਈਸ 'ਤੇ ਵੀਡੀਓ ਰਿਕਾਰਡਿੰਗ ਸਮਰਥਿਤ ਨਹੀਂ ਹੈ",
   "toast.waitingForKey": "{name} ਨੂੰ ਕੁਝ ਭੇਜਣ ਤੋਂ ਪਹਿਲਾਂ ਉਹਨਾਂ ਨੂੰ ਘੱਟੋ-ਘੱਟ ਇੱਕ ਵਾਰ ਆਨਲਾਈਨ ਆਉਣਾ ਪਵੇਗਾ — ਉਡੀਕ ਜਾਰੀ",
+  "toast.fileEmpty": "ਇਹ ਫ਼ਾਈਲ ਖਾਲੀ ਹੈ",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("pa");

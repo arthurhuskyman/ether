@@ -2,7 +2,7 @@ window.__LANG_DICTS = window.__LANG_DICTS || {};
 window.__LANG_DICTS["ja"] = {
     "app.title": "Ether — 直接接続",
     "app.tagline": "デバイス間で直接メッセージと通話。",
-    "app.name": "Ether",
+    "app.name": "エーテル",
     "onboarding.name.placeholder": "お名前",
     "onboarding.id.placeholder": "電話番号またはメール",
     "onboarding.start": "開始",
@@ -349,5 +349,6 @@ window.__LANG_DICTS["ja"] = {
   "chat.camera.holdForVideo": "長押しで動画",
   "toast.videoUnsupported": "この端末では動画撮影に対応していません",
   "toast.waitingForKey": "{name}さんが一度でもオンラインにならないと送信できません — 待機中",
+  "toast.fileEmpty": "このファイルは空です",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("ja");

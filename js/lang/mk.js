@@ -349,5 +349,6 @@ window.__LANG_DICTS["mk"] = {
   "chat.camera.holdForVideo": "Задржи за видео",
   "toast.videoUnsupported": "Снимањето видео не е поддржано на овој уред",
   "toast.waitingForKey": "{name} мора барем еднаш да биде онлајн пред да можете да му испратите нешто — се чека",
+  "toast.fileEmpty": "Оваа датотека е празна",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("mk");

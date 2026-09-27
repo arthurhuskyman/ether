@@ -349,5 +349,6 @@ window.__LANG_DICTS["sk"] = {
   "chat.camera.holdForVideo": "Podržte pre video",
   "toast.videoUnsupported": "Nahrávanie videa nie je na tomto zariadení podporované",
   "toast.waitingForKey": "{name} musí byť aspoň raz online, kým mu môžete niečo poslať — čaká sa",
+  "toast.fileEmpty": "Tento súbor je prázdny",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("sk");

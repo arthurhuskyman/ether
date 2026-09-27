@@ -349,5 +349,6 @@ window.__LANG_DICTS["ur"] = {
   "chat.camera.holdForVideo": "ویڈیو کے لیے دبائے رکھیں",
   "toast.videoUnsupported": "اس ڈیوائس پر ویڈیو ریکارڈنگ سپورٹ نہیں ہے",
   "toast.waitingForKey": "{name} کو کچھ بھیجنے سے پہلے کم از کم ایک بار آن لائن آنا ہوگا — انتظار جاری",
+  "toast.fileEmpty": "یہ فائل خالی ہے",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("ur");

@@ -349,5 +349,6 @@ window.__LANG_DICTS["hu"] = {
   "chat.camera.holdForVideo": "Tartsd nyomva a videóhoz",
   "toast.videoUnsupported": "A videórögzítés nem támogatott ezen az eszközön",
   "toast.waitingForKey": "{name}-nak legalább egyszer online kell lennie, mielőtt küldhetsz neki valamit — várakozás",
+  "toast.fileEmpty": "Ez a fájl üres",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("hu");

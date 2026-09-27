@@ -349,5 +349,6 @@ window.__LANG_DICTS["sw"] = {
   "chat.camera.holdForVideo": "Shikilia kwa video",
   "toast.videoUnsupported": "Kurekodi video hakutumiki kwenye kifaa hiki",
   "toast.waitingForKey": "{name} anahitaji kuwa mtandaoni angalau mara moja kabla hujaweza kumtumia kitu — inasubiri",
+  "toast.fileEmpty": "Faili hii haina kitu",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("sw");

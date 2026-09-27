@@ -64,6 +64,13 @@ const SignalingCodec = (() => {
     // gunzip/TextDecoder и мог заметно подвесить вкладку.
     if (typeof code !== "string" || code.length > 8192) throw new Error("toast.badInviteCode");
     const clean = code.trim().replace(/^ether:\/\//i, "");
+    // Раньше не было явной проверки минимальной длины — код из 1 символа
+    // (после trim/replace) проходил через version-check (если совпадал
+    // с "1"), но clean[1] (flag) оказывался undefined, body — пустой
+    // строкой, и в итоге JSON.parse("") бросал сырой SyntaxError вместо
+    // понятного "toast.badInviteCode". Минимум 3 символа (version+flag+
+    // хотя бы 1 символ полезной нагрузки) отсекает это на входе.
+    if (clean.length < 3) throw new Error("toast.badInviteCode");
     const version = clean[0];
     const flag = clean[1];
     const body = clean.slice(2);

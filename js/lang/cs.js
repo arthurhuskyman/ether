@@ -349,5 +349,6 @@ window.__LANG_DICTS["cs"] = {
   "chat.camera.holdForVideo": "Podržte pro video",
   "toast.videoUnsupported": "Nahrávání videa není na tomto zařízení podporováno",
   "toast.waitingForKey": "{name} musí být alespoň jednou online, než mu budete moci něco poslat — čeká se",
+  "toast.fileEmpty": "Tento soubor je prázdný",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("cs");

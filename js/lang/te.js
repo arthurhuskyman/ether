@@ -349,5 +349,6 @@ window.__LANG_DICTS["te"] = {
   "chat.camera.holdForVideo": "వీడియో కోసం నొక్కి పట్టుకోండి",
   "toast.videoUnsupported": "ఈ పరికరంలో వీడియో రికార్డింగ్ మద్దతు లేదు",
   "toast.waitingForKey": "{name}కి ఏదైనా పంపే ముందు వారు కనీసం ఒక్కసారైనా ఆన్‌లైన్‌లో ఉండాలి — వేచి ఉంది",
+  "toast.fileEmpty": "ఈ ఫైల్ ఖాళీగా ఉంది",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("te");

@@ -349,5 +349,6 @@ window.__LANG_DICTS["ar"] = {
   "chat.camera.holdForVideo": "اضغط مطولاً للفيديو",
   "toast.videoUnsupported": "تسجيل الفيديو غير مدعوم على هذا الجهاز",
   "toast.waitingForKey": "يجب أن يتصل {name} بالإنترنت مرة واحدة على الأقل قبل أن تتمكن من إرسال أي شيء له — في الانتظار",
+  "toast.fileEmpty": "هذا الملف فارغ",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("ar");

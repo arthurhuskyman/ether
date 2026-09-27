@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.32.22";
+const APP_VERSION = "V.32.27";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 const MAX_MESSAGE_LENGTH = 4000;
@@ -19,7 +19,10 @@ const MAX_MESSAGE_LENGTH = 4000;
 // больше не нужен — один и тот же 2МБ работает и для живой P2P, и для
 // очереди через сервер.
 const MAX_FILE_SIZE_INPUT = 20 * 1024 * 1024; // 20 МБ — что можно ВЫБРАТЬ (даёт сжатию картинок что уменьшать)
-const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2 МБ — целевой потолок того, что РЕАЛЬНО отправляется
+// MAX_FILE_SIZE читается из js/file-limits.js — единственного источника
+// правды, общего с тестом (test-file-size-validation.js), чтобы значение
+// и условия валидации не могли разойтись между реальным кодом и тестом.
+const MAX_FILE_SIZE = EtherFileLimits.MAX_FILE_SIZE; // 2 МБ — целевой потолок того, что РЕАЛЬНО отправляется
 const FILE_CHUNK_SIZE = 48 * 1024; // кратно 3 — ровные base64-куски без паддинга внутри потока
 const OUTBOX_LIMIT = 500;
 const SEEN_DELIVER_LIMIT = 500;
@@ -1323,6 +1326,7 @@ function maybeOfferSystemLanguage() {
         I18N.setLang(sys);
         I18N.markOfferShown();
         banner.classList.add("hidden");
+        try { updateNotifBanner(); } catch (e) {}
         applyStaticTranslations();
         try { renderTab(); } catch (e) {}
         const sel = $("#settings-language"); if (sel) sel.value = I18N.current;
@@ -1333,6 +1337,7 @@ function maybeOfferSystemLanguage() {
   if (no) no.addEventListener("click", () => {
     I18N.markOfferShown();
     banner.classList.add("hidden");
+    try { updateNotifBanner(); } catch (e) {}
   });
 }
 
@@ -1550,6 +1555,16 @@ function updateNotifBanner() {
   const dismissed = Store.notifBannerDismissed;
   if (!supported || enabled || dismissed) { banner.classList.add("hidden"); return; }
   banner.classList.remove("hidden");
+  // #lang-offer — фиксированный оверлей ВНЕ #app-shell (см. комментарий
+  // в CSS), показывается тем же вызовом startApp(), что и этот баннер,
+  // для уже зарегистрированного пользователя с системным языком,
+  // отличным от сохранённого. Оба претендуют на верх экрана —
+  // #notif-banner в обычном потоке документа оказывался ПОД фиксированным
+  // #lang-offer, физически перекрытым им. Сдвигаем баннер ниже, пока
+  // предложение смены языка не закрыто.
+  const langOffer = $("#lang-offer");
+  const langOfferVisible = langOffer && !langOffer.classList.contains("hidden");
+  banner.style.marginTop = langOfferVisible ? "96px" : "";
 }
 function updateAppBadge() {
   let total = 0;
@@ -2841,13 +2856,25 @@ async function compressImageToTarget(file, maxBytes) {
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", q));
     if (blob && blob.size <= maxBytes) return blob;
   }
-  // Качество исчерпано — последняя попытка: уменьшаем ещё разрешение вдвое.
+  // Качество исчерпано — последняя попытка: уменьшаем ещё разрешение
+  // вдвое. КРИТИЧНО: раньше здесь переиспользовался ТОТ ЖЕ canvas —
+  // присвоение canvas.width/height стирает его содержимое по спецификации
+  // HTML, а следующая строка пыталась рисовать ИЗ этого canvas В НЕГО ЖЕ,
+  // уже пустого. На выходе — чистый белый прямоугольник вместо сжатого
+  // фото. Если это "пустое" изображение укладывалось в maxBytes (а
+  // укладывалось почти всегда — кодировать нечего), оно тихо уходило
+  // получателю как якобы успешно сжатый результат. Реальный эффект: любое
+  // обычное фото с телефона (3-4МБ, где q=0.4 уже не хватает) получало
+  // либо пустую картинку, либо отказ — рабочего пути не было вовсе.
+  // Фикс: отдельный, новый canvas для уменьшенной копии.
   if (width > 640 && height > 640) {
-    canvas.width = Math.round(width / 2); canvas.height = Math.round(height / 2);
-    const ctx2 = canvas.getContext("2d");
-    ctx2.fillStyle = "#fff"; ctx2.fillRect(0, 0, canvas.width, canvas.height);
-    ctx2.drawImage(canvas, 0, 0, width, height, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.6));
+    const temp = document.createElement("canvas");
+    temp.width = Math.round(width / 2);
+    temp.height = Math.round(height / 2);
+    const ctx2 = temp.getContext("2d");
+    ctx2.fillStyle = "#fff"; ctx2.fillRect(0, 0, temp.width, temp.height);
+    ctx2.drawImage(canvas, 0, 0, width, height, 0, 0, temp.width, temp.height);
+    const blob = await new Promise((resolve) => temp.toBlob(resolve, "image/jpeg", 0.6));
     if (blob && blob.size <= maxBytes) return blob;
   }
   return null;
@@ -2856,6 +2883,12 @@ async function sendFileMessage(contactId, file) {
   const c = state.contacts.get(contactId); if (!c) return;
   if (isGroup(c)) { toast(T("toast.fileGroupsUnsupported")); return; }
   if (c.blocked) { toast(T("toast.blocked")); return; }
+  // Раньше нижней границы не было вовсе — пустой (0 байт) файл
+  // отправитель видел как "отправлено", а handleFilePayload на
+  // стороне получателя (через EtherFileLimits.isValidFileMetaSize,
+  // где size > 0) молча его отбрасывал. Симметрично отклоняем уже
+  // здесь, с понятным сообщением, а не тихим расхождением.
+  if (file.size === 0) { toast(T("toast.fileEmpty")); return; }
   if (file.size > MAX_FILE_SIZE_INPUT) { toast(T("toast.fileTooLarge", { size: formatFileSize(MAX_FILE_SIZE_INPUT) })); return; }
   // Целевой потолок того, что реально уходит — 2МБ. Если исходник
   // больше и это изображение — пробуем сжать автоматически, вместо
@@ -2954,6 +2987,10 @@ async function sendVoiceMessage(contactId, blob, durationSec) {
   const c = state.contacts.get(contactId); if (!c) return;
   if (isGroup(c)) { toast(T("toast.fileGroupsUnsupported")); return; }
   if (c.blocked) { toast(T("toast.blocked")); return; }
+  // Та же симметрия, что в sendFileMessage — на всякий случай, если
+  // запись почему-то дала пустой blob (получатель бы его всё равно
+  // молча отбросил через isValidFileMetaSize).
+  if (blob.size === 0) { toast(T("toast.fileEmpty")); return; }
   if (blob.size > MAX_FILE_SIZE) { toast(T("toast.fileTooLarge", { size: formatFileSize(MAX_FILE_SIZE) })); return; }
   const existingLink2 = mesh.get(contactId);
   const alreadyLive2 = existingLink2 && (existingLink2.status === "connected" || existingLink2.status === "in-call");
@@ -3116,6 +3153,14 @@ function handleFilePayload(from, payload) {
     // аллоцировать под него огромный массив заранее.
     const totalChunks = payload.totalChunks;
     if (!Number.isInteger(totalChunks) || totalChunks <= 0 || totalChunks > 500) return;
+    // payload.size раньше сохранялся как есть, без проверки вообще —
+    // отправляющая сторона (sendFileMessage) никогда не пропустит
+    // файл больше MAX_FILE_SIZE, но НЕДОБРОСОВЕСТНЫЙ пир мог заявить
+    // любой размер и следом прислать totalChunks (до 500) реальных
+    // мегабайтных кусков — несоответствие size не проверялось вовсе,
+    // только количество кусков. До ~500МБ на одну передачу,
+    // MAX_INCOMING_FILE_TRANSFERS=20 одновременных — до ~10ГБ.
+    if (!EtherFileLimits.isValidFileMetaSize(payload.size)) return;
     sweepIncomingFileBuffers();
     if (incomingFileBuffers.size >= MAX_INCOMING_FILE_TRANSFERS && !incomingFileBuffers.has(payload.id)) return;
     incomingFileBuffers.set(payload.id, { name: payload.name, mime: payload.mime, size: payload.size, totalChunks, chunks: new Array(totalChunks).fill(null), from, receivedAt: Date.now() });
@@ -3131,6 +3176,19 @@ function handleFilePayload(from, payload) {
   if (payload.kind === "file-chunk") {
     const buf = incomingFileBuffers.get(payload.id);
     if (!buf || payload.index == null || payload.index < 0 || payload.index >= buf.totalChunks) return;
+    // Заявленный payload.size (проверен выше, при file-meta) — это
+    // размер ИСХОДНОГО файла, а не то, сколько реально байт может
+    // прийти в чанках: totalChunks сам по себе допускает до 500
+    // кусков, и НИЧТО раньше не мешало прислать кусков суммарно
+    // намного больше заявленного size (пир мог соврать в file-meta
+    // про маленький размер, а потом закачать чанками мегабайты).
+    // Считаем накопленный объём base64 и обрываем приём, если он
+    // заметно превышает то, что даёт исходный size после base64
+    // (~4/3) с разумным запасом.
+    const chunkLen = typeof payload.data === "string" ? payload.data.length : 0;
+    const alreadyReceived = buf.receivedBytes || 0;
+    if (EtherFileLimits.chunkExceedsBudget(alreadyReceived, chunkLen, buf.size)) { incomingFileBuffers.delete(payload.id); return; }
+    buf.receivedBytes = alreadyReceived + chunkLen;
     buf.chunks[payload.index] = payload.data;
     return;
   }
@@ -3687,10 +3745,17 @@ async function flushOutboxItem(msgId) {
     const sent = signaling && signaling.deliver(entry.to, entry.msgId, envelope, Store.myPublicKeyJwk, kind);
     if (!sent) markMessageAck(entry.to, msgId, "failed");
     else if (kind === "chat") {
-      const c = state.contacts.get(entry.to);
-      const m = c && c.messages.find((x) => x.id === msgId);
-      if (m && (m.ack === "failed" || m.ack === "pending")) m.ack = "sent";
-      persistContacts();
+      // Раньше здесь искали c.messages.find(id === msgId) напрямую по
+      // state.contacts.get(entry.to) — для ГРУППОВЫХ сообщений это
+      // никогда не совпадало: entry.to это id конкретного УЧАСТНИКА
+      // (свой delivery-id на каждого получателя), а не группы, и само
+      // сообщение лежит в списке ГРУППЫ под другим (contentId) id.
+      // Совпадение просто никогда не находилось — ack так и оставался
+      // "failed"/"pending" навсегда после успешного фолбэка через
+      // сервер. markMessageAck уже умеет корректно резолвить группу
+      // через outbox-запись (groupId/contentId) — переиспользуем её
+      // вместо дублирования той же логики неправильно.
+      markMessageAck(entry.to, msgId, "sent");
     }
   } catch (e) { etherLog("error", "[crypto] encrypt:", String(e)); markMessageAck(entry.to, msgId, "failed"); }
 }
@@ -4125,10 +4190,26 @@ function wireSignalingEvents(sig) {
     const { msgId } = ev.detail;
     const entry = outbox.get(msgId);
     if (!entry) return;
-    const c = state.contacts.get(entry.to);
-    if (c) {
-      const m = c.messages.find((x) => x.id === msgId && x.from === "me");
+    // Тот же баг, что был в flushOutboxItem (см. markMessageAck) — для
+    // ГРУППОВЫХ сообщений entry.to это id участника, а не группы, и
+    // сообщение лежит в списке ГРУППЫ под другим (contentId) id.
+    // Поиск по entry.to никогда не находил совпадение для групп —
+    // serverAcked так и оставался false навсегда. Сейчас это не даёт
+    // видимых симптомов (resumeUnsentMessages явно пропускает группы),
+    // но это скрытая мина на будущее — резолвим группу так же, как
+    // markMessageAck, а не оставляем расхождение.
+    const groupId = entry.payload && entry.payload.groupId;
+    const contentId = entry.payload && entry.payload.id;
+    if (groupId && contentId) {
+      const g = state.contacts.get(groupId);
+      const m = g && g.messages.find((x) => x.id === contentId && x.from === "me");
       if (m) { m.serverAcked = true; persistContacts(); }
+    } else {
+      const c = state.contacts.get(entry.to);
+      if (c) {
+        const m = c.messages.find((x) => x.id === msgId && x.from === "me");
+        if (m) { m.serverAcked = true; persistContacts(); }
+      }
     }
     outbox.delete(msgId);
     persistOutbox();
@@ -4749,6 +4830,20 @@ function wireConnectScreen() {
   if (answerCopy) answerCopy.addEventListener("click", () => { const el = $("#answer-out-code"); if (el) copyText(el.textContent, T("toast.codeCopied")); });
 }
 function resetConnectScreen() {
+  // Временный контакт (managed:false, status:"awaiting-answer"/"connecting")
+  // создаётся в createInvite() под тем же id, что лежит в
+  // state.pendingOutgoing. Раньше при отмене приглашения ("Начать
+  // заново") эта запись просто оставалась висеть в state.contacts
+  // навсегда (в памяти — на persist она и так не шла, но накапливалась
+  // при многократных отменах). Проверяем именно status !== "connected":
+  // этот же resetConnectScreen() вызывается и при УСПЕШНОМ подключении
+  // (см. wireMeshEvents), где контакт уже настоящий — его трогать нельзя.
+  if (state.pendingOutgoing) {
+    const c = state.contacts.get(state.pendingOutgoing.id);
+    if (c && !c.managed && c.status !== "connected" && c.status !== "in-call") {
+      state.contacts.delete(state.pendingOutgoing.id);
+    }
+  }
   state.pendingOutgoing = null;
   const ii = $("#invite-idle"); if (ii) ii.classList.remove("hidden");
   const ia = $("#invite-active"); if (ia) ia.classList.add("hidden");

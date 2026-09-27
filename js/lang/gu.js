@@ -349,5 +349,6 @@ window.__LANG_DICTS["gu"] = {
   "chat.camera.holdForVideo": "વિડિયો માટે દબાવી રાખો",
   "toast.videoUnsupported": "આ ડિવાઇસ પર વિડિયો રેકોર્ડિંગ સપોર્ટેડ નથી",
   "toast.waitingForKey": "{name} ને કંઈપણ મોકલતા પહેલા તેમણે ઓછામાં ઓછું એકવાર ઓનલાઇન આવવું જરૂરી છે — રાહ જોવાઈ રહી છે",
+  "toast.fileEmpty": "આ ફાઇલ ખાલી છે",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("gu");

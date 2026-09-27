@@ -349,5 +349,6 @@ window.__LANG_DICTS["ka"] = {
   "chat.camera.holdForVideo": "დააჭირეთ ვიდეოსთვის",
   "toast.videoUnsupported": "ვიდეოს ჩაწერა არ არის მხარდაჭერილი ამ მოწყობილობაზე",
   "toast.waitingForKey": "{name}-მა ერთხელ მაინც უნდა შემოვიდეს ონლაინში, სანამ რამეს გაუგზავნით — ლოდინი",
+  "toast.fileEmpty": "ეს ფაილი ცარიელია",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("ka");

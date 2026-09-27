@@ -2,7 +2,7 @@ window.__LANG_DICTS = window.__LANG_DICTS || {};
 window.__LANG_DICTS["ko"] = {
     "app.title": "Ether — 직접 연결",
     "app.tagline": "기기 간 직접 메시지와 통화.",
-    "app.name": "Ether",
+    "app.name": "에테르",
     "onboarding.name.placeholder": "이름",
     "onboarding.id.placeholder": "전화번호 또는 이메일",
     "onboarding.start": "시작",
@@ -349,5 +349,6 @@ window.__LANG_DICTS["ko"] = {
   "chat.camera.holdForVideo": "길게 눌러 동영상",
   "toast.videoUnsupported": "이 기기에서는 동영상 녹화를 지원하지 않습니다",
   "toast.waitingForKey": "{name}님이 최소 한 번은 온라인 상태여야 전송할 수 있습니다 — 대기 중",
+  "toast.fileEmpty": "이 파일은 비어 있습니다",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("ko");

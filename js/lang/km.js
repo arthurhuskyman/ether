@@ -349,5 +349,6 @@ window.__LANG_DICTS["km"] = {
   "chat.camera.holdForVideo": "សង្កត់ដើម្បីថតវីដេអូ",
   "toast.videoUnsupported": "ការថតវីដេអូមិនត្រូវបានគាំទ្រនៅលើឧបករណ៍នេះទេ",
   "toast.waitingForKey": "{name} ត្រូវការចូលអនឡាញយ៉ាងហោចណាស់ម្តងមុនពេលអ្នកអាចផ្ញើអ្វីមួយ — កំពុងរង់ចាំ",
+  "toast.fileEmpty": "ឯកសារនេះទទេ",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("km");
