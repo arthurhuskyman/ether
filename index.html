@@ -718,5 +718,54 @@
 <script src="js/webrtc.js"></script>
 <script src="js/file-limits.js"></script>
 <script src="js/app.js"></script>
+<script>
+// ВРЕМЕННЫЙ диагностический блок — удалить после сбора данных.
+// Ждём 2 секунды, чтобы PWA успел войти в standalone-режим,
+// Safari пересчитал viewport после адресной строки, и т.п.
+setTimeout(function () {
+  function readEnv(name) {
+    var probe = document.createElement('div');
+    probe.style.cssText =
+      'position:fixed;left:-9999px;bottom:0;height:env(' + name + ',0px);width:1px;visibility:hidden;pointer-events:none;';
+    document.documentElement.appendChild(probe);
+    var h = probe.getBoundingClientRect().height;
+    probe.remove();
+    return h;
+  }
+
+  var dvhProbe = document.createElement('div');
+  dvhProbe.style.cssText = 'position:fixed;left:-9999px;top:0;height:100dvh;width:1px;visibility:hidden;';
+  document.body.appendChild(dvhProbe);
+  var dvh = dvhProbe.getBoundingClientRect().height;
+  dvhProbe.remove();
+
+  var app = document.getElementById('app-shell');
+  var tab = document.getElementById('tab-bar');
+
+  var lines = [
+    'standalone: ' + (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true),
+    'innerHeight: ' + window.innerHeight,
+    'visualViewport.height: ' + (window.visualViewport ? window.visualViewport.height.toFixed(1) : 'n/a'),
+    'screen.height: ' + screen.height,
+    'devicePixelRatio: ' + window.devicePixelRatio,
+    '100dvh: ' + dvh.toFixed(1),
+    'safe-area-inset-bottom: ' + readEnv('safe-area-inset-bottom').toFixed(1),
+    'safe-area-inset-top: ' + readEnv('safe-area-inset-top').toFixed(1),
+    'app-shell height: ' + (app ? app.getBoundingClientRect().height.toFixed(1) : 'n/a'),
+    'tab-bar height: ' + (tab ? tab.getBoundingClientRect().height.toFixed(1) : 'n/a'),
+    'tab-bar padding-bottom: ' + (tab ? getComputedStyle(tab).paddingBottom : 'n/a'),
+    'tab-bar content-box height: ' + (tab ? getComputedStyle(tab).height : 'n/a'),
+    'tab-bar box-sizing: ' + (tab ? getComputedStyle(tab).boxSizing : 'n/a'),
+    '--sab (если уже завели): ' + getComputedStyle(document.documentElement).getPropertyValue('--sab'),
+    '--sat (если уже завели): ' + getComputedStyle(document.documentElement).getPropertyValue('--sat'),
+  ].join('\n');
+
+  // 1) Копируемый лог — чтобы не переписывать руками с экрана.
+  window.__etherSafeAreaDiag = lines;
+
+  // 2) Видимый алерт — крупный и на любом экране.
+  alert(lines);
+}, 2000);
+</script>
 </body>
 </html>
