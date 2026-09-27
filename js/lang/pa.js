@@ -348,5 +348,6 @@ window.__LANG_DICTS["pa"] = {
   "onboarding.importBackup": "ਬੈਕਅੱਪ ਫਾਈਲ ਤੋਂ ਬਹਾਲ ਕਰੋ",
   "chat.camera.holdForVideo": "ਵੀਡੀਓ ਲਈ ਦਬਾ ਕੇ ਰੱਖੋ",
   "toast.videoUnsupported": "ਇਸ ਡਿਵਾਈਸ 'ਤੇ ਵੀਡੀਓ ਰਿਕਾਰਡਿੰਗ ਸਮਰਥਿਤ ਨਹੀਂ ਹੈ",
+  "toast.waitingForKey": "{name} ਨੂੰ ਕੁਝ ਭੇਜਣ ਤੋਂ ਪਹਿਲਾਂ ਉਹਨਾਂ ਨੂੰ ਘੱਟੋ-ਘੱਟ ਇੱਕ ਵਾਰ ਆਨਲਾਈਨ ਆਉਣਾ ਪਵੇਗਾ — ਉਡੀਕ ਜਾਰੀ",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("pa");

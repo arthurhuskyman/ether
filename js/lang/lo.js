@@ -348,5 +348,6 @@ window.__LANG_DICTS["lo"] = {
   "onboarding.importBackup": "ກູ້ຄືນຈາກໄຟລ໌ສຳຮອງ",
   "chat.camera.holdForVideo": "ກົດຄ້າງໄວ້ເພື່ອຖ່າຍວິດີໂອ",
   "toast.videoUnsupported": "ອຸປະກອນນີ້ບໍ່ຮອງຮັບການບັນທຶກວິດີໂອ",
+  "toast.waitingForKey": "{name} ຕ້ອງອອນລາຍຢ່າງໜ້ອຍໜຶ່ງຄັ້ງກ່ອນທີ່ທ່ານຈະສົ່ງຫຍັງໄດ້ — ກຳລັງລໍຖ້າ",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("lo");

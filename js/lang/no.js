@@ -348,5 +348,6 @@ window.__LANG_DICTS["no"] = {
   "onboarding.importBackup": "Gjenopprett fra sikkerhetskopifil",
   "chat.camera.holdForVideo": "Hold for video",
   "toast.videoUnsupported": "Videoopptak støttes ikke på denne enheten",
+  "toast.waitingForKey": "{name} må være pålogget minst én gang før du kan sende noe — venter",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("no");

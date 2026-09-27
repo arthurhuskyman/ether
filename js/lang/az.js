@@ -348,5 +348,6 @@ window.__LANG_DICTS["az"] = {
   "onboarding.importBackup": "Ehtiyat nüsxə faylından bərpa et",
   "chat.camera.holdForVideo": "Video üçün basılı saxlayın",
   "toast.videoUnsupported": "Bu cihazda video çəkilişi dəstəklənmir",
+  "toast.waitingForKey": "{name} nəyisə göndərə bilməzdən əvvəl ən azı bir dəfə onlayn olmalıdır — gözlənilir",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("az");

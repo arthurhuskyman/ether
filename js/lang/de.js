@@ -348,5 +348,6 @@ window.__LANG_DICTS["de"] = {
   "onboarding.importBackup": "Aus Backup-Datei wiederherstellen",
   "chat.camera.holdForVideo": "Halten für Video",
   "toast.videoUnsupported": "Videoaufnahme wird auf diesem Gerät nicht unterstützt",
+  "toast.waitingForKey": "{name} muss mindestens einmal online sein, bevor du etwas senden kannst — warte",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("de");

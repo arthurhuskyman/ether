@@ -348,5 +348,6 @@ window.__LANG_DICTS["mk"] = {
   "onboarding.importBackup": "Врати од резервна датотека",
   "chat.camera.holdForVideo": "Задржи за видео",
   "toast.videoUnsupported": "Снимањето видео не е поддржано на овој уред",
+  "toast.waitingForKey": "{name} мора барем еднаш да биде онлајн пред да можете да му испратите нешто — се чека",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("mk");

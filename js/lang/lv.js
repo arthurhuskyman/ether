@@ -348,5 +348,6 @@ window.__LANG_DICTS["lv"] = {
   "onboarding.importBackup": "Atjaunot no rezerves kopijas faila",
   "chat.camera.holdForVideo": "Turiet, lai ierakstītu video",
   "toast.videoUnsupported": "Video ierakstīšana šajā ierīcē netiek atbalstīta",
+  "toast.waitingForKey": "{name} vismaz vienreiz jābūt tiešsaistē, pirms varat viņam kaut ko nosūtīt — gaida",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("lv");

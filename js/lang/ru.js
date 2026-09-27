@@ -348,5 +348,6 @@ window.__LANG_DICTS["ru"] = {
   "onboarding.importBackup": "Восстановить из файла бэкапа",
   "chat.camera.holdForVideo": "Удерживайте для видео",
   "toast.videoUnsupported": "Запись видео не поддерживается на этом устройстве",
+  "toast.waitingForKey": "{name} должен(на) хоть раз выйти в сеть, прежде чем можно будет что-то отправить — ждём",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("ru");

@@ -348,5 +348,6 @@ window.__LANG_DICTS["lt"] = {
   "onboarding.importBackup": "Atkurti iš atsarginės kopijos failo",
   "chat.camera.holdForVideo": "Laikykite vaizdo įrašymui",
   "toast.videoUnsupported": "Vaizdo įrašymas šiame įrenginyje nepalaikomas",
+  "toast.waitingForKey": "{name} turi bent kartą prisijungti, kol galėsite jam ką nors siųsti — laukiama",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("lt");

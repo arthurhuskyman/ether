@@ -348,5 +348,6 @@ window.__LANG_DICTS["sv"] = {
   "onboarding.importBackup": "Återställ från säkerhetskopia",
   "chat.camera.holdForVideo": "Håll för video",
   "toast.videoUnsupported": "Videoinspelning stöds inte på den här enheten",
+  "toast.waitingForKey": "{name} måste vara online minst en gång innan du kan skicka något — väntar",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("sv");

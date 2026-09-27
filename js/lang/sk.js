@@ -348,5 +348,6 @@ window.__LANG_DICTS["sk"] = {
   "onboarding.importBackup": "Obnoviť zo záložného súboru",
   "chat.camera.holdForVideo": "Podržte pre video",
   "toast.videoUnsupported": "Nahrávanie videa nie je na tomto zariadení podporované",
+  "toast.waitingForKey": "{name} musí byť aspoň raz online, kým mu môžete niečo poslať — čaká sa",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("sk");

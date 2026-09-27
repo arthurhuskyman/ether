@@ -348,5 +348,6 @@ window.__LANG_DICTS["uz"] = {
   "onboarding.importBackup": "Zaxira fayldan tiklash",
   "chat.camera.holdForVideo": "Video uchun bosib turing",
   "toast.videoUnsupported": "Bu qurilmada video yozish qo'llab-quvvatlanmaydi",
+  "toast.waitingForKey": "Siz {name}ga biror narsa yuborishdan oldin u kamida bir marta onlayn bo'lishi kerak — kutilmoqda",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("uz");

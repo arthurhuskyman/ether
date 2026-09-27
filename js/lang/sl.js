@@ -348,5 +348,6 @@ window.__LANG_DICTS["sl"] = {
   "onboarding.importBackup": "Obnovi iz datoteke z varnostno kopijo",
   "chat.camera.holdForVideo": "Pridržite za video",
   "toast.videoUnsupported": "Snemanje videa na tej napravi ni podprto",
+  "toast.waitingForKey": "{name} mora biti vsaj enkrat povezan, preden mu lahko kaj pošljete — čakanje",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("sl");

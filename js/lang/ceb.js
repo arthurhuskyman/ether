@@ -348,5 +348,6 @@ window.__LANG_DICTS["ceb"] = {
   "onboarding.importBackup": "I-restore gikan sa backup file",
   "chat.camera.holdForVideo": "Pindota og dugay para sa video",
   "toast.videoUnsupported": "Ang pag-record og video wala gisuportahan niini nga device",
+  "toast.waitingForKey": "Kinahanglan mag-online si {name} labing menos kausa una ka makapadala ug bisan unsa — naghulat",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("ceb");

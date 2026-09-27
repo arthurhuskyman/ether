@@ -348,5 +348,6 @@ window.__LANG_DICTS["ha"] = {
   "onboarding.importBackup": "Dawo da bayanai daga fayil na ajiya",
   "chat.camera.holdForVideo": "Riƙe don bidiyo",
   "toast.videoUnsupported": "Ba a goyi bayan yin rikodin bidiyo akan wannan na'ura ba",
+  "toast.waitingForKey": "{name} yana bukatar shiga kan layi aƙalla sau ɗaya kafin ka iya aika masa wani abu — ana jira",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("ha");

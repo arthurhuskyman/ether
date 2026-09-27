@@ -348,5 +348,6 @@ window.__LANG_DICTS["id"] = {
   "onboarding.importBackup": "Pulihkan dari file cadangan",
   "chat.camera.holdForVideo": "Tahan untuk video",
   "toast.videoUnsupported": "Perekaman video tidak didukung di perangkat ini",
+  "toast.waitingForKey": "{name} perlu online setidaknya sekali sebelum Anda bisa mengirim sesuatu — menunggu",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("id");

@@ -348,5 +348,6 @@ window.__LANG_DICTS["vi"] = {
   "onboarding.importBackup": "Khôi phục từ tệp sao lưu",
   "chat.camera.holdForVideo": "Giữ để quay video",
   "toast.videoUnsupported": "Thiết bị này không hỗ trợ quay video",
+  "toast.waitingForKey": "{name} cần trực tuyến ít nhất một lần trước khi bạn có thể gửi gì đó — đang chờ",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("vi");

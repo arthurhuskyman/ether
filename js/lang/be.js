@@ -348,5 +348,6 @@ window.__LANG_DICTS["be"] = {
   "onboarding.importBackup": "Аднавіць з файла рэзервовай копіі",
   "chat.camera.holdForVideo": "Утрымлівайце для відэа",
   "toast.videoUnsupported": "Запіс відэа не падтрымліваецца на гэтай прыладзе",
+  "toast.waitingForKey": "{name} павінен хоць раз зайсці ў сетку, перш чым вы зможаце яму нешта адправіць — чакаем",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("be");

@@ -348,5 +348,6 @@ window.__LANG_DICTS["fi"] = {
   "onboarding.importBackup": "Palauta varmuuskopiotiedostosta",
   "chat.camera.holdForVideo": "Pidä painettuna videolle",
   "toast.videoUnsupported": "Videon tallennusta ei tueta tällä laitteella",
+  "toast.waitingForKey": "{name} täytyy olla ainakin kerran linjoilla, ennen kuin voit lähettää hänelle jotain — odotetaan",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("fi");

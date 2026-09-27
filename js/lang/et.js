@@ -348,5 +348,6 @@ window.__LANG_DICTS["et"] = {
   "onboarding.importBackup": "Taasta varukoopia failist",
   "chat.camera.holdForVideo": "Video jaoks hoia all",
   "toast.videoUnsupported": "Video salvestamine pole selles seadmes toetatud",
+  "toast.waitingForKey": "{name} peab vähemalt korra võrgus olema, enne kui saad talle midagi saata — ootel",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("et");

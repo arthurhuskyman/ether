@@ -348,5 +348,6 @@ window.__LANG_DICTS["ko"] = {
   "onboarding.importBackup": "백업 파일에서 복원",
   "chat.camera.holdForVideo": "길게 눌러 동영상",
   "toast.videoUnsupported": "이 기기에서는 동영상 녹화를 지원하지 않습니다",
+  "toast.waitingForKey": "{name}님이 최소 한 번은 온라인 상태여야 전송할 수 있습니다 — 대기 중",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("ko");

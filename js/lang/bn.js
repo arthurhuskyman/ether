@@ -348,5 +348,6 @@ window.__LANG_DICTS["bn"] = {
   "onboarding.importBackup": "ব্যাকআপ ফাইল থেকে পুনরুদ্ধার করুন",
   "chat.camera.holdForVideo": "ভিডিওর জন্য চেপে ধরুন",
   "toast.videoUnsupported": "এই ডিভাইসে ভিডিও রেকর্ডিং সমর্থিত নয়",
+  "toast.waitingForKey": "{name}-কে কিছু পাঠানোর আগে তাকে অন্তত একবার অনলাইনে আসতে হবে — অপেক্ষা করা হচ্ছে",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("bn");

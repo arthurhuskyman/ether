@@ -348,5 +348,6 @@ window.__LANG_DICTS["yo"] = {
   "onboarding.importBackup": "Mú padà láti fáìlì àṣẹpadà",
   "chat.camera.holdForVideo": "Dì mú fún fídíò",
   "toast.videoUnsupported": "A kò ṣe àtìlẹyìn fún gbígbàsílẹ̀ fídíò lórí ẹ̀rọ yìí",
+  "toast.waitingForKey": "{name} gbọ́dọ̀ wà lórí ayélujára ó kéré tán ẹ̀ẹ̀kan kí o tó lè fi nǹkan ránṣẹ́ sí wọn — ń dúró",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("yo");

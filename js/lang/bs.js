@@ -348,5 +348,6 @@ window.__LANG_DICTS["bs"] = {
   "onboarding.importBackup": "Vrati iz rezervne datoteke",
   "chat.camera.holdForVideo": "Drži za video",
   "toast.videoUnsupported": "Snimanje videa nije podržano na ovom uređaju",
+  "toast.waitingForKey": "{name} mora biti online barem jednom prije nego što mu možete nešto poslati — čeka se",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("bs");

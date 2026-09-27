@@ -348,5 +348,6 @@ window.__LANG_DICTS["mr"] = {
   "onboarding.importBackup": "बॅकअप फाइलमधून पुनर्संचयित करा",
   "chat.camera.holdForVideo": "व्हिडिओसाठी धरून ठेवा",
   "toast.videoUnsupported": "या डिव्हाइसवर व्हिडिओ रेकॉर्डिंग समर्थित नाही",
+  "toast.waitingForKey": "{name} ला काहीही पाठवण्यापूर्वी त्यांनी किमान एकदा ऑनलाइन येणे आवश्यक आहे — प्रतीक्षा सुरू",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("mr");

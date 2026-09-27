@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.32.15";
+const APP_VERSION = "V.32.19";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 const MAX_MESSAGE_LENGTH = 4000;
@@ -421,30 +421,21 @@ function escapeHtml(s) {
 }
 function linkifyAndHighlight(text, query) {
   const esc = escapeHtml(text);
-  const urlRegex = /(https?:\/\/[^\s<]+[^\s<.,;:!?)])/gi;
+  // Работаем с НЕэкранированным текстом для поиска (escapeHtml меняет
+  // индексы из-за &amp; и т.п.), а на выходе экранируем каждый кусок
+  // отдельно — так же, как делал старый код для нессылочных частей.
+  const found = findAllUrls(text);
   let result = "";
   let lastIdx = 0;
-  let m;
-  urlRegex.lastIndex = 0;
-  while ((m = urlRegex.exec(esc)) !== null) {
-    if (m.index > lastIdx) result += highlightRaw(esc.slice(lastIdx, m.index), query);
-    let url = m[1];
-    let endIdx = m.index + url.length;
-    // Regex нарочно не берёт ")" последним символом (чтобы не цеплять
-    // закрывающую скобку самого предложения) — но это же обрезает
-    // легитимный ")" в конце ссылок вида .../foo_(bar). Досчитываем: если
-    // внутри совпадения больше "(" чем ")", а следующий символ в тексте —
-    // ")", значит это была часть самого URL, а не пунктуация — включаем.
-    while (esc[endIdx] === ")" && (url.match(/\(/g) || []).length > (url.match(/\)/g) || []).length) {
-      url += ")";
-      endIdx++;
-    }
-    result += `<a href="${url}" target="_blank" rel="noopener noreferrer">${highlightRaw(url, query)}</a>`;
-    lastIdx = endIdx;
-    urlRegex.lastIndex = endIdx;
+  for (const u of found) {
+    if (u.start > lastIdx) result += highlightRaw(escapeHtml(text.slice(lastIdx, u.start)), query);
+    const hrefUrl = u.normalized; // https://... даже для "голого" домена — иначе браузер трактует как относительный путь
+    const displayText = escapeHtml(u.raw); // показываем то, что пользователь реально написал (без добавленного https://)
+    result += `<a href="${hrefUrl}" target="_blank" rel="noopener noreferrer">${highlightRaw(displayText, query)}</a>`;
+    lastIdx = u.end;
   }
-  if (lastIdx < esc.length) result += highlightRaw(esc.slice(lastIdx), query);
-  return result;
+  if (lastIdx < text.length) result += highlightRaw(escapeHtml(text.slice(lastIdx)), query);
+  return result || esc;
 }
 // =====================================================================
 // Превью ссылок
@@ -452,9 +443,40 @@ function linkifyAndHighlight(text, query) {
 // Сервер видит саму ссылку (не текст сообщения) при первом запросе
 // превью для неё — см. README. Кеш и на клиенте, и на сервере, поэтому
 // повторный показ той же ссылки повторного запроса не делает.
+// Раньше распознавались ТОЛЬКО ссылки с явным http(s):// — реальные
+// пользователи чаще пишут просто "ya.ru" или "github.com" без протокола,
+// и такие сообщения не распознавались как ссылки ВООБЩЕ: ни превью, ни
+// кликабельность. Единая регулярка на три альтернативы (используется и
+// здесь, и в linkifyAndHighlight — не дублируем логику):
+//   1) явный http(s)://...
+//   2) www.domain... (сам префикs www. — надёжный сигнал)
+//   3) bareword.TLD — только по списку распознанных доменных зон, с
+//      границей слова, чтобы не путать с версиями (3.14), сокращениями
+//      (т.д., e.g.) и т.п.
+const URL_TLDS = "com|org|net|edu|gov|io|co|me|info|biz|ru|su|uk|de|fr|es|it|nl|pl|se|no|dk|fi|ch|at|be|pt|gr|cz|hu|ro|bg|hr|si|sk|lt|lv|ee|ua|by|kz|cn|jp|kr|in|au|nz|ca|br|mx|il|tr|ae|id|th|vn|ph|my|sg|hk|tw|app|dev|xyz|online|site|club|store|tech|shop|news|live|tv|fm|cc|to|gg|ai|link|рф";
+const URL_RE_SRC = "(https?://[^\\s<]+[^\\s<.,;:!?)])" +
+  "|((?:^|[\\s(])((?:www\\.)[a-zA-Z0-9][a-zA-Z0-9-]*(?:\\.[a-zA-Z0-9][a-zA-Z0-9-]*)+(?:/[^\\s<.,;:!?)]*)?))" +
+  "|((?:^|[\\s(])([a-zA-Z0-9][a-zA-Z0-9-]*(?:\\.[a-zA-Z0-9][a-zA-Z0-9-]*)*\\.(?:" + URL_TLDS + ")(?:/[^\\s<.,;:!?)]*)?)(?=[\\s).,;:!?]|$))";
+// Находит ВСЕ ссылки в тексте (для linkifyAndHighlight). Каждый элемент:
+// {start, end, raw, normalized} — raw как в тексте, normalized — с
+// подставленным https:// для домена без протокола (для fetch/href).
+function findAllUrls(text) {
+  const re = new RegExp(URL_RE_SRC, "gi");
+  const results = [];
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const raw = m[1] || m[3] || m[5];
+    if (!raw) continue;
+    const start = m.index + (m[0].length - raw.length);
+    const normalized = /^https?:\/\//i.test(raw) ? raw : "https://" + raw;
+    results.push({ start, end: start + raw.length, raw, normalized });
+    re.lastIndex = start + raw.length; // избегаем зацикливания/двойного счёта на группах 2/4 с ведущим пробелом
+  }
+  return results;
+}
 function extractFirstUrl(text) {
-  const m = String(text || "").match(/https?:\/\/[^\s<]+[^\s<.,;:!?)]/i);
-  return m ? m[0] : null;
+  const found = findAllUrls(String(text || ""));
+  return found.length ? found[0].normalized : null;
 }
 function signalingHttpBase() {
   let url = "";
@@ -3607,10 +3629,20 @@ async function flushOutboxItem(msgId) {
   const contact = state.contacts.get(entry.to);
   if (!contact) { outbox.delete(msgId); persistOutbox(); return; }
   if (!contact.publicKey) {
+    // Раньше сообщение тут просто исчезало из outbox в pendingNoKey БЕЗ
+    // единого сигнала пользователю — ack оставался "pending" НАВСЕГДА
+    // (ни "sent", ни "failed"), выглядело как вечно зависшая отправка
+    // без объяснения. Технически это корректно — без публичного ключа
+    // получателя зашифровать нечем, ждать его и правда единственный
+    // вариант (флашится автоматически, когда ключ придёт) — но
+    // пользователь должен ПОНИМАТЬ, что происходит, а не гадать.
+    const isFirstTime = !pendingNoKey.has(contact.id) || !pendingNoKey.get(contact.id).some((x) => x.msgId === msgId);
     if (!pendingNoKey.has(contact.id)) pendingNoKey.set(contact.id, []);
     const list = pendingNoKey.get(contact.id);
     if (!list.some((x) => x.msgId === msgId)) { list.push({ msgId, payload: entry.payload }); persistPendingNoKey(); }
-    outbox.delete(msgId); persistOutbox(); return;
+    outbox.delete(msgId); persistOutbox();
+    if (isFirstTime) toast(T("toast.waitingForKey", { name: contact.name || T("sys.someone") }));
+    return;
   }
   try {
     const sharedKey = await CryptoHelper.deriveSharedKey(Store.myPrivateKeyJwk, contact.publicKey);

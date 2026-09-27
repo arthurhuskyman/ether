@@ -348,5 +348,6 @@ window.__LANG_DICTS["bg"] = {
   "onboarding.importBackup": "Възстановяване от резервен файл",
   "chat.camera.holdForVideo": "Задръжте за видео",
   "toast.videoUnsupported": "Записването на видео не се поддържа на това устройство",
+  "toast.waitingForKey": "{name} трябва поне веднъж да се появи онлайн, преди да можете да му изпратите нещо — изчакване",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("bg");

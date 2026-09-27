@@ -348,5 +348,6 @@ window.__LANG_DICTS["ja"] = {
   "onboarding.importBackup": "バックアップファイルから復元",
   "chat.camera.holdForVideo": "長押しで動画",
   "toast.videoUnsupported": "この端末では動画撮影に対応していません",
+  "toast.waitingForKey": "{name}さんが一度でもオンラインにならないと送信できません — 待機中",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("ja");

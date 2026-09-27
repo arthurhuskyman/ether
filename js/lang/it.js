@@ -348,5 +348,6 @@ window.__LANG_DICTS["it"] = {
   "onboarding.importBackup": "Ripristina da un file di backup",
   "chat.camera.holdForVideo": "Tieni premuto per video",
   "toast.videoUnsupported": "La registrazione video non è supportata su questo dispositivo",
+  "toast.waitingForKey": "{name} deve essere online almeno una volta prima che tu possa inviargli qualcosa — in attesa",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("it");

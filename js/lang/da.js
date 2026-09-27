@@ -348,5 +348,6 @@ window.__LANG_DICTS["da"] = {
   "onboarding.importBackup": "Gendan fra sikkerhedskopifil",
   "chat.camera.holdForVideo": "Hold for video",
   "toast.videoUnsupported": "Videooptagelse understøttes ikke på denne enhed",
+  "toast.waitingForKey": "{name} skal være online mindst én gang, før du kan sende noget — venter",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("da");

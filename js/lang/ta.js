@@ -348,5 +348,6 @@ window.__LANG_DICTS["ta"] = {
   "onboarding.importBackup": "காப்புப்பிரதி கோப்பிலிருந்து மீட்டமை",
   "chat.camera.holdForVideo": "வீடியோவிற்கு அழுத்திப் பிடிக்கவும்",
   "toast.videoUnsupported": "இந்த சாதனத்தில் வீடியோ பதிவு ஆதரிக்கப்படவில்லை",
+  "toast.waitingForKey": "{name} க்கு எதையாவது அனுப்பும் முன் அவர் குறைந்தது ஒருமுறை ஆன்லைனில் இருக்க வேண்டும் — காத்திருக்கிறது",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("ta");

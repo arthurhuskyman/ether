@@ -348,5 +348,6 @@ window.__LANG_DICTS["sw"] = {
   "onboarding.importBackup": "Rejesha kutoka faili la nakala",
   "chat.camera.holdForVideo": "Shikilia kwa video",
   "toast.videoUnsupported": "Kurekodi video hakutumiki kwenye kifaa hiki",
+  "toast.waitingForKey": "{name} anahitaji kuwa mtandaoni angalau mara moja kabla hujaweza kumtumia kitu — inasubiri",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("sw");

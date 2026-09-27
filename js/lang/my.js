@@ -348,5 +348,6 @@ window.__LANG_DICTS["my"] = {
   "onboarding.importBackup": "အရန်ဖိုင်မှ ပြန်လည်ရယူရန်",
   "chat.camera.holdForVideo": "ဗီဒီယိုအတွက် ဖိထားပါ",
   "toast.videoUnsupported": "ဤစက်ပစ္စည်းတွင် ဗီဒီယိုမှတ်တမ်းတင်ခြင်းကို ပံ့ပိုးမထားပါ",
+  "toast.waitingForKey": "{name} ကို တစ်ခုခုပို့ခင် အနည်းဆုံး တစ်ကြိမ် အွန်လိုင်းရောက်ဖို့ လိုအပ်ပါတယ် — စောင့်နေသည်",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("my");

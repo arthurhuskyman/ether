@@ -348,5 +348,6 @@ window.__LANG_DICTS["ml"] = {
   "onboarding.importBackup": "ബാക്കപ്പ് ഫയലിൽ നിന്ന് പുനഃസ്ഥാപിക്കുക",
   "chat.camera.holdForVideo": "വീഡിയോയ്ക്ക് അമർത്തിപ്പിടിക്കുക",
   "toast.videoUnsupported": "ഈ ഉപകരണത്തിൽ വീഡിയോ റെക്കോർഡിംഗ് പിന്തുണയ്‌ക്കുന്നില്ല",
+  "toast.waitingForKey": "{name} ന് എന്തെങ്കിലും അയയ്ക്കുന്നതിന് മുമ്പ് അവർ കുറഞ്ഞത് ഒരിക്കലെങ്കിലും ഓൺലൈനിൽ വരണം — കാത്തിരിക്കുന്നു",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("ml");

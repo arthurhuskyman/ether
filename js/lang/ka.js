@@ -348,5 +348,6 @@ window.__LANG_DICTS["ka"] = {
   "onboarding.importBackup": "აღდგენა სარეზერვო ფაილიდან",
   "chat.camera.holdForVideo": "დააჭირეთ ვიდეოსთვის",
   "toast.videoUnsupported": "ვიდეოს ჩაწერა არ არის მხარდაჭერილი ამ მოწყობილობაზე",
+  "toast.waitingForKey": "{name}-მა ერთხელ მაინც უნდა შემოვიდეს ონლაინში, სანამ რამეს გაუგზავნით — ლოდინი",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("ka");

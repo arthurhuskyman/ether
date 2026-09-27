@@ -348,5 +348,6 @@ window.__LANG_DICTS["el"] = {
   "onboarding.importBackup": "Επαναφορά από αρχείο αντιγράφου ασφαλείας",
   "chat.camera.holdForVideo": "Κρατήστε για βίντεο",
   "toast.videoUnsupported": "Η εγγραφή βίντεο δεν υποστηρίζεται σε αυτή τη συσκευή",
+  "toast.waitingForKey": "Ο/Η {name} πρέπει να συνδεθεί τουλάχιστον μία φορά πριν μπορέσετε να του/της στείλετε κάτι — αναμονή",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("el");

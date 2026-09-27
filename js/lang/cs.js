@@ -348,5 +348,6 @@ window.__LANG_DICTS["cs"] = {
   "onboarding.importBackup": "Obnovit ze záložního souboru",
   "chat.camera.holdForVideo": "Podržte pro video",
   "toast.videoUnsupported": "Nahrávání videa není na tomto zařízení podporováno",
+  "toast.waitingForKey": "{name} musí být alespoň jednou online, než mu budete moci něco poslat — čeká se",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("cs");

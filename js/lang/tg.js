@@ -348,5 +348,6 @@ window.__LANG_DICTS["tg"] = {
   "onboarding.importBackup": "Аз файли нусхаи эҳтиётӣ барқарор кунед",
   "chat.camera.holdForVideo": "Барои видео нигоҳ доред",
   "toast.videoUnsupported": "Сабти видео дар ин дастгоҳ дастгирӣ намешавад",
+  "toast.waitingForKey": "Пеш аз он ки шумо чизе ба {name} фиристед, ӯ бояд ҳадди ақал як бор онлайн шавад — интизорӣ",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("tg");

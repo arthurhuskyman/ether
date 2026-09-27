@@ -348,5 +348,6 @@ window.__LANG_DICTS["he"] = {
   "onboarding.importBackup": "שחזר מקובץ גיבוי",
   "chat.camera.holdForVideo": "החזק לצילום וידאו",
   "toast.videoUnsupported": "הקלטת וידאו אינה נתמכת במכשיר זה",
+  "toast.waitingForKey": "{name} צריך/ה להתחבר לפחות פעם אחת לפני שתוכל/י לשלוח לו/ה משהו — ממתין",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("he");

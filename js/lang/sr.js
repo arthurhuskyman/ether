@@ -348,5 +348,6 @@ window.__LANG_DICTS["sr"] = {
   "onboarding.importBackup": "Врати из резервне датотеке",
   "chat.camera.holdForVideo": "Држите за видео",
   "toast.videoUnsupported": "Снимање видеа није подржано на овом уређају",
+  "toast.waitingForKey": "{name} мора бар једном да буде онлајн пре него што му нешто пошаљете — чека се",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("sr");

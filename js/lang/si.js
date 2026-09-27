@@ -348,5 +348,6 @@ window.__LANG_DICTS["si"] = {
   "onboarding.importBackup": "උපස්ථ ගොනුවකින් ප්‍රතිසාධනය කරන්න",
   "chat.camera.holdForVideo": "වීඩියෝවට අල්ලාගෙන සිටින්න",
   "toast.videoUnsupported": "මෙම උපාංගයේ වීඩියෝ පටිගත කිරීම සඳහා සහාය නොදක්වයි",
+  "toast.waitingForKey": "ඔබට {name} ට යමක් යැවීමට පෙර ඔවුන් අවම වශයෙන් වරක් අන්තර්ජාලයට පැමිණිය යුතුය — රැඳී සිටිමින්",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("si");

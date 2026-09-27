@@ -348,5 +348,6 @@ window.__LANG_DICTS["ne"] = {
   "onboarding.importBackup": "ब्याकअप फाइलबाट पुनर्स्थापना गर्नुहोस्",
   "chat.camera.holdForVideo": "भिडियोको लागि थिचिराख्नुहोस्",
   "toast.videoUnsupported": "यस उपकरणमा भिडियो रेकर्डिङ समर्थित छैन",
+  "toast.waitingForKey": "तपाईंले {name} लाई केही पठाउन सक्नुअघि उनी कम्तीमा एक पटक अनलाइन आउनुपर्छ — पर्खँदै",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("ne");

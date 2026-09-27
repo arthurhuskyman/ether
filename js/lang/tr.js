@@ -348,5 +348,6 @@ window.__LANG_DICTS["tr"] = {
   "onboarding.importBackup": "Yedek dosyasından geri yükle",
   "chat.camera.holdForVideo": "Video için basılı tutun",
   "toast.videoUnsupported": "Bu cihazda video kaydı desteklenmiyor",
+  "toast.waitingForKey": "Bir şey gönderebilmeniz için {name} en az bir kez çevrimiçi olmalı — bekleniyor",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("tr");

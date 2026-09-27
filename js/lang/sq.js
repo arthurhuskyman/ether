@@ -348,5 +348,6 @@ window.__LANG_DICTS["sq"] = {
   "onboarding.importBackup": "Rikthe nga skedari i rezervës",
   "chat.camera.holdForVideo": "Mbaj shtypur për video",
   "toast.videoUnsupported": "Regjistrimi i videos nuk mbështetet në këtë pajisje",
+  "toast.waitingForKey": "{name} duhet të jetë online të paktën një herë para se të mund t'i dërgoni diçka — duke pritur",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("sq");

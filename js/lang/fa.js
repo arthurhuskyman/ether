@@ -348,5 +348,6 @@ window.__LANG_DICTS["fa"] = {
   "onboarding.importBackup": "بازیابی از فایل پشتیبان",
   "chat.camera.holdForVideo": "برای ویدیو نگه دارید",
   "toast.videoUnsupported": "ضبط ویدیو در این دستگاه پشتیبانی نمی‌شود",
+  "toast.waitingForKey": "{name} باید حداقل یک‌بار آنلاین شود تا بتوانید چیزی برایش بفرستید — در انتظار",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("fa");

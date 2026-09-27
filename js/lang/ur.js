@@ -348,5 +348,6 @@ window.__LANG_DICTS["ur"] = {
   "onboarding.importBackup": "بیک اپ فائل سے بحال کریں",
   "chat.camera.holdForVideo": "ویڈیو کے لیے دبائے رکھیں",
   "toast.videoUnsupported": "اس ڈیوائس پر ویڈیو ریکارڈنگ سپورٹ نہیں ہے",
+  "toast.waitingForKey": "{name} کو کچھ بھیجنے سے پہلے کم از کم ایک بار آن لائن آنا ہوگا — انتظار جاری",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("ur");

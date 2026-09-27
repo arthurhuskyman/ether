@@ -348,5 +348,6 @@ window.__LANG_DICTS["zh"] = {
   "onboarding.importBackup": "从备份文件恢复",
   "chat.camera.holdForVideo": "长按拍摄视频",
   "toast.videoUnsupported": "此设备不支持视频录制",
+  "toast.waitingForKey": "需要{name}至少上线一次才能发送内容——正在等待",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("zh");

@@ -348,5 +348,6 @@ window.__LANG_DICTS["ro"] = {
   "onboarding.importBackup": "Restaurează dintr-un fișier de backup",
   "chat.camera.holdForVideo": "Ține apăsat pentru video",
   "toast.videoUnsupported": "Înregistrarea video nu este acceptată pe acest dispozitiv",
+  "toast.waitingForKey": "{name} trebuie să fie online cel puțin o dată înainte să îi poți trimite ceva — se așteaptă",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("ro");

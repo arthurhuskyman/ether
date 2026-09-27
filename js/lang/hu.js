@@ -348,5 +348,6 @@ window.__LANG_DICTS["hu"] = {
   "onboarding.importBackup": "Visszaállítás biztonsági mentésből",
   "chat.camera.holdForVideo": "Tartsd nyomva a videóhoz",
   "toast.videoUnsupported": "A videórögzítés nem támogatott ezen az eszközön",
+  "toast.waitingForKey": "{name}-nak legalább egyszer online kell lennie, mielőtt küldhetsz neki valamit — várakozás",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("hu");
