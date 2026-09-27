@@ -416,12 +416,19 @@ const httpServer = http.createServer(async (req, res) => {
     try {
       const data = await getLinkPreview(target);
       if (!data) {
+        // Раньше здесь ничего не логировалось — при отказе не было ни
+        // единого следа в логах сервера, даже на реальном деплое.
+        // Отладить, ПОЧЕМУ конкретная ссылка не даёт превью, было
+        // невозможно без гадания. Теперь видно домен и что именно
+        // произошло (или не бросило исключения, просто вернуло null).
+        console.log("[link-preview] пусто (без исключения) для " + new URL(target).hostname);
         res.writeHead(204); res.end(); return;
       }
       res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "public, max-age=3600" });
       res.end(JSON.stringify(data));
     } catch (e) {
-      res.writeHead(204); // тихо ничего не показываем — не хотим шумных ошибок в чате из-за недоступной ссылки
+      console.log("[link-preview] ошибка для " + (() => { try { return new URL(target).hostname; } catch (e2) { return target; } })() + ": " + e.message);
+      res.writeHead(204); // тихо ничего не показываем в самом чате — не хотим шумных ошибок из-за недоступной ссылки, но в логах теперь видно
       res.end();
     }
     return;

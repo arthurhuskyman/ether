@@ -1,8 +1,9 @@
-const CACHE_VERSION = "ether-shell-v87";
+const CACHE_VERSION = "ether-shell-v90";
 const SHELL_FILES = [
   "./",
   "./index.html",
   "./manifest.webmanifest",
+  "./js/app-names.json",
   "./css/styles.css",
   "./js/languages-meta.js",
   "./js/lang/en.js",
@@ -35,7 +36,19 @@ const SHELL_FILES = [
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_VERSION).then((cache) => cache.addAll(SHELL_FILES))
+    // Раньше cache.addAll(SHELL_FILES) использовал ОБЫЧНЫЙ fetch() —
+    // по умолчанию он уважает HTTP-кеш браузера (Cache-Control/ETag с
+    // сервера), а не гарантированно ходит в сеть. Итог: даже при
+    // корректно новом CACHE_VERSION (новая "корзина" кеша) сам процесс
+    // заполнения этой корзины мог тянуть файлы ИЗ СТАРОГО HTTP-кеша
+    // браузера, если тот ещё не истёк — при каждом новом релизе SW
+    // технически обновлялся, но мог молча продолжать раздавать старое
+    // содержимое CSS/JS. {cache: "reload"} на каждый запрос форсирует
+    // настоящий сетевой запрос, в обход HTTP-кеша, при установке новой
+    // версии — единственный момент, когда это действительно нужно.
+    caches.open(CACHE_VERSION).then((cache) =>
+      Promise.all(SHELL_FILES.map((url) => fetch(url, { cache: "reload" }).then((res) => cache.put(url, res))))
+    )
   );
   self.skipWaiting();
 });
@@ -49,10 +62,64 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
+// Определяем лучший подходящий язык по Accept-Language запроса (порядок
+// языков браузера/системы) — берём первый код, для которого реально
+// есть запись в app-names.json, а не просто самый первый в заголовке
+// (иначе "fr-FR,ru;q=0.9" при отсутствии fr давал бы английский вместо
+// разумного следующего варианта — ru).
+function pickManifestLang(acceptLanguageHeader, available) {
+  if (!acceptLanguageHeader) return "en";
+  const parts = acceptLanguageHeader.split(",").map((p) => p.trim().split(";")[0].toLowerCase());
+  for (const tag of parts) {
+    if (available[tag]) return tag;
+    const base = tag.split("-")[0];
+    if (available[base]) return base;
+  }
+  return "en";
+}
+async function handleManifestRequest(request) {
+  try {
+    const [manifestRes, namesRes] = await Promise.all([
+      caches.match("./manifest.webmanifest").then((c) => c || fetch(request)),
+      caches.match("./js/app-names.json").then((c) => c || fetch("./js/app-names.json")),
+    ]);
+    const manifest = await manifestRes.clone().json();
+    const localized = await namesRes.json();
+    const lang = pickManifestLang(request.headers.get("Accept-Language"), localized);
+    const entry = localized[lang] || localized.en;
+    if (entry) {
+      manifest.short_name = entry.name;
+      manifest.name = entry.tagline ? entry.name + " — " + entry.tagline : entry.name;
+      manifest.description = entry.tagline || manifest.description;
+      manifest.lang = lang;
+    }
+    return new Response(JSON.stringify(manifest), {
+      headers: { "Content-Type": "application/manifest+json" },
+    });
+  } catch (e) {
+    // На любую ошибку (сеть недоступна, JSON битый и т.п.) — честно
+    // отдаём исходный манифест как есть, лучше нелокализованное имя,
+    // чем сломанная установка PWA вовсе.
+    return caches.match("./manifest.webmanifest").then((c) => c || fetch(request));
+  }
+}
+
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   const url = new URL(event.request.url);
   if (url.origin !== location.origin) return;
+  // Манифест — статический файл, а имя PWA при установке браузер читает
+  // из него НАПРЯМУЮ, до того как вообще успевает запуститься JS
+  // приложения (там app.name уже локализован на все 72 языка, но это
+  // никак не помогает статическому манифесту). Единственный способ
+  // получить локализованное имя на установке — подменить ответ здесь,
+  // по Accept-Language самого запроса (это язык системы/браузера,
+  // именно то, что нужно на экране установки — ДО того, как пользователь
+  // вообще мог бы выбрать язык внутри самого приложения).
+  if (url.pathname.endsWith("/manifest.webmanifest")) {
+    event.respondWith(handleManifestRequest(event.request));
+    return;
+  }
   if (url.search) {
     // Навигационные запросы с query-строкой (например ?call=... или
     // ?chat=... — так открывается декларативное push-уведомление) должны

@@ -243,7 +243,17 @@ html[data-theme="light"] .glass-content {
   font-size: 12px; font-weight: 600; color: var(--red);
 }
 .nav-conn-indicator::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
-.nav-mode-list { padding: 0 4px; }
+.nav-mode-list {
+  padding: 0 4px;
+  display: flex;
+  align-items: center;
+  /* Раньше переключатель Чаты/Звонки шёл ОТДЕЛЬНОЙ строкой под
+     заголовком (margin-top у .chats-segment) — теперь на одной строке
+     с заголовком, прижат к правому краю через justify-content. */
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
 .nav-mode-chat { display: flex; align-items: center; gap: 4px; }
 .nav-contact-title { flex: 1; text-align: center; font-size: 17px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #content { flex: 1; min-height: 0; overflow: hidden; position: relative; order: 0; }
@@ -441,7 +451,7 @@ input.switch:checked::before { transform: translateX(18px); }
 .theme-seg button { flex: 1; border: none; background: transparent; padding: 8px 0; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--ink-dim); cursor: pointer; }
 .theme-seg button.active { background: var(--accent); color: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
 
-.chats-segment { display: flex; background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 10px; padding: 3px; gap: 3px; margin-top: 4px; max-width: 220px; }
+.chats-segment { display: flex; background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 10px; padding: 3px; gap: 3px; max-width: 220px; flex-shrink: 0; }
 .chats-segment button { flex: 1; position: relative; border: none; background: transparent; padding: 6px 0; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--ink-dim); cursor: pointer; }
 .chats-segment button.active { background: var(--accent); color: #fff; }
 .chats-segment .tab-badge { top: -6px; inset-inline-start: auto; inset-inline-end: 2px; margin-inline-start: 0; position: absolute; }
@@ -575,6 +585,14 @@ html[data-theme="auto"] .bubble-row.theirs .bubble-time { color: rgba(235, 235, 
 .voice-play-btn:disabled { opacity: 0.5; }
 .voice-progress { flex: 1; height: 4px; border-radius: 2px; background: rgba(127,127,127,0.25); overflow: hidden; }
 .voice-progress-fill { height: 100%; width: 0%; background: var(--accent); border-radius: 2px; transition: width 0.1s linear; }
+/* В своих сообщениях пузырь и так залит var(--accent) (тем же цветом,
+   что кнопка/слайдер по умолчанию) — кнопка play и прогресс сливались
+   с фоном, почти не различить. Инвертируем: белая кнопка с цветной
+   иконкой play, полупрозрачно-белый трек вместо серого (серый на
+   фиолетовом фоне тоже плохо виден). */
+.bubble-row.mine .voice-play-btn { background: #fff; color: var(--accent); }
+.bubble-row.mine .voice-progress { background: rgba(255,255,255,0.3); }
+.bubble-row.mine .voice-progress-fill { background: #fff; }
 .voice-duration { font-size: 11px; opacity: 0.75; min-width: 34px; text-align: end; }
 #voice-recording-bar { display: flex; align-items: center; gap: 10px; }
 .voice-recording-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--red); animation: voice-pulse 1s ease-in-out infinite; flex-shrink: 0; }
@@ -632,7 +650,14 @@ html[data-theme="auto"] .bubble-row.theirs .bubble-time { color: rgba(235, 235, 
     color: transparent; -webkit-text-stroke: 1px rgba(255,255,255,0.9);
   }
 }
-.ack-tick.ack-read { color: #ffffff; font-size: 14px; }
+/* Раньше "прочитано" тоже было просто белым (#ffffff) — от "доставлено"
+   отличалось только заливкой/контуром (см. выше), что не всегда
+   бросается в глаза с первого взгляда. Ярко-голубой — узнаваемый,
+   почти общепринятый цвет именно для "прочитано" в мессенджерах, и
+   хорошо контрастирует именно с фиолетовым фоном пузыря (единственный
+   фон, на котором эти галочки вообще показываются — они только в
+   СВОИХ сообщениях). */
+.ack-tick.ack-read { color: #5ac8fa; font-size: 14px; }
 .ack-tick.ack-failed {
   color: #ff453a;
   font-size: 11px; font-weight: 700;
