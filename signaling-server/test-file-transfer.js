@@ -55,7 +55,6 @@ function arrayBufferToBase64(buffer) {
 
   // Собираем на стороне B то, что реально приходит
   const received = { meta: null, chunks: [], done: false };
-  const origHandler = b.dc.onmessage;
   b.dc.addEventListener("message", (ev) => {
     let payload;
     try { payload = JSON.parse(ev.data); } catch (e) { return; }

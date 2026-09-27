@@ -1,6 +1,18 @@
 const WebSocket = require("ws");
 
-const URL = "ws://localhost:8787";
+// Раньше этот тест полагался на УЖЕ ЗАПУЩЕННЫЙ отдельно сервер на 8787
+// (например, через npm start в другом терминале) — в отличие от
+// test-link-preview.js/test-declarative-push.js, которые поднимают
+// свой собственный экземпляр. npm test молча падал бы на этом самом
+// первом тесте, если рядом не запущен сервер, а "просто запустите
+// npm test" из README было неверной инструкцией. Теперь поднимает
+// свой сервер на выделенном порту, как остальные самодостаточные тесты.
+process.env.PORT = "8791";
+process.env.VAPID_PUBLIC = "";
+process.env.VAPID_PRIVATE = "";
+require("./server.js");
+
+const URL = "ws://localhost:8791";
 const idA = "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111";
 const idB = "bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222";
 
@@ -104,4 +116,7 @@ function connect(id, name) {
   A2.ws.close();
   console.log(`\nИтого: ${pass} прошло, ${fail} упало`);
   process.exit(fail > 0 ? 1 : 0);
-})();
+})().catch((e) => {
+  console.error("Ошибка теста:", e);
+  process.exit(1);
+});

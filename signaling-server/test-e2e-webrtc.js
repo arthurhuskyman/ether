@@ -8,7 +8,14 @@ const WebSocket = require("ws");
 const wrtc = require("@roamhq/wrtc");
 const { RTCPeerConnection } = wrtc;
 
-const SIGNALING_URL = "ws://localhost:8787";
+// Та же самая правка, что в test-two-clients.js — раньше полагался на
+// уже запущенный отдельно сервер на 8787. Свой порт, своя копия сервера.
+process.env.PORT = "8792";
+process.env.VAPID_PUBLIC = "";
+process.env.VAPID_PRIVATE = "";
+require("./server.js");
+
+const SIGNALING_URL = "ws://localhost:8792";
 const idA = "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111";
 const idB = "bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222";
 

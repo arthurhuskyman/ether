@@ -30,14 +30,11 @@ catch (e) { console.warn("[push] пакет web-push не установлен �
 
 const PORT = process.env.PORT || 8787;
 const MAX_MAILBOX_PER_USER = 500;
-// Раньше файлы/голосовые НЕ могли идти через mailbox вовсе — требовался
-// живой P2P, без офлайн-очереди (см. README/комментарий в app.js).
-// MAX_PAYLOAD был 128КБ — рассчитан только на текстовые сообщения.
-// Файлы через очередь ограничены СВОИМ, более скромным потолком
-// (MAX_MAILBOX_FILE_SIZE, см. app.js MAX_FILE_SIZE_OFFLINE) — 15МБ
-// (лимит для живого P2P) остались бы небезопасны для серверной памяти
-// при накоплении у многих офлайн-получателей одновременно.
-// 6МБ base64 ≈ 8МБ закодированных — MAX_PAYLOAD с запасом.
+// MAX_PAYLOAD — потолок на весь WS-фрейм целиком (текст, deliver с
+// файлом/голосовым через kind:"file", сигналинг звонков). Офлайн-файлы
+// (sendFileOffline/sendVoiceOffline в app.js) ограничены на клиенте
+// MAX_FILE_SIZE = 2МБ; после base64 (~2.73МБ) укладываются и в это, и
+// в потолок isValidEnvelope на ct (см. ниже) с запасом.
 const MAX_PAYLOAD = 8 * 1024 * 1024;
 // Файлы в mailbox не должны копиться вечно — в отличие от текста,
 // каждая запись весит МНОГО больше. 48 часов — разумное окно для
@@ -497,6 +494,25 @@ function savePushSubs() {
     console.warn("[push] не удалось сохранить файл подписок:", e.message);
   }
 }
+// Раньше push-subscribe писал файл подписок на диск (fs.writeFileSync,
+// синхронно) на КАЖДОЕ сообщение, без rate-limit вовсе. ensurePushSubscription
+// на клиенте дёргается из нескольких мест (после регистрации SW, смены
+// vapid-ключа, push-subscription-changed, восстановления ростера,
+// онлайн-события) — при частых переподключениях это реально молотит
+// диск на медленном FS (Render и подобные). Дебаунс: помечаем "грязным"
+// и пишем раз в 2с по таймеру, плюс гарантированно на shutdown — не
+// теряем данные, просто не пишем чаще, чем нужно.
+let pushSubsDirty = false;
+let pushSubsFlushTimer = null;
+function schedulePushSubsSave() {
+  pushSubsDirty = true;
+  if (pushSubsFlushTimer) return;
+  pushSubsFlushTimer = setTimeout(() => {
+    pushSubsFlushTimer = null;
+    if (pushSubsDirty) { pushSubsDirty = false; savePushSubs(); }
+  }, 2000);
+}
+const pushSubHits = new Map();
 loadPushSubs();
 
 // ---------- Базовая отправка push ----------
@@ -590,7 +606,7 @@ async function sendPushTo(recipientId, senderId, payload, opts = {}) {
 
   if (opts.force || payload.kind === "call") {
     const res = await actuallySendPush(subEntry, payload);
-    if (res === "gone") { pushSubs.delete(recipientId); savePushSubs(); }
+    if (res === "gone") { pushSubs.delete(recipientId); schedulePushSubsSave(); }
     return;
   }
 
@@ -602,7 +618,7 @@ async function sendPushTo(recipientId, senderId, payload, opts = {}) {
     if (entry && entry.timer) { clearTimeout(entry.timer); entry.timer = null; }
     pushThrottle.set(key, { lastAt: now, count: 0, timer: null });
     const res = await actuallySendPush(subEntry, payload);
-    if (res === "gone") { pushSubs.delete(recipientId); savePushSubs(); }
+    if (res === "gone") { pushSubs.delete(recipientId); schedulePushSubsSave(); }
     return;
   }
 
@@ -619,12 +635,20 @@ async function sendPushTo(recipientId, senderId, payload, opts = {}) {
       }
       const subNow = pushSubs.get(recipientId);
       if (!subNow) { pushThrottle.delete(key); return; }
-      const n = cur.count + 1;
+      // Раньше здесь было cur.count + 1 — счётчик на 1 больше
+      // реального числа сообщений в этом агрегированном пуше.
+      // Первое сообщение уже ушло отдельным немедленным пушем ДО
+      // того, как count вообще начал расти (count стартует с 0
+      // именно в момент немедленной отправки) — значит cur.count
+      // уже и есть точное число сообщений, пришедших ПОСЛЕ него.
+      // Пользователь видел "Новое сообщение", затем "3 новых
+      // сообщения" при реальных 2 дополнительных — переплата на одно.
+      const n = cur.count;
       cur.lastAt = Date.now();
       cur.count = 0;
       const aggregated = { ...payload, body: n > 1 ? pushText(subNow.lang, "aggregatedMessages", { n }) : payload.body };
       const res = await actuallySendPush(subNow, aggregated);
-      if (res === "gone") { pushSubs.delete(recipientId); savePushSubs(); }
+      if (res === "gone") { pushSubs.delete(recipientId); schedulePushSubsSave(); }
     }, delay);
   }
 }
@@ -672,9 +696,20 @@ function flushMailbox(id, ws) {
     });
   }
 }
+// Раньше ct.length < 96*1024 — рассчитано только на текстовые
+// сообщения. Но офлайн-отправка файлов/голосовых (kind: "file",
+// добавлена позже — sendFileOffline/sendVoiceOffline в app.js) кладёт
+// в этот же envelope base64 файла до MAX_FILE_SIZE (2МБ), что после
+// base64-кодирования даёт ~2.73МБ — сервер отклонял бы это как
+// "invalid-envelope" на КАЖДОЙ попытке отправить файл офлайн крупнее
+// ~70КБ, независимо от того, что сама фича существует и работает во
+// всём остальном. Подняли потолок до 3.5МБ — с запасом выше
+// теоретического максимума (2МБ исходника * 4/3 base64 + накладные
+// расходы шифрования), но по-прежнему далеко от MAX_PAYLOAD (8МБ) —
+// внешний предел на весь WS-фрейм остаётся дополнительной защитой.
 function isValidEnvelope(env) {
   return env && typeof env.iv === "string" && typeof env.ct === "string"
-    && env.iv.length < 200 && env.ct.length < 96 * 1024;
+    && env.iv.length < 200 && env.ct.length < 3.5 * 1024 * 1024;
 }
 function shortId(s) { return String(s || "").slice(0, 10) + "…"; }
 
@@ -729,9 +764,10 @@ wss.on("connection", (ws, req) => {
     }
 
     if (msg.type === "push-subscribe" && myId && msg.subscription) {
+      if (!wsRateLimitOk(pushSubHits, myId, 10)) return;
       try {
         pushSubs.set(myId, { subscription: msg.subscription, lang: typeof msg.lang === "string" ? msg.lang : "en" });
-        savePushSubs();
+        schedulePushSubsSave();
         safeSend(ws, { type: "push-subscribed" });
         console.log("[push] подписка сохранена для", shortId(myId), "всего=" + pushSubs.size);
       } catch (e) {}
@@ -739,7 +775,7 @@ wss.on("connection", (ws, req) => {
     }
     if (msg.type === "push-unsubscribe" && myId) {
       pushSubs.delete(myId);
-      savePushSubs();
+      schedulePushSubsSave();
       safeSend(ws, { type: "push-unsubscribed" });
       return;
     }
@@ -782,6 +818,17 @@ wss.on("connection", (ws, req) => {
     if (msg.type === "deliver" && myId && typeof msg.to === "string" && msg.to.length <= 128 && typeof msg.msgId === "string" && msg.msgId.length <= 128) {
       if (!wsRateLimitOk(deliverHits, myId, DELIVER_RATE_LIMIT_PER_MIN)) return;
       if (!isValidEnvelope(msg.envelope)) {
+        safeSend(ws, { type: "deliver-ack", msgId: msg.msgId, error: "invalid-envelope" });
+        return;
+      }
+      // fromPublicKey раньше принимался вообще без проверки размера —
+      // реальный JWK P-256 весит ~126 байт, но ничто не мешало
+      // отправителю подсунуть сюда мегабайты произвольной строки.
+      // MAX_MAILBOX_PER_USER записей в mailbox * почти неограниченный
+      // fromPublicKey на каждую — потенциально гигабайты на одного
+      // получателя. 1КБ — щедрый запас (8x реального размера), но
+      // отсекает злоупотребление.
+      if (msg.fromPublicKey != null && (typeof msg.fromPublicKey !== "object" || JSON.stringify(msg.fromPublicKey).length > 1024)) {
         safeSend(ws, { type: "deliver-ack", msgId: msg.msgId, error: "invalid-envelope" });
         return;
       }

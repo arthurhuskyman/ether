@@ -8,7 +8,15 @@
 process.env.PORT = "8790";
 process.env.VAPID_PUBLIC = "";
 process.env.VAPID_PRIVATE = "";
-process.env.ALLOWED_ORIGIN = "https://arthurhuskyman.github.io/ether";
+// APP_BASE_URL — своя переменная именно для базового URL приложения
+// (используется при формировании ссылок в push-уведомлениях). Раньше
+// тест использовал ALLOWED_ORIGIN для этой же цели — technically
+// работает (APP_BASE_URL получает ALLOWED_ORIGIN как fallback), но
+// ALLOWED_ORIGIN нужен строго для CORS в виде голого origin, а здесь
+// значение с путём (/ether). Если кто-то скопирует эту строку в
+// реальное окружение, CORS сломается — путаница между двумя разными
+// по смыслу переменными.
+process.env.APP_BASE_URL = "https://arthurhuskyman.github.io/ether";
 
 const path = require("path");
 require(path.join(__dirname, "server.js"));
