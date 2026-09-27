@@ -758,7 +758,18 @@ setTimeout(function () {
     'tab-bar box-sizing: ' + (tab ? getComputedStyle(tab).boxSizing : 'n/a'),
     '--sab (если уже завели): ' + getComputedStyle(document.documentElement).getPropertyValue('--sab'),
     '--sat (если уже завели): ' + getComputedStyle(document.documentElement).getPropertyValue('--sat'),
-  ].join('\n');
+ // --- ДОБАВИТЬ в конец массива lines ---
+'--- позиции элементов ---',
+'app-shell top: ' + (app ? app.getBoundingClientRect().top.toFixed(1) : 'n/a'),
+'app-shell bottom: ' + (app ? app.getBoundingClientRect().bottom.toFixed(1) : 'n/a'),
+'tab-bar top: ' + (tab ? tab.getBoundingClientRect().top.toFixed(1) : 'n/a'),
+'tab-bar bottom: ' + (tab ? tab.getBoundingClientRect().bottom.toFixed(1) : 'n/a'),
+'body rect top: ' + document.body.getBoundingClientRect().top.toFixed(1),
+'body rect bottom: ' + document.body.getBoundingClientRect().bottom.toFixed(1),
+'body rect height: ' + document.body.getBoundingClientRect().height.toFixed(1),
+'html rect height: ' + document.documentElement.getBoundingClientRect().height.toFixed(1),
+'window.innerHeight: ' + window.innerHeight,
+ ].join('\n');
 
   // 1) Копируемый лог — чтобы не переписывать руками с экрана.
   window.__etherSafeAreaDiag = lines;
