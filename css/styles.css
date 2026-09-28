@@ -248,11 +248,28 @@ html[data-theme="light"] .glass-content {
   border-radius: 0 0 var(--radius-l) var(--radius-l);
   border-top: none; z-index: 20;
 }
-#nav-title { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.02em; cursor: default; }
+#nav-title {
+  margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.02em; cursor: default;
+  /* Заголовок ужимается первым, когда на строке не хватает места —
+     flex: 1 1 auto даёт ему всю свободную ширину, min-width: 0
+     разрешает сжиматься ниже min-content, а overflow/ellipsis
+     аккуратно обрезают длинные названия. Так сегмент «Чаты/Звонки»
+     справа всегда получает нужное место, а на узких экранах и в
+     языках с длинными словами («Anrufe», «Discussions») заголовок
+     корректно сокращается, а не переносит сегмент на новую строку. */
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .nav-conn-indicator {
   display: flex; align-items: center; gap: 5px; margin-top: 2px;
   border: none; background: none; padding: 0; cursor: pointer;
   font-size: 12px; font-weight: 600; color: var(--red);
+  /* Индикатор не сжимается — либо виден целиком, либо не занимает
+     места. Иначе «офлайн» на узком экране мог бы выдавить сегмент. */
+  flex: 0 0 auto;
 }
 .nav-conn-indicator::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
 .nav-mode-list {
@@ -263,8 +280,13 @@ html[data-theme="light"] .glass-content {
      заголовком (margin-top у .chats-segment) — теперь на одной строке
      с заголовком, прижат к правому краю через justify-content. */
   justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
+  gap: 8px;
+  /* nowrap вместо wrap: сегмент «Чаты/Звонки» должен ВСЕГДА помещаться
+     на одной строке с заголовком, а не переноситься под него. На узких
+     экранах и при длинных названиях страдает не компоновка, а
+     заголовок (сокращается через ellipsis), сегмент же остаётся
+     нетронутым — он важнее для навигации. */
+  flex-wrap: nowrap;
 }
 .nav-mode-chat { display: flex; align-items: center; gap: 4px; }
 .nav-contact-title { flex: 1; text-align: center; font-size: 17px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -463,8 +485,59 @@ input.switch:checked::before { transform: translateX(18px); }
 .theme-seg button { flex: 1; border: none; background: transparent; padding: 8px 0; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--ink-dim); cursor: pointer; }
 .theme-seg button.active { background: var(--accent); color: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
 
-.chats-segment { display: flex; background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 10px; padding: 3px; gap: 3px; width: 323px; flex-shrink: 0; }
-.chats-segment button { flex: 1; position: relative; border: none; background: transparent; padding: 6px 0; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--ink-dim); cursor: pointer; }
+/* Сегмент «Чаты / Звонки» в хедере.
+   Раньше: flex с фиксированной width: 323px — на узких экранах
+   (iPhone SE, 320-375px) и в языках с длинными словами («Anrufe»,
+   «Discussions») не помещался рядом с заголовком, а flex-wrap: wrap
+   у родителя уводил его на вторую строку. И кнопки были разной
+   ширины, если тексты разной длины.
+   Теперь: grid 1fr 1fr — обе кнопки ГАРАНТИРОВАННО одинаковой ширины
+   при любом содержимом; ширина сегмента auto (flex: 0 1 auto), может
+   сжиматься, отдавая место заголовку; текст внутри кнопок обрезается
+   многоточием. flex-wrap: nowrap у родителя (см. .nav-mode-list)
+   заставляет сегмент всегда оставаться на одной строке с заголовком. */
+.chats-segment {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: 10px;
+  padding: 3px;
+  gap: 3px;
+  /* flex: 0 1 auto — не растягивается сверх контента, но может
+     сжиматься, если заголовок забрал много места. min-width: 0
+     разрешает ужатие ниже min-content каждой колонки. */
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.chats-segment button {
+  position: relative;
+  border: none;
+  background: transparent;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-dim);
+  cursor: pointer;
+  /* min-width: 0 + overflow: hidden + ellipsis — кнопка не может
+     раздуться из-за длинного текста; текст аккуратно обрезается
+     многоточием. Благодаря grid-колонкам 1fr 1fr обе кнопки всё
+     равно остаются одинаковой ширины, даже если одна обрезана,
+     а другая нет. */
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+/* Текст внутри кнопки — отдельным правилом, потому что span иначе
+   может «вылезти» за границы кнопки при очень длинном содержимом. */
+.chats-segment button > span {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
 .chats-segment button.active { background: var(--accent); color: #fff; }
 .chats-segment .tab-badge { top: -6px; inset-inline-start: auto; inset-inline-end: 2px; margin-inline-start: 0; position: absolute; }
 
