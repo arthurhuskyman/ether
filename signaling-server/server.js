@@ -21,6 +21,7 @@ const https = require("https");
 const dns = require("dns");
 const net = require("net");
 const fs = require("fs");
+const zlib = require("zlib");
 const path = require("path");
 const { WebSocketServer, WebSocket } = require("ws");
 
@@ -254,15 +255,10 @@ async function fetchUrlSafe(targetUrl, redirectsLeft) {
     const req = mod.get(u, {
       lookup: customLookup,
       headers: {
-        // Раньше честно представлялись ботом (EtherLinkPreview/1.0) —
-        // многие сайты (особенно крупные, включая ya.ru) блокируют
-        // ИМЕННО неизвестные боты, пропуская лишь известные (Googlebot,
-        // Twitterbot и т.п.) или обычные браузеры. Реалистичный
-        // браузерный User-Agent заметно повышает шанс получить обычный
-        // HTML с og:-тегами вместо блокировки/редиректа на капчу.
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Accept-Encoding": "gzip, deflate, br",
       },
       timeout: LINK_PREVIEW_TIMEOUT_MS,
     }, (res) => {
@@ -275,18 +271,38 @@ async function fetchUrlSafe(targetUrl, redirectsLeft) {
       if (res.statusCode !== 200) { res.resume(); reject(new Error("HTTP " + res.statusCode)); return; }
       const ctype = String(res.headers["content-type"] || "");
       if (ctype && !ctype.includes("html")) { res.resume(); reject(new Error("not html")); return; }
+
+      // Сжимаем ответ, если сервер его отдал в gzip/deflate/br. Без
+      // этого мы качаем несжатый HTML — github.com и ya.ru легко
+      // переваливают за LINK_PREVIEW_MAX_BYTES и падают с "too large".
+      const enc = String(res.headers["content-encoding"] || "").toLowerCase();
+      let stream = res;
+      if (enc === "gzip") stream = res.pipe(zlib.createGunzip());
+      else if (enc === "deflate") stream = res.pipe(zlib.createInflate());
+      else if (enc === "br") stream = res.pipe(zlib.createBrotliDecompress());
+
       let total = 0;
       const chunks = [];
-      res.on("data", (chunk) => {
+      let settled = false;
+      stream.on("data", (chunk) => {
+        if (settled) return;
         total += chunk.length;
-        if (total > LINK_PREVIEW_MAX_BYTES) { req.destroy(); reject(new Error("too large")); return; }
+        if (total > LINK_PREVIEW_MAX_BYTES) { settled = true; req.destroy(); reject(new Error("too large")); return; }
         chunks.push(chunk);
+        // Как только увидели </head> — обрываем, дальше <body> с кучей
+        // скриптов нам не нужен. Это и быстрее, и меньше по трафику.
+        const soFar = Buffer.concat(chunks).toString("utf8");
+        if (soFar.toLowerCase().includes("</head>")) {
+          settled = true;
+          req.destroy();
+          resolve(soFar);
+        }
       });
-      res.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
-      res.on("error", reject);
+      stream.on("end", () => { if (!settled) { settled = true; resolve(Buffer.concat(chunks).toString("utf8")); } });
+      stream.on("error", (e) => { if (!settled) { settled = true; reject(e); } });
     });
     req.on("timeout", () => req.destroy(new Error("timeout")));
-    req.on("error", reject);
+    req.on("error", (e) => { if (!req.destroyed) reject(e); });
   });
 }
 
