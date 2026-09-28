@@ -394,19 +394,41 @@ function getSoundEl(src, loop) {
 // пользовательского жеста (клик/тап) — тогда все элементы из пула потом
 // смогут запускаться сами, из любого асинхронного события (входящий
 // звонок, сообщение), без нового жеста.
+
 function unlockSoundPool() {
   for (const src of [...Object.values(RINGTONES), ...Object.values(SOUND_FILES)]) {
     const el = getSoundEl(src, false);
     if (el.dataset.unlocked) continue;
-    const wasMuted = el.muted;
-    el.muted = true;
-    const p = el.play();
-    if (p && p.catch) {
-      p.then(() => { el.pause(); el.currentTime = 0; el.muted = wasMuted; el.dataset.unlocked = "1"; }).catch(() => { el.muted = wasMuted; });
+    if (el.dataset.unlocking) continue; // уже разблокируем прямо сейчас
+    el.dataset.unlocking = "1";
+    // Раньше тут использовался el.muted=true на время разблокировки — но
+    // initAudioWarmup() вешает ОДИН И ТОТ ЖЕ обработчик сразу на touchstart
+    // и click. Один тап пользователя генерирует оба события подряд, функция
+    // вызывается дважды с интервалом в пару миллисекунд. Второй вызов читал
+    // уже выставленный первым вызовом el.muted=true как "исходное" значение
+    // и восстанавливал его же — элемент оставался muted НАВСЕГДА.
+    const originalVolume = el.volume;
+    el.volume = 0;
+    let p;
+    try { p = el.play(); }
+    catch (e) { el.volume = originalVolume; delete el.dataset.unlocking; continue; }
+    const finish = () => {
+      el.pause();
+      el.currentTime = 0;
+      el.volume = 1;
+      el.dataset.unlocked = "1";
+      delete el.dataset.unlocking;
+    };
+    if (p && typeof p.then === "function") {
+      p.then(finish).catch(() => {
+        el.volume = originalVolume || 1;
+        delete el.dataset.unlocking;
+      });
+    } else {
+      finish();
     }
   }
 }
-
 
 // =====================================================================
 // Утилиты
@@ -807,11 +829,46 @@ function ensureAudioCtx() {
 }
 function playMessageSound() {
   if (!Store.soundsEnabled) return;
+  // Раньше тут игрался HTMLAudioElement с msg.mp3 — на iPhone он у
+  // получателя не проигрывался (несколько возможных причин: silent switch,
+  // испорченное unlockSoundPool состояние muted, политика автовоспроизведения
+  // для <audio>, запущенного из асинхронного события). Исходящий звук при
+  // этом у отправителя работал — а он сделан через Web Audio API. Значит,
+  // Web Audio на этом устройстве надёжен, а <audio> — нет. Переводим
+  // входящий звук на тот же механизм: короткая двухнотная "дзынь", по
+  // мотивам исходного mp3. HTMLAudioElement оставлен только как fallback
+  // на случай, если AudioContext недоступен.
+  const ctx = ensureAudioCtx();
+  if (!ctx) {
+    try {
+      const el = getSoundEl(SOUND_FILES.message, false);
+      el.muted = false;
+      el.volume = 1;
+      el.currentTime = 0;
+      const p = el.play();
+      if (p && p.catch) p.catch((e) => etherLog("warn", "[sound] message:", String(e)));
+    } catch (e) { etherLog("warn", "[sound] message:", String(e)); }
+    return;
+  }
   try {
-    const el = getSoundEl(SOUND_FILES.message, false);
-    el.currentTime = 0;
-    const p = el.play();
-    if (p && p.catch) p.catch((e) => etherLog("warn", "[sound] message:", String(e)));
+    const playTone = (freq, delay, dur, vol) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.value = 0.0001;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      const t = ctx.currentTime + delay;
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(vol, t + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      osc.start(t);
+      osc.stop(t + dur + 0.05);
+    };
+    // Двухнотная короткая "дзынь" ~250мс — по мотивам msg.mp3, но без файла.
+    playTone(880, 0, 0.12, 0.15);
+    playTone(1175, 0.08, 0.16, 0.13);
   } catch (e) { etherLog("warn", "[sound] message:", String(e)); }
 }
 function playOutgoingSound() {
@@ -4053,12 +4110,23 @@ function wireSignalingEvents(sig) {
       const c = state.contacts.get(cid);
       if (c && c.publicKey) flushPendingNoKey(cid);
     }
+    // ПЕРЕОТПРАВЛЯЕМ подписку при каждом переподключении к серверу.
+    // Раньше подписка отправлялась только при первом subscribe — а сервер
+    // на Render хранит её в файле, который теряется при каждом рестарте
+    // инстанса (бесплатный тариф — перезапуск после 15 минут простоя и
+    // при каждом деплое). После первого же перезапуска push переставал
+    // работать вообще, потому что сервер просто не знал о подписке.
+    // Явное пересоздание подписки гарантирует, что она всегда актуальна.
     try {
       if (Store.pushSubscriptionJson) {
         const sub = JSON.parse(Store.pushSubscriptionJson);
         sig.sendPushSubscription(sub);
       }
     } catch (e) {}
+    // Полное пересоздание подписки (getSubscription → subscribe) — не
+    // только переиспользование сохранённого JSON. Это лечит случаи, когда
+    // сохранённый JSON устарел или сама подписка на стороне браузера
+    // истекла.
     setTimeout(() => { ensurePushSubscription().catch(() => {}); }, 500);
   }));
   subs.push(on("register-rate-limited", () => {
@@ -4141,7 +4209,12 @@ function wireSignalingEvents(sig) {
       playRingtone();
       const c = state.contacts.get(from);
       if (c && !c.muted && Store.notificationsEnabled) {
-        showNotification(T("call.incoming"), packet.n || "", { tag: "ether-call-" + from, contactId: from, kind: "call", force: true });
+        // Раньше тут был force: true — уведомление показывалось, даже когда
+        // приложение активно. В этом случае звонок уже отрисован на экране
+        // (openCallScreen выше), рингтон и вибрация играют (playRingtone
+        // выше) — системный баннер только дублировал видимое. Убрали force:
+        // showNotification() сам проверит document.visibilityState.
+        showNotification(T("call.incoming"), packet.n || "", { tag: "ether-call-" + from, contactId: from, kind: "call" });
       }
       try { sig.signal(from, { t: "call-invite-ack" }); } catch (e) {}
       return;
