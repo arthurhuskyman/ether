@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.32.27";
+const APP_VERSION = "V.32.27.2";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 const MAX_MESSAGE_LENGTH = 4000;
@@ -837,22 +837,22 @@ function ensureAudioCtx() {
 }
 function playMessageSound() {
   if (!Store.soundsEnabled) return;
-  const ctx = ensureGlobalAudioCtx();
-  if (!ctx) {
-    try {
-      const el = getSoundEl(SOUND_FILES.message, false);
-      el.muted = false; el.volume = 1; el.currentTime = 0;
-      const p = el.play();
-      if (p && p.catch) p.catch(() => {});
-    } catch (e) {}
-    return;
-  }
-  // ensureAudioCtx() (старая) не ждал ctx.resume() — на iOS после
-  // пробуждения приложения или при переключении между экранами контекст
-  // мог быть в состоянии "suspended". Осциллятор планировался на
-  // ctx.currentTime, который в спящем контексте не двигается, и звук
-  // терялся. Здесь ждём resume явно и только после этого играем.
-  const doPlay = () => {
+  // Гибридная схема: в foreground (приложение видно) играем через Web Audio
+  // — быстро, точно, не зависит от разблокировки пула. В background — через
+  // HTMLAudioElement, потому что Web Audio на iOS в фоне НЕ резюмируется:
+  // ctx.resume() без user gesture молча не срабатывает, осцилляторы копятся
+  // в очереди спящего контекста и выстреливают пачкой при следующем тапе.
+  // Это ровно то, что видел пользователь: "звук не с первого раза, потом
+  // сразу много".
+  //
+  // Ключевое отличие от прежнего кода: проверяем ctx.state === "running",
+  // а не просто наличие ctx. Если контекст suspended — НЕ пытаемся играть
+  // через него и НЕ вызываем resume() (в фоне он всё равно не сработает,
+  // а в foreground следующий пользовательский жест всё равно проснёт его
+  // через initAudioWarmup). Сразу падаем в HTMLAudioElement.
+  const isForeground = document.visibilityState === "visible";
+  const ctx = isForeground ? ensureGlobalAudioCtx() : null;
+  if (ctx && ctx.state === "running") {
     try {
       const playTone = (freq, at, dur, vol) => {
         const osc = ctx.createOscillator();
@@ -868,20 +868,28 @@ function playMessageSound() {
         osc.start(at);
         osc.stop(at + dur + 0.05);
       };
-      // Планируем звук не в "текущий момент", а после последнего
-      // запланированного звука — иначе при пачке сообщений все тоны
-      // лягут друг на друга и сливаются в один "пик".
-      const startAt = Math.max(ctx.currentTime + 0.01, __nextSoundAt);
+      // __nextSoundAt ограничиваем "не дальше 500 мс от now" — если
+      // контекст долго был suspended, __nextSoundAt мог уйти в далёкое
+      // будущее, и следующий звук "улетел" бы за пределы слышимого.
+      const now = ctx.currentTime;
+      const startAt = Math.max(now + 0.01, Math.min(__nextSoundAt, now + 0.5));
       playTone(880, startAt, 0.12, 0.15);
       playTone(1175, startAt + 0.08, 0.16, 0.13);
       __nextSoundAt = startAt + 0.26;
-    } catch (e) { etherLog("warn", "[sound] message:", String(e)); }
-  };
-  if (ctx.state === "suspended") {
-    ctx.resume().then(doPlay).catch(() => {});
-  } else {
-    doPlay();
+      return;
+    } catch (e) { etherLog("warn", "[sound] message (webaudio):", String(e)); }
   }
+  // Fallback — HTMLAudioElement. Единственный надёжный путь для фона
+  // (и для foreground, если ctx почему-то suspended). Элемент разблокирован
+  // unlockSoundPool() в первом user gesture.
+  try {
+    const el = getSoundEl(SOUND_FILES.message, false);
+    el.muted = false;
+    el.volume = 1;
+    el.currentTime = 0;
+    const p = el.play();
+    if (p && p.catch) p.catch((e) => etherLog("warn", "[sound] message (audio):", String(e)));
+  } catch (e) { etherLog("warn", "[sound] message (audio):", String(e)); }
 }
 
 function playOutgoingSound() {
@@ -926,8 +934,15 @@ function currentRingtoneSrc() {
 function playRingtone() {
   stopRingtone();
   if (!Store.soundsEnabled) { if (navigator.vibrate) { try { navigator.vibrate([400, 200, 400, 200, 400, 1000]); } catch (e) {} } return; }
+  // Основной путь — HTMLAudioElement (mp3-файл рингтона). Он работает и в
+  // foreground, и в background. Явно сбрасываем muted/volume перед play:
+  // stopRingtone() мог оставить элемент в промежуточном состоянии, а
+  // предыдущий проигрыш мог не завершиться корректно — оба приводили к
+  // "второй звонок не сработал".
   try {
     ringtoneAudioEl = getSoundEl(currentRingtoneSrc(), true);
+    ringtoneAudioEl.muted = false;
+    ringtoneAudioEl.volume = 1;
     ringtoneAudioEl.currentTime = 0;
     const p = ringtoneAudioEl.play();
     if (p && p.catch) p.catch((e) => etherLog("warn", "[ringtone] play failed:", String(e)));
@@ -936,12 +951,16 @@ function playRingtone() {
   if (navigator.vibrate) {
     try { navigator.vibrate([400, 200, 400, 200, 400, 1000]); } catch (e) {}
   }
-  // Дублируем ту же мелодию через Web Audio — на устройствах, где
-  // audio-элемент почему-то не разблокировался, есть шанс, что сработает
-  // осциллятор (и наоборот) — два независимых пути надёжнее одного.
+  // Web Audio-дублирование — ТОЛЬКО если ctx реально running. Раньше здесь
+  // было if (ctx) — и в момент, когда ctx был suspended (например,
+  // приложение только что ушло в фон и звонок приходит уже в фоне),
+  // планировались осцилляторы, которые никуда не звучали и накапливались,
+  // а потом "выстреливали" при следующем пользовательском жесте. Плюс
+  // setInterval создавал параллельный таймер, который продолжал работать
+  // и после stopRingtone() — второй звонок накладывался на первый.
   try {
-    const ctx = ensureAudioCtx();
-    if (ctx) {
+    const ctx = ensureGlobalAudioCtx();
+    if (ctx && ctx.state === "running") {
       const playTone = (freq, delay, dur, vol) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
@@ -3945,13 +3964,14 @@ function sendTypingStart(contactId) {
   state.typingSendingState.set(contactId, true);
   const c = state.contacts.get(contactId); if (!c) return;
   const link = mesh.get(contactId);
-  const payload = { kind: "typing", active: true };
-  if (link && link.send(payload)) return;
-  if (c.publicKey && signaling && signaling.connected) {
-    CryptoHelper.deriveSharedKey(Store.myPrivateKeyJwk, c.publicKey)
-      .then((k) => CryptoHelper.encryptJson(k, payload))
-      .then((envelope) => signaling.deliver(contactId, crypto.randomUUID(), envelope, Store.myPublicKeyJwk, "typing"))
-      .catch(() => {});
+  // Typing — временный статус. Если P2P-связи нет, отправлять его через
+  // сервер (в офлайн-очередь mailbox) смысла нет: получатель получит
+  // "печатает…" уже когда собеседник давно закрыл приложение. Раньше
+  // typing уходил в офлайн-очередь наравне с обычными сообщениями —
+  // видно в логах сервера: "[deliver] ... kind=typing online=false".
+  // Просто ничего не отправляем, если P2P нет.
+  if (link && (link.status === "connected" || link.status === "in-call")) {
+    link.send({ kind: "typing", active: true });
   }
 }
 function sendTypingStop(contactId) {
@@ -3959,13 +3979,8 @@ function sendTypingStop(contactId) {
   state.typingSendingState.set(contactId, false);
   const c = state.contacts.get(contactId); if (!c) return;
   const link = mesh.get(contactId);
-  const payload = { kind: "typing", active: false };
-  if (link && link.send(payload)) return;
-  if (c.publicKey && signaling && signaling.connected) {
-    CryptoHelper.deriveSharedKey(Store.myPrivateKeyJwk, c.publicKey)
-      .then((k) => CryptoHelper.encryptJson(k, payload))
-      .then((envelope) => signaling.deliver(contactId, crypto.randomUUID(), envelope, Store.myPublicKeyJwk, "typing"))
-      .catch(() => {});
+  if (link && (link.status === "connected" || link.status === "in-call")) {
+    link.send({ kind: "typing", active: false });
   }
 }
 // Три тумблера приватности сообщаются собеседнику через P2P (тот же
@@ -4410,9 +4425,21 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     }
     if (state.tab === "chats") renderChatsList();
     updateAppBadge();
-  } else if (kind === "group-invite") {
+   } else if (kind === "group-invite") {
+    // Дедупликация по payload.id. group-invite — особый случай: у него
+    // нет ack-механизма (получатель не отвечает "получил"), поэтому
+    // отправитель всегда дублирует отправку через сервер через
+    // P2P_FALLBACK_MS — это видно в логах: один и тот же msgId с
+    // kind=group-invite приходит дважды подряд. Без этой проверки
+    // получатель видел каждый групповой инвайт как два отдельных
+    // события.
+    const gDedupKey = "grp-inv:" + payload.id;
+    if (seenDeliverIds.has(gDedupKey)) return;
+    seenDeliverIds.add(gDedupKey);
+    if (seenDeliverIds.size > SEEN_DELIVER_LIMIT) seenDeliverIds.delete(seenDeliverIds.values().next().value);
+
     if (!Array.isArray(payload.members) || payload.members.length === 0 || payload.members.length > MAX_GROUP_MEMBERS) return;
-    if (!payload.members.some((m) => m.id === Store.myId)) return; // меня из группы вывели или пригласили по ошибке не туда
+    if (!payload.members.some((m) => m.id === Store.myId)) return;
     let g = state.contacts.get(payload.groupId);
     const isNew = !g;
     if (isNew) {
@@ -6851,6 +6878,12 @@ window.addEventListener("beforeunload", () => {
 
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
+    // Сбрасываем очередь Web Audio при возврате на передний план.
+    // Пока приложение было в фоне, playMessageSound могла накопить
+    // __nextSoundAt (осцилляторы не играли — ctx был suspended, но
+    // расписание заполнялось). Без сброса первый же звук после возврата
+    // прозвучит "отложенно", с уже накопленным временным сдвигом.
+    __nextSoundAt = 0;
     try { updateAppBadge(); } catch (e) {}
     try {
       if (globalAudioCtx && globalAudioCtx.state === "suspended") globalAudioCtx.resume().catch(() => {});
