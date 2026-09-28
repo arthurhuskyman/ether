@@ -207,21 +207,26 @@ function isPrivateIp(ip) {
   return true; // не распознали — на всякий случай считаем небезопасным
 }
 
-// ИСПРАВЛЕНО. Раньше тут использовался dns.lookup с { all: true } —
-// он возвращает массив объектов { address, family }, и при передаче
-// этого массива в http.get через кастомный lookup (для защиты от
-// TOCTOU/DNS-rebinding) поле .address оказывалось undefined. Симптом
-// виден в логах: "[link-preview] ошибка для <домен>: Invalid IP
-// address: undefined" — превью ссылок не работало ни для одной ссылки.
-// Используем dns.lookup без all: он возвращает сразу (err, address,
-// family), и структура совпадает с той, что ожидает http.get.
+// Node не кэширует dns.lookup вообще — каждый resolveHostSafe был
+// полноценным DNS-запросом к системному резолверу. При нескольких
+// ссылках на один домен (или цепочке редиректов через один хост) это
+// десятки лишних lookup'ов за сессию. Простой Map с TTL 5 минут
+// закрывает 90% случаев.
+const dnsCache = new Map(); // hostname -> { address, family, at }
+const DNS_CACHE_MS = 5 * 60 * 1000;
+const DNS_CACHE_MAX = 500;
+
 function resolveHostSafe(hostname) {
+  const now = Date.now();
+  const hit = dnsCache.get(hostname);
+  if (hit && now - hit.at < DNS_CACHE_MS) return Promise.resolve({ address: hit.address, family: hit.family });
   return new Promise((resolve, reject) => {
     dns.lookup(hostname, (err, address, family) => {
       if (err) return reject(err);
       if (!address) return reject(new Error("no address"));
       if (isPrivateIp(address)) return reject(new Error("private address blocked"));
-      console.log("[dns] " + hostname + " → " + address + " family=" + family + " typeof=" + typeof address);
+      dnsCache.set(hostname, { address, family, at: now });
+      if (dnsCache.size > DNS_CACHE_MAX) dnsCache.delete(dnsCache.keys().next().value);
       resolve({ address, family });
     });
   });
@@ -284,19 +289,29 @@ async function fetchUrlSafe(targetUrl, redirectsLeft) {
       let total = 0;
       const chunks = [];
       let settled = false;
+      let headTail = "";
       stream.on("data", (chunk) => {
         if (settled) return;
         total += chunk.length;
         if (total > LINK_PREVIEW_MAX_BYTES) { settled = true; req.destroy(); reject(new Error("too large")); return; }
         chunks.push(chunk);
-        // Как только увидели </head> — обрываем, дальше <body> с кучей
-        // скриптов нам не нужен. Это и быстрее, и меньше по трафику.
-        const soFar = Buffer.concat(chunks).toString("utf8");
-        if (soFar.toLowerCase().includes("</head>")) {
+        // Раньше здесь на КАЖДОМ чанке делался Buffer.concat(все_чанки)
+        // + toString + toLowerCase — то есть для HTML в 500 КБ из 50
+        // чанков это ~12 МБ перекодирования UTF-8 на один запрос.
+        // На бесплатном Render (0.1 CPU) это 1-2 секунды на каждое
+        // превью. Ищем </head> только в хвосте предыдущего текста
+        // (16 символов — с запасом, чтобы поймать </head> на границе
+        // чанков) плюс текущий чанк. Подстрока не может "спрятаться"
+        // в уже проверенной части, так что корректность та же.
+        const chunkText = chunk.toString("utf8").toLowerCase();
+        const search = headTail + chunkText;
+        if (search.includes("</head>")) {
           settled = true;
           req.destroy();
-          resolve(soFar);
+          resolve(Buffer.concat(chunks).toString("utf8"));
+          return;
         }
+        headTail = search.slice(-16);
       });
       stream.on("end", () => { if (!settled) { settled = true; resolve(Buffer.concat(chunks).toString("utf8")); } });
       stream.on("error", (e) => { if (!settled) { settled = true; reject(e); } });
