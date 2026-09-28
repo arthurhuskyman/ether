@@ -1,4 +1,4 @@
-const CACHE_VERSION = "ether-shell-v107";
+const CACHE_VERSION = "ether-shell-v110";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -22,12 +22,6 @@ const SHELL_FILES = [
   "./icons/apple-touch-icon.png",
   "./icons/favicon-32.png",
   "./fonts/InterVariable.woff2",
-  // ring-soft.mp3 и ring-bell.mp3 — АЛЬТЕРНАТИВНЫЕ рингтоны на выбор
-  // (Store.ringtone по умолчанию — "ring-classic"), большинство
-  // пользователей их никогда не выберут. Не кешируем заранее — на
-  // медленном канале первый запуск иначе тянул бы лишние МБ. Браузер
-  // закеширует их сам при первом реальном использовании (сам fetch-
-  // обработчик ниже это уже умеет для любого запроса с того же origin).
   "./sounds/ring-classic.mp3",
   "./sounds/msg.mp3",
   "./sounds/call-dialing.mp3",
@@ -37,16 +31,6 @@ const SHELL_FILES = [
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    // Раньше cache.addAll(SHELL_FILES) использовал ОБЫЧНЫЙ fetch() —
-    // по умолчанию он уважает HTTP-кеш браузера (Cache-Control/ETag с
-    // сервера), а не гарантированно ходит в сеть. Итог: даже при
-    // корректно новом CACHE_VERSION (новая "корзина" кеша) сам процесс
-    // заполнения этой корзины мог тянуть файлы ИЗ СТАРОГО HTTP-кеша
-    // браузера, если тот ещё не истёк — при каждом новом релизе SW
-    // технически обновлялся, но мог молча продолжать раздавать старое
-    // содержимое CSS/JS. {cache: "reload"} на каждый запрос форсирует
-    // настоящий сетевой запрос, в обход HTTP-кеша, при установке новой
-    // версии — единственный момент, когда это действительно нужно.
     caches.open(CACHE_VERSION).then((cache) =>
       Promise.all(SHELL_FILES.map((url) => fetch(url, { cache: "reload" }).then((res) => cache.put(url, res))))
     )
@@ -63,11 +47,6 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
-// Определяем лучший подходящий язык по Accept-Language запроса (порядок
-// языков браузера/системы) — берём первый код, для которого реально
-// есть запись в app-names.json, а не просто самый первый в заголовке
-// (иначе "fr-FR,ru;q=0.9" при отсутствии fr давал бы английский вместо
-// разумного следующего варианта — ru).
 function pickManifestLang(acceptLanguageHeader, available) {
   if (!acceptLanguageHeader) return "en";
   const parts = acceptLanguageHeader.split(",").map((p) => p.trim().split(";")[0].toLowerCase());
@@ -98,9 +77,6 @@ async function handleManifestRequest(request) {
       headers: { "Content-Type": "application/manifest+json" },
     });
   } catch (e) {
-    // На любую ошибку (сеть недоступна, JSON битый и т.п.) — честно
-    // отдаём исходный манифест как есть, лучше нелокализованное имя,
-    // чем сломанная установка PWA вовсе.
     return caches.match("./manifest.webmanifest").then((c) => c || fetch(request));
   }
 }
@@ -109,27 +85,11 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   const url = new URL(event.request.url);
   if (url.origin !== location.origin) return;
-  // Манифест — статический файл, а имя PWA при установке браузер читает
-  // из него НАПРЯМУЮ, до того как вообще успевает запуститься JS
-  // приложения (там app.name уже локализован на все 72 языка, но это
-  // никак не помогает статическому манифесту). Единственный способ
-  // получить локализованное имя на установке — подменить ответ здесь,
-  // по Accept-Language самого запроса (это язык системы/браузера,
-  // именно то, что нужно на экране установки — ДО того, как пользователь
-  // вообще мог бы выбрать язык внутри самого приложения).
   if (url.pathname.endsWith("/manifest.webmanifest")) {
     event.respondWith(handleManifestRequest(event.request));
     return;
   }
   if (url.search) {
-    // Навигационные запросы с query-строкой (например ?call=... или
-    // ?chat=... — так открывается декларативное push-уведомление) должны
-    // получить закешированную оболочку приложения, а не уйти мимо кеша:
-    // офлайн-клик по такому уведомлению иначе открывал бы пустую
-    // страницу. Сами query-параметры разбирает уже JS приложения после
-    // загрузки (см. handleNotificationNavigateParams в app.js) — для
-    // Service Worker это не имеет значения, какая версия index.html
-    // отдана, лишь бы отдана была.
     if (event.request.mode === "navigate") {
       event.respondWith(
         caches.match("./index.html").then((cached) => cached || fetch(event.request))
@@ -172,35 +132,29 @@ self.addEventListener("message", (event) => {
 });
 
 self.addEventListener("push", (event) => {
-  // Formats Declarative Web Push (web_push: 8030) — на браузерах, которые
-  // ещё не умеют показывать такие уведомления сами (не Safari), payload
-  // долетает сюда как обычно, и мы вручную вызываем showNotification() с
-  // теми же полями, что были бы использованы платформой нативно.
   let raw = null;
   if (event.data) {
     try { raw = event.data.json(); } catch (e) { raw = null; }
   }
-  // Раньше при payload вида {notification: {...}} БЕЗ web_push:8030
-  // (гипотетический другой формат/сервер) второй Object.assign(n, raw)
-  // копировал raw.notification КАК ЕСТЬ (вложенным объектом) в n.notification,
-  // не разворачивая его — n.title/n.body оставались дефолтными "Эфир"/"",
-  // и уведомление показывалось пустым. Теперь явно разворачиваем
-  // raw.notification, если он есть, вместо raw целиком.
   let n = raw && raw.notification && typeof raw.notification === "object"
     ? raw.notification
     : (raw && typeof raw === "object" ? raw : null);
   if (!n) n = { title: "Эфир", body: "", tag: "ether", data: {} };
   const data = n.data || {};
   event.waitUntil(
-    self.registration.showNotification(n.title || "Эфир", {
-      body: n.body || "",
-      tag: n.tag || "ether",
-      badge: "./icons/icon-192.png",
-      icon: "./icons/icon-192.png",
-      data: { contactId: data.contactId || null, kind: data.kind || "message", navigate: data.navigate || n.navigate || null },
-      vibrate: n.vibrate || (data.kind === "call" ? [300, 150, 300, 150, 300] : [100, 50, 100]),
-      requireInteraction: !!n.requireInteraction || data.kind === "call",
-      renotify: !!n.renotify,
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      const hasVisibleClient = clientList.some((c) => c.visibilityState === "visible");
+      if (hasVisibleClient) return;
+      return self.registration.showNotification(n.title || "Эфир", {
+        body: n.body || "",
+        tag: n.tag || "ether",
+        badge: "./icons/icon-192.png",
+        icon: "./icons/icon-192.png",
+        data: { contactId: data.contactId || null, kind: data.kind || "message", navigate: data.navigate || n.navigate || null },
+        vibrate: n.vibrate || (data.kind === "call" ? [300, 150, 300, 150, 300] : [100, 50, 100]),
+        requireInteraction: !!n.requireInteraction || data.kind === "call",
+        renotify: !!n.renotify,
+      });
     })
   );
 });
@@ -218,13 +172,6 @@ self.addEventListener("notificationclick", (event) => {
   const data = event.notification.data || {};
   const contactId = data.contactId;
   const kind = data.kind || "message";
-  // data.navigate — полный URL с ?call=<id>/?chat=<id>, который читает
-  // app.js при загрузке (handleNotificationNavigateParams). Раньше при
-  // полностью закрытом приложении (нет ни одного открытого окна) тут
-  // открывался голый "./" без этого параметра — приложение стартовало
-  // на обычном экране чатов, а не на входящем звонке. Именно это и
-  // означало "звонки не работают при закрытом приложении": пуш
-  // приходил, уведомление показывалось, но тап по нему никуда не вёл.
   const navigateUrl = data.navigate || "./";
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {

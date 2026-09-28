@@ -206,15 +206,21 @@ function isPrivateIp(ip) {
   return true; // не распознали — на всякий случай считаем небезопасным
 }
 
+// ИСПРАВЛЕНО. Раньше тут использовался dns.lookup с { all: true } —
+// он возвращает массив объектов { address, family }, и при передаче
+// этого массива в http.get через кастомный lookup (для защиты от
+// TOCTOU/DNS-rebinding) поле .address оказывалось undefined. Симптом
+// виден в логах: "[link-preview] ошибка для <домен>: Invalid IP
+// address: undefined" — превью ссылок не работало ни для одной ссылки.
+// Используем dns.lookup без all: он возвращает сразу (err, address,
+// family), и структура совпадает с той, что ожидает http.get.
 function resolveHostSafe(hostname) {
   return new Promise((resolve, reject) => {
-    dns.lookup(hostname, { all: true }, (err, addresses) => {
+    dns.lookup(hostname, (err, address, family) => {
       if (err) return reject(err);
-      if (!addresses || addresses.length === 0) return reject(new Error("no address"));
-      for (const a of addresses) {
-        if (isPrivateIp(a.address)) return reject(new Error("private address blocked"));
-      }
-      resolve(addresses[0]); // { address, family } — отдаём целиком, не только строку
+      if (!address) return reject(new Error("no address"));
+      if (isPrivateIp(address)) return reject(new Error("private address blocked"));
+      resolve({ address, family });
     });
   });
 }
@@ -733,6 +739,14 @@ wss.on("connection", (ws, req) => {
     if (!msg || typeof msg.type !== "string") return;
 
     if (msg.type === "ping") {
+      // application-level пинг от клиента (см. signaling-client.js,
+      // шлётся каждые 15 секунд). iOS-фоновый браузер отвечает на
+      // protocol-level WebSocket pong сам, даже когда JS приложения
+      // не выполняется — поэтому ws.isAlive остаётся true и сервер
+      // часами считает закрытый PWA онлайн. Application-level ping
+      // может отправить только работающий JS — по его отсутствию
+      // определяем реального "мертвеца".
+      ws.lastClientPing = Date.now();
       safeSend(ws, { type: "pong", t: msg.t });
       return;
     }
@@ -750,6 +764,8 @@ wss.on("connection", (ws, req) => {
         broadcastPresence(msg.id, false);
       }
       myId = msg.id;
+      ws._etherId = myId;
+      ws.lastClientPing = Date.now();
       clients.set(myId, {
         ws,
         name: String(msg.name || "").slice(0, 60),
@@ -899,7 +915,17 @@ wss.on("connection", (ws, req) => {
 });
 
 setInterval(() => {
+  const now = Date.now();
   for (const ws of wss.clients) {
+    // Если от клиента не приходил application-level ping больше 60
+    // секунд (клиент обязан слать каждые 15с) — считаем его мёртвым,
+    // не дожидаясь protocol-level таймаута. Логируем, чтобы в логах
+    // было видно disconnected даже при закрытом iOS-приложении.
+    if (ws.lastClientPing && now - ws.lastClientPing > 60000) {
+      console.log("[reg] " + shortId(ws._etherId) + " no app-ping for 60s, terminate");
+      ws.terminate();
+      continue;
+    }
     if (ws.isAlive === false) { ws.terminate(); continue; }
     ws.isAlive = false;
     ws.ping();
