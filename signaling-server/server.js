@@ -220,6 +220,7 @@ function resolveHostSafe(hostname) {
       if (err) return reject(err);
       if (!address) return reject(new Error("no address"));
       if (isPrivateIp(address)) return reject(new Error("private address blocked"));
+      console.log("[dns] " + hostname + " → " + address + " family=" + family + " typeof=" + typeof address);
       resolve({ address, family });
     });
   });
