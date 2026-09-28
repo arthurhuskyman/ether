@@ -91,6 +91,7 @@ class PeerLink extends EventTarget {
     this._closed = false;
     this._iceCandidates = [];
     this._iceErrors = [];
+    this._pendingRemoteCandidates = []; // кандидаты, пришедшие ДО setRemoteDescription
     this._createdAt = Date.now();
 
     // Раньше тут читался модульный ICE_SERVERS напрямую — если линк
@@ -313,7 +314,31 @@ class PeerLink extends EventTarget {
     }
     return false;
   }
+ 
+  async addIceCandidate(candidateJson) {
+    if (this._closed) return;
+    // Если remoteDescription ещё не установлен, addIceCandidate бросает
+    // InvalidStateError, и кандидат теряется навсегда. Именно поэтому
+    // trickle не работал бы вообще: первый кандидат приходит раньше,
+    // чем answer доходит и оседает в setRemoteDescription. Копим до
+    // этого момента.
+    if (!this.pc.remoteDescription || !this.pc.remoteDescription.type) {
+      this._pendingRemoteCandidates.push(candidateJson);
+      if (this._pendingRemoteCandidates.length > 200) this._pendingRemoteCandidates.shift();
+      return;
+    }
+    try { await this.pc.addIceCandidate(candidateJson); }
+    catch (e) { this._log("warn", "[webrtc] addIceCandidate failed:", String(e)); }
+  }
 
+  _flushPendingRemoteCandidates() {
+    if (!this.pc.remoteDescription || !this.pc.remoteDescription.type) return;
+    if (this._pendingRemoteCandidates.length === 0) return;
+    const list = this._pendingRemoteCandidates.splice(0);
+    for (const c of list) {
+      this.pc.addIceCandidate(c).catch((e) => this._log("warn", "[webrtc] flush addIceCandidate:", String(e)));
+    }
+  }
   // Отправка файла кусками поверх обычного send() — с учётом bufferedAmount,
   // чтобы не захлебнуть канал на больших вложениях. Живой P2P пробуется
   // первым (быстрее, не грузит сервер) — офлайн-путь через зашифрованный
@@ -344,7 +369,13 @@ class PeerLink extends EventTarget {
     try {
       const offer = await this.pc.createOffer();
       await this.pc.setLocalDescription(offer);
-      await waitForIceGathering(this.pc);
+      // Раньше здесь ждали полного ICE gathering (до 3500 мс) — SDP
+      // уходил только когда собраны ВСЕ кандидаты. Теперь SDP уходит
+      // сразу после setLocalDescription (~50-150 мс), а оставшиеся
+      // кандидаты досылаются по мере появления через сигналинг (см.
+      // app.js, обработчик mesh "ice-candidate" и packet.t === "ice").
+      // Это и есть trickle ICE: время установки падает с 5-10 секунд
+      // до 1-2 секунд на нормальной сети.
       if (this._closed || this.pc.signalingState === "closed") return null;
       this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "offer ready, candidates:", this._iceCandidates.length);
       return {
@@ -362,9 +393,16 @@ class PeerLink extends EventTarget {
     this.remoteName = (packet && packet.n) || this.remoteName;
     try {
       await this.pc.setRemoteDescription(packet.d);
+      this._flushPendingRemoteCandidates();
       const answer = await this.pc.createAnswer();
       await this.pc.setLocalDescription(answer);
-      await waitForIceGathering(this.pc);
+      // Раньше здесь ждали полного ICE gathering (до 3500 мс) — SDP
+      // уходил только когда собраны ВСЕ кандидаты. Теперь SDP уходит
+      // сразу после setLocalDescription (~50-150 мс), а оставшиеся
+      // кандидаты досылаются по мере появления через сигналинг (см.
+      // app.js, обработчик mesh "ice-candidate" и packet.t === "ice").
+      // Это и есть trickle ICE: время установки падает с 5-10 секунд
+      // до 1-2 секунд на нормальной сети.
       if (this._closed || this.pc.signalingState === "closed") return null;
       return {
         t: "answer", n: this.localName, x: crypto.randomUUID(),
@@ -379,6 +417,7 @@ class PeerLink extends EventTarget {
   async acceptAnswer(packet) {
     this.remoteName = (packet && packet.n) || this.remoteName;
     try { await this.pc.setRemoteDescription(packet.d); }
+    this._flushPendingRemoteCandidates();
     catch (e) {
       if (this._closed || this.pc.signalingState === "closed") return;
       throw e;
@@ -496,6 +535,7 @@ class PeerLink extends EventTarget {
       }
       try {
         await this.pc.setRemoteDescription({ type: "offer", sdp: payload.sdp });
+        this._flushPendingRemoteCandidates();
         const answer = await this.pc.createAnswer();
         await this.pc.setLocalDescription(answer);
       } catch (e) {
@@ -519,6 +559,7 @@ class PeerLink extends EventTarget {
       this.send({ kind: "sdp", sdpType: "answer", sdp: this.pc.localDescription.sdp });
     } else if (payload.sdpType === "answer") {
       await this.pc.setRemoteDescription({ type: "answer", sdp: payload.sdp });
+      this._flushPendingRemoteCandidates();
     }
   }
 

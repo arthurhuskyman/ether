@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.32.27.2";
+const APP_VERSION = "V.32.27.3";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 const MAX_MESSAGE_LENGTH = 4000;
@@ -340,6 +340,21 @@ const pendingRemoteStreams = new Map();
 // обработчик scroll) — не сразу при открытии чата.
 const unreadDividerFor = new Map();
 const dividerScrolledFor = new Set(); // раньше scrollIntoView к разделителю срабатывал на КАЖДОМ рендере, пока он не снят — новое сообщение в чате откатывало прокрутку обратно к разделителю; теперь только один раз, на сам вход в чат
+// ICE-кандидаты, пришедшие РАНЬШЕ offer/answer. С trickle ICE это
+// нормальная гонка: offerer начинает gathering сразу после
+// setLocalDescription, и его первый кандидат может долететь быстрее,
+// чем сам SDP. Пока link для этого собеседника не создан —
+// складываем в буфер, разбираем при создании (см. flushPendingIceFor).
+const pendingIceCandidates = new Map(); // fromId -> [candidateJson]
+
+function flushPendingIceFor(id, link) {
+  const buf = pendingIceCandidates.get(id);
+  if (!buf || buf.length === 0) return;
+  pendingIceCandidates.delete(id);
+  for (const c of buf) {
+    link.addIceCandidate(c).catch(() => {});
+  }
+}
 let __lastRenderedChatId = null;
 let speakerOn = false; // по умолчанию — внутренний динамик (наушник); объявлена здесь, с остальными глобальными переменными, а не рядом с первым использованием
 let callTimerInterval = null;
@@ -4096,6 +4111,7 @@ async function handleIncomingOffer(from, packet, replySignal) {
   if (existing) mesh.remove(from);
   ensureContactEntry(from, packet.n);
   const link = mesh.createIncomingLink(from);
+  flushPendingIceFor(from, link);
   try {
     const answer = await link.acceptOfferAndCreateAnswer(packet);
     if (!answer) return;
@@ -4290,6 +4306,24 @@ function wireSignalingEvents(sig) {
       await handleIncomingOffer(from, packet, (answer) => sig.signal(from, answer));
     } else if (packet.t === "answer") {
       await handleIncomingAnswer(from, packet);
+    } else if (packet.t === "ice") {
+      // Trickle ICE: кандидат от собеседника. Если link уже создан —
+      // отдаём напрямую, он сам разберётся (буферизует, если
+      // remoteDescription ещё не установлен). Если link'а ещё нет
+      // (offer/answer в пути) — копим глобально, разберём в
+      // handleIncomingOffer/attemptConnect через flushPendingIceFor.
+      if (packet.candidate) {
+        const link = mesh.get(from);
+        if (link) {
+          link.addIceCandidate(packet.candidate).catch(() => {});
+        } else {
+          if (!pendingIceCandidates.has(from)) pendingIceCandidates.set(from, []);
+          const buf = pendingIceCandidates.get(from);
+          buf.push(packet.candidate);
+          if (buf.length > 200) buf.shift();
+        }
+      }
+      return;
     }
   }));
   subs.push(on("deliver-ack", (ev) => {
@@ -4589,6 +4623,7 @@ async function attemptConnectViaRelay(targetId) {
   _connectInFlight.add(targetId);
   try {
     const link = mesh.createOutgoingLink(targetId);
+    flushPendingIceFor(targetId, link);
     const packet = await link.createInitialOffer("");
     if (!packet) { mesh.remove(targetId); return; }
     for (const [, relayLink] of relays) relayLink.send({ kind: "relay-request", to: targetId, packet });
@@ -4624,6 +4659,7 @@ async function attemptConnect(id) {
       mesh.remove(id);
     }
     const link = mesh.createOutgoingLink(id);
+    flushPendingIceFor(id, link);
     try {
       const packet = await link.createInitialOffer("");
       if (!packet) return;
@@ -6665,6 +6701,20 @@ function wireMeshEvents() {
     } catch (e) {
       etherLog("error", "[remote-track] handler failed:", String(e && e.stack || e));
     }
+  });
+  mesh.addEventListener("ice-candidate", (ev) => {
+    // Trickle ICE — отправляем КАЖДЫЙ собранный кандидат собеседнику
+    // отдельным сигналом. До этой правки это событие никто не слушал:
+    // кандидаты накапливались в _iceCandidates (только для диагностики),
+    // а собеседник узнавал о них лишь из SDP — поэтому и приходилось
+    // ждать полного gather ДО отправки offer/answer (см. webrtc.js).
+    const { id, candidate } = ev.detail;
+    if (!candidate) return;
+    if (!signaling || !signaling.connected) return;
+    try {
+      const json = candidate.toJSON ? candidate.toJSON() : candidate;
+      signaling.signal(id, { t: "ice", candidate: json });
+    } catch (e) {}
   });
 }
 
