@@ -323,6 +323,13 @@ const outbox = new Map();
 const pendingNoKey = new Map();
 const seenDeliverIds = new Set(); // ключ — "from|msgId", не голый msgId (см. ниже)
 const _connectInFlight = new Set();
+// Недавно завершённые звонки — id собеседника -> timestamp. Защита от
+// повторного "звонка" от того же человека в течение короткого окна
+// после отбоя: WebRTC пересогласование после endCall() отправляет
+// call-state:ringing по data channel, и без этой защиты можно снова
+// услышать рингтон через 5-10 секунд после того, как уже положил трубку.
+const recentlyEndedCalls = new Map();
+const RECENTLY_ENDED_CALL_MS = 15000;
 
 const pendingCall = { contactId: null, timer: null };
 const pendingRemoteStreams = new Map();
@@ -781,6 +788,7 @@ function startBackgroundAudioSession() {
     }
   } catch (e) {}
 }
+let __nextSoundAt = 0;
 function initAudioWarmup() {
   const warm = () => {
     try {
@@ -829,48 +837,53 @@ function ensureAudioCtx() {
 }
 function playMessageSound() {
   if (!Store.soundsEnabled) return;
-  // Раньше тут игрался HTMLAudioElement с msg.mp3 — на iPhone он у
-  // получателя не проигрывался (несколько возможных причин: silent switch,
-  // испорченное unlockSoundPool состояние muted, политика автовоспроизведения
-  // для <audio>, запущенного из асинхронного события). Исходящий звук при
-  // этом у отправителя работал — а он сделан через Web Audio API. Значит,
-  // Web Audio на этом устройстве надёжен, а <audio> — нет. Переводим
-  // входящий звук на тот же механизм: короткая двухнотная "дзынь", по
-  // мотивам исходного mp3. HTMLAudioElement оставлен только как fallback
-  // на случай, если AudioContext недоступен.
-  const ctx = ensureAudioCtx();
+  const ctx = ensureGlobalAudioCtx();
   if (!ctx) {
     try {
       const el = getSoundEl(SOUND_FILES.message, false);
-      el.muted = false;
-      el.volume = 1;
-      el.currentTime = 0;
+      el.muted = false; el.volume = 1; el.currentTime = 0;
       const p = el.play();
-      if (p && p.catch) p.catch((e) => etherLog("warn", "[sound] message:", String(e)));
-    } catch (e) { etherLog("warn", "[sound] message:", String(e)); }
+      if (p && p.catch) p.catch(() => {});
+    } catch (e) {}
     return;
   }
-  try {
-    const playTone = (freq, delay, dur, vol) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.value = freq;
-      gain.gain.value = 0.0001;
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      const t = ctx.currentTime + delay;
-      gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.exponentialRampToValueAtTime(vol, t + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-      osc.start(t);
-      osc.stop(t + dur + 0.05);
-    };
-    // Двухнотная короткая "дзынь" ~250мс — по мотивам msg.mp3, но без файла.
-    playTone(880, 0, 0.12, 0.15);
-    playTone(1175, 0.08, 0.16, 0.13);
-  } catch (e) { etherLog("warn", "[sound] message:", String(e)); }
+  // ensureAudioCtx() (старая) не ждал ctx.resume() — на iOS после
+  // пробуждения приложения или при переключении между экранами контекст
+  // мог быть в состоянии "suspended". Осциллятор планировался на
+  // ctx.currentTime, который в спящем контексте не двигается, и звук
+  // терялся. Здесь ждём resume явно и только после этого играем.
+  const doPlay = () => {
+    try {
+      const playTone = (freq, at, dur, vol) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        gain.gain.value = 0.0001;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        gain.gain.setValueAtTime(0.0001, at);
+        gain.gain.exponentialRampToValueAtTime(vol, at + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+        osc.start(at);
+        osc.stop(at + dur + 0.05);
+      };
+      // Планируем звук не в "текущий момент", а после последнего
+      // запланированного звука — иначе при пачке сообщений все тоны
+      // лягут друг на друга и сливаются в один "пик".
+      const startAt = Math.max(ctx.currentTime + 0.01, __nextSoundAt);
+      playTone(880, startAt, 0.12, 0.15);
+      playTone(1175, startAt + 0.08, 0.16, 0.13);
+      __nextSoundAt = startAt + 0.26;
+    } catch (e) { etherLog("warn", "[sound] message:", String(e)); }
+  };
+  if (ctx.state === "suspended") {
+    ctx.resume().then(doPlay).catch(() => {});
+  } else {
+    doPlay();
+  }
 }
+
 function playOutgoingSound() {
   if (!Store.soundsEnabled) return;
   const ctx = ensureAudioCtx();
@@ -4190,6 +4203,11 @@ function wireSignalingEvents(sig) {
 
     if (packet.t === "call-invite") {
       if (isDuplicateSignal(from, packet)) return;
+      const recent = recentlyEndedCalls.get(from);
+      if (recent && Date.now() - recent < RECENTLY_ENDED_CALL_MS) {
+        etherLog("info", "[call] игнорирую повторный call-invite после недавнего отбоя");
+        return;
+      }
       // Сообщения от заблокированных уже фильтруются (и в mesh-обработчике,
       // и в deliver), а сигнал входящего звонка — нет. Заблокировав
       // человека, пользователь продолжал бы получать от него звонки.
@@ -5865,6 +5883,18 @@ function closeCallScreen(reason) {
   state.callId = null;
   state.callPhase = null;
   if (state.tab === "chats" && state.chatsSegment === "calls") renderCallsList();
+  // Защита от повторного рингтона. Если у собеседника ещё не отработал
+  // call-ended (сеть мигнула, сигнал не дошёл) — он при пересогласовании
+  // WebRTC снова пришлёт call-state:ringing. Запоминаем, что звонок
+  // только что завершён, и будем игнорировать такие пакеты 15 секунд.
+  if (rec && rec.contactId) {
+    recentlyEndedCalls.set(rec.contactId, Date.now());
+    // и почистим старые записи, чтобы Map не рос
+    const now = Date.now();
+    for (const [id, ts] of recentlyEndedCalls) {
+      if (now - ts > RECENTLY_ENDED_CALL_MS) recentlyEndedCalls.delete(id);
+    }
+  }
 
   if (rec && rec.contactId) {
     const c = state.contacts.get(rec.contactId);
@@ -6553,16 +6583,21 @@ function wireMeshEvents() {
       if (c.blocked) return;
       if (payload && payload.kind === "call-state") {
         if (payload.state === "ringing" && state.callId !== id && state.callPhase !== "ringing") {
+          // Если с этим контактом только что завершили звонок — не
+          // открываем экран звонка заново и не играем рингтон. Такой
+          // пакет приходит от собеседника при пересогласовании WebRTC
+          // (endCall() снимает треки, триггерит renegotiation, его
+          // стартовая сторона снова вызывает startCall → шлёт ringing).
+          const recent = recentlyEndedCalls.get(id);
+          if (recent && Date.now() - recent < RECENTLY_ENDED_CALL_MS) {
+            etherLog("info", "[call] игнорирую повторный ringing после недавнего отбоя");
+            return;
+          }
           if (state.callId) {
             const l = mesh.get(id);
             if (l) { try { l.declineCall("busy"); } catch (e) {} }
             return;
           }
-          // Раньше payload.video (отправляется звонящим в startCall)
-          // тут вообще не читался — сигнал "это видеозвонок" терялся
-          // на принимающей стороне, и answerCall() дальше вызывался без
-          // аргумента, то есть видео никогда не включалось у того, кто
-          // принимает, даже если звонили именно с видео.
           state.callWantsVideo = !!payload.video;
           openCallScreen(id, "ringing");
           try { ensureAudioCtx(); } catch (e) {}
@@ -6761,6 +6796,26 @@ document.addEventListener("DOMContentLoaded", async () => {
     await restoreFromIDB().catch(() => {});
     try { I18N.init(); } catch (e) {}
     try { applyStaticTranslations(); } catch (e) {} // экран блокировки показывается ДО startApp() — переводим его до этого момента, а не после
+    // Очистка "залипшей" Media Session. startBackgroundAudioSession() в более
+    // ранних версиях объявляла активную mediaSession и оставляла её висеть —
+    // iOS показывает "Now Playing" виджет на экране блокировки, пока
+    // приложение явно не скажет metadata = null и playbackState = "none".
+    // Приложение её не очищает при закрытии, поэтому чистим сами при старте.
+    try {
+      if ("mediaSession" in navigator) {
+        navigator.mediaSession.metadata = null;
+        navigator.mediaSession.playbackState = "none";
+      }
+    } catch (e) {}
+    // Также останавливаем любые случайно оставшиеся аудио-элементы —
+    // помимо виджета они держат активную аудио-сессию, которая мешает
+    // Web Audio воспроизводить короткие тоны (звук сообщения при этом
+    // просто не слышен, хотя осциллятор формально запускается).
+    try {
+      document.querySelectorAll("audio").forEach((el) => {
+        try { el.pause(); el.currentTime = 0; } catch (e) {}
+      });
+    } catch (e) {}
     initBoot();
     clearTimeout(bootWatchdog);
   } catch (e) { etherLog("error", "[boot]", String(e)); showBootRecovery(); }
