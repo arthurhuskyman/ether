@@ -236,7 +236,18 @@ async function fetchUrlSafe(targetUrl, redirectsLeft) {
   // своём DNS-сервере может успеть подменить публичный IP на приватный
   // (127.0.0.1 и т.п.), обходя проверку выше полностью.
   const safe = await resolveHostSafe(u.hostname);
-  const customLookup = (hostname, options, callback) => callback(null, safe.address, safe.family);
+  const customLookup = (hostname, options, callback) => {
+  // Node вызывает lookup в двух формах: с options.all=true ожидается
+  // массив [{address, family}], без него — пара (address, family).
+  // http.get в актуальных версиях Node идёт по пути с all:true — раньше
+  // мы всегда отдавали строку, и внутренний код получал
+  // [0].address === undefined → "Invalid IP address: undefined".
+  if (options && options.all) {
+    callback(null, [{ address: safe.address, family: safe.family }]);
+  } else {
+    callback(null, safe.address, safe.family);
+  }
+};
 
   const mod = u.protocol === "https:" ? https : http;
   return new Promise((resolve, reject) => {
