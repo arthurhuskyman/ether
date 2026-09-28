@@ -63,6 +63,10 @@ html[data-theme="light"] {
 html {
   height: 100%; height: 100dvh;
   margin: 0; overflow: hidden;
+  /* Фон корня совпадает с фоном таб-бара — тогда нижние 47px системной
+     зоны (iOS 26 в standalone-PWA не отдаёт их viewport'у) сливаются
+     с таб-баром и визуально исчезают. */
+  background: var(--bg-elevated);
 }
 body {
   height: 100%; height: 100dvh;
@@ -75,7 +79,10 @@ body {
      футера с каждым переоткрытием приложения. */
   min-height: 100dvh;
   font-family: "Inter", -apple-system, "SF Pro Text", "SF Pro Display", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
-  background: var(--bg);
+  /* Фон body тоже делаем однородным с таб-баром — иначе шов между
+     .screen (у которого свой фон через .flat-content) и системной
+     зоной снизу iOS мог бы просвечивать. */
+  background: var(--bg-elevated);
   color: var(--ink);
 }
 
@@ -232,12 +239,12 @@ html[data-theme="light"] .glass-content {
   contain: layout paint;
 }
 #nav-bar {
-  /* Раньше тут был calc(env(safe-area-inset-top) + 10px) — в iOS 26
-     standalone-PWA viewport начинается НИЖЕ статус-бара (проверено:
-     innerHeight + safe-area-inset-top ≈ screen.height), поэтому env()
-     возвращает 47px «на всякий случай», хотя контент уже и так под
-     статус-баром. Эти лишние 47px давали огромный зазор сверху. */
-  padding: 12px 16px;
+  /* env(safe-area-inset-top) НУЖЕН: viewport начинается с физического
+     y=0, и статус-бар iOS (первые 47px) находится внутри него. Без
+     этого отступа заголовок уезжает под системный статус-бар.
+     +4px — небольшой зазор, чтобы контент не касался статус-бара
+     вплотную (как в нативных приложениях). */
+  padding: calc(env(safe-area-inset-top) + 4px) 16px 12px;
   border-radius: 0 0 var(--radius-l) var(--radius-l);
   border-top: none; z-index: 20;
 }
@@ -769,27 +776,24 @@ html[data-theme="auto"] .bubble-row.theirs .bubble-time { color: rgba(235, 235, 
      подпись) — align-items:center было нечего центрировать внутри,
      контент и так занимал всю доступную высоту. Явная height:50px
      даёт реальное пространство для центрирования.
-     Нижний отступ — env(safe-area-inset-bottom), а НЕ захардкоженные
-     34px: на настоящем iPhone это и есть ровно нужная зона под home
-     indicator (Apple сама возвращает корректное значение через этот
-     механизм), а на десктопе (и старых iPhone без home indicator)
-     env() корректно даёт 0 — с захардкоженными 34px футер на десктопе
-     был вдвое выше, чем нужно, без всякой причины (там попросту нет
-     той системной кнопки, под которую эта зона выделяется). */
+     Нижний отступ — env(safe-area-inset-bottom) + 3px: безопасная
+     зона под home-indicator плюс небольшой визуальный зазор, чтобы
+     названия пунктов меню не касались нижнего края таб-бара вплотную. */
   height: 50px;
-  padding: 0 4px env(safe-area-inset-bottom, 0px);
+  padding: 0 4px calc(env(safe-area-inset-bottom, 0px) + 3px);
   box-sizing: content-box;
   border-radius: 0; border-bottom: none; z-index: 20; flex-shrink: 0; order: 1;
-  /* Раньше .glass на таб-баре давал 55% прозрачности — сквозь него
-     просвечивал body::before с радиальным градиентом, у которого в
-     самом низу экрана зелёный слой rgba(48,209,88,0.1). В safe-area
-     полосе под иконками контента чата уже нет (только body), поэтому
-     именно там градиент давал заметно другой оттенок — это и было
-     "safe area другого цвета". Делаем фон плотнее, чтобы градиент
-     не влиял. */
-  background: rgba(var(--glass-tint), 0.92);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  backdrop-filter: blur(20px) saturate(160%);
+  /* Сплошной фон (без полупрозрачности и без backdrop-filter). Раньше
+     .glass давал 55% прозрачности — сквозь таб-бар просвечивал
+     body::before с радиальным градиентом, у которого в самом низу
+     экрана зелёный слой. Из-за этого safe-area под иконками выглядела
+     "полосой другого цвета". Теперь фон один и тот же в таб-баре и
+     под ним (html/body тоже --bg-elevated) — шов между концом
+     #app-shell (797px) и физическим низом экрана (844px, системная
+     зона iOS) визуально исчезает. */
+  background: var(--bg-elevated);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 .tab-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 1px 0; border: none; background: none; color: var(--ink-faint); cursor: pointer; font-size: 11px; font-weight: 500; min-width: 0; position: relative; }
 .tab-badge {
