@@ -580,23 +580,23 @@ function linkPreviewCardHtml(data) {
 // присылалась несколько раз и всё ещё видна на экране.
 function renderLinkPreviewInto(url) {
   fetchLinkPreview(url).then((entry) => {
-    // Раньше document.querySelectorAll сканировал ВЕСЬ документ на каждую
-    // ссылку в чате — слоты превью живут только внутри #chat-messages,
-    // так что при десятке ссылок это лишний O(N²) обход DOM без пользы.
     const wrap = document.getElementById("chat-messages");
     if (!wrap) return;
+    // entry === null означает "запрос ещё в полёте" — это не "превью
+    // не существует", а "жди". Раньше на этот null мы УДАЛЯЛИ слот
+    // (else slot.remove() ниже), и когда исходный fetch наконец
+    // завершался — заполнять было уже нечего. Именно поэтому
+    // собственное отправленное сообщение со ссылкой показывало
+    // превью только после выхода из чата и повторного входа (тогда
+    // данные уже в кэше и рендерятся сразу карточкой, без слота).
+    // Первый вызов (тот, что реально делает HTTP-запрос) свой слот
+    // дозаполнит сам — его `.then` сработает уже после этого.
+    if (entry === null) return;
     const slots = wrap.querySelectorAll('.link-preview-slot[data-preview-for]');
     const ok = entry && entry.status === "done" && entry.data;
     const html = ok ? linkPreviewCardHtml(entry.data) : "";
     slots.forEach((slot) => {
       if (slot.getAttribute("data-preview-for") !== url) return;
-      // Превью не получилось (не только "ещё не готово" — сюда попадаем
-      // только после resolve, то есть это финальный статус — включая
-      // случай, когда linkPreviewCardHtml() сама вернула пустую строку
-      // из-за недопустимой схемы URL) — раньше пустой
-      // <div class="link-preview-slot"> так и оставался в разметке
-      // навсегда, занимая место (min-height: 2px в CSS) без видимой
-      // причины. Теперь просто убираем слот.
       if (html) slot.innerHTML = html;
       else slot.remove();
     });
