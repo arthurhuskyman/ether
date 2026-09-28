@@ -588,7 +588,14 @@ async function actuallySendPush(subEntry, payload) {
   if (!PUSH_ENABLED) return false;
   try {
     await webpush.sendNotification(subEntry.subscription, JSON.stringify(buildDeclarativePush(payload, subEntry.lang)), {
-      TTL: 3600,
+      // TTL 15 секунд. Раньше было 3600 — задержанные push-уведомления
+      // (в том числе о звонке) могли долететь через час после события
+      // и проиграть рингтон без самого звонка. 15 секунд — только на
+      // реальную доставку сейчас; если получатель в этот момент офлайн
+      // и уведомление не нужно сию секунду, оно просто отбрасывается.
+      // Текстовое сообщение при этом не теряется: оно лежит в mailbox
+      // и доставляется, когда приложение откроется.
+      TTL: 15,
       urgency: payload.kind === "call" ? "high" : "normal",
     });
     return true;
