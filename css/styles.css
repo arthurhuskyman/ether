@@ -258,9 +258,9 @@ html[data-theme="light"] .glass-content {
      влияют. Это даёт нужный эффект: все иконки/заголовки/надписи
      прижаты к низу хедера, а не «висят» в его середине — как в
      нативных iOS-приложениях. */
-  padding: calc(env(safe-area-inset-top) + 4px) 16px 6px;
+  padding: calc(env(safe-area-inset-top) + 4px) 16px 4px;
   box-sizing: content-box;
-  height: 44px;
+  height: 50px;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
