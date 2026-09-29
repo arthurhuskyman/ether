@@ -416,9 +416,10 @@ class PeerLink extends EventTarget {
 
   async acceptAnswer(packet) {
     this.remoteName = (packet && packet.n) || this.remoteName;
-    try { await this.pc.setRemoteDescription(packet.d); }
-    this._flushPendingRemoteCandidates();
-    catch (e) {
+    try {
+      await this.pc.setRemoteDescription(packet.d);
+      this._flushPendingRemoteCandidates();
+    } catch (e) {
       if (this._closed || this.pc.signalingState === "closed") return;
       throw e;
     }

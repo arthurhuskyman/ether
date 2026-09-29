@@ -7,17 +7,12 @@ const APP_VERSION = "V.32.27.3";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 const MAX_MESSAGE_LENGTH = 4000;
-// Раньше был единый потолок 15МБ на "живую" P2P-передачу, без разницы
-// между "что можно выбрать" и "что реально уходит". Пользователь попросил
-// жёсткий потолок в 2МБ на РЕЗУЛЬТАТ (то, что реально отправляется) — с
-// автоматической оптимизацией/сжатием, если исходник больше. Поэтому
-// теперь два разных числа: щедрый входной потолок (есть что сжимать) и
-// строгий целевой — то, что фактически уйдёт получателю. Раз целевой
-// потолок (2МБ) меньше серверного MAX_PAYLOAD (8МБ, см.
-// signaling-server/server.js) с большим запасом даже на base64-накладные
-// расходы, отдельный, больший потолок специально для офлайн-очереди
-// больше не нужен — один и тот же 2МБ работает и для живой P2P, и для
-// очереди через сервер.
+// Два разных числа: щедрый входной потолок (что можно ВЫБРАТЬ — есть что
+// сжимать) и строгий целевой (что РЕАЛЬНО уйдёт получателю). Целевой
+// потолок 2МБ меньше серверного MAX_PAYLOAD (8МБ, см. server.js) с
+// большим запасом даже на base64-накладные расходы, поэтому отдельный,
+// больший потолок специально для офлайн-очереди не нужен — один и тот же
+// 2МБ работает и для живой P2P, и для очереди через сервер.
 const MAX_FILE_SIZE_INPUT = 20 * 1024 * 1024; // 20 МБ — что можно ВЫБРАТЬ (даёт сжатию картинок что уменьшать)
 // MAX_FILE_SIZE читается из js/file-limits.js — единственного источника
 // правды, общего с тестом (test-file-size-validation.js), чтобы значение
@@ -718,6 +713,11 @@ function applyTheme(theme) {
   if (meta) meta.setAttribute("content", isLight ? "#eef0f4" : "#000000");
 }
 
+try {
+  const mq = window.matchMedia("(prefers-color-scheme: light)");
+  mq.addEventListener("change", () => { if (Store.theme === "auto") applyTheme("auto"); });
+} catch (e) {}
+
 function urlBase64ToUint8Array(base64String) {
   const padding = "=".repeat((4 - base64String.length % 4) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
@@ -1329,8 +1329,10 @@ function startApp() {
 
   try {
     const incoming = SignalingCodec.extractCodeFromLocation();
-    history.replaceState(null, "", location.pathname + location.search);
-    if (incoming) handleIncomingCode(incoming);
+    if (incoming) {
+      try { history.replaceState(null, "", location.pathname); } catch (e) {}
+      handleIncomingCode(incoming);
+    }
   } catch (e) { etherLog("error", "[startApp] incoming code:", String(e)); }
 
   try { renderTab(); } catch (e) { etherLog("error", "[startApp] renderTab:", String(e)); }
@@ -1505,6 +1507,7 @@ function maybeShowOnboardingHint() {
 }
 
 function openFromNotification(contactId, kind) {
+  try { closeChatSearch(); } catch (e) {}
   if (!contactId) return;
   window.focus();
   state.chatId = contactId;
@@ -1894,7 +1897,7 @@ function renderTabInner() {
   };
   const nt = $("#nav-title"); if (nt) nt.textContent = titles[state.tab] || T("app.name");
   if (state.tab === "chats" && state.chatsSegment === "chats") renderChatsList();
-  if (state.tab === "chats" && state.chatsSegment === "calls") renderCallsList();
+  if (state.tab === "chats" && state.chatsSegment === "calls") { markMissedCallsSeen(); renderCallsList(); }
   if (state.tab === "connect") { renderContactsList(); renderOnlineRosterList(); }
 }
 
@@ -2005,7 +2008,7 @@ function renderChatsList() {
         </button>
       </div>`;
     wrapper.appendChild(row);
-    row.addEventListener("click", () => { cancelVoiceRecordingIfLeavingChat(c.id); state.chatId = c.id; renderTab(); });
+    row.addEventListener("click", () => { try { closeChatSearch(); } catch (e) {} cancelVoiceRecordingIfLeavingChat(c.id); state.chatId = c.id; renderTab(); });
     attachChatRowSwipe(wrapper, row, c);
     list.appendChild(wrapper);
   }
@@ -2446,6 +2449,11 @@ function renderChatThreadInner() {
       // Ссылка (обычный текст со ссылкой или карточка превью) — своё
       // меню выбора действия, а не переход напрямую и не общее меню
       // сообщения одновременно (раньше срабатывало и то, и другое).
+      const docLink = ev.target.closest("a.file-bubble-doc[data-file-id]");
+      if (docLink) {
+        // отдаём браузеру скачать blob — не перехватываем
+        return;
+      }
       const linkEl = ev.target.closest("a[href]");
       if (linkEl) {
         ev.preventDefault();
@@ -3253,8 +3261,8 @@ function handleFilePayload(from, payload) {
     // Без верхней границы недобросовестный/сбойный пир мог прислать много
     // мелких file-meta и никогда не прислать file-done — Map росла бы
     // без предела. Также отклоняем заведомо нереалистичный totalChunks
-    // (легитимный максимум — 15 МБ / 48 КБ ≈ 320 кусков), чтобы не
-    // аллоцировать под него огромный массив заранее.
+    // (легитимный максимум — 2 МБ / 48 КБ ≈ 43 куска; 500 — с большим
+    // запасом), чтобы не аллоцировать под него огромный массив заранее.
     const totalChunks = payload.totalChunks;
     if (!Number.isInteger(totalChunks) || totalChunks <= 0 || totalChunks > 500) return;
     // payload.size раньше сохранялся как есть, без проверки вообще —
@@ -5480,6 +5488,7 @@ function deleteContact(id) {
   const audioEl = document.getElementById("remote-audio-" + id); if (audioEl) audioEl.remove();
   state.contacts.delete(id);
   recentlyDeletedIds.add(id);
+  if (recentlyDeletedIds.size > 500) recentlyDeletedIds.delete(recentlyDeletedIds.values().next().value);
   persistContacts();
   if (state.callId === id) closeCallScreen();
   if (state.chatId === id) state.chatId = null;
@@ -6688,6 +6697,7 @@ function wireMeshEvents() {
         return;
       }
       applyIncomingPayload(id, payload && payload.id, payload, false, payload && payload.kind);
+      if (payload && payload.kind === "chat") sendAckBatch(id, [payload.id], "delivered");
     } catch (e) {
       etherLog("error", "[message] handler failed:", String(e && e.stack || e));
     }
