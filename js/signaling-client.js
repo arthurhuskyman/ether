@@ -182,7 +182,13 @@ class SignalingClient extends EventTarget {
     this._pingTimer = setInterval(() => {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
       const sincePong = this._lastPongAt ? (Date.now() - this._lastPongAt) : 0;
-      if (this._lastPongAt && sincePong > 45000) {
+      // iOS замораживает WebSocket и setInterval в фоне. При возврате
+      // из фона первый же тик показывает "no pong for 46s" — хотя
+      // реального отсутствия pong не было. Отсекаем этот ложный
+      // сценарий: если страница была невидима, pong не может считаться
+      // "просроченным". Проверяем document.visibilityState.
+      const pageWasHidden = typeof document !== "undefined" && document.hidden;
+      if (this._lastPongAt && sincePong > 90000 && !pageWasHidden) {
         etherLog("warn", "[signaling] no pong for " + Math.round(sincePong / 1000) + "s, force-reconnect");
         try { this.ws.close(); } catch (e) {}
         this._lastPongAt = 0;

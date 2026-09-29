@@ -64,7 +64,12 @@ window.__etherIceReady = (async () => {
 // вообще не используется (SDP уходит сразу, trickle ICE досылает
 // кандидатов по мере появления).
 const ICE_GATHER_TIMEOUT_MS = 2500;
-const HEARTBEAT_TIMEOUT_MS = 20000;
+// 60 секунд вместо 20: iOS/iPadOS замораживает setInterval в фоне, и
+// при возврате _lastPongAt мог показывать возраст 40+ секунд — связь
+// рвалась, хотя была жива. 60 секунд позволяют пережить короткий
+// background-период. При полной заморозке дольше 60с — да, рвём, но
+// пересоединение установит всё заново быстрее, чем реальный перерыв.
+const HEARTBEAT_TIMEOUT_MS = 60000;
 
 function waitForIceGathering(pc) {
   if (pc.iceGatheringState === "complete") return Promise.resolve();
@@ -126,9 +131,17 @@ class PeerLink extends EventTarget {
     // "connected" — форсируем reInvite сами, не дожидаясь браузера.
     // Урезано с 15с до 10с: реальный failed приходит за 5-10с, запас
     // в 15с только зря откладывал восстановление.
+    // _connectStallTimer срабатывает ОДИН РАЗ — только если мы ни разу
+    // не дошли до "connected". Если соединение уже устанавливалось
+    // (даже если сейчас disconnected), "stall" не наш случай —
+    // подключение было, и повторять подключение через reInvite
+    // бессмысленно (reInvite пересогласовывает SDP, а не пересоздаёт
+    // ICE с нуля).
+    this._everConnected = false;
     this._connectStallTimer = setTimeout(() => {
       this._connectStallTimer = null;
       if (this._closed) return;
+      if (this._everConnected) return;
       if (this.pc.connectionState !== "connected") {
         this._log("warn", "[webrtc]", id.slice(0, 10) + "…", "connectionState всё ещё '" + this.pc.connectionState + "' спустя 10с, reInvite()");
         this.reInvite();
@@ -203,11 +216,20 @@ class PeerLink extends EventTarget {
         this._iceDisconnectTimer = setTimeout(() => {
           this._iceDisconnectTimer = null;
           if (this._closed) return;
-          if (this.pc.iceConnectionState === "disconnected" || this.pc.iceConnectionState === "failed") {
-            this._log("warn", "[webrtc]", id.slice(0, 10) + "…", "ICE still disconnected after 8s, reInvite()");
+          // Только НАСТОЯЩИЙ failed — повод для reInvite. Status
+          // "disconnected" на iOS/WebKit может висеть 10-20 секунд и
+          // потом сам восстановиться, если собеседник просто моргнул
+          // сетью. Раньше мы на 8-й секунде били reInvite, что ломало
+          // уже идущий renegotiation. Увеличили до 20 секунд — если за
+          // это время ICE не восстановился сам, тогда да, reInvite.
+          if (this.pc.iceConnectionState === "failed") {
+            this._log("warn", "[webrtc]", id.slice(0, 10) + "…", "ICE failed, reInvite()");
+            this.reInvite();
+          } else if (this.pc.iceConnectionState === "disconnected") {
+            this._log("warn", "[webrtc]", id.slice(0, 10) + "…", "ICE still disconnected after 20s, reInvite()");
             this.reInvite();
           }
-        }, 8000);
+        }, 20000);
       } else if (s === "connected" || s === "completed") {
         if (this._iceDisconnectTimer) { clearTimeout(this._iceDisconnectTimer); this._iceDisconnectTimer = null; }
       } else if (s === "failed") {
@@ -234,6 +256,7 @@ class PeerLink extends EventTarget {
         return;
       }
       if (s === "connected") {
+        this._everConnected = true;
         if (this._connectStallTimer) { clearTimeout(this._connectStallTimer); this._connectStallTimer = null; }
         if (!inCall) this._setStatus("connected");
         return;

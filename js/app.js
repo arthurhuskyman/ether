@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.32.27.3";
+const APP_VERSION = "V.32.27.4";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 const MAX_MESSAGE_LENGTH = 4000;
@@ -325,7 +325,7 @@ const _connectInFlight = new Set();
 // call-state:ringing по data channel, и без этой защиты можно снова
 // услышать рингтон через 5-10 секунд после того, как уже положил трубку.
 const recentlyEndedCalls = new Map();
-const RECENTLY_ENDED_CALL_MS = 15000;
+const RECENTLY_ENDED_CALL_MS = 5000;
 
 const pendingCall = { contactId: null, timer: null };
 const pendingRemoteStreams = new Map();
@@ -4325,11 +4325,14 @@ function wireSignalingEvents(sig) {
 
     if (packet.t === "call-invite") {
       if (isDuplicateSignal(from, packet)) return;
-      const recent = recentlyEndedCalls.get(from);
-      if (recent && Date.now() - recent < RECENTLY_ENDED_CALL_MS) {
-        etherLog("info", "[call] игнорирую повторный call-invite после недавнего отбоя");
-        return;
-      }
+      // Раньше тут стояла защита "игнорирую повторный call-invite после
+      // недавнего отбоя" — она ошибочно блокировала и осознанные новые
+      // звонки от того же человека в течение 15 секунд после отбоя
+      // (пользователь нажимал "Позвонить снова" — звонок молча не
+      // шёл). Авто-генерируемые call-state:ringing теперь фильтруются
+      // ТОЛЬКО в mesh-обработчике по data channel (там же им и место),
+      // а call-invite через сервер — это всегда явное действие
+      // собеседника, его фильтровать нельзя.
       // Сообщения от заблокированных уже фильтруются (и в mesh-обработчике,
       // и в deliver), а сигнал входящего звонка — нет. Заблокировав
       // человека, пользователь продолжал бы получать от него звонки.
