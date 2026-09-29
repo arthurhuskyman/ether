@@ -425,7 +425,12 @@ function unlockSoundPool() {
     // уже выставленный первым вызовом el.muted=true как "исходное" значение
     // и восстанавливал его же — элемент оставался muted НАВСЕГДА.
     const originalVolume = el.volume;
-    el.volume = 0;
+    // el.volume = 0 (как было раньше) на iOS НЕ считается за "реальное
+    // воспроизведение" — браузер не помечает элемент как разрешённый к
+    // автоплею, и следующий .play() из асинхронного события (входящий
+    // звонок) падает с NotAllowedError. 0.01 достаточно, чтобы iOS
+    // зачла это как звук, но на слух — почти неслышно.
+    el.volume = 0.01;
     let p;
     try { p = el.play(); }
     catch (e) { el.volume = originalVolume; delete el.dataset.unlocking; continue; }
@@ -948,6 +953,11 @@ function currentRingtoneSrc() {
 
 function playRingtone() {
   stopRingtone();
+  // Форсируем resume() аудио-контекста — если пользователь уже
+  // взаимодействовал с приложением хотя бы раз за сессию, на iOS
+  // контекст в running, и осцилляторный фолбэк ниже сработает. Если
+  // ещё не взаимодействовал — просто no-op, ничего не ломает.
+  try { ensureAudioCtx(); } catch (e) {}
   if (!Store.soundsEnabled) { if (navigator.vibrate) { try { navigator.vibrate([400, 200, 400, 200, 400, 1000]); } catch (e) {} } return; }
   // Основной путь — HTMLAudioElement (mp3-файл рингтона). Он работает и в
   // foreground, и в background. Явно сбрасываем muted/volume перед play:
@@ -1257,7 +1267,9 @@ function startApp() {
 
   etherLog("info", "[startApp] init, id=" + (Store.myId ? Store.myId.slice(0, 10) + "…" : "(none)"));
   mesh = new MeshManager(Store.name);
-
+    try {
+      if (navigator.audioSession) navigator.audioSession.type = "playback";
+    } catch (e) {}
   safeCall(wireMeshEvents, "wireMeshEvents");
   safeCall(wireTabBar, "wireTabBar");
   safeCall(() => {
@@ -4650,12 +4662,15 @@ function scheduleAutoConnect(id) {
   if (autoConnectTimers.has(id)) return;
   autoConnectTimers.set(id, setTimeout(() => { autoConnectTimers.delete(id); attemptConnect(id); attemptConnectViaRelay(id).catch(() => {}); }, 4000));
 }
-async function attemptConnect(id) {
+async function attemptConnect(id, force) {
   const tag = String(id).slice(0, 10) + "…";
   if (!signaling || !signaling.connected) return;
-  if (!onlineSet.has(id)) return;
+  // force=true — звонок: инициатор всегда предлагает, вне зависимости от
+  // тай-брейка по id (тот существует только для автоподключения, чтобы
+  // обе стороны не предлагали друг другу одновременно).
+  if (!onlineSet.has(id) && !force) return;
   const iShouldOffer = Store.myId < id;
-  if (!iShouldOffer) { etherLog("info", "[connect] " + tag, "not my turn"); return; }
+  if (!iShouldOffer && !force) { etherLog("info", "[connect] " + tag, "not my turn"); return; }
   if (_connectInFlight.has(id)) return;
   _connectInFlight.add(id);
   try {
@@ -4663,7 +4678,9 @@ async function attemptConnect(id) {
     if (existing) {
       const age = Date.now() - (existing._createdAt || 0);
       if (existing.status === "connected" || existing.status === "in-call") return;
-      if (existing.status === "connecting" && age < CONNECT_STUCK_MS) return;
+      // Для звонка (force) не ждём 30 секунд на залипшем connecting —
+      // отдаём свежий offer немедленно, старый снесём.
+      if (!force && existing.status === "connecting" && age < CONNECT_STUCK_MS) return;
       mesh.remove(id);
     }
     const link = mesh.createOutgoingLink(id);
@@ -5672,7 +5689,7 @@ async function beginCall(id, withVideo) {
 
   clearPendingCall();
   pendingCall.contactId = id;
-  attemptConnect(id);
+  attemptConnect(id, true);
   pendingCall.timer = setTimeout(() => {
     if (pendingCall.contactId !== id) return;
     if (state.callId !== id) return;

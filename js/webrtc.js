@@ -57,7 +57,13 @@ window.__etherIceReady = (async () => {
   }
 })();
 
-const ICE_GATHER_TIMEOUT_MS = 3500;
+// Урезано с 3500мс: ICE-restart идёт только после уже установленного
+// соединения (reInvite при сбое), и ждать 3.5 секунды на сбор полного
+// набора кандидатов в этом случае неоправданно долго — реальный таймаут
+// на подключение на порядок меньше. На первом соединении это значение
+// вообще не используется (SDP уходит сразу, trickle ICE досылает
+// кандидатов по мере появления).
+const ICE_GATHER_TIMEOUT_MS = 2500;
 const HEARTBEAT_TIMEOUT_MS = 20000;
 
 function waitForIceGathering(pc) {
@@ -102,8 +108,14 @@ class PeerLink extends EventTarget {
     // это ещё усугублялось тем, что boot всего приложения ждал именно
     // эту загрузку (см. bootAfterUnlock в app.js) — теперь не ждёт, так
     // что связь может понадобиться и раньше, чем /ice успеет ответить.
+    //
+    // iceCandidatePoolSize=10 (было 4): браузер собирает кандидатов
+    // заранее, до старта сессии — при 4 кандидатах в сложных сетях
+    // (двойной NAT, мобильные операторы) пул мог оказаться исчерпан
+    // прежде, чем ICE реально стартует. 10 — недорого (несколько лишних
+    // UDP-пакетов) и заметно ускоряет setup, особенно через TURN.
     const effectiveIceServers = ICE_SERVERS.length > 0 ? ICE_SERVERS : FALLBACK_ICE;
-    this.pc = new RTCPeerConnection({ iceServers: effectiveIceServers, iceCandidatePoolSize: 4 });
+    this.pc = new RTCPeerConnection({ iceServers: effectiveIceServers, iceCandidatePoolSize: 10 });
     // Страховка от "вечного connecting": обработчики ниже (iceconnectionstatechange
     // на "failed"/"disconnected") реагируют, только если браузер ФОРМАЛЬНО
     // объявит один из этих статусов — а бывают случаи (например, TURN
@@ -112,14 +124,16 @@ class PeerLink extends EventTarget {
     // не переходя ни в failed, ни в disconnected, и reInvite() никогда
     // не срабатывает. Если за разумное время не дошли хотя бы до
     // "connected" — форсируем reInvite сами, не дожидаясь браузера.
+    // Урезано с 15с до 10с: реальный failed приходит за 5-10с, запас
+    // в 15с только зря откладывал восстановление.
     this._connectStallTimer = setTimeout(() => {
       this._connectStallTimer = null;
       if (this._closed) return;
       if (this.pc.connectionState !== "connected") {
-        this._log("warn", "[webrtc]", id.slice(0, 10) + "…", "connectionState всё ещё '" + this.pc.connectionState + "' спустя 15с, reInvite()");
+        this._log("warn", "[webrtc]", id.slice(0, 10) + "…", "connectionState всё ещё '" + this.pc.connectionState + "' спустя 10с, reInvite()");
         this.reInvite();
       }
-    }, 15000);
+    }, 10000);
     this.dc = null;
     this.localAudioTrack = null;
     this.localStream = null;
