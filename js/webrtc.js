@@ -649,23 +649,27 @@ class PeerLink extends EventTarget {
     }
   }
 
-  async startCall(withVideo) {
-    if (this._closed) throw new Error("link closed");
-    await this._addAudioTrackOnce();
-    if (withVideo) await this.enableVideo();
-    this._setStatus("in-call");
-    this.send({ kind: "call-state", state: "ringing", video: !!withVideo });
-  }
+async startCall(withVideo) {
+  if (this._closed) throw new Error("link closed");
+  await this._addAudioTrackOnce();
+  if (withVideo) await this.enableVideo();
+  this._setStatus("in-call");
+  // ts — чтобы принимающая сторона могла отличить СВЕЖИЙ call-state
+  // от того, что буферизовался, пока приложение спало. Без этого
+  // iOS-пуш буферизует ringing и проигрывает рингтон при пробуждении
+  // спустя минуты после того, как звонок уже отбит.
+  this.send({ kind: "call-state", state: "ringing", video: !!withVideo, ts: Date.now() });
+}
 
   async answerCall(withVideo) {
     if (this._closed) throw new Error("link closed");
     await this._addAudioTrackOnce();
     if (withVideo) await this.enableVideo();
     this._setStatus("in-call");
-    this.send({ kind: "call-state", state: "accepted" });
+    this.send({ kind: "call-state", state: "accepted", ts: Date.now() });
   }
 
-  declineCall(reason) { this.send({ kind: "call-state", state: "declined", reason: reason || null }); }
+  declineCall(reason) { this.send({ kind: "call-state", state: "declined", reason: reason || null, ts: Date.now() }); }
 
   setMuted(muted) {
     this._muted = !!muted;
@@ -692,7 +696,15 @@ class PeerLink extends EventTarget {
 
   async reInvite() {
     if (this._closed) return;
-    if (!this.dc || this.dc.readyState !== "open") return;
+    if (!this.dc || this.dc.readyState !== "open") {
+      // Молчаливый выход прятал реальную проблему: висим в "connecting"
+      // потому что dataChannel ещё не открылся (столкновение offer'ов,
+      // ICE не прошёл, TURN отвалился). Логируем — иначе из event log
+      // непонятно, почему «reInvite()» в строке выше ни к чему не привёл.
+      this._log("warn", "[webrtc]", this.id.slice(0, 10) + "…",
+        "reInvite: пропущен, dataChannel не открыт (" + (this.dc ? this.dc.readyState : "нет dc") + ")");
+      return;
+    }
     this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "reInvite: createOffer iceRestart");
     return this._negotiate(true);
   }
@@ -724,7 +736,7 @@ class PeerLink extends EventTarget {
     this._muted = false;
     if (this._muteRecheckTimer) { clearInterval(this._muteRecheckTimer); this._muteRecheckTimer = null; }
     this._setStatus(this.dc && this.dc.readyState === "open" ? "connected" : "disconnected");
-    this.send({ kind: "call-state", state: "ended" });
+    this.send({ kind: "call-state", state: "ended", ts: Date.now() });
   }
 
   close() {

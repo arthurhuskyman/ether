@@ -47,7 +47,7 @@ const ONBOARDING_HINT_SHOWN = "ether.hintShown";
 const PIN_ITERATIONS = 120000;
 const DEBUG_KEY = "ether.debugHidden";
 const CONNECT_STUCK_MS = 30000;
-const WATCH_CONNECT_TIMEOUT_MS = 20000;
+const WATCH_CONNECT_TIMEOUT_MS = 10000;  // было 20000
 const ACK_DEDUP_WINDOW_MS = 5000;
 const CALL_DEAD_LINK_TIMEOUT_MS = 30000;
 const INCOMING_CALL_TIMEOUT_MS = PENDING_CALL_TIMEOUT_MS - 2000; // должен истекать НЕ ПОЗЖЕ, чем звонящий сдастся — иначе у принимающего экран "входящий" висит, когда звонящий уже положил трубку
@@ -289,6 +289,7 @@ const state = {
   _callAcceptInFlight: false,
   _callMuteOnAnswer: false,
   _callDeadSeconds: 0,
+  _lastCallFailedAt: 0,   // ← новое
 };
 
 let mesh = null;
@@ -809,17 +810,46 @@ function startBackgroundAudioSession() {
   } catch (e) {}
 }
 let __nextSoundAt = 0;
+// Флаг «разогрев уже сделан» — до этого три события одного тапа
+// (touchstart + click + keydown) генерировали три параллельных
+// ctx.resume(). На iPhone в логе видно ровно это:
+//   22:13:39.061 [audio] ctx resumed, state=running
+//   22:13:39.061 [audio] ctx resumed, state=running
+//   22:13:39.061 [audio] ctx resumed, state=running
+// Каждое resume() видело ctx.state === "suspended" ДО того, как
+// предыдущее успевало его разбудить — три наложившихся запроса
+// на один и тот же AudioContext. Не критично по эффекту, но грязно
+// в логах и мешает диагностике. После первого успешного resume
+// (или если ctx уже running) снимаем все слушатели — повторять
+// смысла нет.
+let __warmDone = false;
 function initAudioWarmup() {
   const warm = () => {
+    if (__warmDone) return;
+    const ctx = ensureGlobalAudioCtx();
+    if (!ctx) return;
+    if (ctx.state === "suspended") {
+      ctx.resume().then(() => {
+        etherLog("info", "[audio] ctx resumed, state=" + ctx.state);
+        __warmDone = true;
+        document.removeEventListener("touchstart", warm);
+        document.removeEventListener("click", warm);
+        document.removeEventListener("keydown", warm);
+      }).catch(() => {});
+    } else if (ctx.state === "running") {
+      __warmDone = true;
+      document.removeEventListener("touchstart", warm);
+      document.removeEventListener("click", warm);
+      document.removeEventListener("keydown", warm);
+    }
     try {
-      const ctx = ensureGlobalAudioCtx();
-      if (!ctx) return;
-      if (ctx.state === "suspended") {
-        ctx.resume().then(() => {
-          etherLog("info", "[audio] ctx resumed, state=" + ctx.state);
-        }).catch(() => {});
-      }
-      try {
+      // Пробный беззвучный осциллятор — это НЕ «разбудить ctx», а
+      // проверить, что цепочка createOscillator → connect → start
+      // вообще работает в текущем контексте (на iOS в standalone-PWA
+      // бывают состояния, когда ctx.running, но звук всё равно
+      // заблокирован политикой автовоспроизведения). Оставляем как
+      // было — стоимость нулевая, польза от подтверждения есть.
+      if (ctx.state === "running") {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         gain.gain.value = 0.0001;
@@ -827,18 +857,11 @@ function initAudioWarmup() {
         gain.connect(ctx.destination);
         osc.start();
         osc.stop(ctx.currentTime + 0.01);
-      } catch (e) {}
-    } catch (e) {
-      etherLog("warn", "[audio] warmup failed:", String(e));
-    }
+      }
+    } catch (e) {}
     try { unlockSoundPool(); } catch (e) {}
-    // Закомментировано по просьбе пользователя — бесконечный беззвучный
-    // аудио-луп (startBackgroundAudioSession, см. определение выше)
-    // заметно сажает батарею телефона. Сам приём был неофициальным,
-    // недокументированным и без гарантий с самого начала (см. комментарий
-    // у функции) — не восстанавливать без найденного менее затратного
-    // по батарее решения для той же задачи (продления жизни PWA в фоне
-    // для доставки push о входящем звонке).
+    // startBackgroundAudioSession — по-прежнему закомментирован
+    // (см. комментарий у самой функции).
     // try { startBackgroundAudioSession(); } catch (e) {}
   };
   document.addEventListener("touchstart", warm, { passive: true });
@@ -4123,11 +4146,17 @@ function initSignaling() {
 // WebRTC-рукопожатия не должна знать и не знает, через какой транспорт
 // пришёл пакет.
 async function handleIncomingOffer(from, packet, replySignal) {
-  // Удалённый (но всё ещё онлайн у себя) контакт продолжает слать offer
-  // по своей логике переподключения — не даём ему молча воскреснуть.
   if (recentlyDeletedIds.has(from)) return;
   const existing = mesh.get(from);
-  if (existing && existing.role === "answerer" && existing.status === "connected") return;
+  // Любой живой линк (offerer или answerer, connected или in-call) —
+  // игнорируем встречный offer. Раньше проверялась только пара
+  // "answerer + connected": если мы были offerer'ом и уже connected,
+  // повторный offer убивал рабочее соединение. Проявляется как раз
+  // при renegotiation (оба одновременно увидели negotiationneeded).
+  if (existing && (existing.status === "connected" || existing.status === "in-call")) {
+    etherLog("info", "[offer] " + String(from).slice(0, 10) + "…", "уже live, игнорирую повторный offer");
+    return;
+  }
   if (existing) mesh.remove(from);
   ensureContactEntry(from, packet.n);
   const link = mesh.createIncomingLink(from);
@@ -4209,6 +4238,23 @@ function wireSignalingEvents(sig) {
     if (state.tab === "chats") renderChatsList();
     if (state.tab === "connect") renderOnlineRosterList();
   }));
+  subs.push(on("unreachable", (ev) => {
+    const { to } = ev.detail;
+    if (!to) return;
+    // Сервер явно сказал: получатель не зарегистрирован. Линк, который
+    // мы пытались поднять, точно мёртв — закрываем СРАЗУ, не ждём
+    // WATCH_CONNECT_TIMEOUT_MS (20 секунд, все они — мусор в логе и
+    // в диагностике). Раньше это событие dispatch'илось, но никто его
+    // не слушал.
+    const link = mesh.get(to);
+    if (link && link.status === "connecting") {
+      etherLog("info", "[connect] " + String(to).slice(0, 10) + "…", "unreachable → закрываю линк");
+      mesh.remove(to);
+    }
+    // И не даём scheduleAutoConnect снова долбить тот же адрес в
+    // ближайшие 60 секунд — сервер уже сказал, что его нет.
+    relayAttemptCooldown.set(to, Date.now());
+  }));
   subs.push(on("replaced", () => {
     updateSignalingStatusUI("off", T("status.offline"));
     toast(T("status.offline"));
@@ -4266,11 +4312,13 @@ function wireSignalingEvents(sig) {
       if (existingBlocked && existingBlocked.blocked) return;
       ensureContactEntry(from, packet.n);
       if (state.callId && state.callId !== from) {
-        try { sig.signal(from, { t: "call-busy" }); } catch (e) {}
+        const busySent = sig.signal(from, { t: "call-busy" });
+        if (!busySent) etherLog("warn", "[call] не удалось отправить call-busy (сигналинг недоступен)");
         return;
       }
       if (state.callId === from) {
-        try { sig.signal(from, { t: "call-invite-ack" }); } catch (e) {}
+        const ackSent = sig.signal(from, { t: "call-invite-ack" });
+        if (!ackSent) etherLog("warn", "[call] повторный call-invite — не удалось подтвердить (сигналинг недоступен)");
         return;
       }
       openCallScreen(from, "ringing");
@@ -4285,7 +4333,16 @@ function wireSignalingEvents(sig) {
         // showNotification() сам проверит document.visibilityState.
         showNotification(T("call.incoming"), packet.n || "", { tag: "ether-call-" + from, contactId: from, kind: "call" });
       }
-      try { sig.signal(from, { t: "call-invite-ack" }); } catch (e) {}
+      // Раньше ошибка молча проглатывалась. На практике сигналинг
+      // почти наверняка жив (иначе call-invite не дошёл бы до нас),
+      // но если он отвалился в промежутке — звонящий не узнает, что
+      // его вызов дошёл. Логируем для диагностики: при разборе багов
+      // будет видно, почему звонящий висит в "Вызов…" до таймаута.
+      const ackSent = sig.signal(from, { t: "call-invite-ack" });
+      if (!ackSent) {
+        etherLog("warn", "[call] " + String(from).slice(0, 10) + "…",
+          "call-invite-ack не отправлен (сигналинг недоступен) — звонящий узнает о дозвоне только после установки P2P");
+      }
       return;
     }
     if (packet.t === "call-busy") {
@@ -4374,41 +4431,42 @@ function wireSignalingEvents(sig) {
     outbox.delete(msgId);
     persistOutbox();
   }));
-  subs.push(on("deliver", async (ev) => {
-    const { from, msgId, envelope, fromPublicKey, kind } = ev.detail;
-    sig.mailboxAck(msgId);
-    const sender = state.contacts.get(from);
-    if (sender && sender.blocked) {
-      if (kind === "chat") sendAckBatch(from, [msgId], "delivered");
-      return;
-    }
+subs.push(on("deliver", async (ev) => {
+  const { from, msgId, envelope, fromPublicKey, kind } = ev.detail;
+  sig.mailboxAck(msgId);
+  const sender = state.contacts.get(from);
+  if (sender && sender.blocked) {
+    if (kind === "chat") sendAckBatch(from, [msgId], "delivered");
+    return;
+  }
+  // group-invite дедуплицируется отдельно, по payload.id (см.
+  // applyIncomingPayload) — там же ключ "grp-inv:". Раньше мы добавляли
+  // ещё и "from|msgId", и Set рос вдвое быстрее (по 2 записи на
+  // каждый group-invite), из-за чего окно дедупликации сжималось.
+  if (kind !== "group-invite") {
     if (seenDeliverIds.has(from + "|" + msgId)) {
       if (kind === "chat") sendAckBatch(from, [msgId], "delivered");
       return;
     }
     seenDeliverIds.add(from + "|" + msgId);
-    // Раньше ключом был голый msgId — два РАЗНЫХ контакта, приславшие
-    // сообщение с одинаковым msgId (в теории UUID-коллизия исключена,
-    // но нарочный спам совпадающими id уже нет — прежняя схема просто
-    // отбросила бы второе сообщение от другого человека), теперь не
-    // мешают друг другу: ключ включает отправителя.
     if (seenDeliverIds.size > SEEN_DELIVER_LIMIT) seenDeliverIds.delete(seenDeliverIds.values().next().value);
-    let payload;
-    try {
-      const theirKey = fromPublicKey || (state.contacts.get(from) || {}).publicKey;
-      if (!theirKey) throw new Error("no key");
-      const sharedKey = await CryptoHelper.deriveSharedKey(Store.myPrivateKeyJwk, theirKey);
-      payload = await CryptoHelper.decryptJson(sharedKey, envelope);
-      if (fromPublicKey) {
-        const c = state.contacts.get(from);
-        if (c && keysDiffer(fromPublicKey, c.publicKey)) { c.publicKey = fromPublicKey; persistContacts(); }
-      }
-    } catch (e) { etherLog("error", "[crypto] decrypt failed:", String(e)); return; }
+  }
+  let payload;
+  try {
+    const theirKey = fromPublicKey || (state.contacts.get(from) || {}).publicKey;
+    if (!theirKey) throw new Error("no key");
+    const sharedKey = await CryptoHelper.deriveSharedKey(Store.myPrivateKeyJwk, theirKey);
+    payload = await CryptoHelper.decryptJson(sharedKey, envelope);
+    if (fromPublicKey) {
+      const c = state.contacts.get(from);
+      if (c && keysDiffer(fromPublicKey, c.publicKey)) { c.publicKey = fromPublicKey; persistContacts(); }
+    }
+  } catch (e) { etherLog("error", "[crypto] decrypt failed:", String(e)); return; }
 
-    applyIncomingPayload(from, msgId, payload, true, kind);
+  applyIncomingPayload(from, msgId, payload, true, kind);
 
-    if (kind === "chat") sendAckBatch(from, [msgId], "delivered");
-  }));
+  if (kind === "chat") sendAckBatch(from, [msgId], "delivered");
+}));
   return () => { for (const s of subs) sig.removeEventListener(s.type, s.wrapped); };
 }
 function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind) {
@@ -4627,25 +4685,33 @@ function handleRelayPayload(viaId, payload) {
 // контактов — полезно, когда цель не видна через сигнальный сервер
 // (свой/другой сервер, временно офлайн на сервере), но у нас есть общий
 // знакомый, который сейчас с ней на связи.
-const relayAttemptCooldown = new Map(); // targetId -> когда в последний раз безуспешно пробовали (ms)
-const RELAY_COOLDOWN_MS = 15000;
+const relayAttemptCooldown = new Map();
+// Увеличено с 15с до 60с: реальный провал relay (цель не в сети у хаба)
+// выясняется за 10-20 секунд. Пока не пройдёт минута, повторять
+// бессмысленно — только плодим мёртвые PeerLink'и, которые висят в
+// "connecting" и засоряют diagnostics.
+const RELAY_COOLDOWN_MS = 60000;
+
 async function attemptConnectViaRelay(targetId) {
   const existing = mesh.get(targetId);
   if (existing && existing.status !== "disconnected") return;
   if (_connectInFlight.has(targetId)) return;
-  // renderChatThreadInner дёргает эту функцию очень часто (на каждый presence/
-  // typing/link-status), а если релеев пока нет — смысла пересканировать
-  // mesh.links на каждый вызов нет. Ограничиваем частоту попыток.
   const lastTry = relayAttemptCooldown.get(targetId);
   if (lastTry && Date.now() - lastTry < RELAY_COOLDOWN_MS) return;
+  // Помечаем попытку СРАЗУ — раньше cooldown ставился только когда
+  // не было ни одного relay-контакта, а при НАЛИЧИИ relay мы пробовали
+  // снова и снова каждые 4 секунды (scheduleAutoConnect), плодя
+  // PeerLink'и на заведомо недостижимые цели.
+  relayAttemptCooldown.set(targetId, Date.now());
   const relays = Array.from(mesh.links.entries()).filter(([rid, l]) => rid !== targetId && l.status === "connected");
-  if (relays.length === 0) { relayAttemptCooldown.set(targetId, Date.now()); return; }
+  if (relays.length === 0) return;
   _connectInFlight.add(targetId);
   try {
     const link = mesh.createOutgoingLink(targetId);
     flushPendingIceFor(targetId, link);
     const packet = await link.createInitialOffer("");
     if (!packet) { mesh.remove(targetId); return; }
+    // Сначала просто send relay-request всем connected-relay'ям.
     for (const [, relayLink] of relays) relayLink.send({ kind: "relay-request", to: targetId, packet });
     watchConnectionTimeout(targetId);
   } catch (e) {
@@ -4657,20 +4723,34 @@ async function attemptConnectViaRelay(targetId) {
 }
 
 function scheduleAutoConnect(id) {
-  attemptConnect(id);
-  attemptConnectViaRelay(id).catch(() => {});
+  // Только одна отложенная попытка на контакт (было: немедленная +
+  // ещё одна через 4с). Короткая задержка нужна, чтобы дать встречной
+  // стороне тоже увидеть presence — тогда тай-брейк по id отработает
+  // за нас и мы избежим столкновения двух offer'ов. При presence
+  // нескольких контактов одновременно (например, сразу после
+  // входа в группу) немедленный вызов давал всплеск PeerLink'ов.
   if (autoConnectTimers.has(id)) return;
-  autoConnectTimers.set(id, setTimeout(() => { autoConnectTimers.delete(id); attemptConnect(id); attemptConnectViaRelay(id).catch(() => {}); }, 4000));
+  autoConnectTimers.set(id, setTimeout(() => {
+    autoConnectTimers.delete(id);
+    attemptConnect(id);
+    attemptConnectViaRelay(id).catch(() => {});
+  }, 800));
 }
+const _notMyTurnLogAt = new Map();
+
 async function attemptConnect(id, force) {
   const tag = String(id).slice(0, 10) + "…";
   if (!signaling || !signaling.connected) return;
-  // force=true — звонок: инициатор всегда предлагает, вне зависимости от
-  // тай-брейка по id (тот существует только для автоподключения, чтобы
-  // обе стороны не предлагали друг другу одновременно).
   if (!onlineSet.has(id) && !force) return;
   const iShouldOffer = Store.myId < id;
-  if (!iShouldOffer && !force) { etherLog("info", "[connect] " + tag, "not my turn"); return; }
+  if (!iShouldOffer && !force) {
+    const last = _notMyTurnLogAt.get(id);
+    if (!last || Date.now() - last > 30000) {
+      _notMyTurnLogAt.set(id, Date.now());
+      etherLog("info", "[connect] " + tag, "not my turn");
+    }
+    return;
+  }
   if (_connectInFlight.has(id)) return;
   _connectInFlight.add(id);
   try {
@@ -4678,8 +4758,6 @@ async function attemptConnect(id, force) {
     if (existing) {
       const age = Date.now() - (existing._createdAt || 0);
       if (existing.status === "connected" || existing.status === "in-call") return;
-      // Для звонка (force) не ждём 30 секунд на залипшем connecting —
-      // отдаём свежий offer немедленно, старый снесём.
       if (!force && existing.status === "connecting" && age < CONNECT_STUCK_MS) return;
       mesh.remove(id);
     }
@@ -5647,6 +5725,13 @@ async function beginCall(id, withVideo) {
   if (state.callId && state.callId !== id) { toast(T("toast.alreadyInCall")); return; }
   if (state.callId === id) { openCallScreen(id, state.callPhase || "calling"); return; }
 
+  // Debounce: не даём запустить новый звонок в течение 1.5с после
+  // предыдущего провала — иначе пользователь, быстро тапая «Позвонить»,
+  // плодит лавину системных сообщений «Звонок не состоялся».
+  if (state._lastCallFailedAt && Date.now() - state._lastCallFailedAt < 1500) {
+    return;
+  }
+
   etherLog("info", "[call] beginCall to " + String(id).slice(0, 10) + "…");
   state._callUserAccepted = false;
   state._callAcceptInFlight = false;
@@ -5657,35 +5742,56 @@ async function beginCall(id, withVideo) {
   openCallScreen(id, "calling");
   playDialingSound();
 
+  // ============================================================
+  // КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ.
+  // Сначала проверяем ЖИВОЙ P2P-канал. Если он уже есть — сигнальный
+  // сервер для звонка НЕ НУЖЕН вовсе: call-state:ringing, accepted,
+  // ended и медиа-треки идут напрямую через data channel WebRTC.
+  // Сервер нужен только для ПЕРВИЧНОГО рукопожатия, и то не всегда
+  // (relay через общий контакт тоже работает).
+  // Раньше проверка signaling.connected шла ПЕРВОЙ и молча блокировала
+  // звонок при живом P2P — именно это видно на скриншоте (P2P зелёный,
+  // а тост «нет связи с сервером»).
+  // ============================================================
+  const link = mesh.get(id);
+  const p2pReady = link && (link.status === "connected" || link.status === "in-call");
+
+  if (p2pReady) {
+    try {
+      await link.startCall(withVideo);
+      if (withVideo) showLocalVideoPreview(link);
+    } catch (e) {
+      const name = e && e.name;
+      if (name === "NotAllowedError" || name === "PermissionDeniedError") toast(T("toast.callPermissionDenied"));
+      else if (name === "NotFoundError" || name === "DevicesNotFoundError") toast(T("toast.voiceNoMic"));
+      else toast(T("toast.callFailed"));
+      state._lastCallFailedAt = Date.now();
+      closeCallScreen("failed");
+      return;
+    }
+
+    // Best-effort: даже если сервер жив — уведомим собеседника через
+    // сигналинг. Это лишь дублирует data-channel сигнал call-state
+    // (нужно для push-уведомления и записи в истории звонков у
+    // получателя, если приложение свёрнуто). Если сервер недоступен —
+    // просто пропускаем, звонок уже идёт через P2P.
+    if (signaling && signaling.connected) {
+      try {
+        signaling.signal(id, { t: "call-invite", n: Store.name, x: crypto.randomUUID() });
+      } catch (e) {}
+    }
+    return;
+  }
+
+  // P2P пока нет — тут сигнальный сервер уже обязателен
   if (!signaling || !signaling.connected) {
     toast(T("toast.noServer"));
+    state._lastCallFailedAt = Date.now();
     closeCallScreen("failed");
     return;
   }
 
   signaling.signal(id, { t: "call-invite", n: Store.name, x: crypto.randomUUID() });
-
-  const link = mesh.get(id);
-  // Раньше здесь проверялся c.status (кэшированное поле контакта,
-  // обновляемое отдельным обработчиком) вместо link.status
-  // (актуальное состояние самого соединения) — при рассинхроне между
-  // ними звонок мог либо пытаться стартовать на мёртвой связи, либо
-  // ждать нового подключения, хотя рабочая связь уже была.
-  if (link && (link.status === "connected" || link.status === "in-call")) {
-    try { await link.startCall(withVideo); if (withVideo) showLocalVideoPreview(link); }
-    catch (e) {
-      // Раньше тут ВСЕГДА показывался toast.noServer, даже когда причина —
-      // отказ в доступе к микрофону/камере (NotAllowedError) или их
-      // отсутствие (NotFoundError). Пользователь видел "нет связи с
-      // сервером" при полностью рабочем сервере — совершенно не по адресу.
-      const name = e && e.name;
-      if (name === "NotAllowedError" || name === "PermissionDeniedError") toast(T("toast.callPermissionDenied"));
-      else if (name === "NotFoundError" || name === "DevicesNotFoundError") toast(T("toast.voiceNoMic"));
-      else toast(T("toast.noServer"));
-      closeCallScreen("failed"); return;
-    }
-    return;
-  }
 
   clearPendingCall();
   pendingCall.contactId = id;
@@ -5702,6 +5808,7 @@ async function beginCall(id, withVideo) {
     }
     toast(T("calls.noAnswer"));
     playNoAnswerSound();
+    state._lastCallFailedAt = Date.now();
     closeCallScreen("cancelled");
   }, PENDING_CALL_TIMEOUT_MS);
 }
@@ -6083,27 +6190,22 @@ async function acceptCall(withMute) {
   if (state._callAcceptInFlight) return;
   const cid = state.callId;
   if (!cid) return;
-
   state._callAcceptInFlight = true;
   state._callUserAccepted = true;
   state._callMuteOnAnswer = !!withMute;
 
   try {
     stopRingtone();
-    if (signaling && signaling.connected) {
-      try { signaling.signal(cid, { t: "call-accepted" }); } catch (e) {}
-    }
     const c = state.contacts.get(cid);
     const link = mesh.get(cid);
 
-    // Тот же фикс, что и в beginCall — проверяем актуальное link.status
-    // напрямую, а не кэшированное c.status.
     if (link && (link.status === "connected" || link.status === "in-call")) {
       try {
-        // Передаём state.callWantsVideo — теперь корректно выставлен из
-        // payload.video входящего сигнала "ringing" (см. выше), вместо
-        // того чтобы вызывать answerCall() без аргумента вовсе.
         await link.answerCall(state.callWantsVideo);
+        // Серверный call-accepted шлём ТОЛЬКО после успешного answerCall.
+        if (signaling && signaling.connected) {
+          try { signaling.signal(cid, { t: "call-accepted" }); } catch (e) {}
+        }
         if (state.callWantsVideo) showLocalVideoPreview(link);
         if (withMute) {
           link.setMuted(true);
@@ -6117,36 +6219,24 @@ async function acceptCall(withMute) {
         setCallPhaseActive();
       } catch (e) {
         etherLog("error", "[call] answerCall failed:", String(e));
-        // Раньше пользователь тут не видел вообще ничего — экран звонка
-        // просто зависал в состоянии "подключение", без единого
-        // объяснения, пока другая сторона не получит таймаут.
         const name = e && e.name;
         if (name === "NotAllowedError" || name === "PermissionDeniedError") toast(T("toast.callPermissionDenied"));
         else if (name === "NotFoundError" || name === "DevicesNotFoundError") toast(T("toast.voiceNoMic"));
-        else toast(T("toast.noServer"));
+        else toast(T("toast.callFailed"));
+        state._lastCallFailedAt = Date.now();
         closeCallScreen("failed");
         return;
       }
       return;
     }
-    // РЕГРЕССИЯ, найденная пользователем: связь в момент нажатия "Ответить"
-    // почти НИКОГДА не находится в статусе "connected" ещё — сам смысл
-    // фазы "звонит" в том, что P2P-рукопожатие идёт ПАРАЛЛЕЛЬНО с показом
-    // экрана звонка. Раньше (до правки link.status в этой же сессии) этот
-    // случай просто ничего не делал здесь — state._callUserAccepted=true
-    // уже выставлен выше, и ОТДЕЛЬНЫЙ обработчик "connected" в
-    // wireMeshEvents подхватывал завершение приёма звонка, когда связь
-    // реально устанавливалась. Я по ошибке добавил тут немедленный отказ
-    // ("звонок не состоялся") ровно в этом самом обычном случае — звонок
-    // проваливался почти всегда, а не только когда связь ДЕЙСТВИТЕЛЬНО не
-    // смогла установиться. Ждём молча, если линк вообще существует —
-    // отказываем только если его нет совсем (это уже настоящая ошибка).
+    // P2P ещё нет — ждём "connected" в wireMeshEvents. Серверный
+    // call-accepted пока не шлём: если линк не поднимется, собеседник
+    // должен увидеть "не дозвонились", а не "принято".
     if (!link) {
       toast(T("calls.failed"));
+      state._lastCallFailedAt = Date.now();
       closeCallScreen("failed");
     }
-    // else: линк есть, просто ещё не "connected" — ждём "connected" из
-    // wireMeshEvents, ничего больше делать здесь не нужно.
   } catch (e) {
     etherLog("error", "[call] accept handler failed:", String(e));
   } finally {
@@ -6618,18 +6708,24 @@ function wireMeshEvents() {
 
         if (state.callId === id && link) {
           if (state.callPhase === "calling") {
-            // Раньше видео зависело от !link._audioAdded — если аудио
-            // УЖЕ было добавлено (например, после повторной попытки
-            // соединения), весь блок пропускался целиком, и видео НЕ
-            // включалось вовсе, хотя пользователь просил видеозвонок.
-            // Аудио и видео — независимые проверки.
             if (!link._audioAdded) {
-              link.startCall(state.callWantsVideo).then(() => { if (state.callWantsVideo) showLocalVideoPreview(link); }).catch((e) => etherLog("error", "[call] caller startCall failed:", String(e)));
+              link.startCall(state.callWantsVideo).then(() => {
+                if (state.callWantsVideo) showLocalVideoPreview(link);
+                // P2P установлен = собеседник в сети и его экран входящего
+                // уже открыт. Обновляем фазу на "Гудки…" — независимо от
+                // того, дошёл ли call-invite-ack через сигналинг (он мог
+                // отвалиться на секунду). Раньше пользователь видел
+                // "Вызов…" до явного ack'а или таймаута, даже когда
+                // звонок фактически уже дозвонился.
+                if (state.callId === id && state.callPhase === "calling") {
+                  const p = $("#call-phase");
+                  if (p) p.textContent = T("call.ringing");
+                }
+              }).catch((e) => etherLog("error", "[call] caller startCall failed:", String(e)));
             } else if (state.callWantsVideo && !link._videoAdded) {
               link.enableVideo().then((ok) => { if (ok) showLocalVideoPreview(link); }).catch((e) => etherLog("error", "[call] caller enableVideo failed:", String(e)));
             }
           } else if (state._callUserAccepted && state.callPhase !== "active") {
-            // Тот же пропущенный video-флаг, что и в acceptCall().
             link.answerCall(state.callWantsVideo).then(() => {
               if (state.callWantsVideo) showLocalVideoPreview(link);
               if (state._callMuteOnAnswer) {
@@ -6641,6 +6737,16 @@ function wireMeshEvents() {
                   if (lbl) lbl.textContent = T("call.mute.off");
                 }
                 state._callMuteOnAnswer = false;
+              }
+              // P2P-путь реально сработал (answerCall завершился успешно) —
+              // ТОЛЬКО ТЕПЕРЬ уведомляем сигнальный сервер, что мы приняли.
+              // Раньше серверный call-accepted уходил из acceptCall() ДО
+              // link.answerCall: если P2P падал (микрофон запрещён,
+              // getUserMedia упал, ICE не прошёл) — собеседник видел
+              // "принято", хотя звонок не поднялся. Best-effort: если
+              // сигналинг недоступен, не критично — P2P-путь уже работает.
+              if (signaling && signaling.connected && state.callId === id) {
+                try { signaling.signal(id, { t: "call-accepted" }); } catch (e) {}
               }
               setCallPhaseActive();
             }).catch((e) => etherLog("error", "[call] deferred answerCall failed:", String(e)));
@@ -6670,41 +6776,45 @@ function wireMeshEvents() {
       const { id, payload } = ev.detail;
       const c = state.contacts.get(id); if (!c) return;
       if (c.blocked) return;
-      if (payload && payload.kind === "call-state") {
-        if (payload.state === "ringing" && state.callId !== id && state.callPhase !== "ringing") {
-          // Если с этим контактом только что завершили звонок — не
-          // открываем экран звонка заново и не играем рингтон. Такой
-          // пакет приходит от собеседника при пересогласовании WebRTC
-          // (endCall() снимает треки, триггерит renegotiation, его
-          // стартовая сторона снова вызывает startCall → шлёт ringing).
-          const recent = recentlyEndedCalls.get(id);
-          if (recent && Date.now() - recent < RECENTLY_ENDED_CALL_MS) {
-            etherLog("info", "[call] игнорирую повторный ringing после недавнего отбоя");
-            return;
-          }
-          if (state.callId) {
-            const l = mesh.get(id);
-            if (l) { try { l.declineCall("busy"); } catch (e) {} }
-            return;
-          }
-          state.callWantsVideo = !!payload.video;
-          openCallScreen(id, "ringing");
-          try { ensureAudioCtx(); } catch (e) {}
-          playRingtone();
-        }
-        if (payload.state === "accepted" && state.callId === id) setCallPhaseActive();
-        if (payload.state === "declined" && state.callId === id) {
-          toast(T("calls.declined"));
-          if (payload.reason === "busy") playBusySound(); else playNoAnswerSound();
-          const link = mesh.get(id); if (link) link.endCall();
-          closeCallScreen("declined");
-        }
-        if (payload.state === "ended" && state.callId === id) {
-          try { const l = mesh.get(id); if (l) l.endCall(); } catch (e) {}
-          closeCallScreen("completed");
-        }
-        return;
-      }
+if (payload && payload.kind === "call-state") {
+  // Свежесть пакета. Если сообщение старше 20 секунд — оно пришло из
+  // буфера iOS (приложение спало, а собеседник звонил). Реальный
+  // звонок в этот момент уже давно отбит — рингтон играть не надо.
+  const isStale = payload.ts && (Date.now() - payload.ts > 20000);
+
+  if (payload.state === "ringing" && state.callId !== id && state.callPhase !== "ringing") {
+    if (isStale) {
+      etherLog("info", "[call] игнорирую устаревший call-state:ringing от " + String(id).slice(0, 10) + "… (" + Math.round((Date.now() - payload.ts) / 1000) + "с назад)");
+      return;
+    }
+    const recent = recentlyEndedCalls.get(id);
+    if (recent && Date.now() - recent < RECENTLY_ENDED_CALL_MS) {
+      etherLog("info", "[call] игнорирую повторный ringing после недавнего отбоя");
+      return;
+    }
+    if (state.callId) {
+      const l = mesh.get(id);
+      if (l) { try { l.declineCall("busy"); } catch (e) {} }
+      return;
+    }
+    state.callWantsVideo = !!payload.video;
+    openCallScreen(id, "ringing");
+    try { ensureAudioCtx(); } catch (e) {}
+    playRingtone();
+  }
+  if (payload.state === "accepted" && state.callId === id && !isStale) setCallPhaseActive();
+  if (payload.state === "declined" && state.callId === id && !isStale) {
+    toast(T("calls.declined"));
+    if (payload.reason === "busy") playBusySound(); else playNoAnswerSound();
+    const link = mesh.get(id); if (link) link.endCall();
+    closeCallScreen("declined");
+  }
+  if (payload.state === "ended" && state.callId === id && !isStale) {
+    try { const l = mesh.get(id); if (l) l.endCall(); } catch (e) {}
+    closeCallScreen("completed");
+  }
+  return;
+}
       if (payload && payload.kind && String(payload.kind).indexOf("relay-") === 0) {
         handleRelayPayload(id, payload);
         return;
