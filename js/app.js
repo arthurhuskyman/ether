@@ -823,19 +823,26 @@ let __nextSoundAt = 0;
 // (или если ctx уже running) снимаем все слушатели — повторять
 // смысла нет.
 let __warmDone = false;
+let __warmInProgress = false;
 function initAudioWarmup() {
   const warm = () => {
-    if (__warmDone) return;
+    if (__warmDone || __warmInProgress) return;
     const ctx = ensureGlobalAudioCtx();
     if (!ctx) return;
     if (ctx.state === "suspended") {
+      // __warmInProgress ставим ДО ctx.resume(): пока промис не
+      // разрешится, ctx.state всё ещё "suspended", и без этого флага
+      // обработчики одного тапа (touchstart+click+keydown) параллельно
+      // запускают resume — ровно то, что видно в логе 4 раза подряд.
+      __warmInProgress = true;
       ctx.resume().then(() => {
         etherLog("info", "[audio] ctx resumed, state=" + ctx.state);
         __warmDone = true;
+        __warmInProgress = false;
         document.removeEventListener("touchstart", warm);
         document.removeEventListener("click", warm);
         document.removeEventListener("keydown", warm);
-      }).catch(() => {});
+      }).catch(() => { __warmInProgress = false; });
     } else if (ctx.state === "running") {
       __warmDone = true;
       document.removeEventListener("touchstart", warm);
@@ -1290,9 +1297,14 @@ function startApp() {
 
   etherLog("info", "[startApp] init, id=" + (Store.myId ? Store.myId.slice(0, 10) + "…" : "(none)"));
   mesh = new MeshManager(Store.name);
-    try {
-      if (navigator.audioSession) navigator.audioSession.type = "playback";
-    } catch (e) {}
+  // ⚠️ УБРАНО: navigator.audioSession.type = "playback".
+  // На iOS установка категории "playback" ЗАПРЕЩАЕТ захват звука с
+  // микрофона: любой getUserMedia({audio:true}) падает с
+  // InvalidStateError: "AudioSession category is not compatible with
+  // audio capture". Из-за этого вызов answerCall()/startCall() в
+  // звонке ВСЕГДА падал с ошибкой, и звонки были полностью
+  // невозможны. Попытка была направлена на улучшение фонового
+  // рингтона, но такой ценой она не оправдана — откатываем.
   safeCall(wireMeshEvents, "wireMeshEvents");
   safeCall(wireTabBar, "wireTabBar");
   safeCall(() => {
@@ -3243,7 +3255,11 @@ async function startVoiceRecording() {
   voiceRecordStarting = false;
   voiceRecordChunks = [];
   voiceRecorder.addEventListener("dataavailable", (ev) => { if (ev.data && ev.data.size > 0) voiceRecordChunks.push(ev.data); });
-  voiceRecorder.start();
+  // start(200): запрашиваем чанк каждые 200мс вместо одного финального
+  // при stop(). На iOS одиночный stop() в конце длинной записи может
+  // занимать 1-2 секунды, пока весь кодек-буфер дойдёт до JS. С
+  // периодическими чанками stop() завершается практически мгновенно.
+  voiceRecorder.start(200);
   voiceRecordStartedAt = Date.now();
   const form = $("#chat-form"); if (form) form.classList.add("hidden");
   const bar = $("#voice-recording-bar"); if (bar) bar.classList.remove("hidden");
@@ -3867,18 +3883,27 @@ async function flushOutboxItem(msgId) {
   const contact = state.contacts.get(entry.to);
   if (!contact) { outbox.delete(msgId); persistOutbox(); return; }
   if (!contact.publicKey) {
-    // Раньше сообщение тут просто исчезало из outbox в pendingNoKey БЕЗ
-    // единого сигнала пользователю — ack оставался "pending" НАВСЕГДА
-    // (ни "sent", ни "failed"), выглядело как вечно зависшая отправка
-    // без объяснения. Технически это корректно — без публичного ключа
-    // получателя зашифровать нечем, ждать его и правда единственный
-    // вариант (флашится автоматически, когда ключ придёт) — но
-    // пользователь должен ПОНИМАТЬ, что происходит, а не гадать.
+    // Нет публичного ключа получателя — зашифровать нечем. Кладём в
+    // pendingNoKey (уйдёт автоматически, когда ключ появится), НО
+    // помечаем сообщение статусом "failed", а не оставляем вечный
+    // "pending". Именно это было причиной «голосовые висят с крутящимся
+    // спиннером бесконечно, пока собеседник не появится онлайн»: файлы
+    // и голосовые имеют свойство file.pending = true, которое никто
+    // не сбрасывал — запись в outbox удалялась, а UI продолжал
+    // показывать "отправка идёт". Теперь сразу переводим UI в честное
+    // "не отправлено" (!), а не держим пользователя в неведении.
     const isFirstTime = !pendingNoKey.has(contact.id) || !pendingNoKey.get(contact.id).some((x) => x.msgId === msgId);
     if (!pendingNoKey.has(contact.id)) pendingNoKey.set(contact.id, []);
     const list = pendingNoKey.get(contact.id);
     if (!list.some((x) => x.msgId === msgId)) { list.push({ msgId, payload: entry.payload }); persistPendingNoKey(); }
     outbox.delete(msgId); persistOutbox();
+    // Снимаем file.pending — иначе крутящийся спиннер не остановится.
+    const c = state.contacts.get(contact.id);
+    if (c) {
+      const m = c.messages.find((x) => x.id === msgId);
+      if (m && m.file) m.file.pending = false;
+    }
+    markMessageAck(contact.id, msgId, "failed");
     if (isFirstTime) toast(T("toast.waitingForKey", { name: contact.name || T("sys.someone") }));
     return;
   }
@@ -5728,7 +5753,9 @@ async function beginCall(id, withVideo) {
   // Debounce: не даём запустить новый звонок в течение 1.5с после
   // предыдущего провала — иначе пользователь, быстро тапая «Позвонить»,
   // плодит лавину системных сообщений «Звонок не состоялся».
-  if (state._lastCallFailedAt && Date.now() - state._lastCallFailedAt < 1500) {
+  // 4с вместо 1.5с: в логе видно три beginCall подряд с интервалами
+  // 1.7с и 2.6с — старый debounce их не покрывал.
+  if (state._lastCallFailedAt && Date.now() - state._lastCallFailedAt < 4000) {
     return;
   }
 
@@ -5764,7 +5791,7 @@ async function beginCall(id, withVideo) {
       const name = e && e.name;
       if (name === "NotAllowedError" || name === "PermissionDeniedError") toast(T("toast.callPermissionDenied"));
       else if (name === "NotFoundError" || name === "DevicesNotFoundError") toast(T("toast.voiceNoMic"));
-      else toast(T("toast.callFailed"));
+      else toast(T("calls.failed"));
       state._lastCallFailedAt = Date.now();
       closeCallScreen("failed");
       return;
@@ -6222,7 +6249,7 @@ async function acceptCall(withMute) {
         const name = e && e.name;
         if (name === "NotAllowedError" || name === "PermissionDeniedError") toast(T("toast.callPermissionDenied"));
         else if (name === "NotFoundError" || name === "DevicesNotFoundError") toast(T("toast.voiceNoMic"));
-        else toast(T("toast.callFailed"));
+        else toast(T("calls.failed"));
         state._lastCallFailedAt = Date.now();
         closeCallScreen("failed");
         return;
@@ -7071,6 +7098,19 @@ document.addEventListener("visibilitychange", () => {
     // расписание заполнялось). Без сброса первый же звук после возврата
     // прозвучит "отложенно", с уже накопленным временным сдвигом.
     __nextSoundAt = 0;
+    // iOS замораживает setInterval в фоне — пока приложение спало,
+    // _lastPongAt не обновлялся, и первый же тик после возврата видел
+    // "no pong for 137s" (реальная цифра из лога) и ЗАКРЫВАЛ рабочее
+    // соединение. На самом деле соединение было живо — просто мы его
+    // сами не "проверяли" из-за заморозки. Обновляем _lastPongAt
+    // принудительно: реальная проверка произойдёт при следующем пинге
+    // через 5 секунд, если собеседник действительно отвалился.
+    if (mesh && mesh.links) {
+      for (const link of mesh.links.values()) {
+        if (link._lastPongAt) link._lastPongAt = Date.now();
+      }
+    }
+    if (signaling && signaling._lastPongAt) signaling._lastPongAt = Date.now();
     try { updateAppBadge(); } catch (e) {}
     try {
       if (globalAudioCtx && globalAudioCtx.state === "suspended") globalAudioCtx.resume().catch(() => {});
