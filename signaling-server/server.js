@@ -79,6 +79,28 @@ function staticTurnServers() {
   ];
 }
 
+// Общая логика очистки rate-limit карт. Раньше у каждой карты (iceHits,
+// registerHits, signalHits, deliverHits, pushSubHits) была только чистка
+// "по возрасту" — если за минуту приходило много разных ключей (IP,
+// myId), все они остаются свежими, и карта растёт без предела. У
+// linkPreviewHits уже был жёсткий предел по количеству (см. ниже) — тот
+// же приём вынесен сюда, чтобы применить единообразно везде.
+const RL_MAX_ENTRIES = 5000;
+const RL_STALE_MS = 120_000;
+function pruneRateLimitMap(map) {
+  const now = Date.now();
+  for (const [k, v] of map) if (now - v.start > RL_STALE_MS) map.delete(k);
+  if (map.size > RL_MAX_ENTRIES) {
+    const toRemove = map.size - Math.floor(RL_MAX_ENTRIES * 0.9);
+    let removed = 0;
+    for (const k of map.keys()) {
+      if (removed >= toRemove) break;
+      map.delete(k);
+      removed++;
+    }
+  }
+}
+
 let iceCache = { at: 0, servers: null };
 const iceHits = new Map(); // ip -> { start, n }
 
@@ -88,10 +110,7 @@ function rateLimitOk(ip) {
   if (now - w.start > 60_000) { w.start = now; w.n = 0; }
   w.n++;
   iceHits.set(ip, w);
-  if (iceHits.size > 5000) {
-    // грубая очистка, чтобы map не разрастался
-    for (const [k, v] of iceHits) if (now - v.start > 120_000) iceHits.delete(k);
-  }
+  if (iceHits.size > 5000) pruneRateLimitMap(iceHits);
   return w.n <= ICE_RATE_LIMIT_PER_MIN;
 }
 
@@ -108,9 +127,7 @@ function registerRateLimitOk(ip) {
   if (now - w.start > 60_000) { w.start = now; w.n = 0; }
   w.n++;
   registerHits.set(ip, w);
-  if (registerHits.size > 5000) {
-    for (const [k, v] of registerHits) if (now - v.start > 120_000) registerHits.delete(k);
-  }
+  if (registerHits.size > 5000) pruneRateLimitMap(registerHits);
   return w.n <= REGISTER_RATE_LIMIT_PER_MIN;
 }
 
@@ -123,15 +140,14 @@ const SIGNAL_RATE_LIMIT_PER_MIN = 120; // выше, чем deliver — сюда 
 const DELIVER_RATE_LIMIT_PER_MIN = 60;
 const signalHits = new Map();
 const deliverHits = new Map();
+
 function wsRateLimitOk(map, key, limitPerMin) {
   const now = Date.now();
   const w = map.get(key) || { start: now, n: 0 };
   if (now - w.start > 60_000) { w.start = now; w.n = 0; }
   w.n++;
   map.set(key, w);
-  if (map.size > 5000) {
-    for (const [k, v] of map) if (now - v.start > 120_000) map.delete(k);
-  }
+  if (map.size > 5000) pruneRateLimitMap(map);
   return w.n <= limitPerMin;
 }
 
@@ -167,22 +183,7 @@ function linkPreviewRateLimitOk(ip) {
   if (now - w.start > 60_000) { w.start = now; w.n = 0; }
   w.n++;
   linkPreviewHits.set(ip, w);
-  if (linkPreviewHits.size > 5000) {
-    for (const [k, v] of linkPreviewHits) if (now - v.start > 120_000) linkPreviewHits.delete(k);
-    if (linkPreviewHits.size > 5000) {
-      // Та же логика, что и для linkPreviewCache выше: если все записи
-      // всё ещё "свежие" (много разных IP за короткое окно), очистка по
-      // возрасту ничего не найдёт — жёсткий предел по количеству как
-      // подстраховка.
-      const toRemove = linkPreviewHits.size - 4500;
-      let removed = 0;
-      for (const k of linkPreviewHits.keys()) {
-        if (removed >= toRemove) break;
-        linkPreviewHits.delete(k);
-        removed++;
-      }
-    }
-  }
+  if (linkPreviewHits.size > 5000) pruneRateLimitMap(linkPreviewHits);
   return w.n <= LINK_PREVIEW_RATE_LIMIT_PER_MIN;
 }
 
