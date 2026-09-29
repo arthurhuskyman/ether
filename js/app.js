@@ -3913,6 +3913,7 @@ async function flushOutboxItem(msgId) {
     markMessageAck(contact.id, msgId, "failed");
     if (isFirstTime) toast(T("toast.waitingForKey", { name: contact.name || T("sys.someone") }));
     return;
+  }
   try {
     const sharedKey = await CryptoHelper.deriveSharedKey(Store.myPrivateKeyJwk, contact.publicKey);
     const envelope = await CryptoHelper.encryptJson(sharedKey, entry.payload);
