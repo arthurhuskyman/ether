@@ -3897,16 +3897,22 @@ async function flushOutboxItem(msgId) {
     const list = pendingNoKey.get(contact.id);
     if (!list.some((x) => x.msgId === msgId)) { list.push({ msgId, payload: entry.payload }); persistPendingNoKey(); }
     outbox.delete(msgId); persistOutbox();
-    // Снимаем file.pending — иначе крутящийся спиннер не остановится.
-    const c = state.contacts.get(contact.id);
-    if (c) {
-      const m = c.messages.find((x) => x.id === msgId);
-      if (m && m.file) m.file.pending = false;
+    // КРИТИЧНО: помечаем сообщение "failed" явно. Без этого ack
+    // остаётся "pending" навсегда — в UI это символ ◷ с CSS-
+    // анимацией вращения, ровно то, что видел пользователь: "иконка
+    // отправки крутится бесконечно, пока второй абонент не
+    // подключится". Сообщение уйдёт автоматически, когда ключ
+    // появится (flushPendingNoKey), и там ack уже обновится в "sent".
+    // Снимаем также file.pending, если это вложение — иначе
+    // file-bubble-pending держит спиннер поверх.
+    const c0 = state.contacts.get(contact.id);
+    if (c0) {
+      const m0 = c0.messages.find((x) => x.id === msgId);
+      if (m0 && m0.file) m0.file.pending = false;
     }
     markMessageAck(contact.id, msgId, "failed");
     if (isFirstTime) toast(T("toast.waitingForKey", { name: contact.name || T("sys.someone") }));
     return;
-  }
   try {
     const sharedKey = await CryptoHelper.deriveSharedKey(Store.myPrivateKeyJwk, contact.publicKey);
     const envelope = await CryptoHelper.encryptJson(sharedKey, entry.payload);
@@ -3916,17 +3922,15 @@ async function flushOutboxItem(msgId) {
     const kind = (entry.payload && entry.payload.kind) || "chat";
     const sent = signaling && signaling.deliver(entry.to, entry.msgId, envelope, Store.myPublicKeyJwk, kind);
     if (!sent) markMessageAck(entry.to, msgId, "failed");
-    else if (kind === "chat") {
-      // Раньше здесь искали c.messages.find(id === msgId) напрямую по
-      // state.contacts.get(entry.to) — для ГРУППОВЫХ сообщений это
-      // никогда не совпадало: entry.to это id конкретного УЧАСТНИКА
-      // (свой delivery-id на каждого получателя), а не группы, и само
-      // сообщение лежит в списке ГРУППЫ под другим (contentId) id.
-      // Совпадение просто никогда не находилось — ack так и оставался
-      // "failed"/"pending" навсегда после успешного фолбэка через
-      // сервер. markMessageAck уже умеет корректно резолвить группу
-      // через outbox-запись (groupId/contentId) — переиспользуем её
-      // вместо дублирования той же логики неправильно.
+    else if (kind === "chat" || kind === "file") {
+      // Раньше здесь стояло только `kind === "chat"` — для kind
+      // === "file" (голосовые и любые вложения, ушедшие офлайн-путём
+      // через сервер) ack НЕ обновлялся, и сообщение навсегда
+      // оставалось в состоянии "pending" — с точки зрения UI это
+      // вечно крутящийся символ ◷. Именно поэтому голосовое,
+      // успешно принятое сервером, визуально висело "отправляется".
+      // Комментарий про группы ниже остаётся в силе — markMessageAck
+      // уже корректно резолвит группу через outbox-запись.
       markMessageAck(entry.to, msgId, "sent");
     }
   } catch (e) { etherLog("error", "[crypto] encrypt:", String(e)); markMessageAck(entry.to, msgId, "failed"); }
