@@ -150,15 +150,76 @@ function wsRateLimitOk(map, key, limitPerMin) {
   if (map.size > 5000) pruneRateLimitMap(map);
   return w.n <= limitPerMin;
 }
+// ---------- Проверка доступности TURN ----------
+// ExpressTURN (и любой TURN) может быть недоступен: сервер лежит,
+// креденшлы истекли, сеть заблокирована. Если сервер отдаёт клиенту
+// битые TURN-креденшлы, ICE-сбор на клиенте встаёт в ступор: браузер
+// пытается получить relay-кандидата, ждёт 30 секунд таймаута
+// TURN allocate request, и всё это время соединение не устанавливается.
+// При этом сам звонок бы прошёл по STUN за 1-3 секунды.
+//
+// Проверка: пытаемся открыть TCP-соединение до TURN-сервера. Не
+// идеально (TURN работает по UDP), но: если TCP не открывается за
+// 1500мс — TURN точно недоступен. Если открывается — считаем
+// живым. Ложные срабатывания в сторону "доступен" менее вредны, чем
+// "недоступен" (в худшем случае клиент получит те же 30 секунд
+// ожидания, что и сейчас).
+const TURN_CHECK_TIMEOUT_MS = 1500;
+const TURN_CHECK_CACHE_MS = 5 * 60 * 1000; // раз в 5 минут достаточно
+let turnCheckCache = { at: 0, ok: null };
+
+function checkTurnAlive(url) {
+  return new Promise((resolve) => {
+    // url вида "turn:free.expressturn.com:3478" или "turns:..."
+    const m = String(url || "").match(/^turns?:([^:?]+):(\d+)/);
+    if (!m) return resolve(false);
+    const host = m[1];
+    const port = parseInt(m[2], 10);
+    const socket = net.connect({ host, port });
+    let settled = false;
+    const finish = (ok) => {
+      if (settled) return;
+      settled = true;
+      try { socket.destroy(); } catch (e) {}
+      resolve(ok);
+    };
+    socket.setTimeout(TURN_CHECK_TIMEOUT_MS);
+    socket.on("connect", () => finish(true));
+    socket.on("timeout", () => finish(false));
+    socket.on("error", () => finish(false));
+  });
+}
+
+async function isTurnAlive(url) {
+  const now = Date.now();
+  if (turnCheckCache.ok !== null && now - turnCheckCache.at < TURN_CHECK_CACHE_MS) {
+    return turnCheckCache.ok;
+  }
+  const ok = await checkTurnAlive(url);
+  turnCheckCache = { at: now, ok };
+  console.log("[ice] проверка TURN " + url + " → " + (ok ? "доступен" : "НЕДОСТУПЕН"));
+  return ok;
+}
 
 async function getIceServers() {
   const now = Date.now();
   if (iceCache.servers && now - iceCache.at < ICE_CACHE_MS) return iceCache.servers;
   // Статический TURN (ExpressTURN или аналог) — основной механизм.
-  // Metered.ca требует оплаты и больше не используется — код,
-  // обращавшийся к нему, удалён целиком, а не оставлен мёртвой веткой.
+  // Metered.ca требует оплаты и больше не используется.
   let servers = staticTurnServers();
-  if (servers) console.log("[ice] используются статические TURN-креденшлы (TURN_STATIC_*)");
+  if (servers) {
+    // Дополнительная проверка: если TURN недоступен, отдавать его
+    // клиенту НЕЛЬЗЯ — ICE на клиенте будет ждать таймаута TURN
+    // allocate, блокируя весь звонок, хотя STUN-путь работал бы.
+    const turnUrl = TURN_STATIC_URL;
+    const alive = await isTurnAlive(turnUrl);
+    if (alive) {
+      console.log("[ice] используются статические TURN-креденшлы (TURN_STATIC_*)");
+    } else {
+      console.warn("[ice] TURN " + turnUrl + " недоступен — отдаю только STUN");
+      servers = null;
+    }
+  }
   if (!servers) servers = FALLBACK_ICE.slice();
   iceCache = { at: now, servers };
   return servers;
