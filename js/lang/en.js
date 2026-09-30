@@ -353,5 +353,12 @@ window.__LANG_DICTS["en"] = {
   "update.available.title": "Update available",
   "update.available.text": "Reload to get the latest version.",
   "update.reload": "Reload",
+  "update.available.title": "Update available",
+  "update.available.text": "Reload to get the latest version.",
+  "update.reload": "Reload",
+  "calls.unreachable": "Did not connect",
+  "chat.transport.direct": "Direct connection",
+  "chat.transport.server": "Via server",
+  "chat.transport.connecting": "Connecting",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("en");

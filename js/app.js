@@ -1125,12 +1125,22 @@ function showLockScreen() {
 }
 async function tryUnlock(pin) {
   if (!pin) return;
-  if (state._unlockLockedUntil && Date.now() < state._unlockLockedUntil) return; // поле заблокировано на паузу — попытки не считаем вовсе
+  if (state._unlockLockedUntil && Date.now() < state._unlockLockedUntil) return;
   if (!Store.pinSalt) {
     if (confirm(T("toast.confirmHardReset"))) { localStorage.clear(); location.reload(); }
     return;
   }
-  const h = await pbkdf2Hex(pin, Store.pinSalt, PIN_ITERATIONS);
+  // pbkdf2Hex с 120000 итерациями занимает 200-500мс на мобильном.
+  // Кнопка в это время не отвечает — показываем спиннер поверх неё,
+  // чтобы не казалось, что нажатие не сработало.
+  const btn = $("#lock-submit");
+  if (btn) btn.classList.add("loading");
+  let h;
+  try {
+    h = await pbkdf2Hex(pin, Store.pinSalt, PIN_ITERATIONS);
+  } finally {
+    if (btn) btn.classList.remove("loading");
+  }
   if (h === Store.pinHash) {
     state.unlockAttempts = 0;
     const p = $("#lock-pin"); if (p) p.value = "";
@@ -1622,10 +1632,7 @@ function wireServiceWorker() {
     watchForWaitingSW(reg);
   }).catch(() => {});
 
-  // Проверка обновлений при возврате в приложение — короткое окно
-  // (visibilitychange) и длинное (каждые 30 минут). Раньше проверки
-  // вообще не было, и открытая вкладка могла часами жить на старом коде,
-  // даже когда на сервере уже лежит новая версия.
+  // Проверка обновлений при возврате в приложение и раз в 30 минут.
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && swRegistration) {
       swRegistration.update().catch(() => {});
@@ -1635,7 +1642,20 @@ function wireServiceWorker() {
     if (swRegistration) swRegistration.update().catch(() => {});
   }, 30 * 60 * 1000);
 
-  // Существующие сообщения от SW — не трогаем.
+  // Раз в час проверяем, не истекла ли push-подписка. На iOS подписка
+  // иногда «протухает» после долгого неиспользования — тогда Web Push
+  // перестаёт работать без единого сигнала пользователю. Признак —
+  // expirationTime в подписке.
+  setInterval(() => {
+    if (!Store.pushSubscriptionJson) return;
+    try {
+      const sub = JSON.parse(Store.pushSubscriptionJson);
+      if (sub.expirationTime && sub.expirationTime * 1000 < Date.now() + 24 * 3600 * 1000) {
+        ensurePushSubscription().catch(() => {});
+      }
+    } catch (e) {}
+  }, 60 * 60 * 1000);
+
   navigator.serviceWorker.addEventListener("message", (ev) => {
     const data = ev.data || {};
     if (data.type === "open-contact" && data.contactId) {
@@ -1648,8 +1668,7 @@ function wireServiceWorker() {
 
   // Когда новый SW активировался после SKIP_WAITING — перезагружаем
   // страницу, чтобы весь UI подхватил новые ресурсы. sessionStorage
-  // защищает от петли перезагрузок: controllerchange может сработать
-  // ещё раз, если что-то пойдёт не так.
+  // защищает от петли перезагрузок.
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     if (sessionStorage.getItem("ether.reloadingForUpdate")) return;
     sessionStorage.setItem("ether.reloadingForUpdate", "1");
@@ -1658,16 +1677,14 @@ function wireServiceWorker() {
 }
 
 // Подписка на события конкретной регистрации: либо SW уже waiting
-// (пользователь вернулся, когда обновление скачалось в прошлой сессии
-// и не активировалось), либо ещё в процессе install — ждём statechange.
+// (пользователь вернулся, когда обновление скачалось в прошлой сессии),
+// либо ещё в процессе install — ждём statechange.
 function watchForWaitingSW(reg) {
   if (reg.waiting) { showUpdateBanner(reg); return; }
   reg.addEventListener("updatefound", () => {
     const newSW = reg.installing;
     if (!newSW) return;
     newSW.addEventListener("statechange", () => {
-      // installed + есть активный controller = это ОБНОВЛЕНИЕ, а не
-      // первая установка (при первой установке controller ещё пуст).
       if (newSW.state === "installed" && navigator.serviceWorker.controller) {
         showUpdateBanner(reg);
       }
@@ -1675,10 +1692,11 @@ function watchForWaitingSW(reg) {
   });
 }
 
-// Показывает баннер «Доступно обновление». Кнопка «Обновить» шлёт
-// waiting-SW сообщение SKIP_WAITING — он активируется, сработает
-// controllerchange, страница перезагрузится. Кнопка «Позже» скрывает
-// баннер на час (sessionStorage).
+// Баннер «Доступно обновление». Кнопка «Обновить» шлёт waiting-SW
+// сообщение SKIP_WAITING — он активируется, сработает controllerchange,
+// страница перезагрузится. Кнопка «Позже» скрывает баннер на час
+// (sessionStorage — не localStorage: закрыл вкладку — и следующая сессия
+// снова покажет).
 function showUpdateBanner(reg) {
   if (document.getElementById("update-banner")) return;
   try {
@@ -2134,11 +2152,16 @@ function renderChatsList() {
     const isTyping = !isGroup(c) && state.typingTimers.has(c.id);
     if (isTyping) preview = `<em class="chat-row-typing">${escapeHtml(T("chat.typing"))}</em>`;
     row.innerHTML = `
-      <div class="avatar" style="background:${avatarGradient(c.name)}">${escapeHtml(initials(c.name))}</div>
+    // Статус онлайн теперь точкой прямо на аватаре (как Signal/WhatsApp),
+    // а не текстовым символом ● справа от имени. У групп точку не
+    // показываем — там статус не про presence одного человека.
+    const showDot = !isGroup(c) && c.managed;
+    const statusDot = showDot ? `<span class="avatar-status-dot ${contactStatusClass(c)}"></span>` : "";
+    row.innerHTML = `
+      <div class="avatar" style="background:${avatarGradient(c.name)}">${escapeHtml(initials(c.name))}${statusDot}</div>
       <div class="chat-row-body">
         <div class="chat-row-top">
           <span class="chat-row-name${unread > 0 ? " unread" : ""}">${escapeHtml(c.name || T("sys.someone"))} ${muteIcon}${blockIcon}</span>
-          <span class="chat-row-status ${contactStatusClass(c)}"${isGroup(c) ? ' style="display:none;"' : ""}>●</span>
         </div>
         <div class="chat-row-sub"><span class="chat-row-preview-text">${preview}</span>${badge}</div>
       </div>`;
@@ -2362,19 +2385,30 @@ function wireContactCard() {
 // Тред
 // =====================================================================
 function ackGlyph(ack) {
-  // 5 состояний, различимых по ФОРМЕ, не только по цвету (важно для
-  // дальтоников и ч/б скриншотов): pending — вращающийся ободок,
-  // sent/delivered — контурные галочки (через -webkit-text-stroke в
-  // CSS), read — та же ✓✓, но залитая и чуть крупнее, failed — "!" в
-  // кружке, кликабельна. У каждой role="img" и локализованный
-  // aria-label — раньше скринридер читал их как "галочка галочка".
+  // 5 состояний на основе единой SVG-формы (Вариант B — «Эфирная
+  // прогрессия»). Отличие от старой версии: не текст-символы ✓/◷/!,
+  // а тонкие SVG-галочки — одинаковый размер во всех состояниях,
+  // никакой зависимости от -webkit-text-stroke. Различие между
+  // состояниями — через opacity, толщину обводки и цвет:
+  //   pending   — пульсирующая точка 4px (рисуется CSS ::before)
+  //   sent      — одна галочка, 55% opacity
+  //   delivered — две галочки, 55% opacity
+  //   read      — две галочки, 100% белый + белое свечение
+  //   failed    — «!» в тонком контуре круга, красный
+  // Вторая галочка выезжает справа через CSS-анимацию.
   const lbl = (k) => `role="img" aria-label="${escapeHtml(T("ack." + k))}"`;
-  if (ack === "failed") return `<span class="ack-tick ack-failed" ${lbl("failed")} data-retry="1">!</span>`;
-  if (ack === "read") return `<span class="ack-tick ack-read" ${lbl("read")}>✓✓</span>`;
-  if (ack === "delivered") return `<span class="ack-tick ack-delivered" ${lbl("delivered")}>✓✓</span>`;
-  if (ack === "pending") return `<span class="ack-tick ack-pending" ${lbl("pending")}>◷</span>`;
-  return `<span class="ack-tick ack-sent" ${lbl("sent")}>✓</span>`;
+  const tick = `<svg class="ack-svg" viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M2 7.5 L5.2 10.7 L12 3"/></svg>`;
+  const tick2 = `<svg class="ack-svg ack-svg-2" viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M2 7.5 L5.2 10.7 L12 3"/></svg>`;
+
+  if (ack === "failed") {
+    return `<span class="ack-tick ack-failed" ${lbl("failed")} data-retry="1"><svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="5.8" fill="none" stroke="currentColor" stroke-width="1.5"/><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" d="M7 3.6 V7.4 M7 10 V10.5"/></svg></span>`;
+  }
+  if (ack === "read")      return `<span class="ack-tick ack-read" ${lbl("read")}>${tick}${tick2}</span>`;
+  if (ack === "delivered") return `<span class="ack-tick ack-delivered" ${lbl("delivered")}>${tick}${tick2}</span>`;
+  if (ack === "pending")   return `<span class="ack-tick ack-pending" ${lbl("pending")}></span>`;
+  return `<span class="ack-tick ack-sent" ${lbl("sent")}>${tick}</span>`;
 }
+
 const NEAR_BOTTOM_PX = 80;
 function isNearBottom(el) { if (!el) return true; return el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX; }
 
@@ -2436,14 +2470,30 @@ function renderChatThreadInner() {
   const badge = $("#chat-transport-badge");
   const link = (mesh && !isGroup(c)) ? mesh.get(c.id) : null;
   if (badge) {
-    if (isGroup(c)) { badge.classList.add("hidden"); }
-    else if (link && (link.status === "connected" || link.status === "in-call")) {
-      badge.textContent = "P2P"; badge.classList.remove("hidden", "via-server");
+    // Три SVG-иконки вместо текстовых P2P / S / …: пользователю
+    // непонятны эти аббревиатуры, а две встречные стрелки / облако /
+    // пунктирный круг читаются интуитивно. Пояснение — в aria-label
+    // (озвучивается скринридером, видно при долгом нажатии).
+    if (isGroup(c)) {
+      badge.classList.add("hidden");
+      badge.innerHTML = "";
+    } else if (link && (link.status === "connected" || link.status === "in-call")) {
+      badge.innerHTML = `<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M2 8h12 M9.5 3.5 14 8l-4.5 4.5 M6.5 3.5 2 8l4.5 4.5"/></svg>`;
+      badge.setAttribute("aria-label", T("chat.transport.direct"));
+      badge.classList.remove("hidden", "via-server");
     } else if (link && link.status === "connecting") {
-      badge.textContent = "…"; badge.classList.add("via-server"); badge.classList.remove("hidden");
+      badge.innerHTML = `<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-dasharray="3.5 3.5" stroke-linecap="round"/></svg>`;
+      badge.setAttribute("aria-label", T("chat.transport.connecting"));
+      badge.classList.add("via-server"); badge.classList.remove("hidden");
     } else if (c.managed && c.online) {
-      badge.textContent = "S"; badge.classList.add("via-server"); badge.classList.remove("hidden");
-    } else badge.classList.add("hidden");
+      badge.innerHTML = `<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" d="M4.7 11.5a3.2 3.2 0 0 1 0-6.4 4.7 4.7 0 0 1 8.9 1.4 2.6 2.6 0 0 1-.5 5z"/><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" d="M5.7 8.3h4.6"/></svg>`;
+      badge.setAttribute("aria-label", T("chat.transport.server"));
+      badge.classList.add("via-server"); badge.classList.remove("hidden");
+    } else {
+      badge.classList.add("hidden");
+      badge.innerHTML = "";
+      badge.removeAttribute("aria-label");
+    }
   }
 
   const wrap = $("#chat-messages");
@@ -3627,7 +3677,12 @@ async function getFileBlobUrl(msgId) {
 }
 function fileBubbleHtml(msgId, fileInfo) {
   if (fileInfo.pending) {
-    return `<div class="file-bubble file-bubble-pending"><div class="file-spinner"></div><span>${escapeHtml(T("chat.file.sending"))}</span></div>`;
+    // Добавили бегущую полоску внизу — визуально честнее, чем просто
+    // крутящийся спиннер: пользователь понимает, что передача идёт,
+    // а не «зависла». Полоска — CSS-анимация без процентов, потому что
+    // мы не имеем точного прогресса (sendFile гоняет чанки через
+    // bufferedAmount, но не отдаёт callback с процентами).
+    return `<div class="file-bubble file-bubble-pending"><div class="file-spinner"></div><span>${escapeHtml(T("chat.file.sending"))}</span><div class="file-progress-indeterminate"></div></div>`;
   }
   if (fileInfo.failed) {
     return `<div class="file-bubble file-bubble-failed"><svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 2 1 21h22L12 2zm0 6 6.5 11h-13L12 8zm-1 2.5v4h2v-4h-2zm0 5.5v2h2v-2h-2z"/></svg> <span>${escapeHtml(T("chat.file.failed"))}</span></div>`;
@@ -5984,13 +6039,31 @@ function callStatusLabel(rec) {
     const key = rec.direction === "out" ? "calls.systemCompletedOut" : "calls.systemCompletedIn";
     return T(key, { duration: formatDuration(rec.durationMs) });
   }
-  if (rec.status === "declined") return T("calls.declined");
   if (rec.status === "missed") return T("calls.missed");
-  if (rec.status === "cancelled") return T("calls.cancelled");
-  if (rec.status === "failed") return T("calls.failed");
-  if (rec.status === "busy") return T("calls.busy");
-  if (rec.status === "ringing") return T("calls.noAnswer");
-  return T("calls.incoming");
+  if (rec.status === "declined") return T("calls.declined");
+  // Группировка синонимов (Группа 1 «Умная группировка»): cancelled,
+  // failed, busy, ringing/noAnswer — для пользователя это одно
+  // состояние «не дозвонились». Разные слова (всего их было 4 разных
+  // варианта для одного и того же исхода) создавали путаницу и
+  // заставляли думать, что между ними есть разница. Сами состояния
+  // в callLog не трогаем — они полезны для диагностики.
+  return T("calls.unreachable");
+}
+// Метаданные иконки звонка: цвет + SVG по статусу. Раньше иконка
+// была только по направлению (стрелка внутрь/наружу), а цвет менялся
+// только для missed — пять «отменённых» и «пропущенных» подряд
+// выглядели почти одинаково. Теперь тип результата видно сразу:
+// завершённый = зелёный, пропущенный = красный, отклонённый = оранжевый,
+// всё остальное = нейтрально-серое.
+function callStatusMeta(rec) {
+  const isOut = rec.direction === "out";
+  const arrowIn  = "M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z";
+  const arrowOut = "M4 11h12.17l-5.59-5.59L12 4l8 8-8 8-1.41-1.41L16.17 13H4v-2z";
+  const svgArrow = (path) => `<svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="${path}"/></svg>`;
+  if (rec.status === "completed") return { cls: "completed", svg: svgArrow(isOut ? arrowOut : arrowIn) };
+  if (rec.status === "missed")    return { cls: "missed",    svg: svgArrow(arrowIn) };
+  if (rec.status === "declined")  return { cls: "declined",  svg: svgArrow(arrowIn) };
+  return { cls: isOut ? "out" : "in", svg: svgArrow(isOut ? arrowOut : arrowIn) };
 }
 function renderCallsList() {
   const list = $("#calls-list"), empty = $("#calls-empty");
@@ -6002,20 +6075,13 @@ function renderCallsList() {
   for (const rec of items) {
     const c = state.contacts.get(rec.contactId);
     const name = (c && c.name) || rec.contactName || T("sys.someone");
-    // Раньше любой неуспешный статус (busy/declined/failed/cancelled)
-    // красился как "пропущенный" (красный) — в том числе отменённый
-    // САМИМ пользователем исходящий звонок, будто ему не ответили.
-    const isMissed = rec.status === "missed";
-    const dirIcon = isMissed ? "missed" : (rec.direction === "in" ? "in" : "out");
-    const arrowSvg = rec.direction === "in"
-      ? `<svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>`
-      : `<svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M4 11h12.17l-5.59-5.59L12 4l8 8-8 8-1.41-1.41L16.17 13H4v-2z"/></svg>`;
+    const statusMeta = callStatusMeta(rec);
     const row = document.createElement("div");
     row.className = "call-row flat-content";
     const canOpen = state.contacts.has(rec.contactId);
     row.innerHTML = `
       <button type="button" class="call-row-main"${canOpen ? "" : " disabled"}>
-        <div class="call-direction-icon ${dirIcon}">${arrowSvg}</div>
+        <div class="call-direction-icon ${statusMeta.cls}">${statusMeta.svg}</div>
         <div class="call-body">
           <div class="call-name">${escapeHtml(name)}</div>
           <div class="call-sub">${escapeHtml(callStatusLabel(rec))} · ${escapeHtml(formatDay(rec.startedAt))} ${escapeHtml(formatTime(rec.startedAt))}</div>

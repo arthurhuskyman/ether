@@ -353,5 +353,12 @@ window.__LANG_DICTS["ru"] = {
   "update.available.title": "Доступно обновление",
   "update.available.text": "Перезагрузите, чтобы получить новую версию.",
   "update.reload": "Обновить",
+  "update.available.title": "Доступно обновление",
+  "update.available.text": "Перезагрузите, чтобы получить новую версию.",
+  "update.reload": "Обновить",
+  "calls.unreachable": "Не дозвонились",
+  "chat.transport.direct": "Прямое соединение",
+  "chat.transport.server": "Через сервер",
+  "chat.transport.connecting": "Соединение",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("ru");
