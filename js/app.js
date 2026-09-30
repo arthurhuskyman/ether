@@ -823,6 +823,7 @@ let __nextSoundAt = 0;
 // (или если ctx уже running) снимаем все слушатели — повторять
 // смысла нет.
 let __warmDone = false;
+let __pendingMessageSound = false;
 let __warmInProgress = false;
 function initAudioWarmup() {
   const warm = () => {
@@ -842,7 +843,11 @@ function initAudioWarmup() {
         document.removeEventListener("touchstart", warm);
         document.removeEventListener("click", warm);
         document.removeEventListener("keydown", warm);
-      }).catch(() => { __warmInProgress = false; });
+          if (__pendingMessageSound) {
+      __pendingMessageSound = false;
+      try { playMessageSound(); } catch (e) {}
+    }
+    }).catch(() => { __warmInProgress = false; });
     } else if (ctx.state === "running") {
       __warmDone = true;
       document.removeEventListener("touchstart", warm);
@@ -874,6 +879,10 @@ function initAudioWarmup() {
   document.addEventListener("touchstart", warm, { passive: true });
   document.addEventListener("click", warm);
   document.addEventListener("keydown", warm);
+      if (__pendingMessageSound) {
+      __pendingMessageSound = false;
+      try { playMessageSound(); } catch (e) {}
+    }
   warm();
 }
 
@@ -938,7 +947,19 @@ function playMessageSound() {
     el.volume = 1;
     el.currentTime = 0;
     const p = el.play();
-    if (p && p.catch) p.catch((e) => etherLog("warn", "[sound] message (audio):", String(e)));
+    if (p && p.catch) p.catch((e) => {
+      const name = e && e.name;
+      if (name === "NotAllowedError") {
+        // iOS заблокировал play() до первого жеста пользователя —
+        // это ОЖИДАЕМОЕ поведение при холодном старте, не ошибка.
+        // Запоминаем флаг: initAudioWarmup проиграет отложенный звук
+        // при первом touchstart/click/keydown.
+        __pendingMessageSound = true;
+        etherLog("info", "[sound] message: NotAllowedError — откладываю до первого жеста");
+      } else {
+        etherLog("warn", "[sound] message (audio):", String(e));
+      }
+    });
   } catch (e) { etherLog("warn", "[sound] message (audio):", String(e)); }
 }
 
@@ -3825,15 +3846,129 @@ async function forwardMessage(msgId, fromContactId, toContactId) {
   const from = state.contacts.get(fromContactId), to = state.contacts.get(toContactId);
   if (!from || !to) return;
   const m = from.messages.find((x) => x.id === msgId); if (!m) return;
-  const text = m.text;
   const msgId2 = crypto.randomUUID();
   const ts = Date.now();
-  const rec = { id: msgId2, from: "me", text, ts, ack: "sent", forwarded: true, serverAcked: false };
+  const rec = {
+    id: msgId2, from: "me", text: m.text || "", ts,
+    ack: "sent", forwarded: true, serverAcked: false,
+  };
+
+  // ── Копируем метаданные файла (если это файл/фото/видео/голосовое) ──
+  // Раньше здесь было только text — для файловых сообщений получался
+  // пустой пузырь «Переслано» без содержимого. Именно это и было
+  // «пересылка не работает».
+  if (m.file) {
+    rec.file = {
+      name: m.file.name,
+      mime: m.file.mime,
+      size: m.file.size,
+      kind: m.file.kind,
+      pending: true,
+    };
+    if (m.file.duration != null) rec.file.duration = m.file.duration;
+  }
+  // ── Копируем карточку контакта ──
+  if (m.contactCard) {
+    rec.contactCard = { id: m.contactCard.id, name: m.contactCard.name };
+  }
+
   to.messages.push(rec); trimMessages(to); to.lastActivity = ts; persistContacts();
   if (state.chatId === toContactId) renderChatThread();
   if (state.tab === "chats") renderChatsList();
   toast(T("toast.forwarded"));
-  const payload = { kind: "chat", id: msgId2, text, ts, forwarded: true };
+
+  // ── 1. ФАЙЛЫ (фото/видео/документ/голосовое) ──
+  if (m.file) {
+    let blob;
+    try { blob = await IDB.get("file:" + msgId); }
+    catch (e) { blob = null; }
+    if (!blob) {
+      // Исходный blob уже удалён (TTL, ручная очистка, IDB сбой) —
+      // пересылать нечего. Показываем честно «недоступно».
+      rec.file.pending = false;
+      rec.file.failed = true;
+      rec.ack = "failed";
+      persistContacts();
+      if (state.chatId === toContactId) renderChatThread();
+      if (state.tab === "chats") renderChatsList();
+      toast(T("chat.file.unavailable"));
+      return;
+    }
+    // Копируем blob под новым ID — иначе исходное сообщение и копия
+    // указывали бы на один и тот же ключ IDB, и удаление оригинала
+    // утащило бы за собой и пересланную копию.
+    try { await IDB.set("file:" + msgId2, blob); }
+    catch (e) { etherLog("error", "[forward] IDB.set failed:", String(e)); }
+
+    const link = mesh.get(toContactId);
+    const liveLink = link && (link.status === "connected" || link.status === "in-call");
+
+    if (liveLink) {
+      // P2P-путь: быстро, не грузит сервер, работает для любых размеров
+      // через чанкование (sendFile).
+      try {
+        const buffer = await blob.arrayBuffer();
+        const chunks = [];
+        for (let offset = 0; offset < buffer.byteLength; offset += FILE_CHUNK_SIZE) {
+          chunks.push(arrayBufferToBase64(buffer.slice(offset, offset + FILE_CHUNK_SIZE)));
+        }
+        const meta = { id: msgId2, name: m.file.name, mime: m.file.mime, size: m.file.size };
+        if (m.file.duration != null) meta.duration = m.file.duration;
+        const ok = await link.sendFile(meta, chunks);
+        rec.file.pending = false;
+        rec.ack = ok ? "sent" : "failed";
+      } catch (e) {
+        etherLog("error", "[forward] P2P sendFile failed:", String(e));
+        rec.file.pending = false;
+        rec.ack = "failed";
+      }
+      persistContacts();
+      if (state.chatId === toContactId) renderChatThread();
+      if (state.tab === "chats") renderChatsList();
+      return;
+    }
+
+    // Офлайн-путь: через зашифрованный почтовый ящик сервера — тот же
+    // путь, что и sendFileOffline. trySendOrQueue сам всё сделает:
+    // зашифрует, положит в outbox, отправит.
+    try {
+      const buffer = await blob.arrayBuffer();
+      const payload = {
+        kind: "file", id: msgId2,
+        name: m.file.name, mime: m.file.mime, size: m.file.size,
+        dataB64: arrayBufferToBase64(buffer),
+      };
+      if (m.file.duration != null) payload.duration = m.file.duration;
+      await trySendOrQueue(to, msgId2, payload);
+      rec.file.pending = false;
+      persistContacts();
+      if (state.chatId === toContactId) renderChatThread();
+      if (state.tab === "chats") renderChatsList();
+    } catch (e) {
+      etherLog("error", "[forward] offline file failed:", String(e));
+      rec.file.pending = false;
+      rec.file.failed = true;
+      rec.ack = "failed";
+      persistContacts();
+      if (state.chatId === toContactId) renderChatThread();
+      if (state.tab === "chats") renderChatsList();
+    }
+    return;
+  }
+
+  // ── 2. КАРТОЧКА КОНТАКТА ──
+  if (m.contactCard) {
+    const payload = {
+      kind: "contact-card", id: msgId2, ts,
+      contactId: m.contactCard.id,
+      contactName: m.contactCard.name || "",
+    };
+    await trySendOrQueue(to, msgId2, payload);
+    return;
+  }
+
+  // ── 3. ОБЫЧНЫЙ ТЕКСТ ──
+  const payload = { kind: "chat", id: msgId2, text: m.text || "", ts, forwarded: true };
   await trySendOrQueue(to, msgId2, payload);
 }
 async function trySendOrQueue(contact, msgId, payloadObj) {
@@ -4177,6 +4312,7 @@ function initSignaling() {
 // пришёл пакет.
 async function handleIncomingOffer(from, packet, replySignal) {
   if (recentlyDeletedIds.has(from)) return;
+  clearUnreachable(from);   // ← новая строка: он нам пишет, значит живой
   const existing = mesh.get(from);
   // Любой живой линк (offerer или answerer, connected или in-call) —
   // игнорируем встречный offer. Раньше проверялась только пара
@@ -4281,9 +4417,8 @@ function wireSignalingEvents(sig) {
       etherLog("info", "[connect] " + String(to).slice(0, 10) + "…", "unreachable → закрываю линк");
       mesh.remove(to);
     }
-    // И не даём scheduleAutoConnect снова долбить тот же адрес в
-    // ближайшие 60 секунд — сервер уже сказал, что его нет.
-    relayAttemptCooldown.set(to, Date.now());
+    // Прогрессивный cooldown: 60с → 5мин → 30мин при повторных отказах.
+    markUnreachable(to);
   }));
   subs.push(on("replaced", () => {
     updateSignalingStatusUI("off", T("status.offline"));
@@ -4310,7 +4445,11 @@ function wireSignalingEvents(sig) {
   }));
   subs.push(on("presence", (ev) => {
     const { id, online, name, visible, publicKey } = ev.detail;
-    if (online) { onlineSet.add(id); onlineRoster.set(id, { name, visible: visible !== false, publicKey: publicKey || null }); }
+    if (online) {
+      onlineSet.add(id);
+      onlineRoster.set(id, { name, visible: visible !== false, publicKey: publicKey || null });
+      clearUnreachable(id); // target снова онлайн — сбрасываем backoff
+    }
     else { onlineSet.delete(id); onlineRoster.delete(id); state.lastSeen[id] = Date.now(); persistLastSeen(); }
     const c = state.contacts.get(id);
     if (c && c.managed) {
@@ -4719,6 +4858,32 @@ function handleRelayPayload(viaId, payload) {
 // (свой/другой сервер, временно офлайн на сервере), но у нас есть общий
 // знакомый, который сейчас с ней на связи.
 const relayAttemptCooldown = new Map();
+// Прогрессивный cooldown для цели, которую сигнальный сервер только что
+// назвал недоступной. Раньше был только плоский relayAttemptCooldown=60с,
+// и в группах с офлайн-участниками это давало лавину попыток каждые
+// несколько секунд (видно в логах: [signaling] недоступен: dd7315da01…
+// раз в 200мс). Теперь cooldown растёт: 60с → 5мин → 30мин.
+const _unreachableCooldown = new Map(); // id -> { until, failures }
+function isUnreachableCooldown(id) {
+  const entry = _unreachableCooldown.get(id);
+  if (!entry) return false;
+  return Date.now() < entry.until;
+}
+function markUnreachable(id) {
+  const now = Date.now();
+  const entry = _unreachableCooldown.get(id) || { failures: 0 };
+  entry.failures = (entry.failures || 0) + 1;
+  const delay = entry.failures === 1 ? 60_000
+              : entry.failures === 2 ? 5 * 60_000
+              : 30 * 60_000;
+  entry.until = now + delay;
+  _unreachableCooldown.set(id, entry);
+}
+function clearUnreachable(id) {
+  if (_unreachableCooldown.delete(id)) {
+    etherLog("info", "[connect] " + String(id).slice(0, 10) + "…", "cooldown сброшен (presence online)");
+  }
+}
 // Увеличено с 15с до 60с: реальный провал relay (цель не в сети у хаба)
 // выясняется за 10-20 секунд. Пока не пройдёт минута, повторять
 // бессмысленно — только плодим мёртвые PeerLink'и, которые висят в
@@ -4775,6 +4940,7 @@ async function attemptConnect(id, force) {
   const tag = String(id).slice(0, 10) + "…";
   if (!signaling || !signaling.connected) return;
   if (!onlineSet.has(id) && !force) return;
+  if (!force && isUnreachableCooldown(id)) return;
   const iShouldOffer = Store.myId < id;
   if (!iShouldOffer && !force) {
     const last = _notMyTurnLogAt.get(id);
