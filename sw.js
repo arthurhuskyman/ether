@@ -35,7 +35,12 @@ self.addEventListener("install", (event) => {
       Promise.all(SHELL_FILES.map((url) => fetch(url, { cache: "reload" }).then((res) => cache.put(url, res))))
     )
   );
-  self.skipWaiting();
+  // ВАЖНО: skipWaiting() убран. Новый SW ждёт в состоянии "waiting",
+  // пока страница не пришлёт ему сообщение SKIP_WAITING. Это даёт
+  // контроль: приложение сначала покажет баннер "Доступно обновление",
+  // и только после клика пользователя активирует новый SW и перезагрузится.
+  // Без этого новый SW стартовал бы при каждой проверке обновлений и
+  // оставлял страницу в рассинхроне (старый JS + новые ресурсы из кэша).
 });
 
 self.addEventListener("activate", (event) => {
@@ -115,6 +120,16 @@ self.addEventListener("fetch", (event) => {
 
 self.addEventListener("message", (event) => {
   const data = event.data || {};
+
+  // НОВОЕ: страница просит активировать waiting SW — приходит по клику
+  // на баннер "Обновить". Без этого SW останется в waiting навсегда,
+  // пока пользователь не закроет все вкладки домена.
+  if (data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+    return;
+  }
+
+  // Существующая логика — не трогаем:
   if (data.type !== "show-notification") return;
   const title = String(data.title || "Эфир").slice(0, 60);
   const body = String(data.body || "").slice(0, 200);

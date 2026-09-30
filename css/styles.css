@@ -231,9 +231,9 @@ body::before {
     /* Нижний холодный — глубина снизу. */
     radial-gradient(ellipse 100% 55% at 50% 110%,
       rgba(64, 200, 255, 0.42), transparent 72%),
-    /* Левый тёплый для асимметрии. */
+    /* Левый тёплый для асимметрии
     radial-gradient(ellipse 80% 40% at -15% 50%,
-      rgba(180, 120, 255, 0.18), transparent 75%),
+      rgba(180, 120, 255, 0.18), transparent 75%),  */
     var(--bg-0);
   animation: etherWave 20s ease-in-out infinite alternate;
   clip-path: inset(0);
@@ -244,7 +244,7 @@ body::before {
      и iOS Safari получал право сдвинуть весь документ в сторону.
      translateY даёт «дыхание» фона и не выходит за края. */
   from { transform: translateY(0); }
-  to   { transform: translateY(-6%); }
+  to   { transform: translateY(-15%); }
 }
 @media (prefers-reduced-motion: reduce) {
   body::before { animation: none; }
@@ -1339,5 +1339,27 @@ html[data-theme="light"] body::before {
       radial-gradient(ellipse 70% 35% at -10% 50%,
         rgba(160, 130, 255, 0.16), transparent 72%),
       var(--bg-0);
+  }
+}
+
+/* ============================================================
+   Баннер «Доступно обновление» — фиксированный над таб-баром,
+   не перекрывает контент чата. Создаётся динамически из JS при
+   появлении waiting-SW (см. showUpdateBanner в app.js).
+   ============================================================ */
+#update-banner {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 90px);
+  z-index: 600;
+  margin: 0;
+}
+@media (min-width: 640px) {
+  #update-banner {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: 396px;
   }
 }
