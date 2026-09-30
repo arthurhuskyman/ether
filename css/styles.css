@@ -226,16 +226,16 @@ body::before {
   background:
     /* Верхний фиолетовый слой — «эфирная» волна. Растянут почти
        на весь экран по горизонтали, спускается до 70% сверху. */
-    radial-gradient(ellipse 130% 65% at 50% -20%,
-      rgba(138, 109, 255, 0.55), transparent 70%),
+    radial-gradient(ellipse 150% 70% at 50% -15%,
+      rgba(138, 109, 255, 0.65), transparent 72%),
     /* Нижний холодный — глубина снизу. */
-    radial-gradient(ellipse 90% 50% at 50% 115%,
-      rgba(64, 200, 255, 0.28), transparent 70%),
+    radial-gradient(ellipse 100% 55% at 50% 110%,
+      rgba(64, 200, 255, 0.42), transparent 72%),
     /* Левый тёплый для асимметрии. */
     radial-gradient(ellipse 80% 40% at -15% 50%,
       rgba(180, 120, 255, 0.18), transparent 75%),
     var(--bg-0);
-  animation: etherWave 40s ease-in-out infinite alternate;
+  animation: etherWave 20s ease-in-out infinite alternate;
   clip-path: inset(0);
   overflow: hidden;
 }
@@ -244,7 +244,7 @@ body::before {
      и iOS Safari получал право сдвинуть весь документ в сторону.
      translateY даёт «дыхание» фона и не выходит за края. */
   from { transform: translateY(0); }
-  to   { transform: translateY(-3%); }
+  to   { transform: translateY(-6%); }
 }
 @media (prefers-reduced-motion: reduce) {
   body::before { animation: none; }
