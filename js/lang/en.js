@@ -350,5 +350,8 @@ window.__LANG_DICTS["en"] = {
   "toast.videoUnsupported": "Video recording isn't supported on this device",
   "toast.waitingForKey": "{name} needs to come online at least once before you can send them anything — waiting",
   "toast.fileEmpty": "This file is empty",
+  "update.available.title": "Update available",
+  "update.available.text": "Reload to get the latest version.",
+  "update.reload": "Reload",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("en");

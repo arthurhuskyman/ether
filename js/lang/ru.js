@@ -350,5 +350,8 @@ window.__LANG_DICTS["ru"] = {
   "toast.videoUnsupported": "Запись видео не поддерживается на этом устройстве",
   "toast.waitingForKey": "{name} должен(на) хоть раз выйти в сеть, прежде чем можно будет что-то отправить — ждём",
   "toast.fileEmpty": "Этот файл пустой",
+  "update.available.title": "Доступно обновление",
+  "update.available.text": "Перезагрузите, чтобы получить новую версию.",
+  "update.reload": "Обновить",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("ru");

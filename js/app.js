@@ -1615,10 +1615,27 @@ function handleNotificationNavigateParams() {
 
 function wireServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
+
   navigator.serviceWorker.register("./sw.js").then((reg) => {
     swRegistration = reg;
     setTimeout(() => { ensurePushSubscription().catch(() => {}); }, 1000);
+    watchForWaitingSW(reg);
   }).catch(() => {});
+
+  // Проверка обновлений при возврате в приложение — короткое окно
+  // (visibilitychange) и длинное (каждые 30 минут). Раньше проверки
+  // вообще не было, и открытая вкладка могла часами жить на старом коде,
+  // даже когда на сервере уже лежит новая версия.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && swRegistration) {
+      swRegistration.update().catch(() => {});
+    }
+  });
+  setInterval(() => {
+    if (swRegistration) swRegistration.update().catch(() => {});
+  }, 30 * 60 * 1000);
+
+  // Существующие сообщения от SW — не трогаем.
   navigator.serviceWorker.addEventListener("message", (ev) => {
     const data = ev.data || {};
     if (data.type === "open-contact" && data.contactId) {
@@ -1627,6 +1644,69 @@ function wireServiceWorker() {
     if (data.type === "push-subscription-changed") {
       ensurePushSubscription().catch(() => {});
     }
+  });
+
+  // Когда новый SW активировался после SKIP_WAITING — перезагружаем
+  // страницу, чтобы весь UI подхватил новые ресурсы. sessionStorage
+  // защищает от петли перезагрузок: controllerchange может сработать
+  // ещё раз, если что-то пойдёт не так.
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (sessionStorage.getItem("ether.reloadingForUpdate")) return;
+    sessionStorage.setItem("ether.reloadingForUpdate", "1");
+    location.reload();
+  });
+}
+
+// Подписка на события конкретной регистрации: либо SW уже waiting
+// (пользователь вернулся, когда обновление скачалось в прошлой сессии
+// и не активировалось), либо ещё в процессе install — ждём statechange.
+function watchForWaitingSW(reg) {
+  if (reg.waiting) { showUpdateBanner(reg); return; }
+  reg.addEventListener("updatefound", () => {
+    const newSW = reg.installing;
+    if (!newSW) return;
+    newSW.addEventListener("statechange", () => {
+      // installed + есть активный controller = это ОБНОВЛЕНИЕ, а не
+      // первая установка (при первой установке controller ещё пуст).
+      if (newSW.state === "installed" && navigator.serviceWorker.controller) {
+        showUpdateBanner(reg);
+      }
+    });
+  });
+}
+
+// Показывает баннер «Доступно обновление». Кнопка «Обновить» шлёт
+// waiting-SW сообщение SKIP_WAITING — он активируется, сработает
+// controllerchange, страница перезагрузится. Кнопка «Позже» скрывает
+// баннер на час (sessionStorage).
+function showUpdateBanner(reg) {
+  if (document.getElementById("update-banner")) return;
+  try {
+    const dismissedAt = parseInt(sessionStorage.getItem("ether.updateDismissedAt") || "0", 10);
+    if (dismissedAt && Date.now() - dismissedAt < 60 * 60 * 1000) return;
+  } catch (e) {}
+
+  const el = document.createElement("div");
+  el.id = "update-banner";
+  el.className = "notif-banner glass-content";
+  el.innerHTML = `
+    <div class="notif-banner-text">
+      <strong>${escapeHtml(T("update.available.title"))}</strong>
+      <span>${escapeHtml(T("update.available.text"))}</span>
+    </div>
+    <button type="button" class="btn-primary notif-banner-btn" data-act="reload">${escapeHtml(T("update.reload"))}</button>
+    <button type="button" class="icon-btn small" data-act="dismiss" aria-label="${escapeHtml(T("sys.close"))}">
+      <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
+    </button>`;
+  document.body.appendChild(el);
+
+  el.querySelector('[data-act="reload"]').addEventListener("click", () => {
+    if (reg.waiting) reg.waiting.postMessage({ type: "SKIP_WAITING" });
+    else location.reload();
+  });
+  el.querySelector('[data-act="dismiss"]').addEventListener("click", () => {
+    el.remove();
+    try { sessionStorage.setItem("ether.updateDismissedAt", String(Date.now())); } catch (e) {}
   });
 }
 
