@@ -1321,23 +1321,23 @@ html[data-theme="aurora"] { color-scheme: dark; }
    Используем более насыщенные оттенки и другую базовую точку. */
 html[data-theme="light"] body::before {
   background:
-    radial-gradient(ellipse 90% 45% at 50% -5%,
-      rgba(120, 88, 247, 0.28), transparent 65%),
-    radial-gradient(ellipse 70% 40% at 50% 105%,
-      rgba(90, 184, 255, 0.16), transparent 65%),
-    radial-gradient(ellipse 60% 30% at 0% 50%,
-      rgba(160, 130, 255, 0.10), transparent 70%),
+    radial-gradient(ellipse 110% 55% at 50% -10%,
+      rgba(120, 88, 247, 0.42), transparent 68%),
+    radial-gradient(ellipse 85% 50% at 50% 110%,
+      rgba(90, 184, 255, 0.28), transparent 68%),
+    radial-gradient(ellipse 70% 35% at -10% 50%,
+      rgba(160, 130, 255, 0.16), transparent 72%),
     var(--bg-0);
 }
 @media (prefers-color-scheme: light) {
   html[data-theme="auto"] body::before {
     background:
-      radial-gradient(ellipse 90% 45% at 50% -5%,
-        rgba(120, 88, 247, 0.28), transparent 65%),
-      radial-gradient(ellipse 70% 40% at 50% 105%,
-        rgba(90, 184, 255, 0.16), transparent 65%),
-      radial-gradient(ellipse 60% 30% at 0% 50%,
-        rgba(160, 130, 255, 0.10), transparent 70%),
+      radial-gradient(ellipse 110% 55% at 50% -10%,
+        rgba(120, 88, 247, 0.42), transparent 68%),
+      radial-gradient(ellipse 85% 50% at 50% 110%,
+        rgba(90, 184, 255, 0.28), transparent 68%),
+      radial-gradient(ellipse 70% 35% at -10% 50%,
+        rgba(160, 130, 255, 0.16), transparent 72%),
       var(--bg-0);
   }
 }
