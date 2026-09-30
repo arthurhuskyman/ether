@@ -887,10 +887,6 @@ function initAudioWarmup() {
   document.addEventListener("touchstart", warm, { passive: true });
   document.addEventListener("click", warm);
   document.addEventListener("keydown", warm);
-      if (__pendingMessageSound) {
-      __pendingMessageSound = false;
-      try { playMessageSound(); } catch (e) {}
-    }
   warm();
 }
 
