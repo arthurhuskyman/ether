@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.32.27.4";
+const APP_VERSION = "V.32.27.5";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 const MAX_MESSAGE_LENGTH = 4000;
@@ -352,6 +352,12 @@ function flushPendingIceFor(id, link) {
   }
 }
 let __lastRenderedChatId = null;
+// Набор id сообщений, отрендеренных при предыдущем рендере. Нужны
+// только для того, чтобы понять, какие сообщения появились ТОЛЬКО
+// ЧТО — им одним вешается класс just-sent/just-received, который
+// запускает анимацию появления. При перерендере старого контента
+// анимации быть не должно.
+let __prevRenderedMsgIds = new Set();
 let speakerOn = false; // по умолчанию — внутренний динамик (наушник); объявлена здесь, с остальными глобальными переменными, а не рядом с первым использованием
 let callTimerInterval = null;
 let globalAudioCtx = null;
@@ -709,14 +715,16 @@ function applyGlassAlpha(v) {
   const label = document.getElementById("glass-slider-value");
   if (label) label.textContent = Math.round(transparency * 100) + "%";
 }
+
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
-  // theme-color был жёстко чёрным всегда — в светлой теме статус-бар/
-  // рамка PWA у системы выглядели неуместно (тёмная полоса поверх
-  // светлого интерфейса).
+  __isLightCache = null; // инвалидируем кэш — тема поменялась
   const isLight = theme === "light" || (theme === "auto" && window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches);
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute("content", isLight ? "#eef0f4" : "#000000");
+  // Обновлено под новую палитру: --bg-0 тёмный и --bg-0 светлый
+  // совпадают с meta[theme-color] — статус-бар iOS теперь всегда
+  // сливается с фоном приложения.
+  if (meta) meta.setAttribute("content", isLight ? "#fafafc" : "#08080a");
 }
 
 try {
@@ -2081,17 +2089,31 @@ function renderChatsList() {
     list.appendChild(wrapper);
   }
 }
+
+// Кэш «сейчас светлая тема?» — matchMedia и чтение dataset дорогие
+// при вызове на каждый рендер каждого контакта. Сбрасывается в
+// applyTheme() и в слушателе prefers-color-scheme.
+let __isLightCache = null;
+function isLightTheme() {
+  if (__isLightCache !== null) return __isLightCache;
+  const t = document.documentElement.dataset.theme;
+  __isLightCache = (t === "light") || (t === "auto" && window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches);
+  return __isLightCache;
+}
+
+// Генерация аватара: вместо пяти пресетов — уникальный HSL-градиент
+// от хэша имени. В тёмной теме — приглушённее (light 42%), в светлой
+// — наоборот светлее (52%). Два угла градиента берутся из одного
+// оттенка с комплементарным сдвигом +40°.
 function avatarGradient(name) {
-  const palettes = [
-    "linear-gradient(160deg,#0A84FF,#5E5CE6)",
-    "linear-gradient(160deg,#FF9F0A,#FF375F)",
-    "linear-gradient(160deg,#30D158,#0A84FF)",
-    "linear-gradient(160deg,#BF5AF2,#FF375F)",
-    "linear-gradient(160deg,#64D2FF,#5E5CE6)",
-  ];
-  let h = 0; const s = String(name || "?");
-  for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) % palettes.length;
-  return palettes[h];
+  const s = String(name || "?");
+  let h = 0;
+  for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) | 0;
+  const hue = ((h % 360) + 360) % 360;
+  const hue2 = (hue + 40) % 360;
+  const sat = 65 + (h % 15);
+  const lt = isLightTheme() ? 52 : 42;
+  return `linear-gradient(150deg, hsl(${hue}, ${sat}%, ${lt + 8}%), hsl(${hue2}, ${sat}%, ${lt - 6}%))`;
 }
 
 function renderContactsList() {
@@ -2290,6 +2312,10 @@ function renderChatThreadInner() {
     // Тот же баг, что и в closeChatSafely — переключение МЕЖДУ чатами
     // не останавливало играющее голосовое из предыдущего чата.
     pauseAllVoicePlayback();
+    // Свежий вход в чат — сбрасываем набор отрендеренных ранее id,
+    // иначе новые сообщения в этом чате будут сравниваться с id из
+    // ПРЕДЫДУЩЕГО чата и все получат "just-sent".
+    __prevRenderedMsgIds = new Set();
     // Свежий вход в чат (а не повторный рендер того же самого) — если
     // есть непрочитанные, запоминаем id первого из них один раз здесь.
     // Дальше, пока пользователь не долистает вниз, ни бейдж, ни
@@ -2370,7 +2396,20 @@ function renderChatThreadInner() {
   let prevMsg = null;
   const unreadAnchorId = unreadDividerFor.get(c.id);
   let unreadDividerEl = null;
+  // Набор id сообщений текущего рендера + признаки "только что
+  // появившееся" для запуска анимации send/receive. Если при предыдущем
+  // рендере в этом же чате уже были какие-то сообщения (prev.size > 0),
+  // то всё, чего там не было, — новое. На самом первом рендере чата
+  // prev пуст → ничего не считаем новым, иначе при открытии чата все
+  // пузыри разом анимировались бы.
+  const prevMsgIds = __prevRenderedMsgIds;
+  const freshEnabled = prevMsgIds.size > 0;
+  const nextMsgIds = new Set();
   for (const m of c.messages) {
+    nextMsgIds.add(m.id);
+    const freshnessClass = (freshEnabled && !prevMsgIds.has(m.id))
+      ? (m.from === "me" ? " just-sent" : " just-received")
+      : "";
     if (unreadAnchorId && m.id === unreadAnchorId) {
       const div = document.createElement("div");
       div.className = "unread-divider";
@@ -2416,12 +2455,16 @@ function renderChatThreadInner() {
     // "реплика", а не череда отдельных сообщений.
     const grouped = !!(prevMsg && prevMsg.from === m.from && (m.from !== "them" || !isGroup(c) || prevMsg.fromId === m.fromId) && m.ts - prevMsg.ts < 5 * 60 * 1000);
     const bubble = document.createElement("div");
-    bubble.className = "bubble-row " + (m.from === "me" ? "mine" : "theirs") + (grouped ? " grouped" : "");
+    bubble.className = "bubble-row " + (m.from === "me" ? "mine" : "theirs") + (grouped ? " grouped" : "") + freshnessClass;
     const tick = m.from === "me" ? ackGlyph(m.ack) : "";
     const editedMark = m.edited ? `<span class="bubble-edited">${escapeHtml(T("chat.edit"))}</span>` : "";
     const ttlMark = m.ttl ? `<span class="bubble-ttl" title="${escapeHtml(disappearingTimerLabel(m.ttl))}">⏳</span>` : "";
     const inner = document.createElement("div");
-    inner.className = "bubble " + (m.from === "me" ? "" : "glass-content");
+    // Класс glass-content убран с чужих пузырей: новый дизайн — матовый
+    // фон --bg-2 + тонкий border (см. styles.css). Стекло на десятках
+    // пузырей одновременно и перегружало визуально, и нагружало
+    // композитинг (20+ blur-слоёв).
+    inner.className = "bubble";
     inner.setAttribute("data-msg-id", m.id); // для прокрутки к оригиналу по тапу на цитате ответа
     const body = m.file ? fileBubbleHtml(m.id, m.file) : (m.contactCard ? contactCardBubbleHtml(m.contactCard) : linkifyAndHighlight(m.text, q));
     const senderLabel = (isGroup(c) && m.from === "them" && m.fromId && (!prevMsg || prevMsg.fromId !== m.fromId || prevMsg.from !== "them"))
@@ -2566,6 +2609,9 @@ function renderChatThreadInner() {
     prevMsg = m;
   }
   wrap.appendChild(frag);
+  // Сохраняем набор отрендеренных id — при следующем рендере только
+  // сообщения, которых тут не было, получат анимацию появления.
+  __prevRenderedMsgIds = nextMsgIds;
   urlsToFetch.forEach((u) => renderLinkPreviewInto(u));
   hydrateFileSlots(wrap);
   if (unreadDividerEl && !dividerScrolledFor.has(c.id)) {
