@@ -173,10 +173,14 @@ html[data-theme="aurora"] {
 html {
   height: 100%; height: 100dvh;
   margin: 0; overflow: hidden;
-  background: var(--bg-1);
-  /* Динамическая типизация: размеры текста масштабируются вместе с
-     системной настройкой iOS. Значения в px остаются для десктопа;
-     в @supports ниже — clamp(), срабатывающий в Safari. */
+  /* clip-path: inset(0) — обрезает ВСЁ, включая position: fixed
+     элементы. Обычный overflow: hidden не справляется с ними: по
+     спецификации CSS fixed-элементы позиционируются относительно
+     viewport и родительским overflow не режутся. Именно поэтому
+     фон с scale(1.03) на iOS Safari раздувал документ на 3%, и
+     приложение могло чуть сдвинуться за край экрана. */
+  clip-path: inset(0);
+  background: var(--bg-elevated);
   font-size: 16px;
 }
 @supports (font: -apple-system-body) {
@@ -220,22 +224,33 @@ body::before {
   inset: 0;
   z-index: -1;
   background:
-    radial-gradient(ellipse 90% 40% at 50% -5%, rgba(138, 109, 255, 0.18), transparent 70%),
-    radial-gradient(ellipse 70% 35% at 50% 105%, rgba(64, 200, 255, 0.08), transparent 70%),
+    /* Верхний фиолетовый слой — основная «эфирная» волна */
+    radial-gradient(ellipse 90% 45% at 50% -5%,
+      rgba(138, 109, 255, 0.42), transparent 65%),
+    /* Нижний холодный слой — глубина, ощущение глубины снизу */
+    radial-gradient(ellipse 70% 40% at 50% 105%,
+      rgba(64, 200, 255, 0.22), transparent 65%),
+    /* Дополнительный тёплый слой слева для асимметрии */
+    radial-gradient(ellipse 60% 30% at 0% 50%,
+      rgba(180, 120, 255, 0.14), transparent 70%),
     var(--bg-0);
-  animation: etherWave 60s ease-in-out infinite alternate;
-  will-change: transform;
+  animation: etherWave 40s ease-in-out infinite alternate;
+  clip-path: inset(0);
+  overflow: hidden;
 }
 @keyframes etherWave {
-  from { transform: translateY(0) scale(1); }
-  to   { transform: translateY(-3%) scale(1.03); }
+  /* Без scale() — с ним псевдоэлемент вылезал за viewport на 3%,
+     и iOS Safari получал право сдвинуть весь документ в сторону.
+     translateY даёт «дыхание» фона и не выходит за края. */
+  from { transform: translateY(0); }
+  to   { transform: translateY(-3%); }
 }
 @media (prefers-reduced-motion: reduce) {
   body::before { animation: none; }
 }
-html[data-theme="light"] body::before { opacity: 0.4; }
+html[data-theme="light"] body::before {}
 @media (prefers-color-scheme: light) {
-  html[data-theme="auto"] body::before { opacity: 0.4; }
+  html[data-theme="auto"] body::before {}
 }
 
 /* ============================================================
@@ -1300,3 +1315,28 @@ html { color-scheme: dark; }
 html[data-theme="light"] { color-scheme: light; }
 html[data-theme="aurora"] { color-scheme: dark; }
 @media (prefers-color-scheme: light) { html[data-theme="auto"] { color-scheme: light; } }
+/* В светлой теме нужен СВОЙ набор градиентов: те же alpha 0.42 на
+   белом фоне выглядят бледно (белый цвет «отбеливает» любой оттенок).
+   Используем более насыщенные оттенки и другую базовую точку. */
+html[data-theme="light"] body::before {
+  background:
+    radial-gradient(ellipse 90% 45% at 50% -5%,
+      rgba(120, 88, 247, 0.28), transparent 65%),
+    radial-gradient(ellipse 70% 40% at 50% 105%,
+      rgba(90, 184, 255, 0.16), transparent 65%),
+    radial-gradient(ellipse 60% 30% at 0% 50%,
+      rgba(160, 130, 255, 0.10), transparent 70%),
+    var(--bg-0);
+}
+@media (prefers-color-scheme: light) {
+  html[data-theme="auto"] body::before {
+    background:
+      radial-gradient(ellipse 90% 45% at 50% -5%,
+        rgba(120, 88, 247, 0.28), transparent 65%),
+      radial-gradient(ellipse 70% 40% at 50% 105%,
+        rgba(90, 184, 255, 0.16), transparent 65%),
+      radial-gradient(ellipse 60% 30% at 0% 50%,
+        rgba(160, 130, 255, 0.10), transparent 70%),
+      var(--bg-0);
+  }
+}
