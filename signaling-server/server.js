@@ -321,12 +321,22 @@ async function fetchUrlSafe(targetUrl, redirectsLeft) {
   return new Promise((resolve, reject) => {
     const req = mod.get(u, {
       lookup: customLookup,
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
-        "Accept-Encoding": "gzip, deflate, br",
-      },
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+      "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
+      "Accept-Encoding": "gzip, deflate, br",
+      "Cache-Control": "max-age=0",
+      "Connection": "keep-alive",
+      "Upgrade-Insecure-Requests": "1",
+      "Sec-Fetch-Dest": "document",
+      "Sec-Fetch-Mode": "navigate",
+      "Sec-Fetch-Site": "none",
+      "Sec-Fetch-User": "?1",
+      "sec-ch-ua": "\"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"",
+      "sec-ch-ua-mobile": "?0",
+      "sec-ch-ua-platform": "\"Windows\"",
+    },
       timeout: LINK_PREVIEW_TIMEOUT_MS,
     }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && redirectsLeft > 0) {
@@ -423,20 +433,34 @@ function extractMeta(html, targetUrl) {
   };
 }
 
+// Отдельный, более короткий TTL для НЕГАТИВНЫХ результатов (data === null:
+// сайт отдал 401/403/439, не ответил, отдал не-HTML). Раз в час долбить
+// rbc.ru/avito за одним и тем же отказом бессмысленно; через 15 минут
+// есть шанс, что сайт был временно недоступен и теперь отдаст превью.
+// До этой правки ошибка fetchUrlSafe ПРОБРАСЫВАЛАСЬ наверх и НЕ попадала
+// в кеш — каждый вход в чат с той же ссылкой снова дёргал сайт.
+const LINK_PREVIEW_NEGATIVE_CACHE_MS = 15 * 60 * 1000;
+
 async function getLinkPreview(targetUrl) {
   const now = Date.now();
   const cached = linkPreviewCache.get(targetUrl);
-  if (cached && now - cached.at < LINK_PREVIEW_CACHE_MS) return cached.data;
-  const html = await fetchUrlSafe(targetUrl, 3);
-  const data = extractMeta(html, targetUrl);
+  if (cached) {
+    const ttl = cached.data ? LINK_PREVIEW_CACHE_MS : LINK_PREVIEW_NEGATIVE_CACHE_MS;
+    if (now - cached.at < ttl) return cached.data;
+  }
+  const host = (() => { try { return new URL(targetUrl).hostname; } catch (e) { return targetUrl; } })();
+  let data = null;
+  try {
+    const html = await fetchUrlSafe(targetUrl, 3);
+    data = extractMeta(html, targetUrl);
+    if (!data) console.log("[link-preview] пусто (без исключения) для " + host);
+  } catch (e) {
+    // Отрицательный результат — сохраняем ниже в кеш как null, чтобы
+    // повторный запрос той же ссылки не дёргал сайт снова.
+    console.log("[link-preview] ошибка для " + host + ": " + e.message + " (кеширую отказ на 15 мин)");
+  }
   linkPreviewCache.set(targetUrl, { at: now, data });
   if (linkPreviewCache.size > 2000) {
-    // Сначала — по возрасту (как и раньше). Но если абсолютно все записи
-    // всё ещё "свежие" (кто-то целенаправленно шлёт много РАЗНЫХ ссылок
-    // в пределах часа), этот цикл ничего не найдёт — кеш продолжал бы
-    // расти без ограничения (вектор DoS по памяти). Поэтому следом —
-    // жёсткий предел по количеству: убираем самые старые по порядку
-    // вставки, пока не впишемся в разумный размер, независимо от возраста.
     const cutoff = now - LINK_PREVIEW_CACHE_MS;
     for (const [k, v] of linkPreviewCache) if (v.at < cutoff) linkPreviewCache.delete(k);
     if (linkPreviewCache.size > 2000) {
