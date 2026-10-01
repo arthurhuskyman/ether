@@ -207,12 +207,10 @@ body::before {
   inset: 0;
   z-index: -1;
   background:
-    radial-gradient(ellipse 150% 70% at 50% -15%,
-      rgba(138, 109, 255, 0.65), transparent 72%),
-    radial-gradient(ellipse 100% 55% at 50% 110%,
-      rgba(64, 200, 255, 0.42), transparent 72%),
-    radial-gradient(ellipse 80% 40% at -15% 50%,
-      rgba(180, 120, 255, 0.18), transparent 75%),
+    radial-gradient(ellipse 150% 85% at 50% -15%,
+      rgba(138, 109, 255, 0.65), transparent 78%),
+    radial-gradient(ellipse 130% 85% at 50% 115%,
+      rgba(64, 200, 255, 0.42), transparent 78%),
     var(--bg-0);
   animation: etherWave 20s ease-in-out infinite alternate;
   clip-path: inset(0);
@@ -1293,12 +1291,21 @@ html[data-theme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); }
 .call-volume input[type="range"]::-webkit-slider-runnable-track { background: rgba(255, 255, 255, 0.3); border-radius: 4px; }
 .call-volume input[type="range"]::-moz-range-track { background: rgba(255, 255, 255, 0.3); border-radius: 4px; }
 
-.call-controls { display: flex; gap: 12px; align-items: flex-start; justify-content: center; position: relative; z-index: 2; flex-wrap: wrap; }
+.call-controls {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  justify-content: center;
+  position: relative;
+  z-index: 2;
+  flex-wrap: nowrap;
+  max-width: 100%;
+}
 .call-btn {
   position: relative;
   display: flex; flex-direction: column; align-items: center; gap: 8px;
   border: none; background: none; color: #fff; cursor: pointer;
-  font-size: var(--fs-xs); min-width: 52px;
+  font-size: var(--fs-xs); min-width: 44px;
   padding: 0;
   touch-action: manipulation;
   -webkit-user-select: none;
@@ -1307,14 +1314,14 @@ html[data-theme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); }
 }
 .call-btn > span {
   line-height: 1.15;
-  font-size: var(--fs-xs);
+  font-size: 10px;
   color: rgba(255, 255, 255, 0.85);
   text-align: center;
   white-space: nowrap;
   pointer-events: none;
 }
 .call-btn svg {
-  width: 64px; height: 64px; padding: 20px;
+  width: 54px; height: 54px; padding: 15px;
   border-radius: 50%; box-sizing: border-box;
   background: rgba(255, 255, 255, 0.16);
   color: #fff;
@@ -1412,6 +1419,10 @@ html[data-theme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); }
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 40px;
 }
+ #camera-controls-live {
+  justify-content: center;
+  gap: 40px;
+}
 .camera-side-btn {
   width: 44px; height: 44px; flex-shrink: 0;
   color: #fff; background: rgba(255,255,255,0.15); border-radius: 50%;
@@ -1501,23 +1512,33 @@ html[data-theme="aurora"] { color-scheme: dark; }
    фоне выглядит бледно (белый «отбеливает» любой оттенок). */
 html[data-theme="light"] body::before {
   background:
-    radial-gradient(ellipse 110% 55% at 50% -10%,
-      rgba(120, 88, 247, 0.42), transparent 68%),
-    radial-gradient(ellipse 85% 50% at 50% 110%,
-      rgba(90, 184, 255, 0.28), transparent 68%),
-    radial-gradient(ellipse 70% 35% at -10% 50%,
-      rgba(160, 130, 255, 0.16), transparent 72%),
+    radial-gradient(ellipse 130% 90% at 50% -15%,
+      rgba(120, 88, 247, 0.42), transparent 78%),
+    radial-gradient(ellipse 120% 85% at 50% 115%,
+      rgba(90, 184, 255, 0.28), transparent 78%),
     var(--bg-0);
 }
 @media (prefers-color-scheme: light) {
   html[data-theme="auto"] body::before {
     background:
-      radial-gradient(ellipse 110% 55% at 50% -10%,
-        rgba(120, 88, 247, 0.42), transparent 68%),
-      radial-gradient(ellipse 85% 50% at 50% 110%,
-        rgba(90, 184, 255, 0.28), transparent 68%),
-      radial-gradient(ellipse 70% 35% at -10% 50%,
-        rgba(160, 130, 255, 0.16), transparent 72%),
+      radial-gradient(ellipse 130% 90% at 50% -15%,
+        rgba(120, 88, 247, 0.42), transparent 78%),
+      radial-gradient(ellipse 120% 85% at 50% 115%,
+        rgba(90, 184, 255, 0.28), transparent 78%),
       var(--bg-0);
   }
 }
+.call-flip-overlay {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 16px + 108px);  /* под превью */
+  inset-inline-end: 16px;
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff; border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 4;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  padding: 0;
+}
+.call-flip-overlay:active { transform: scale(0.94); }

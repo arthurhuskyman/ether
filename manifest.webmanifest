@@ -1,6 +1,7 @@
 {
   "name": "Эфир — связь напрямую",
   "short_name": "Эфир",
+  "orientation": "portrait",
   "description": "Сообщения и звонки напрямую между устройствами.",
   "lang": "ru",
   "start_url": "./",
