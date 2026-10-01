@@ -36,7 +36,7 @@
 
   /* --- Стекло — 3 градации от одной базовой alpha --- */
   --glass-tint: 22, 22, 28;
-  --glass-alpha: 0.62;                   /* управляется ползунком в настройках */
+  --glass-alpha: 0.55;                   /* управляется ползунком в настройках */
   --glass-blur: 32px;
   --glass-border: rgba(255, 255, 255, 0.10);
   --glass-thin: rgba(var(--glass-tint), calc(var(--glass-alpha) * 0.7));
@@ -294,6 +294,28 @@ html[data-theme="light"] .glass-content {
     forced-color-adjust: none; background: Canvas; border-color: CanvasText;
   }
   .glass *, .glass-content * { text-shadow: none; color: CanvasText; }
+}
+
+/* Заливка safe area снизу — тем же цветом, что и фон футера (#tab-bar).
+   На iOS PWA в standalone-режиме 100dvh иногда оказывается меньше
+   реальной высоты экрана, и под #tab-bar остаётся полоска фона html
+   (--bg-0), контрастирующая с футером (--bg-1). Фиксированный fixed-
+   псевдоэлемент закрашивает эту зону цветом --bg-1. z-index 15 — ниже
+   #tab-bar (20), поэтому при обычной раскладке, когда сам футер уже
+   покрывает safe area, псевдоэлемент полностью скрыт под ним и не
+   мешает. Сверху аналогичной проблемы нет: #nav-bar покрывает safe
+   area своим padding-ом, а его стеклянный фон визуально совпадает
+   с фоном приложения. */
+body::after {
+  content: "";
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: env(safe-area-inset-bottom, 0px);
+  background: var(--bg-1);
+  pointer-events: none;
+  z-index: 15;
 }
 
 #lock-screen {

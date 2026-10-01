@@ -396,7 +396,17 @@ async function fetchUrlSafe(targetUrl, redirectsLeft) {
 function decodeHtmlEntities(s) {
   return s
     .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&apos;/g, "'");
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&apos;/g, "'")
+    // Числовые HTML-сущности: &#8212; (десятичные) и &#x2014;
+    // (шестнадцатеричные). Без них некоторые сайты (BBC, Reuters)
+    // отдают сырые числовые ссылки в og:title / og:description, и в
+    // превью ссылок видно литеральное "&#8212;" вместо "—".
+    .replace(/&#(\d+);/g, (_, code) => {
+      try { return String.fromCodePoint(parseInt(code, 10)); } catch (e) { return "&#" + code + ";"; }
+    })
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => {
+      try { return String.fromCodePoint(parseInt(code, 16)); } catch (e) { return "&#x" + code + ";"; }
+    });
 }
 
 function extractMeta(html, targetUrl) {

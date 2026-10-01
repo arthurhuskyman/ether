@@ -22,7 +22,7 @@
 <title>Ether — direct connection</title>
 <meta name="description" content="Messages and calls directly between devices." />
 <link rel="manifest" href="manifest.webmanifest" />
-<meta name="theme-color" content="#000000" />
+<meta name="theme-color" content="#08080a" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Ether" />
@@ -344,6 +344,9 @@
         <button type="button" id="voice-cancel-btn" class="icon-btn" aria-label="Cancel">✕</button>
         <span class="voice-recording-dot"></span>
         <span id="voice-recording-time">0:00</span>
+        <span class="voice-recording-wave" aria-hidden="true">
+        <span></span><span></span><span></span><span></span><span></span>
+        </span>
         <span class="fine muted" data-i18n="chat.voice.recording">Recording…</span>
         <button type="button" id="voice-send-btn" class="send-btn" aria-label="Send"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M3 11.5 21 3l-6 18-4-7.5L3 11.5z"/></svg></button>
       </div>
