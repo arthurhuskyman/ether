@@ -295,29 +295,6 @@ html[data-theme="light"] .glass-content {
   .glass *, .glass-content * { text-shadow: none; color: CanvasText; }
 }
 
-/* Заливка safe area снизу — тем же цветом, что фон футера (#tab-bar).
-   Причина проблемы в iOS PWA: env(safe-area-inset-bottom) иногда
-   возвращает 0, а видимая полоска внизу — это фон html за пределами
-   #app-shell. Делаем высоту гарантированно ненулевой (max с 100px) —
-   верхняя часть псевдоэлемента уходит под #tab-bar (z-index 20 > 15),
-   наружу торчит ровно «щель» под футером. */
-body::after {
-  content: "";
-  position: fixed;
-  left: 0; right: 0; bottom: 0;
-  height: max(env(safe-area-inset-bottom, 0px), 100px);
-  background: var(--bg-1);
-  pointer-events: none;
-  z-index: 15;
-}
-
-/* Дополнительная страховка: в standalone-PWA iOS иногда красит полоску
-   внизу цветом html, а не body::after (порядок отрисовки отличается от
-   обычного Safari). Меняем фон html на цвет футера в standalone-режиме. */
-@media (display-mode: standalone) {
-  html { background: var(--bg-1); }
-}
-
 #lock-screen {
   position: fixed; inset: 0; z-index: 900;
   display: flex; align-items: center; justify-content: center;
@@ -1207,18 +1184,12 @@ html[data-theme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); }
   height: 50px;
   padding: 0 4px calc(env(safe-area-inset-bottom, 0px) + 3px);
   box-sizing: content-box;
-  border-radius: 0; border-bottom: none;
-  /* z-index 500 — выше всех внутренних оверлеев (chat-input-bar z-auto,
-     #update-banner 600 — исключение, но он физически лежит НАД таб-баром
-     на 90px выше, так что не пересекается), но ниже #lock-screen (900) и
-     модальных шитов (700+). */
-  z-index: 500;
-  flex-shrink: 0; order: 1;
-  position: relative;
-  /* background непрозрачный: чтобы даже если что-то под ним, оно не
-     просвечивало через полупрозрачное стекло таб-бара. */
+  border-radius: 0;
+  border-bottom: none;
+  z-index: 20;
+  flex-shrink: 0;
+  order: 1;
   background: var(--bg-1);
-  isolation: isolate;
   border-top: 1px solid var(--line-1);
 }
 .tab-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 1px 0; border: none; background: none; color: var(--ink-3); cursor: pointer; font-size: var(--fs-xs); font-weight: 500; min-width: 0; position: relative; transition: color 0.15s var(--spring-snappy); }
