@@ -384,10 +384,8 @@ class PeerLink extends EventTarget {
   async sendFile(meta, base64Chunks, onProgress) {
     if (!this.dc || this.dc.readyState !== "open") return false;
     const metaPayload = { kind: "file-meta", id: meta.id, name: meta.name, mime: meta.mime, size: meta.size, totalChunks: base64Chunks.length };
-    // duration === 0 (например, ошибочно короткая голосовая запись) —
-    // валидное значение, а не "нет duration". if (meta.duration) исключал
-    // бы именно этот случай (0 — falsy).
     if (meta.duration != null) metaPayload.duration = meta.duration;
+    if (meta.forwarded) metaPayload.forwarded = true;
     if (!this.send(metaPayload)) return false;
     const BUFFER_THRESHOLD = 262144; // 256KB — не даём буферу канала расти бесконтрольно
     for (let i = 0; i < base64Chunks.length; i++) {

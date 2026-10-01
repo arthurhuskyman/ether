@@ -129,7 +129,7 @@ const CRITICAL_LS_KEYS = [
   "ether.notifications", "ether.sounds", "ether.ringtone", "ether.linkPreviews",
   "ether.vapidPublicKey", "ether.pushSubscription",
   "ether.callLog", "ether.lastSeen", "ether.drafts",
-  "ether.callVolume", "ether.lang",
+  "ether.callVolume", "ether.lang", "ether.recentReactions",
 ];
 
 async function backupToIDB() {
@@ -485,7 +485,7 @@ function linkifyAndHighlight(text, query) {
     if (u.start > lastIdx) result += highlightRaw(escapeHtml(text.slice(lastIdx, u.start)), query);
     const hrefUrl = u.normalized; // https://... даже для "голого" домена — иначе браузер трактует как относительный путь
     const displayText = escapeHtml(u.raw); // показываем то, что пользователь реально написал (без добавленного https://)
-    result += `<a href="${hrefUrl}" target="_blank" rel="noopener noreferrer">${highlightRaw(displayText, query)}</a>`;
+    result += `<a href="${escapeHtml(hrefUrl)}" target="_blank" rel="noopener noreferrer">${highlightRaw(displayText, query)}</a>`;
     lastIdx = u.end;
   }
   if (lastIdx < text.length) result += highlightRaw(escapeHtml(text.slice(lastIdx)), query);
@@ -1593,6 +1593,7 @@ function openFromNotification(contactId, kind) {
   if (!contactId) return;
   window.focus();
   state.chatId = contactId;
+  __lastRenderedChatId = null;
   state.contactCardId = null; // иначе после закрытия этого чата могла неожиданно всплыть карточка контакта, на которой пользователь был до уведомления
   renderTab();
   if (kind === "call") {
@@ -1971,6 +1972,7 @@ function wireTabBar() {
       }
       state.tab = btn.dataset.tab;
       state.chatId = null;
+      __lastRenderedChatId = null;
       state.contactCardId = null;
       renderTab();
     });
@@ -1993,8 +1995,14 @@ function closeChatSafely() {
   const prevId = state.chatId;
   cancelVoiceRecordingIfLeavingChat(null);
   pauseAllVoicePlayback();
-  try { saveCurrentDraft(); } catch (e) {} // ДО обнуления chatId — иначе saveCurrentDraft() сразу выходит (проверяет state.chatId) и черновик теряется
+  try { saveCurrentDraft(); } catch (e) {}
   state.chatId = null;
+  // Сброс __lastRenderedChatId — иначе при повторном входе в ТОТ ЖЕ
+  // чат в renderChatThreadInner срабатывает условие
+  // state.chatId === __lastRenderedChatId, «свежая» логика
+  // (unreadDividerFor.set) не отрабатывает, и разделитель
+  // «Непрочитанные сообщения» не появляется.
+  __lastRenderedChatId = null;
   try { if (prevId) sendTypingStop(prevId); } catch (e) {}
   try { cancelEditing(); } catch (e) {}
   try { cancelReply(); } catch (e) {}
@@ -2151,7 +2159,7 @@ function renderChatsList() {
     // уже отслеживалось и для списка чатов, просто не использовалось.
     const isTyping = !isGroup(c) && state.typingTimers.has(c.id);
     if (isTyping) preview = `<em class="chat-row-typing">${escapeHtml(T("chat.typing"))}</em>`;
-    row.innerHTML = `
+
     // Статус онлайн теперь точкой прямо на аватаре (как Signal/WhatsApp),
     // а не текстовым символом ● справа от имени. У групп точку не
     // показываем — там статус не про presence одного человека.
@@ -2251,6 +2259,7 @@ function openContactCard(contactId) {
   const c = state.contacts.get(contactId);
   if (isGroup(c)) { openGroupInfo(contactId); return; }
   state.chatId = null;
+  __lastRenderedChatId = null;
   state.contactCardId = contactId;
   renderTab();
 }
@@ -3524,6 +3533,7 @@ function handleFilePayload(from, payload) {
     const isOpen = state.chatId === from;
     const rec = { id: payload.id, from: "them", text: "", ts: Date.now(), readAckSent: false,
       file: { name: payload.name, mime: payload.mime, size: payload.size, kind: fileKindFromMime(payload.mime), duration: payload.duration || 0, pending: true } };
+    if (payload.forwarded) rec.forwarded = true;
     c.messages.push(rec); trimMessages(c); c.lastActivity = Date.now(); persistContacts();
     if (isOpen) renderChatThread();
     if (state.tab === "chats") renderChatsList();
@@ -3943,6 +3953,7 @@ function addGroupMember(groupId, memberId) {
   const c = state.contacts.get(memberId);
   g.members.push({ id: memberId, name: (c && c.name) || T("sys.someone") });
   g.messages.push({ id: crypto.randomUUID(), from: "system", text: T("group.systemAdded", { name: (c && c.name) || T("sys.someone") }), textKey: "group.systemAdded", textParams: { name: (c && c.name) || T("sys.someone") }, ts: Date.now() });
+  trimMessages(g);
   g.lastActivity = Date.now();
   persistContacts();
   broadcastGroupRoster(g);
@@ -3969,11 +3980,12 @@ function removeGroupMember(groupId, memberId, leftBySelf) {
     unreadDividerFor.delete(groupId);
     dividerScrolledFor.delete(groupId);
     persistContacts();
-    if (state.chatId === groupId) { state.chatId = null; renderTab(); }
+    if (state.chatId === groupId) { state.chatId = null; __lastRenderedChatId = null; renderTab(); }
     else if (state.tab === "chats") renderChatsList();
     return;
   }
   g.messages.push({ id: crypto.randomUUID(), from: "system", text: leftBySelf ? T("group.systemLeft", { name: removedName }) : T("group.systemRemoved", { name: removedName }), textKey: leftBySelf ? "group.systemLeft" : "group.systemRemoved", textParams: { name: removedName }, ts: Date.now() });
+  trimMessages(g);
   persistContacts();
   // И при добровольном выходе (чтобы остальные узнали, что меня больше
   // нет), и при исключении кем-то другим — рассылаем новый состав
@@ -3989,6 +4001,7 @@ function renameGroup(groupId, name) {
   name = (name || "").trim(); if (!name || name === g.name) return;
   g.name = name;
   g.messages.push({ id: crypto.randomUUID(), from: "system", text: T("group.systemRenamed", { name }), textKey: "group.systemRenamed", textParams: { name }, ts: Date.now() });
+  trimMessages(g);
   g.lastActivity = Date.now();
   persistContacts();
   broadcastGroupRoster(g);
@@ -4089,7 +4102,7 @@ async function forwardMessage(msgId, fromContactId, toContactId) {
         for (let offset = 0; offset < buffer.byteLength; offset += FILE_CHUNK_SIZE) {
           chunks.push(arrayBufferToBase64(buffer.slice(offset, offset + FILE_CHUNK_SIZE)));
         }
-        const meta = { id: msgId2, name: m.file.name, mime: m.file.mime, size: m.file.size };
+        const meta = { id: msgId2, name: m.file.name, mime: m.file.mime, size: m.file.size, forwarded: true };
         if (m.file.duration != null) meta.duration = m.file.duration;
         const ok = await link.sendFile(meta, chunks);
         rec.file.pending = false;
@@ -4114,6 +4127,7 @@ async function forwardMessage(msgId, fromContactId, toContactId) {
         kind: "file", id: msgId2,
         name: m.file.name, mime: m.file.mime, size: m.file.size,
         dataB64: arrayBufferToBase64(buffer),
+        forwarded: true,
       };
       if (m.file.duration != null) payload.duration = m.file.duration;
       await trySendOrQueue(to, msgId2, payload);
@@ -4292,6 +4306,12 @@ function resumeUnsentMessages() {
       if (m.from !== "me") continue;
       if (m.serverAcked) continue;
       if (m.ack !== "failed") continue;
+      // Файлы, голосовые и карточки контактов НЕ восстанавливаем автоматом:
+      // для них нужен исходный Blob из IndexedDB и полный payload, а не
+      // просто text. Иначе на сервер уйдёт пустой текстовый конверт, а
+      // получатель увидит пустой пузырь — файл потерян. Ручной повтор —
+      // через "Повторить" в меню сообщения (см. handleMessageAction).
+      if (m.file || m.contactCard) continue;
       if (outbox.has(m.id)) continue;
       if (now - m.ts > RESUME_MAX_AGE_MS) continue;
       const payload = { kind: "chat", id: m.id, text: m.text, ts: m.ts };
@@ -4327,37 +4347,50 @@ function sendAckBatch(contactId, originalMsgIds, ackState) {
 
 function markMessageAck(contactId, msgId, ack) {
   if (ack === "failed") haptic("medium");
-  // Симметрично markThreadRead: если МОИ receipts выключены, я не вижу
-  // read-статус на СВОИХ сообщениях, даже если собеседник его всё-таки
-  // прислал (у него могло быть включено). Это тот же принцип, что в
-  // Signal — тумблер симметричен по эффекту, не только по отправке.
   if (ack === "read" && !Store.receiptsEnabled) ack = "delivered";
   const rank = { failed: -1, sent: 0, delivered: 1, read: 2 };
-  // Для групповых сообщений msgId, который приходит в ack, — это id
-  // ДОСТАВКИ (свой у каждого участника, чтобы не сталкивались ключи в
-  // outbox), а само сообщение хранится в списке ГРУППЫ и ключуется по
-  // payload.id (общий для всех получателей id содержимого). Раньше
-  // здесь искали msgId в списке contactId (конкретного участника) —
-  // совпадения никогда не было, и групповые сообщения навсегда
-  // оставались "✓ отправлено". Пока запись ещё жива в outbox (до
-  // удаления ниже), в ней есть и payload.id, и payload.groupId —
-  // используем их, чтобы найти настоящую запись сообщения.
+
   const entry = outbox.get(msgId);
   const groupId = entry && entry.payload && entry.payload.groupId;
   const contentId = entry && entry.payload && entry.payload.id;
+
+  // Ищем сообщение и его чат-«владелец» (личный или групповой).
+  // 1) Сначала — прямой путь через outbox-entry, если запись ещё жива.
+  // 2) Затем — личный чат с contactId.
+  // 3) В конце — fallback для P2P-групповых ack'ов: пир присылает ack
+  //    с contentId, но в outbox запись лежала под отдельным delivery-
+  //    UUID (см. sendGroupMessage — там crypto.randomUUID() на каждого
+  //    получателя). Без этого fallback'а запись не находится, и
+  //    групповое сообщение навсегда остаётся с одной галочкой.
+  let ownerChat = null, targetMsg = null;
+
   if (groupId && contentId) {
     const g = state.contacts.get(groupId);
     const m = g && g.messages.find((mm) => mm.id === contentId && mm.from === "me");
-    if (m && ((rank[ack] ?? 0) >= (rank[m.ack] ?? 0) || ack === "failed")) m.ack = ack;
-    if (m) { persistContacts(); if (state.chatId === groupId) renderChatThread(); }
-  } else {
+    if (m) { ownerChat = g; targetMsg = m; }
+  }
+  if (!targetMsg) {
     const c = state.contacts.get(contactId);
     const m = c && c.messages.find((mm) => mm.id === msgId && mm.from === "me");
-    if (m && ((rank[ack] ?? 0) >= (rank[m.ack] ?? 0) || ack === "failed")) m.ack = ack;
-    persistContacts();
-    if (state.chatId === contactId) renderChatThread();
+    if (m) { ownerChat = c; targetMsg = m; }
   }
-  if (ack === "delivered" || ack === "read") { if (outbox.has(msgId)) { outbox.delete(msgId); persistOutbox(); } }
+  if (!targetMsg) {
+    for (const g of state.contacts.values()) {
+      if (!g.isGroup) continue;
+      const m = g.messages.find((mm) => mm.id === msgId && mm.from === "me");
+      if (m) { ownerChat = g; targetMsg = m; break; }
+    }
+  }
+
+  if (targetMsg && ((rank[ack] ?? 0) >= (rank[targetMsg.ack] ?? 0) || ack === "failed")) {
+    targetMsg.ack = ack;
+    persistContacts();
+    if (ownerChat && state.chatId === ownerChat.id) renderChatThread();
+  }
+
+  if (ack === "delivered" || ack === "read") {
+    if (outbox.has(msgId)) { outbox.delete(msgId); persistOutbox(); }
+  }
 }
 function sendTypingStart(contactId) {
   if (state.typingSendingState.get(contactId)) return;
@@ -4489,7 +4522,13 @@ function initSignaling() {
 // пришёл пакет.
 async function handleIncomingOffer(from, packet, replySignal) {
   if (recentlyDeletedIds.has(from)) return;
-  clearUnreachable(from);   // ← новая строка: он нам пишет, значит живой
+  // Заблокированный собеседник не должен устанавливать P2P-соединение.
+  // Сообщения от него отсекаются в mesh-обработчике (if (c.blocked) return),
+  // но сам линк уже создаётся, тратит ICE, виден в диагностике как
+  // "connected", приглашает к дальнейшим пересогласованиям.
+  const blockedContact = state.contacts.get(from);
+  if (blockedContact && blockedContact.blocked) return;
+  clearUnreachable(from);
   const existing = mesh.get(from);
   // Любой живой линк (offerer или answerer, connected или in-call) —
   // игнорируем встречный offer. Раньше проверялась только пара
@@ -4872,20 +4911,37 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
       id: payload.id, from: "them", text: "", ts: payload.ts || Date.now(), readAckSent: false, deliveryId: envelopeMsgId,
       file: { name: payload.name || "file", mime: payload.mime || "application/octet-stream", size: payload.size || blob.size, kind: fileKindFromMime(payload.mime), duration: payload.duration, pending: false },
     };
-    IDB.set("file:" + payload.id, blob).catch(() => {});
+    if (payload.forwarded) rec.forwarded = true;
     c.messages.push(rec); trimMessages(c); c.lastActivity = Date.now();
     persistContacts();
-    const isOpen = state.chatId === from;
-    if (isOpen) { renderChatThread(); playMessageSound(); vibrate([80, 40, 80]); }
-    else {
-      const label = T("chat.file.preview." + rec.file.kind);
-      toast(`${c.name}: ${label}`);
-      if (!c.muted) showNotification(c.name || T("app.name"), label, { tag: "ether-msg-" + c.id, contactId: c.id, kind: "message" });
-      playMessageSound();
-      vibrate([80, 40, 80]);
-    }
-    if (state.tab === "chats") renderChatsList();
-    updateAppBadge();
+    // Раньше IDB.set не дожидались: renderChatThread → hydrateFileSlots →
+    // getFileBlobUrl → IDB.get мог выполниться раньше, чем put
+    // завершится, и слот на секунду показывал «недоступно». Явно
+    // дожидаемся записи, весь хвост ветки (тосты/нотификации/рендер)
+    // переносим внутрь .then.
+    IDB.set("file:" + payload.id, blob)
+      .then(() => {
+        const isOpen = state.chatId === from;
+        if (isOpen) { renderChatThread(); playMessageSound(); vibrate([80, 40, 80]); }
+        else {
+          const label = T("chat.file.preview." + rec.file.kind);
+          toast(`${c.name}: ${label}`);
+          if (!c.muted) showNotification(c.name || T("app.name"), label, { tag: "ether-msg-" + c.id, contactId: c.id, kind: "message" });
+          playMessageSound();
+          vibrate([80, 40, 80]);
+        }
+        if (state.tab === "chats") renderChatsList();
+        updateAppBadge();
+      })
+      .catch((e) => {
+        etherLog("error", "[file] IDB.set failed:", String(e));
+        // даже без сохранённого блоба пузырь уже добавлен — при
+        // следующем рендере слот покажет «недоступно»
+        const isOpen = state.chatId === from;
+        if (isOpen) renderChatThread();
+        if (state.tab === "chats") renderChatsList();
+        updateAppBadge();
+      });
    } else if (kind === "group-invite") {
     // Дедупликация по payload.id. group-invite — особый случай: у него
     // нет ack-механизма (получатель не отвечает "получил"), поэтому
@@ -4909,6 +4965,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
         createdBy: from, managed: true };
       state.contacts.set(payload.groupId, g);
       g.messages.push({ id: crypto.randomUUID(), from: "system", text: T("group.systemCreated", { name: g.name }), textKey: "group.systemCreated", textParams: { name: g.name }, ts: Date.now() });
+      trimMessages(g);
     } else {
       g.members = payload.members;
       if (payload.groupName) g.name = payload.groupName;
@@ -4961,6 +5018,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     if (c.messages.some((m) => m.id === payload.id)) return;
     const isOpen = state.chatId === from;
     const rec = { id: payload.id, from: "them", text: "", ts: payload.ts || Date.now(), readAckSent: false, deliveryId: envelopeMsgId, contactCard: { id: payload.contactId, name: payload.contactName || "" } };
+    if (payload.forwarded) rec.forwarded = true;
     c.messages.push(rec); trimMessages(c); c.lastActivity = Date.now();
     persistContacts();
     const previewText = T("chat.contactCard.preview", { name: payload.contactName || T("sys.someone") });
@@ -5844,7 +5902,7 @@ function openMessageSheet(msgId, contactId) {
   actions.push(`<button type="button" class="sheet-action" data-action="copy">${escapeHtml(T("chat.copy"))}</button>`);
   if (m.ack === "failed" && isOwn && !groupCtx) actions.push(`<button type="button" class="sheet-action" data-action="retry">${escapeHtml(T("chat.retry"))}</button>`);
   if (isOwn) {
-    if (!groupCtx) actions.push(`<button type="button" class="sheet-action" data-action="edit">${escapeHtml(T("chat.edit"))}</button>`);
+    if (!groupCtx && !m.file && !m.contactCard) actions.push(`<button type="button" class="sheet-action" data-action="edit">${escapeHtml(T("chat.edit"))}</button>`);
     actions.push(`<button type="button" class="sheet-action destructive" data-action="delete-local">${escapeHtml(T("chat.delete.local"))}</button>`);
     if (!groupCtx) actions.push(`<button type="button" class="sheet-action destructive" data-action="delete-both">${escapeHtml(T("chat.delete.both"))}</button>`);
   } else {
@@ -5877,12 +5935,53 @@ async function handleMessageAction(action, msgId, contactId) {
   else if (action === "retry") {
     m.serverAcked = false;
     m.ack = "sent";
-    // Раньше retry шёл СРАЗУ через outbox/flushOutboxItem — то есть
-    // только релей через сервер, минуя прямой P2P, даже если связь к
-    // этому моменту уже восстановилась. trySendOrQueue — та же логика,
-    // что использует обычная отправка: сначала пробует P2P напрямую,
-    // и только при неудаче падает на сервер.
     if (outbox.has(msgId)) outbox.delete(msgId);
+
+    // Файл/голосовое: собираем Blob из IndexedDB и формируем полный
+    // file-payload (тот же формат, что в sendFileOffline/sendVoiceOffline).
+    // Пустой text тут не годится — собеседник получил бы пустышку.
+    if (m.file) {
+      (async () => {
+        try {
+          const blob = await IDB.get("file:" + msgId);
+          if (!blob) {
+            toast(T("chat.file.unavailable"));
+            m.ack = "failed"; persistContacts();
+            if (state.chatId === contactId) renderChatThread();
+            return;
+          }
+          const buffer = await blob.arrayBuffer();
+          const payload = {
+            kind: "file", id: msgId,
+            name: m.file.name || "file",
+            mime: m.file.mime || "application/octet-stream",
+            size: m.file.size || blob.size,
+            dataB64: arrayBufferToBase64(buffer),
+          };
+          if (m.file.duration != null) payload.duration = m.file.duration;
+          await trySendOrQueue(c, msgId, payload);
+        } catch (e) {
+          etherLog("error", "[retry] file failed:", String(e));
+          m.ack = "failed"; persistContacts();
+          if (state.chatId === contactId) renderChatThread();
+        }
+      })();
+      return;
+    }
+
+    // Карточка контакта: повторяем как contact-card, не текстом.
+  if (m.contactCard) {
+    const payload = {
+      kind: "contact-card", id: msgId2, ts,
+      contactId: m.contactCard.id,
+      contactName: m.contactCard.name || "",
+      forwarded: true,
+    };
+    await trySendOrQueue(to, msgId2, payload);
+    return;
+  }
+
+    // Обычный текст.
     const payload = { kind: "chat", id: msgId, text: m.text, ts: m.ts };
     if (m.replyTo) payload.replyTo = { id: m.replyTo.id, text: m.replyTo.text, authorName: m.replyTo.authorName };
     if (m.ttl) payload.ttl = m.ttl;
@@ -5962,7 +6061,7 @@ function deleteContact(id) {
   if (recentlyDeletedIds.size > 500) recentlyDeletedIds.delete(recentlyDeletedIds.values().next().value);
   persistContacts();
   if (state.callId === id) closeCallScreen();
-  if (state.chatId === id) state.chatId = null;
+  if (state.chatId === id) { state.chatId = null; __lastRenderedChatId = null; }
   if (state.contactCardId === id) state.contactCardId = null;
   renderTab();
   toast(T("toast.contactDeleted"));
@@ -6487,6 +6586,7 @@ function closeCallScreen(reason) {
       const sysMsg = systemMessageForCall(rec, reason);
       if (sysMsg) {
         c.messages.push({ id: crypto.randomUUID(), from: "system", text: T(sysMsg.key, sysMsg.params), textKey: sysMsg.key, textParams: sysMsg.params, ts: Date.now() });
+        trimMessages(c);
         c.lastActivity = Date.now();
         persistContacts();
         if (state.chatId === rec.contactId) renderChatThread();

@@ -45,7 +45,12 @@ class SignalingClient extends EventTarget {
   }
 
   start() {
-    if (this._stopped) return;
+    // Раньше _stopped не сбрасывался — если клиент останавливали через
+    // stop() и потом запускали на том же экземпляре, start() молча
+    // ничего не делал. Сейчас app.js создаёт новый клиент вместо
+    // stop→start, поэтому это мина под будущий рефакторинг.
+    this._stopped = false;
+    if (this.shouldRun) return;
     this.shouldRun = true;
     this._connect();
     this._startHeartbeat();
