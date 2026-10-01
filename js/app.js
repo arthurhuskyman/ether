@@ -2619,7 +2619,12 @@ function renderChatThreadInner() {
       }
     }
     let replyHtml = "";
-    if (m.replyTo) replyHtml = `<div class="bubble-reply" data-reply-to-id="${escapeHtml(m.replyTo.msgId || "")}"><div class="bubble-reply-author">${escapeHtml(m.replyTo.authorName || "")}</div><div class="bubble-reply-text">${escapeHtml(truncate(m.replyTo.text || "", 80))}</div></div>`;
+if (m.replyTo) {
+  // Поле переименовано у отправителя: rec.replyTo.id (не msgId). Читаем
+  // оба варианта — для старых сообщений, сохранённых ещё с msgId.
+  const rtId = m.replyTo.id || m.replyTo.msgId || "";
+  replyHtml = `<div class="bubble-reply" data-reply-to-id="${escapeHtml(rtId)}"><div class="bubble-reply-author">${escapeHtml(m.replyTo.authorName || "")}</div><div class="bubble-reply-text">${escapeHtml(truncate(m.replyTo.text || "", 80))}</div></div>`;
+}
     const fwdMark = m.forwarded ? `<div class="bubble-forwarded">${escapeHtml(T("chat.forward"))}</div>` : "";
     let reactionsHtml = "";
     if (m.reactions && typeof m.reactions === "object") {
@@ -2749,6 +2754,18 @@ function renderChatThreadInner() {
   __prevRenderedMsgIds = nextMsgIds;
   urlsToFetch.forEach((u) => renderLinkPreviewInto(u));
   hydrateFileSlots(wrap);
+  // Hydrate асинхронно подгружает картинки/видео из IDB и заметно
+  // увеличивает высоту контента. Если пользователь был у низа — дожимаем
+  // скролл вниз после того, как всё подгрузилось, иначе layout shift
+  // оставляет его «выше низа» на высоту новых картинок, а следующий
+  // рендер (например, sweepExpiredMessages раз в 30с) улетает в середину
+  // списка, потому что wasAtBottom уже false.
+  if (wasAtBottom) {
+    const keepBottom = () => { if (isNearBottom(wrap) || wasAtBottom) wrap.scrollTop = wrap.scrollHeight; };
+    requestAnimationFrame(keepBottom);
+    setTimeout(keepBottom, 300);
+    setTimeout(keepBottom, 900);
+  }
   if (unreadDividerEl && !dividerScrolledFor.has(c.id)) {
     // Свежий вход в чат с непрочитанными — показываем место, где они
     // начинаются, а не сразу прыгаем в самый низ (иначе пользователь
@@ -2978,7 +2995,12 @@ function wireKeyboardFix() {
     if (!screen || screen.classList.contains("hidden")) return;
     const bar = document.querySelector(".chat-input-bar"); if (!bar) return;
     const kb = Math.max(0, window.innerHeight - vv.height - (vv.offsetTop || 0));
-    if (kb > 60) bar.style.transform = `translateY(-${kb}px)`;
+    // iOS PWA иногда возвращает бессмысленные значения vv.height. Ограничиваем
+    // сдвиг так, чтобы input-bar в крайнем случае упёрся ровно в верх таб-бара,
+    // но не заехал на него и не перекрыл иконки. 60px = высота таб-бара.
+    const maxShift = Math.max(0, (window.innerHeight || 0) - 60 - bar.offsetHeight);
+    const shift = Math.min(kb, maxShift);
+    if (shift > 60) bar.style.transform = `translateY(-${shift}px)`;
     else bar.style.transform = "";
     const wrap = document.getElementById("chat-messages");
     if (wrap) { if (isNearBottom(wrap)) wrap.scrollTop = wrap.scrollHeight; }
@@ -3894,12 +3916,22 @@ function createGroup(name, memberIds) {
   };
   state.contacts.set(groupId, g);
   persistContacts();
+  g.messages.push({
+    id: crypto.randomUUID(), from: "system",
+    text: T("group.systemCreated", { name: g.name }),
+    textKey: "group.systemCreated",
+    textParams: { name: g.name },
+    ts: Date.now()
+  });
+  trimMessages(g);
+  persistContacts();
   broadcastGroupRoster(g);
   for (const m of members) {
     if (m.id === Store.myId) continue;
     attemptConnect(m.id);
     attemptConnectViaRelay(m.id).catch(() => {});
   }
+  etherLog("info", "[group] createGroup:", "id=" + groupId.slice(0, 8) + "…", "name=" + JSON.stringify(g.name), "members=" + members.length);
   return groupId;
 }
 // Рассылает текущий состав/название группы всем участникам — при
@@ -3920,6 +3952,7 @@ function broadcastGroupRoster(g) {
 // действие в группе. Группа просто не появлялась у него снова.
 function sendGroupRosterTo(g, memberId) {
   const payload = { kind: "group-invite", id: crypto.randomUUID(), groupId: g.id, groupName: g.name, members: g.members };
+  etherLog("info", "[group] roster →", String(memberId).slice(0, 8) + "…", "groupId=" + String(g.id).slice(0, 8) + "…", "payload.id=" + String(payload.id).slice(0, 8) + "…");
   const mc = ensureContactEntry(memberId, (g.members.find((m) => m.id === memberId) || {}).name);
   trySendOrQueue(mc, crypto.randomUUID(), payload).catch(() => {});
 }
@@ -4153,6 +4186,7 @@ async function forwardMessage(msgId, fromContactId, toContactId) {
       kind: "contact-card", id: msgId2, ts,
       contactId: m.contactCard.id,
       contactName: m.contactCard.name || "",
+      forwarded: true,
     };
     await trySendOrQueue(to, msgId2, payload);
     return;
@@ -4957,9 +4991,36 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
 
     if (!Array.isArray(payload.members) || payload.members.length === 0 || payload.members.length > MAX_GROUP_MEMBERS) return;
     if (!payload.members.some((m) => m.id === Store.myId)) return;
-    let g = state.contacts.get(payload.groupId);
-    const isNew = !g;
-    if (isNew) {
+  // Ищем группу по payload.groupId. Дополнительно, если по id её нет —
+  // ищем по «логической идентичности»: тот же состав участников + то же
+  // имя. Нужно как страховка от бага, когда прилетает group-invite с
+  // ДРУГИМ groupId, но это на самом деле та же группа (тот же набор
+  // людей и имя). Без этой проверки создавался бы дубликат: одна
+  // группа с системным сообщением «создана», вторая — без него.
+  let g = state.contacts.get(payload.groupId);
+  etherLog("info", "[group] invite in:", "from=" + String(from).slice(0, 8) + "…", "payload.groupId=" + String(payload.groupId).slice(0, 8) + "…", "isNew=" + (!g), "existingKeys=" + Array.from(state.contacts.keys()).filter((k) => state.contacts.get(k).isGroup).length);
+  if (!g) {
+    const meId = Store.myId;
+    const incomingIds = payload.members.map((m) => m.id).sort().join("|");
+    const incomingName = (payload.groupName || "").trim();
+    for (const other of state.contacts.values()) {
+      if (!other.isGroup) continue;
+      const otherIds = other.members.map((m) => m.id).sort().join("|");
+      if (otherIds !== incomingIds) continue;
+      if (incomingName && other.name && other.name !== incomingName) continue;
+      // Тот же состав участников (+ то же имя) — считаем это той же группой.
+      // Указываем её локально под payload.groupId, чтобы последующие
+      // инвайты с тем же groupId (но другим именем) нашли её по id.
+      etherLog("info", "[group] invite от " + String(from).slice(0, 8) + "…: id не совпал, но состав совпадает с существующей группой — считаю той же группой");
+      state.contacts.delete(other.id);
+      other.id = payload.groupId;
+      state.contacts.set(payload.groupId, other);
+      g = other;
+      break;
+    }
+  }
+  const isNew = !g;
+  if (isNew) {
       g = { id: payload.groupId, isGroup: true, name: payload.groupName || T("group.defaultName"),
         members: payload.members, messages: [], lastActivity: Date.now(), archived: false, muted: false,
         createdBy: from, managed: true };
@@ -5972,12 +6033,11 @@ async function handleMessageAction(action, msgId, contactId) {
     // Карточка контакта: повторяем как contact-card, не текстом.
   if (m.contactCard) {
     const payload = {
-      kind: "contact-card", id: msgId2, ts,
+      kind: "contact-card", id: msgId, ts: m.ts,
       contactId: m.contactCard.id,
       contactName: m.contactCard.name || "",
-      forwarded: true,
     };
-    await trySendOrQueue(to, msgId2, payload);
+    trySendOrQueue(c, msgId, payload);
     return;
   }
 

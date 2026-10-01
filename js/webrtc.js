@@ -74,14 +74,18 @@ const HEARTBEAT_TIMEOUT_MS = 60000;
 function waitForIceGathering(pc) {
   if (pc.iceGatheringState === "complete") return Promise.resolve();
   return new Promise((resolve) => {
-    const timer = setTimeout(resolve, ICE_GATHER_TIMEOUT_MS);
-    pc.addEventListener("icegatheringstatechange", function onChange() {
+    function onChange() {
       if (pc.iceGatheringState === "complete") {
         clearTimeout(timer);
         pc.removeEventListener("icegatheringstatechange", onChange);
         resolve();
       }
-    });
+    }
+    const timer = setTimeout(() => {
+      pc.removeEventListener("icegatheringstatechange", onChange);
+      resolve();
+    }, ICE_GATHER_TIMEOUT_MS);
+    pc.addEventListener("icegatheringstatechange", onChange);
   });
 }
 
@@ -466,12 +470,21 @@ class PeerLink extends EventTarget {
   // из-за этого могли столкнуться ДВА параллельных пересогласования и
   // сломать соединение прямо во время звонка).
   async _negotiate(iceRestart) {
+    // _closed проверяется ПЕРВОЙ: на закрытом линке ни одно из
+    // последующих действий не имеет смысла, и в частности не надо
+    // выставлять _negotiationPendingOnOpen — событие "open" на
+    // закрывающемся data channel уже не сработает, а флаг останется
+    // висеть мусором. Сейчас это безвредно (линк удаляется из mesh,
+    // собирается GC), но защищает от будущих переиспользований
+    // PeerLink и от непонимания при чтении кода: во всех остальных
+    // методах (_handleRemoteSdp, reInvite, send, addIceCandidate)
+    // проверка _closed идёт первой.
+    if (this._closed) return;
     if (this._pendingNegotiation) {
       if (iceRestart) this._negotiationQueuedIceRestart = true;
       return;
     }
     if (!this.dc || this.dc.readyState !== "open") { this._negotiationPendingOnOpen = true; return; }
-    if (this._closed) return;
     if (this.pc.signalingState !== "stable") {
       // Сейчас не момент создавать offer — сами ещё разбираем чужой/
       // предыдущий; без этой проверки здесь и вылезал InvalidStateError.
@@ -643,6 +656,24 @@ class PeerLink extends EventTarget {
       this._videoAdded = true;
       return true;
     } catch (e) {
+      // Если _ensureLocalVideo успел создать трек, но addTrack не прошёл
+      // (типично: pc закрылся в окне между await внутри _ensureLocalVideo
+      // и этой строкой) — трек уже захватил камеру, но ни к какому pc
+      // не привязан. Без остановки он остаётся активным: индикатор
+      // камеры горит, батарея тратится, а собеседник ничего не видит.
+      // Хуже — _videoAdded остаётся false, поэтому следующий вызов
+      // enableVideo снова дойдёт до addTrack, но _ensureLocalVideo
+      // выйдет на первой строке (localVideoTrack уже есть) и трек так
+      // и не остановится. Гарантируем чистое состояние: останавливаем
+      // трек, убираем его из localStream и обнуляем поле — при
+      // следующем вызове всё будет создано заново.
+      if (!this._videoAdded && this.localVideoTrack) {
+        try { this.localVideoTrack.stop(); } catch (e2) {}
+        if (this.localStream) {
+          try { this.localStream.removeTrack(this.localVideoTrack); } catch (e2) {}
+        }
+        this.localVideoTrack = null;
+      }
       this._log("warn", "[webrtc] enableVideo failed:", String(e));
       return false;
     }
@@ -650,25 +681,29 @@ class PeerLink extends EventTarget {
   disableVideo() {
     if (this.localVideoTrack) this.localVideoTrack.enabled = false;
   }
-  async switchCamera() {
-    if (!this.localVideoTrack) return;
+
+async switchCamera() {
+  if (!this.localVideoTrack) return;
+  let stream = null;
+  try {
     const cur = this.localVideoTrack.getSettings ? this.localVideoTrack.getSettings().facingMode : null;
     const next = cur === "environment" ? "user" : "environment";
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: next } });
-      const newTrack = stream.getVideoTracks()[0];
-      const sender = this.pc.getSenders().find((s) => s.track && s.track.kind === "video");
-      if (sender) await sender.replaceTrack(newTrack);
-      try { this.localVideoTrack.stop(); } catch (e) {}
-      this.localVideoTrack = newTrack;
-      if (this.localStream) {
-        this.localStream.getVideoTracks().forEach((t) => this.localStream.removeTrack(t));
-        this.localStream.addTrack(newTrack);
-      }
-    } catch (e) {
-      this._log("warn", "[webrtc] switchCamera failed:", String(e));
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: next } });
+    const newTrack = stream.getVideoTracks()[0];
+    const sender = this.pc.getSenders().find(s => s.track && s.track.kind === "video");
+    if (sender) await sender.replaceTrack(newTrack);
+    try { this.localVideoTrack.stop(); } catch (e) {}
+    this.localVideoTrack = newTrack;
+    stream = null;                              // ← успешно, стрим больше не «наш»
+    if (this.localStream) {
+      this.localStream.getVideoTracks().forEach((t) => this.localStream.removeTrack(t));
+      this.localStream.addTrack(newTrack);
     }
+  } catch (e) {
+    if (stream) { try { stream.getTracks().forEach(t => t.stop()); } catch (e2) {} }
+    this._log("warn", "[webrtc] switchCamera failed:", String(e));
   }
+}
 
 async startCall(withVideo) {
   if (this._closed) throw new Error("link closed");
