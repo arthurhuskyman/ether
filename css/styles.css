@@ -174,10 +174,9 @@ html {
 }
 
 body {
-  height: 100%; height: 100dvh;
+  height: 100dvh;
   margin: 0; overscroll-behavior: none;
   position: fixed; inset: 0; overflow: hidden;
-  min-height: 100dvh;
   font-family: "Inter", -apple-system, "SF Pro Text", "SF Pro Display", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
   font-size: var(--fs-base);
   line-height: var(--lh-normal);
@@ -296,26 +295,27 @@ html[data-theme="light"] .glass-content {
   .glass *, .glass-content * { text-shadow: none; color: CanvasText; }
 }
 
-/* Заливка safe area снизу — тем же цветом, что и фон футера (#tab-bar).
-   На iOS PWA в standalone-режиме 100dvh иногда оказывается меньше
-   реальной высоты экрана, и под #tab-bar остаётся полоска фона html
-   (--bg-0), контрастирующая с футером (--bg-1). Фиксированный fixed-
-   псевдоэлемент закрашивает эту зону цветом --bg-1. z-index 15 — ниже
-   #tab-bar (20), поэтому при обычной раскладке, когда сам футер уже
-   покрывает safe area, псевдоэлемент полностью скрыт под ним и не
-   мешает. Сверху аналогичной проблемы нет: #nav-bar покрывает safe
-   area своим padding-ом, а его стеклянный фон визуально совпадает
-   с фоном приложения. */
+/* Заливка safe area снизу — тем же цветом, что фон футера (#tab-bar).
+   Причина проблемы в iOS PWA: env(safe-area-inset-bottom) иногда
+   возвращает 0, а видимая полоска внизу — это фон html за пределами
+   #app-shell. Делаем высоту гарантированно ненулевой (max с 100px) —
+   верхняя часть псевдоэлемента уходит под #tab-bar (z-index 20 > 15),
+   наружу торчит ровно «щель» под футером. */
 body::after {
   content: "";
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: env(safe-area-inset-bottom, 0px);
+  left: 0; right: 0; bottom: 0;
+  height: max(env(safe-area-inset-bottom, 0px), 100px);
   background: var(--bg-1);
   pointer-events: none;
   z-index: 15;
+}
+
+/* Дополнительная страховка: в standalone-PWA iOS иногда красит полоску
+   внизу цветом html, а не body::after (порядок отрисовки отличается от
+   обычного Safari). Меняем фон html на цвет футера в standalone-режиме. */
+@media (display-mode: standalone) {
+  html { background: var(--bg-1); }
 }
 
 #lock-screen {
@@ -410,7 +410,7 @@ body::after {
 .btn-tertiary { background: transparent; color: var(--ink-1); font-weight: 500; }
 
 #app-shell {
-  height: 100dvh; min-height: 100vh; display: flex; flex-direction: column; position: relative;
+  height: 100dvh; min-height: 100dvh; display: flex; flex-direction: column; position: relative;
   overflow: hidden;
   contain: layout;
 }
@@ -1207,10 +1207,18 @@ html[data-theme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); }
   height: 50px;
   padding: 0 4px calc(env(safe-area-inset-bottom, 0px) + 3px);
   box-sizing: content-box;
-  border-radius: 0; border-bottom: none; z-index: 20; flex-shrink: 0; order: 1;
+  border-radius: 0; border-bottom: none;
+  /* z-index 500 — выше всех внутренних оверлеев (chat-input-bar z-auto,
+     #update-banner 600 — исключение, но он физически лежит НАД таб-баром
+     на 90px выше, так что не пересекается), но ниже #lock-screen (900) и
+     модальных шитов (700+). */
+  z-index: 500;
+  flex-shrink: 0; order: 1;
+  position: relative;
+  /* background непрозрачный: чтобы даже если что-то под ним, оно не
+     просвечивало через полупрозрачное стекло таб-бара. */
   background: var(--bg-1);
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
+  isolation: isolate;
   border-top: 1px solid var(--line-1);
 }
 .tab-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 1px 0; border: none; background: none; color: var(--ink-3); cursor: pointer; font-size: var(--fs-xs); font-weight: 500; min-width: 0; position: relative; transition: color 0.15s var(--spring-snappy); }
@@ -1478,11 +1486,15 @@ html[data-theme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); }
 .boot-recovery-title { font-size: var(--fs-lg); letter-spacing: var(--tr-tight); }
 
 @media (min-width: 640px) {
-  body { display: flex; align-items: center; justify-content: center; }
+  body { display: flex; align-items: center; justify-content: center; padding: 20px; }
   #app-shell {
-    width: 420px;
-    height: min(860px, 94dvh);
-    border-radius: 44px;
+    /* Соотношение 2:3 — ширина = 2/3 от высоты, но не шире 94vw
+       и не выше 94dvh. На типичном десктопе 1920×1080 получается
+       около 620×930, что заметно ближе к «нормальной» пропорции
+       планшета, чем прежние 420×860. */
+    width: min(calc(94dvh * 2 / 3), 94vw);
+    height: min(94dvh, calc(94vw * 3 / 2));
+    border-radius: 32px;
     overflow: hidden;
     box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--line-1);
     position: relative;

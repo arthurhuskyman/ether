@@ -137,6 +137,11 @@ function registerRateLimitOk(ip) {
 // пакетов в секунду. Лимитируем по myId (уже зарегистрированное
 // соединение), не по IP — тут это точнее отражает угрозу.
 const SIGNAL_RATE_LIMIT_PER_MIN = 120; // выше, чем deliver — сюда же идут SDP offer/answer/ICE-кандидаты при живом WebRTC-согласовании, всплеск легитимен
+// DELIVER_RATE_LIMIT_PER_MIN считается по ПАРЕ (отправитель → получатель),
+// а не по одному отправителю — см. wsRateLimitPairOk. sendGroupMessage
+// делает по одному deliver на каждого участника группы, поэтому лимит
+// "на отправителя вообще" упирался бы в потолок уже на 6 сообщениях
+// в группе из 10 человек.
 const DELIVER_RATE_LIMIT_PER_MIN = 60;
 const signalHits = new Map();
 const deliverHits = new Map();
@@ -148,6 +153,23 @@ function wsRateLimitOk(map, key, limitPerMin) {
   w.n++;
   map.set(key, w);
   if (map.size > 5000) pruneRateLimitMap(map);
+  return w.n <= limitPerMin;
+}
+// Лимит по паре (отправитель → получатель). Используется для deliver,
+// потому что sendGroupMessage рассылает сообщение каждому участнику
+// отдельным deliver'ом. Лимит "на отправителя вообще" не подходит:
+// в группе из 10 человек один активный пользователь упрётся в него
+// уже на 6 сообщениях в минуту. Лимит по паре ограничивает fan-out
+// на конкретного получателя, но не мешает человеку писать в разные
+// чаты или разным людям.
+function wsRateLimitPairOk(senderId, recipientId, limitPerMin) {
+  const key = String(senderId) + "→" + String(recipientId);
+  const now = Date.now();
+  const w = deliverHits.get(key) || { start: now, n: 0 };
+  if (now - w.start > 60_000) { w.start = now; w.n = 0; }
+  w.n++;
+  deliverHits.set(key, w);
+  if (deliverHits.size > 5000) pruneRateLimitMap(deliverHits);
   return w.n <= limitPerMin;
 }
 // ---------- Проверка доступности TURN ----------
@@ -977,7 +999,13 @@ wss.on("connection", (ws, req) => {
 
     // ---------- Доставка зашифрованного конверта ----------
     if (msg.type === "deliver" && myId && typeof msg.to === "string" && msg.to.length <= 128 && typeof msg.msgId === "string" && msg.msgId.length <= 128) {
-      if (!wsRateLimitOk(deliverHits, myId, DELIVER_RATE_LIMIT_PER_MIN)) return;
+      // Доставка самому себе бессмысленна: клиент не имеет причин так
+      // делать, а сервер только зря потратит память на запись в mailbox
+      // и попытается сделать доставку через свой же WS, что немедленно
+      // провалится в "target.readyState !== OPEN" (это тот же WS).
+      // Отсекаем сразу.
+      if (msg.to === myId) return;
+      if (!wsRateLimitPairOk(myId, msg.to, DELIVER_RATE_LIMIT_PER_MIN)) return;
       if (!isValidEnvelope(msg.envelope)) {
         safeSend(ws, { type: "deliver-ack", msgId: msg.msgId, error: "invalid-envelope" });
         return;
@@ -989,7 +1017,11 @@ wss.on("connection", (ws, req) => {
       // fromPublicKey на каждую — потенциально гигабайты на одного
       // получателя. 1КБ — щедрый запас (8x реального размера), но
       // отсекает злоупотребление.
-      if (msg.fromPublicKey != null && (typeof msg.fromPublicKey !== "object" || JSON.stringify(msg.fromPublicKey).length > 1024)) {
+      if (msg.fromPublicKey != null && (
+        typeof msg.fromPublicKey !== "object" ||
+        Array.isArray(msg.fromPublicKey) ||
+        JSON.stringify(msg.fromPublicKey).length > 1024
+      )) {
         safeSend(ws, { type: "deliver-ack", msgId: msg.msgId, error: "invalid-envelope" });
         return;
       }
