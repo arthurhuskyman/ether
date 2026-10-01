@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.32.27.5";
+const APP_VERSION = "V.32.27.6";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 const MAX_MESSAGE_LENGTH = 4000;
@@ -1704,6 +1704,15 @@ function showUpdateBanner(reg) {
     const dismissedAt = parseInt(sessionStorage.getItem("ether.updateDismissedAt") || "0", 10);
     if (dismissedAt && Date.now() - dismissedAt < 60 * 60 * 1000) return;
   } catch (e) {}
+  // Снимаем флаг "reloading" при каждом показе баннера. Без этого после
+  // первого обновления (клик "Обновить" → SW активировался →
+  // controllerchange → reload) флаг оставался "1" в sessionStorage до
+  // конца сессии, и при следующем баннере controllerchange видел
+  // залипший флаг и делал return — reload не происходил. Именно поэтому
+  // кнопка "Нажать, чтобы получить новую версию" срабатывала только со
+  // второго раза (второй клик шёл по ветке else — reg.waiting уже был
+  // null после первого клика — и перезагружал напрямую).
+  try { sessionStorage.removeItem("ether.reloadingForUpdate"); } catch (e) {}
 
   const el = document.createElement("div");
   el.id = "update-banner";
@@ -5812,12 +5821,25 @@ function capturePhoto() {
 let __cameraAvailable = true;
 function wireCameraScreen() {
   const openBtn = $("#chat-camera-btn");
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    __cameraAvailable = false;
-    if (openBtn) openBtn.classList.add("hidden");
-    return;
-  }
-  if (openBtn) openBtn.addEventListener("click", () => { if (state.chatId) openCameraScreen(state.chatId); });
+  const cameraInput = $("#chat-camera-input");
+  if (!cameraInput || !openBtn) return;
+  // Кнопка "Камера" в чате теперь открывает СИСТЕМНУЮ камеру через
+  // <input type="file" accept="image/*" capture="environment">, а не
+  // самодельный виджет openCameraScreen. Причины:
+  //  1) На iPhone/iPad системная камера даёт больше возможностей
+  //     (HDR, ночной режим, портретный режим, Deep Fusion, выбор
+  //     разрешения) — всё это самодельный виджет не умеет.
+  //  2) Меньше расхождений в UX: до этой правки иконка-скрепка
+  //     вызывала системное окно выбора (Фото/Камера/Файлы), а
+  //     иконка-камера — самодельное окно, что сбивало пользователя.
+  // Самодельный виджет остаётся только для видеозвонков (openCameraScreen
+  // вызывается напрямую из контекста звонка), там он нужен для
+  // интеграции локального видеотрека в PeerLink.
+  openBtn.addEventListener("click", () => {
+    if (!state.chatId) return;
+    cameraInput.value = "";
+    cameraInput.click();
+  });
   const closeBtn = $("#camera-close-btn");
   if (closeBtn) closeBtn.addEventListener("click", closeCameraScreen);
   const switchBtn = $("#camera-switch-btn");
@@ -6550,6 +6572,7 @@ function showLocalVideoPreview(link) {
   const cs = $("#call-screen"); if (cs) cs.classList.add("video-active");
   const p = v.play(); if (p && p.catch) p.catch(() => {});
   const switchBtn = $("#call-switch-camera-btn"); if (switchBtn) switchBtn.classList.remove("hidden");
+  const flipOverlay = $("#call-flip-overlay-btn"); if (flipOverlay) flipOverlay.classList.remove("hidden");
   const videoBtn = $("#call-video-btn"); if (videoBtn) videoBtn.classList.add("active");
 }
 function hideCallVideo() {
@@ -6557,6 +6580,7 @@ function hideCallVideo() {
   const lv = $("#call-local-video"); if (lv) { lv.classList.add("hidden"); lv.srcObject = null; }
   const cs = $("#call-screen"); if (cs) cs.classList.remove("video-active");
   const switchBtn = $("#call-switch-camera-btn"); if (switchBtn) switchBtn.classList.add("hidden");
+  const flipOverlay = $("#call-flip-overlay-btn"); if (flipOverlay) flipOverlay.classList.add("hidden");
   const videoBtn = $("#call-video-btn"); if (videoBtn) videoBtn.classList.remove("active");
 }
 function startCallTimer() {
@@ -6732,6 +6756,12 @@ function wireCallScreen() {
       }
     });
   }
+
+  const flipOverlay = $("#call-flip-overlay-btn");
+  if (flipOverlay) flipOverlay.addEventListener("click", () => {
+    const link = mesh.get(state.callId);
+    if (link) link.switchCamera();
+  });
 }
 
 async function acceptCall(withMute) {
@@ -7437,20 +7467,28 @@ function wireChatScreen() {
     sendTypingStop(state.chatId);
     updateSendVsMic();
   });
-  const attachBtn = $("#chat-attach-btn");
-  const fileInput = $("#chat-file-input");
-  if (attachBtn && fileInput) {
-    attachBtn.addEventListener("click", () => {
-      if (!state.chatId) return;
-      fileInput.value = "";
-      fileInput.click();
-    });
-    fileInput.addEventListener("change", () => {
-      const file = fileInput.files && fileInput.files[0];
-      if (file && state.chatId) sendFileMessage(state.chatId, file);
-      fileInput.value = "";
-    });
-  }
+const attachBtn = $("#chat-attach-btn");
+const fileInput = $("#chat-file-input");
+if (attachBtn && fileInput) {
+  attachBtn.addEventListener("click", () => {
+    if (!state.chatId) return;
+    fileInput.value = "";
+    fileInput.click();
+  });
+  fileInput.addEventListener("change", () => {
+    const file = fileInput.files && fileInput.files[0];
+    if (file && state.chatId) sendFileMessage(state.chatId, file);
+    fileInput.value = "";
+  });
+}
+const cameraInput = $("#chat-camera-input");
+if (cameraInput) {
+  cameraInput.addEventListener("change", () => {
+    const file = cameraInput.files && cameraInput.files[0];
+    if (file && state.chatId) sendFileMessage(state.chatId, file);
+    cameraInput.value = "";
+  });
+}
   const input = $("#chat-input");
   if (input) {
     let typingSendTimer = null;
