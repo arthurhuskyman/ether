@@ -197,8 +197,7 @@ body {
 
 @font-face {
   font-family: "Inter";
-  src: url("../fonts/InterVariable.woff2") format("woff2-variations"),
-       url("../fonts/InterVariable.woff2") format("woff2");
+  src: url("fonts/InterVariable.woff2") format("woff2-variations"), url("fonts/InterVariable.woff2") format("woff2");
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
@@ -1519,18 +1518,14 @@ html[data-theme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); }
 .call-btn.accept svg { background: var(--success); color: #fff; }
 
 #call-mute-btn.active svg { background: rgba(255, 69, 58, 0.9); color: #fff; }
-#call-mute-btn.active::after {
-  content: "";
-  position: absolute;
-  top: 32px;
-  left: 50%;
-  width: 44px; height: 3px;
-  background: #fff;
-  border-radius: 2px;
-  transform: translate(-50%, -50%) rotate(-45deg);
-  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.25);
-  pointer-events: none;
-}
+/* Раньше выключенный микрофон рисовался белой "палкой" через ::after
+   поверх обычной иконки микрофона — визуально грубый хак, не похожий на
+   принятую нигде иконографию (iOS/Android/Telegram рисуют отдельную
+   иконку "микрофон перечёркнут"). Теперь это две настоящие SVG-иконки
+   (icon-mic-on/icon-mic-off) в разметке кнопки, переключаемые видимостью. */
+#call-mute-btn .icon-mic-off { display: none; }
+#call-mute-btn.active .icon-mic-on { display: none; }
+#call-mute-btn.active .icon-mic-off { display: block; }
 
 .sheet { position: fixed; inset: 0; z-index: 70; display: flex; align-items: flex-end; }
 .sheet-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.45); }
@@ -1660,17 +1655,24 @@ html[data-theme="light"] body::before {
       var(--bg-0);
   }
 }
-.call-flip-overlay {
+/* Раньше здесь был один .call-flip-overlay — теперь контейнер с двумя
+   кнопками (flip камеры + PiP) в ряд, на месте того же оверлея. */
+.call-video-overlays {
   position: absolute;
   top: calc(env(safe-area-inset-top) + 16px + 108px);  /* под превью */
   inset-inline-end: 16px;
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  z-index: 4;
+}
+.call-overlay-btn {
   width: 36px; height: 36px; border-radius: 50%;
   background: rgba(0, 0, 0, 0.55);
   color: #fff; border: none; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  z-index: 4;
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
   padding: 0;
 }
-.call-flip-overlay:active { transform: scale(0.94); }
+.call-overlay-btn:active { transform: scale(0.94); }
