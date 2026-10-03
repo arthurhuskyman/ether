@@ -2,11 +2,27 @@
 // зашифрованных конвертов, Web Push подписка, heartbeat.
 
 window.__etherDiag = window.__etherDiag || [];
+// "info" печатался в консоль безусловно для всех уровней — на
+// продакшене (обычный пользователь, не localhost и debug-вкладка не
+// включена) это десятки строк мусора в DevTools на каждое переподключение,
+// presence-обновление и т.п. "warn"/"error" остаются ВСЕГДА — это именно
+// то, что нужно видеть при реальной проблеме. Кольцевой буфер
+// __etherDiag (экран "Диагностика") пишется независимо от этого фильтра
+// — ничего не теряется для отправки в поддержку, приглушается только
+// живой вывод в консоль разработчика.
+function etherLogShouldPrint(level) {
+  if (level !== "info") return true;
+  try {
+    if (location.hostname === "localhost" || location.hostname === "127.0.0.1") return true;
+    if (typeof Store !== "undefined" && Store.debugHidden === false) return true;
+  } catch (e) {}
+  return false;
+}
 function etherLog(level, ...args) {
   const line = args.map((a) => (typeof a === "string" ? a : safeJson(a))).join(" ");
   window.__etherDiag.push({ ts: Date.now(), level, line });
   if (window.__etherDiag.length > 500) window.__etherDiag.shift();
-  (console[level] || console.log).call(console, ...args);
+  if (etherLogShouldPrint(level)) (console[level] || console.log).call(console, ...args);
 }
 function safeJson(a) {
   try { return JSON.stringify(a); } catch (e) { return String(a); }
@@ -64,9 +80,15 @@ class SignalingClient extends EventTarget {
     this._stopHeartbeat();
     if (this._retryTimer) { clearTimeout(this._retryTimer); this._retryTimer = null; }
     if (this.ws) {
-      try {
-        this.ws.onopen = this.ws.onmessage = this.ws.onclose = this.ws.onerror = null;
-      } catch (e) {}
+      // Раньше тут было this.ws.onopen = this.ws.onmessage = ... = null —
+      // выглядело как «снимаем обработчики», но на самом деле ничего не
+      // снимало: все слушатели навешаны через addEventListener (см.
+      // _connect), а не через свойства onopen/onmessage/..., так что
+      // присвоение им null было no-op. Реального эффекта это не имело —
+      // каждый обработчик сам проверяет if (this.ws !== ws) return первой
+      // строкой, так что событие на уже закрытом/подмененном ws безвредно
+      // игнорируется и без явного снятия слушателей. Убрано как мёртвый код,
+      // а не переписано на removeEventListener — ничего не ломалось.
       try { this.ws.close(); } catch (e) {}
       this.ws = null;
     }
@@ -152,7 +174,12 @@ class SignalingClient extends EventTarget {
         this.dispatchEvent(new CustomEvent("deliver-ack", { detail: { msgId: msg.msgId } }));
       } else if (msg.type === "replaced") {
         etherLog("warn", "[signaling] вкладка отключена сервером — тот же id открыт в другом месте");
-        this.shouldRun = false;
+        // Раньше здесь вручную ставилось shouldRun = false без вызова stop() —
+        // _pingTimer (setInterval каждые 15с) продолжал тикать до конца жизни
+        // страницы, просто находя this.ws === null и выходя по return.
+        // Утечка ресурса без эффекта, но stop() — правильный и симметричный
+        // способ остановиться (заодно гасит retry-таймер и сам ws).
+        this.stop();
         this.dispatchEvent(new CustomEvent("replaced"));
       }
     });

@@ -390,6 +390,7 @@ class PeerLink extends EventTarget {
     const metaPayload = { kind: "file-meta", id: meta.id, name: meta.name, mime: meta.mime, size: meta.size, totalChunks: base64Chunks.length };
     if (meta.duration != null) metaPayload.duration = meta.duration;
     if (meta.forwarded) metaPayload.forwarded = true;
+    if (meta.caption) metaPayload.caption = meta.caption;
     if (!this.send(metaPayload)) return false;
     const BUFFER_THRESHOLD = 262144; // 256KB — не даём буферу канала расти бесконтрольно
     for (let i = 0; i < base64Chunks.length; i++) {
@@ -691,7 +692,15 @@ async switchCamera() {
     stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: next } });
     const newTrack = stream.getVideoTracks()[0];
     const sender = this.pc.getSenders().find(s => s.track && s.track.kind === "video");
-    if (sender) await sender.replaceTrack(newTrack);
+    if (!sender) {
+      // Видео ещё не добавлено в pc (sender не существует) — нет смысла
+      // гасить старый трек и подменять this.localVideoTrack: новый трек
+      // так и не привяжется ни к чему, видео пропадёт совсем. Честнее
+      // отказаться от переключения, чем молча потерять картинку.
+      newTrack.stop();
+      return;
+    }
+    await sender.replaceTrack(newTrack);
     try { this.localVideoTrack.stop(); } catch (e) {}
     this.localVideoTrack = newTrack;
     stream = null;                              // ← успешно, стрим больше не «наш»
@@ -815,7 +824,8 @@ async startCall(withVideo) {
       this._videoAdded = false;
       this.localVideoTrack = null;
       this._negotiationQueuedIceRestart = false;
-      if (this._renegotiationRetryTimer) { clearTimeout(this._renegotiationRetryTimer); this._renegotiationRetryTimer = null; }
+      // _renegotiationRetryTimer уже очищен выше, до try — повторная
+      // идентичная очистка здесь была лишней (косметика, не баг).
       if (this.dc) this.dc.close();
       this.pc.close();
     } catch (e) {}

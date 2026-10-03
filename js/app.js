@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.32.27.6";
+const APP_VERSION = "V.33.4.0";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 const MAX_MESSAGE_LENGTH = 4000;
@@ -20,6 +20,7 @@ const MAX_FILE_SIZE_INPUT = 20 * 1024 * 1024; // 20 МБ — что можно �
 const MAX_FILE_SIZE = EtherFileLimits.MAX_FILE_SIZE; // 2 МБ — целевой потолок того, что РЕАЛЬНО отправляется
 const FILE_CHUNK_SIZE = 48 * 1024; // кратно 3 — ровные base64-куски без паддинга внутри потока
 const OUTBOX_LIMIT = 500;
+const GROUP_DELIVERY_MAP_LIMIT = 2000;
 const SEEN_DELIVER_LIMIT = 500;
 const PENDING_CALL_TIMEOUT_MS = 20000;
 const OUTBOX_RETRY_INTERVAL_MS = 15000;
@@ -40,6 +41,37 @@ const REACTION_EMOJIS = [
   "⭐","🌟","⚡","💥","💫","🎉","🎊","🎁","🎈","🍀","🌸","🌹","🌺","🌻","☀️","🌙",
   "⛅","🌈","❄️","💧","🌊","🍕","🍔","🍟","🍩","🍪","☕","🍺","🍷","🍎"
 ];
+
+// P2 — inline-эмодзи-пикер для поля ввода (отдельно от REACTION_EMOJIS
+// выше, который используется для быстрых реакций на сообщение — та же
+// палитра эмодзи, но здесь сгруппирована по категориям для вкладок и
+// снабжена ключевыми словами для поиска по названию). Не претендует на
+// исчерпывающий охват всех ~3000+ эмодзи Unicode — несколько десятков
+// самых частых на категорию вполне покрывают реальное использование в
+// переписке, а полный набор утяжелил бы пикер без ощутимой пользы.
+const EMOJI_CATEGORIES = [
+  { id: "smileys", icon: "😀", emojis: ["😀","😁","😂","🤣","😊","😍","🥰","😘","🙂","🤗","😎","🥳","😏","😢","😭","😡","🤔","😮","🥺","😴","🤤","🤭","🙄","😅","😇","🤩","😋","🤪","😬","🫡"] },
+  { id: "gestures", icon: "👍", emojis: ["👍","👎","👌","✌️","🤞","🤟","🤘","👊","✊","💪","🤝","👋","🖐️","☝️","🙏","👏","🫶","🤌","👉","👈","🤙"] },
+  { id: "hearts", icon: "❤️", emojis: ["❤️","🧡","💛","💚","💙","💜","🖤","🤍","🤎","💯","✨","💥","💫","⭐","🔥","💔","💕","💞"] },
+  { id: "nature", icon: "🌸", emojis: ["🌸","🌹","🌺","🌻","🌼","☀️","🌙","⛅","🌈","❄️","💧","🌊","🐶","🐱","🦊","🐻","🐼","🦁","🐸","🌳"] },
+  { id: "food", icon: "🍕", emojis: ["🍕","🍔","🍟","🌭","🍩","🍪","🎂","🍰","☕","🍵","🍺","🍷","🍎","🍌","🍇","🍓","🥑","🍉"] },
+  { id: "objects", icon: "🎉", emojis: ["🎉","🎊","🎁","🎈","🎵","🎮","📱","💻","📷","🚗","✈️","⚽","🏆","💰","🔑","💡","📌","✅","❌","⚠️"] },
+];
+const EMOJI_KEYWORDS = {
+  "😀":"smile happy","😂":"laugh joy tears lol","🤣":"rofl laugh","😊":"smile blush happy","😍":"love heart eyes","🥰":"love hearts",
+  "😘":"kiss love","🙂":"smile slight","🤗":"hug","😎":"cool sunglasses","🥳":"party celebrate","😏":"smirk","😢":"sad cry",
+  "😭":"cry sob sad","😡":"angry mad","🤔":"think","😮":"surprised wow","🥺":"pleading cute","😴":"sleep tired","🙏":"please thanks pray",
+  "👍":"thumbs up good yes like","👎":"thumbs down no bad dislike","👌":"ok perfect","✌️":"peace victory","👏":"clap applause",
+  "💪":"strong muscle","👋":"wave hi hello bye","❤️":"heart love red","🔥":"fire hot lit","💯":"hundred perfect","✨":"sparkle shine",
+  "🎉":"party celebrate confetti","🎂":"cake birthday","☕":"coffee","🍕":"pizza food","😢":"sad tear","😡":"angry","🤝":"handshake deal",
+  "🙌":"praise hands up","😅":"sweat smile relief","🤩":"starstruck excited","😋":"yum tasty","🫶":"heart hands love",
+};
+function emojiSearchResults(query) {
+  const q = query.trim().toLowerCase();
+  if (!q) return null;
+  const all = EMOJI_CATEGORIES.flatMap((c) => c.emojis);
+  return all.filter((e) => (EMOJI_KEYWORDS[e] || "").includes(q));
+}
 
 const UNLOCK_ATTEMPTS_LIMIT = 5;
 const P2P_FALLBACK_MS = 1500;
@@ -124,7 +156,7 @@ const CRITICAL_LS_KEYS = [
   "ether.privKey", "ether.pubKey",
   "ether.pinHash", "ether.pinSalt", "ether.pinEnabled",
   "ether.contacts",
-  "ether.outbox", "ether.pendingNoKey",
+  "ether.outbox", "ether.pendingNoKey", "ether.recentlyDeleted",
   "ether.theme", "ether.glassAlpha",
   "ether.notifications", "ether.sounds", "ether.ringtone", "ether.linkPreviews",
   "ether.vapidPublicKey", "ether.pushSubscription",
@@ -185,8 +217,20 @@ const Store = {
   set contactsJson(v) { localStorage.setItem("ether.contacts", v); scheduleIDBBackup(); },
   get outboxJson() { return localStorage.getItem("ether.outbox") || "[]"; },
   set outboxJson(v) { localStorage.setItem("ether.outbox", v); scheduleIDBBackup(); },
+  // Отдельная (от outbox) персистентная карта "deliveryId получателя
+  // группового сообщения -> {groupId, contentId}". outbox-запись
+  // удаляется сразу по приходу deliver-ack с сервера (подтверждение,
+  // что конверт лёг в mailbox получателя) — а настоящая квитанция
+  // "доставлено"/"прочитано" от самого получателя может прийти намного
+  // позже, когда он сам окажется онлайн. К этому моменту outbox уже
+  // пуст, и markMessageAck не может сопоставить deliveryId с тем
+  // сообщением в группе, которое надо пометить — см. groupDeliveryMap.
+  get groupDeliveryMapJson() { return localStorage.getItem("ether.groupDeliveryMap") || "[]"; },
+  set groupDeliveryMapJson(v) { localStorage.setItem("ether.groupDeliveryMap", v); scheduleIDBBackup(); },
   get pendingNoKeyJson() { return localStorage.getItem("ether.pendingNoKey") || "{}"; },
   set pendingNoKeyJson(v) { localStorage.setItem("ether.pendingNoKey", v); scheduleIDBBackup(); },
+  get recentlyDeletedJson() { return localStorage.getItem("ether.recentlyDeleted") || "{}"; },
+  set recentlyDeletedJson(v) { localStorage.setItem("ether.recentlyDeleted", v); scheduleIDBBackup(); },
   get callLogJson() { return localStorage.getItem("ether.callLog") || "[]"; },
   set callLogJson(v) { localStorage.setItem("ether.callLog", v); scheduleIDBBackup(); },
   get lastSeenJson() { return localStorage.getItem("ether.lastSeen") || "{}"; },
@@ -205,6 +249,10 @@ const Store = {
   set soundsEnabled(v) { localStorage.setItem("ether.sounds", v ? "1" : "0"); scheduleIDBBackup(); },
   get ringtone() { return localStorage.getItem("ether.ringtone") || "ring-classic"; },
   set ringtone(v) { localStorage.setItem("ether.ringtone", v); scheduleIDBBackup(); },
+  // P2.39 — автозамена текстовых смайликов на эмодзи при отправке. Вкл. по
+  // умолчанию (большинство мессенджеров делают так же), но можно отключить.
+  get autoEmoji() { return localStorage.getItem("ether.autoEmoji") !== "0"; },
+  set autoEmoji(v) { localStorage.setItem("ether.autoEmoji", v ? "1" : "0"); scheduleIDBBackup(); },
   // Быстрые реакции — раньше меню реакций всегда показывало ВСЕ 110
   // эмодзи целиком, самая частая жалоба на перегруженность. Теперь
   // показываем недавно использованные, полная сетка — по кнопке "+".
@@ -242,6 +290,17 @@ const Store = {
     localStorage.setItem("ether.callVolume", String(Math.min(1, Math.max(0, v))));
     scheduleIDBBackup();
   },
+  // Скрывать текст сообщения в системных уведомлениях (остаётся только
+  // имя контакта и факт "новое сообщение") — для тех, кто не хочет,
+  // чтобы содержимое мелькало на экране блокировки.
+  get hideNotifContent() { return localStorage.getItem("ether.hideNotifContent") === "1"; },
+  set hideNotifContent(v) { localStorage.setItem("ether.hideNotifContent", v ? "1" : "0"); },
+  get chatWallpaper() { return localStorage.getItem("ether.chatWallpaper") || "none"; },
+  set chatWallpaper(v) { localStorage.setItem("ether.chatWallpaper", v); scheduleIDBBackup(); },
+  get bubbleSize() { return localStorage.getItem("ether.bubbleSize") || "normal"; },
+  set bubbleSize(v) { localStorage.setItem("ether.bubbleSize", v); scheduleIDBBackup(); },
+  get myStatus() { return localStorage.getItem("ether.myStatus") || ""; },
+  set myStatus(v) { localStorage.setItem("ether.myStatus", v || ""); scheduleIDBBackup(); broadcastPrivacyPrefs(); },
 };
 
 // =====================================================================
@@ -249,11 +308,23 @@ const Store = {
 // =====================================================================
 window.__etherDiag = window.__etherDiag || [];
 if (typeof window.etherLog !== "function") {
+  // Дублирует фильтр из signaling-client.js (которая обычно грузится
+  // первой и на практике и определяет активную etherLog) — если
+  // порядок скриптов когда-нибудь поменяется, поведение должно
+  // остаться тем же: "info" не идёт в консоль вне localhost/debug-режима.
   window.etherLog = function (level, ...args) {
     const line = args.map((a) => (typeof a === "string" ? a : safeJsonArg(a))).join(" ");
     window.__etherDiag.push({ ts: Date.now(), level, line });
     if (window.__etherDiag.length > 500) window.__etherDiag.shift();
-    (console[level] || console.log).apply(console, args);
+    let shouldPrint = true;
+    if (level === "info") {
+      shouldPrint = false;
+      try {
+        if (location.hostname === "localhost" || location.hostname === "127.0.0.1") shouldPrint = true;
+        else if (typeof Store !== "undefined" && Store.debugHidden === false) shouldPrint = true;
+      } catch (e) {}
+    }
+    if (shouldPrint) (console[level] || console.log).apply(console, args);
   };
 }
 function safeJsonArg(a) { try { return JSON.stringify(a); } catch (e) { return String(a); } }
@@ -290,6 +361,10 @@ const state = {
   _callMuteOnAnswer: false,
   _callDeadSeconds: 0,
   _lastCallFailedAt: 0,   // ← новое
+  chatFilter: "all", // "all" | "unread" | "groups" | "direct" — чипы-фильтры над списком чатов
+  _firstRenderDone: false, // снимается через 400мс после старта — пока false, список чатов рисует skeleton вместо "пусто"
+  multiSelect: null, // Set<id> выбранных сообщений в режиме мультивыбора, либо null вне режима
+  mentionedChats: new Set(), // id чатов, где есть непрочитанное упоминание @меня
 };
 
 let mesh = null;
@@ -301,6 +376,7 @@ let __lockWired = false;
 let __appStarted = false;
 let __chatWired = false;
 let __navTitleTaps = [];
+let __panicTaps = []; // P3.47 — 5 тапов по логотипу в "О приложении"
 let __chatSearchScrollTimer = null;
 const onlineSet = new Set();
 const onlineRoster = new Map();
@@ -312,10 +388,41 @@ const onlineRoster = new Map();
 // контакт "воскресал" молча при первом же таком пакете после удаления.
 // Блокируем повторное создание для явно удалённых id, пока пользователь
 // сам, осознанно, не добавит этот id заново через обычный флоу.
-const recentlyDeletedIds = new Set();
+// Раньше это был чисто in-memory Set — после перезапуска страницы/приложения
+// он пустел, и настойчивый (или несработавший deleteContact у) собеседник,
+// продолжающий слать offer'ы, снова "воскрешал" удалённого контакта.
+// Теперь это Map<id, deletedAtTs> с персистентностью в localStorage и TTL:
+// вечно висящая блокировка не нужна (если через 7 дней от того же id
+// придёт offer — это, скорее всего, уже не "воскрешение", а осознанное
+// повторное появление), а .delete(id) при явном повторном добавлении (см.
+// addContactById/acceptPendingRequest) снимает блокировку немедленно, как
+// и раньше.
+const RECENTLY_DELETED_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const recentlyDeletedIds = new Map();
+function persistRecentlyDeleted() {
+  const obj = {}; for (const [id, ts] of recentlyDeletedIds) obj[id] = ts;
+  try { Store.recentlyDeletedJson = JSON.stringify(obj); } catch (e) { handlePersistError(e, "recentlyDeleted"); }
+}
+function restoreRecentlyDeleted() {
+  let obj = {}; try { obj = JSON.parse(Store.recentlyDeletedJson) || {}; } catch (e) { obj = {}; }
+  if (!obj || typeof obj !== "object") return;
+  const now = Date.now();
+  let changed = false;
+  for (const id of Object.keys(obj)) {
+    const ts = obj[id];
+    if (typeof ts !== "number" || !Number.isFinite(ts) || now - ts > RECENTLY_DELETED_TTL_MS) { changed = true; continue; }
+    recentlyDeletedIds.set(id, ts);
+  }
+  if (changed) persistRecentlyDeleted(); // чистим протухшие записи сразу, а не ждём следующего add()
+}
 const autoConnectTimers = new Map();
 const recentSignalNonces = new Set();
 const outbox = new Map();
+// deliveryId (случайный UUID на каждого получателя группового
+// сообщения, см. sendGroupMessage) -> { groupId, contentId }. Переживает
+// удаление соответствующей записи из outbox — см. комментарий у
+// Store.groupDeliveryMapJson и resolveGroupDelivery().
+const groupDeliveryMap = new Map();
 const pendingNoKey = new Map();
 const seenDeliverIds = new Set(); // ключ — "from|msgId", не голый msgId (см. ниже)
 const _connectInFlight = new Set();
@@ -364,6 +471,28 @@ let globalAudioCtx = null;
 let ringtoneTimer = null;
 let ringtoneAudioEl = null;
 
+// Screen Wake Lock API — удерживает экран включённым во время
+// видеозвонка (на Android экран иначе гаснет через ~30с бездействия,
+// что обрывает видеопревью у собеседника тёмным кадром). Для
+// аудиозвонка НЕ запрашиваем — экран должен гаснуть сам, иначе ухо,
+// поднесённое к телефону, нажимает кнопки на экране.
+let wakeLock = null;
+async function requestWakeLock() {
+  if (!("wakeLock" in navigator)) return;
+  try {
+    wakeLock = await navigator.wakeLock.request("screen");
+    wakeLock.addEventListener("release", () => { wakeLock = null; });
+  } catch (e) {
+    etherLog("warn", "[wakelock] failed:", String(e));
+  }
+}
+function releaseWakeLock() {
+  if (wakeLock) {
+    try { wakeLock.release(); } catch (e) {}
+    wakeLock = null;
+  }
+}
+
 // Настоящие аудиофайлы вместо синтезированных на лету осцилляторов —
 // на iPhone Web Audio-осцилляторы, запущенные из асинхронного события
 // (а не прямо внутри обработчика клика), нередко просто не звучат:
@@ -382,6 +511,21 @@ const SOUND_FILES = {
   busy: "sounds/call-busy.mp3",
   noanswer: "sounds/call-noanswer.mp3",
 };
+// P2.34 — разные звуки уведомления на контакт. Набор именованных стилей:
+// у каждого свой mp3-файл (для фонового HTMLAudioElement-пути) И свой
+// паттерн синтеза в Web Audio (для переднего плана, см. MESSAGE_TONE_PATTERNS
+// в playMessageSound) — чтобы оба пути звучали одинаково узнаваемо.
+const MESSAGE_SOUND_FILES = {
+  default: "sounds/msg.mp3",
+  chime: "sounds/msg-chime.mp3",
+  pop: "sounds/msg-pop.mp3",
+  bell: "sounds/msg-bell.mp3",
+};
+function messageSoundStyleForContact(contactId) {
+  const c = contactId ? state.contacts.get(contactId) : null;
+  const style = c && c.notificationSound;
+  return (style && MESSAGE_SOUND_FILES[style]) ? style : "default";
+}
 const soundPool = new Map(); // ключ -> <audio>, создаются один раз и переиспользуются
 let dialingAudioEl = null;
 
@@ -420,7 +564,7 @@ function getSoundEl(src, loop) {
 // звонок, сообщение), без нового жеста.
 
 function unlockSoundPool() {
-  for (const src of [...Object.values(RINGTONES), ...Object.values(SOUND_FILES)]) {
+  for (const src of [...Object.values(RINGTONES), ...Object.values(SOUND_FILES), ...Object.values(MESSAGE_SOUND_FILES)]) {
     const el = getSoundEl(src, false);
     if (el.dataset.unlocked) continue;
     if (el.dataset.unlocking) continue; // уже разблокируем прямо сейчас
@@ -482,14 +626,77 @@ function linkifyAndHighlight(text, query) {
   let result = "";
   let lastIdx = 0;
   for (const u of found) {
-    if (u.start > lastIdx) result += highlightRaw(escapeHtml(text.slice(lastIdx, u.start)), query);
+    if (u.start > lastIdx) result += applyMarkdown(highlightRaw(escapeHtml(text.slice(lastIdx, u.start)), query));
     const hrefUrl = u.normalized; // https://... даже для "голого" домена — иначе браузер трактует как относительный путь
     const displayText = escapeHtml(u.raw); // показываем то, что пользователь реально написал (без добавленного https://)
     result += `<a href="${escapeHtml(hrefUrl)}" target="_blank" rel="noopener noreferrer">${highlightRaw(displayText, query)}</a>`;
     lastIdx = u.end;
   }
-  if (lastIdx < text.length) result += highlightRaw(escapeHtml(text.slice(lastIdx)), query);
+  if (lastIdx < text.length) result += applyMarkdown(highlightRaw(escapeHtml(text.slice(lastIdx)), query));
   return result || esc;
+}
+// P2.39 — автозамена текстовых смайликов на эмодзи при отправке (:) → 🙂
+// и т.п.). Срабатывает один раз, в момент отправки — меняется реально
+// отправляемый текст (как делают большинство мессенджеров), а не только
+// отображение. Паттерны отсортированы длинными вариантами (":-)" и т.п.)
+// ПЕРЕД короткими (":)"), чтобы альтернация регулярки не "откусывала"
+// только короткий префикс длинного токена. Правая граница — lookahead
+// (?=\s|$) (НЕ lookbehind — тот не везде поддерживается, см. комментарий
+// у applyMarkdown); левая граница — обычная захватывающая группа
+// (начало строки или пробел), которую возвращаем на место в замене.
+const EMOJI_AUTO_REPLACE_MAP = [
+  ["<3", "❤️"],
+  [":'(", "😢"],
+  [":-D", "😄"], [":D", "😄"],
+  [":-P", "😛"], [":-p", "😛"], [":P", "😛"], [":p", "😛"],
+  [":-O", "😮"], [":-o", "😮"], [":O", "😮"], [":o", "😮"],
+  [";-)", "😉"], [";)", "😉"],
+  [":-(", "🙁"], [":(", "🙁"],
+  [":-)", "🙂"], [":)", "🙂"],
+];
+const EMOJI_AUTO_REPLACE_RE = new RegExp(
+  "(^|\\s)(" + EMOJI_AUTO_REPLACE_MAP.map(([token]) => token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")(?=\\s|$)",
+  "g"
+);
+const EMOJI_AUTO_REPLACE_LOOKUP = new Map(EMOJI_AUTO_REPLACE_MAP);
+function applyEmojiAutoReplace(text) {
+  if (!text || !Store.autoEmoji) return text;
+  return text.replace(EMOJI_AUTO_REPLACE_RE, (m, prefix, token) => prefix + (EMOJI_AUTO_REPLACE_LOOKUP.get(token) || token));
+}
+// P2 — простое inline-форматирование: **bold**, *italic*, `code`.
+// Применяется ПОСЛЕ escapeHtml И ПОСЛЕ highlightRaw (а не до) — иначе
+// вставленные <mark> search-hit теги ломали бы индексы подсветки поиска
+// (highlightRaw ищет indexOf по уже готовой строке; если бы markdown
+// вставил теги раньше, запрос поиска мог бы случайно "попасть" внутрь
+// имени тега). Делая это последним шагом, markdown-теги просто
+// оборачивают уже готовый HTML (включая вложенный <mark>, если он есть)
+// — вложение получается корректным в любом случае, потому что мы не
+// трогаем символы '<'/'>' специально, просто ищем *…*, **…**, `…`.
+// Код — первым (иначе звёздочки/подчёркивания внутри `code` были бы
+// тоже разобраны как форматирование).
+function applyMarkdown(html) {
+  if (!html) return html;
+  // Код — ПЕРВЫЙ проход, но содержимое `...` затем защищаем плейсхолдерами
+  // перед bold/italic: раньше `**bold**` внутри code-спана сначала
+  // становился <code>**bold**</code>, а второй проход (bold) находил
+  // "**...**" ВНУТРИ уже вставленного <code> и подменял его на <strong> —
+  // то есть markdown-разметка внутри кода рендерилась, хотя код по
+  // определению должен показываться буквально, как есть. Вынимаем
+  // содержимое code-спанов во временный массив на время bold/italic и
+  // возвращаем обратно их точный текст в конце.
+  const codeSpans = [];
+  let out = html.replace(/`([^`\n]+?)`/g, (m, inner) => {
+    codeSpans.push(inner);
+    return "\u0000CODE" + (codeSpans.length - 1) + "\u0000";
+  });
+  // Без lookbehind (?<=...) намеренно — не все мобильные движки (старый
+  // Safari/iOS) его поддерживают, а это код рендеринга КАЖДОГО сообщения.
+  // ** съедается первым проходом, поэтому ко второму проходу (курсив)
+  // одиночные "*" уже гарантированно не являются половинками "**".
+  out = out.replace(/\*\*([^*\n]+?)\*\*/g, "<strong>$1</strong>");
+  out = out.replace(/\*([^*\n]+?)\*/g, "<em>$1</em>");
+  out = out.replace(/\u0000CODE(\d+)\u0000/g, (m, i) => "<code>" + codeSpans[Number(i)] + "</code>");
+  return out;
 }
 // =====================================================================
 // Превью ссылок
@@ -507,7 +714,14 @@ function linkifyAndHighlight(text, query) {
 //   3) bareword.TLD — только по списку распознанных доменных зон, с
 //      границей слова, чтобы не путать с версиями (3.14), сокращениями
 //      (т.д., e.g.) и т.п.
-const URL_TLDS = "com|org|net|edu|gov|io|co|me|info|biz|ru|su|uk|de|fr|es|it|nl|pl|se|no|dk|fi|ch|at|be|pt|gr|cz|hu|ro|bg|hr|si|sk|lt|lv|ee|ua|by|kz|cn|jp|kr|in|au|nz|ca|br|mx|il|tr|ae|id|th|vn|ph|my|sg|hk|tw|app|dev|xyz|online|site|club|store|tech|shop|news|live|tv|fm|cc|to|gg|ai|link|рф";
+// рф убран из списка: третья альтернатива URL_RE_SRC требует ASCII-метку
+// перед TLD ([a-zA-Z0-9][a-zA-Z0-9-]*), поэтому "пример.рф" всё равно не
+// распознавался бы — наличие рф в списке создавало ложное ощущение
+// поддержки кириллических доменов без реальной функциональности.
+// Расширение класса метки до [\p{L}\p{N}-] с флагом u решило бы это, но
+// влияет на производительность regex-сканирования при каждом рендере
+// сообщений — не делаем без явного запроса.
+const URL_TLDS = "com|org|net|edu|gov|io|co|me|info|biz|ru|su|uk|de|fr|es|it|nl|pl|se|no|dk|fi|ch|at|be|pt|gr|cz|hu|ro|bg|hr|si|sk|lt|lv|ee|ua|by|kz|cn|jp|kr|in|au|nz|ca|br|mx|il|tr|ae|id|th|vn|ph|my|sg|hk|tw|app|dev|xyz|online|site|club|store|tech|shop|news|live|tv|fm|cc|to|gg|ai|link";
 const URL_RE_SRC = "(https?://[^\\s<]+[^\\s<.,;:!?)])" +
   "|((?:^|[\\s(])((?:www\\.)[a-zA-Z0-9][a-zA-Z0-9-]*(?:\\.[a-zA-Z0-9][a-zA-Z0-9-]*)+(?:/[^\\s<.,;:!?)]*)?))" +
   "|((?:^|[\\s(])([a-zA-Z0-9][a-zA-Z0-9-]*(?:\\.[a-zA-Z0-9][a-zA-Z0-9-]*)*\\.(?:" + URL_TLDS + ")(?:/[^\\s<.,;:!?)]*)?)(?=[\\s).,;:!?]|$))";
@@ -578,6 +792,32 @@ async function fetchLinkPreview(url) {
     capMapSize(linkPreviewCache, LINK_PREVIEW_CACHE_MAX);
   }
 }
+// Раньше renderChatThreadInner вызывал renderLinkPreviewInto (= реальный
+// fetch) для КАЖДОЙ ссылки в чате сразу при рендере, независимо от того,
+// видна ли она на экране. Для старого чата с сотней сообщений со ссылками
+// это означало десятки параллельных запросов к /link-preview при первом
+// открытии — а у сервера на этот эндпоинт стоит rate limit (30/мин на IP),
+// в который легко попасть при активном использовании. Теперь слоты
+// наблюдаются через IntersectionObserver, и фетчится только то, что
+// реально прокручено во вьюпорт (с небольшим запасом по rootMargin, чтобы
+// превью успевало подгрузиться чуть раньше, чем пользователь долистает).
+// Один наблюдатель на всё приложение (root пересчитывается лениво, при
+// первом использовании) — элементы наблюдаются и снимаются с наблюдения
+// по ходу рендеров, а не пересоздаются целиком.
+let linkPreviewObserver = null;
+function observeLinkPreviewSlot(el) {
+  if (!linkPreviewObserver) {
+    linkPreviewObserver = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        linkPreviewObserver.unobserve(entry.target);
+        const url = entry.target.getAttribute("data-preview-for");
+        if (url) renderLinkPreviewInto(url);
+      }
+    }, { root: document.getElementById("chat-messages"), rootMargin: "400px 0px" });
+  }
+  linkPreviewObserver.observe(el);
+}
 function linkPreviewCardHtml(data) {
   if (!data) return "";
   // data.url приходит от сервера (сам сервер безопасен, но это его
@@ -642,6 +882,36 @@ function highlightRaw(escapedText, query) {
 }
 function truncate(s, n) { s = String(s == null ? "" : s); return s.length > n ? s.slice(0, n - 1) + "…" : s; }
 function initials(name) { return String(name || "?").trim().slice(0, 2).toUpperCase() || "?"; }
+// Аватар-кружок для контакта/группы: если у группы загружена картинка
+// (g.avatar, dataURL) — показываем её, иначе как раньше — градиент по
+// имени с инициалами. sizeClass — доп. класс ("avatar-sm" и т.п.).
+// c.avatar у группы может прийти из недоверенного входящего group-invite
+// (applyIncomingPayload), не только из локально сжатого canvas.toDataURL.
+// Раньше в avatarCircleHtml был escapeHtml(c.avatar) — но escapeHtml кодирует
+// ' как &#39;, а HTML-парсер ДЕКОДИРУЕТ &#39; обратно в ' до того, как
+// строка попадёт в CSS-парсер внутри style="...". То есть escapeHtml
+// защищает от HTML-инъекции (закрытия атрибута кавычкой), но не от
+// CSS-инъекции внутри уже открытого style — groupAvatar вида
+// "'); position:fixed; width:100vw; height:100vh; z-index:9999; /*"
+// после HTML-декодирования ломает style на новую декларацию и превращает
+// аватар в полноэкранный оверлей (UI-redressing/фишинг), не исполняя JS, но
+// и не блокируясь экранированием HTML-сущностей.
+// Правильная защита — whitelist формата, а не экранирование: легитимный
+// аватар (локальный canvas.toDataURL ИЛИ провалидированный при приёме
+// group-invite, см. applyIncomingPayload) — всегда data:image/...;base64,
+// с алфавитом [A-Za-z0-9+/=], в котором нет ни ', ни ;, ни пробелов —
+// ничего, что могло бы вырваться из url('...'). Что не прошло whitelist —
+// просто не рисуется как фон (остаются инициалы). Вынесено в константу
+// модуля — avatarCircleHtml зовётся на каждый рендер списка чатов.
+const AVATAR_DATAURL_RE = /^data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]+$/i;
+function avatarCircleHtml(c, sizeClass, extraInner) {
+  const cls = "avatar" + (sizeClass ? " " + sizeClass : "");
+  const extra = extraInner || "";
+  if (c && c.avatar && AVATAR_DATAURL_RE.test(c.avatar)) {
+    return `<div class="${cls}" style="background-image:url('${c.avatar}')">${extra}</div>`;
+  }
+  return `<div class="${cls}" style="background:${avatarGradient(c && c.name)}">${escapeHtml(initials(c && c.name))}${extra}</div>`;
+}
 
 function toast(message) {
   const el = $("#toast"); if (!el) return;
@@ -717,6 +987,10 @@ function applyGlassAlpha(v) {
 }
 
 function applyTheme(theme) {
+  // OLED — отдельная тема для выбора пользователем (настоящий чёрный фон
+  // экономит заряд на AMOLED-экранах), но на уровне CSS-переменных она
+  // работает как тёмная: html[data-theme="oled"] переопределяет только
+  // --bg-0/--bg-1 в styles.css, остального (акценты, текст) не трогает.
   document.documentElement.dataset.theme = theme;
   __isLightCache = null; // инвалидируем кэш — тема поменялась
   const isLight = theme === "light" || (theme === "auto" && window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches);
@@ -724,7 +998,12 @@ function applyTheme(theme) {
   // Обновлено под новую палитру: --bg-0 тёмный и --bg-0 светлый
   // совпадают с meta[theme-color] — статус-бар iOS теперь всегда
   // сливается с фоном приложения.
-  if (meta) meta.setAttribute("content", isLight ? "#fafafc" : "#08080a");
+  if (meta) meta.setAttribute("content", isLight ? "#fafafc" : (theme === "oled" ? "#000000" : "#08080a"));
+}
+function applyChatAppearancePrefs() {
+  const messages = $("#chat-messages");
+  if (messages) messages.dataset.wallpaper = Store.chatWallpaper || "none";
+  document.documentElement.dataset.bubbleSize = Store.bubbleSize || "normal";
 }
 
 try {
@@ -898,8 +1177,9 @@ function ensureAudioCtx() {
   if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {});
   return ctx;
 }
-function playMessageSound() {
+function playMessageSound(contactId) {
   if (!Store.soundsEnabled) return;
+  const style = messageSoundStyleForContact(contactId);
   // Гибридная схема: в foreground (приложение видно) играем через Web Audio
   // — быстро, точно, не зависит от разблокировки пула. В background — через
   // HTMLAudioElement, потому что Web Audio на iOS в фоне НЕ резюмируется:
@@ -936,9 +1216,16 @@ function playMessageSound() {
       // будущее, и следующий звук "улетел" бы за пределы слышимого.
       const now = ctx.currentTime;
       const startAt = Math.max(now + 0.01, Math.min(__nextSoundAt, now + 0.5));
-      playTone(880, startAt, 0.12, 0.15);
-      playTone(1175, startAt + 0.08, 0.16, 0.13);
-      __nextSoundAt = startAt + 0.26;
+      // Паттерн синтеза подобран так, чтобы звучать узнаваемо похоже на
+      // соответствующий mp3-файл из MESSAGE_SOUND_FILES (фоновый фолбэк
+      // ниже) — один и тот же "стиль" должен звучать одинаково что на
+      // переднем плане (Web Audio), что в фоне (HTMLAudioElement).
+      let dur2 = 0.26;
+      if (style === "chime") { playTone(1046.5, startAt, 0.14, 0.15); playTone(1318.5, startAt + 0.1, 0.18, 0.13); dur2 = 0.28; }
+      else if (style === "pop") { playTone(330, startAt, 0.1, 0.18); dur2 = 0.1; }
+      else if (style === "bell") { playTone(1760, startAt, 0.5, 0.15); dur2 = 0.5; }
+      else { playTone(880, startAt, 0.12, 0.15); playTone(1175, startAt + 0.08, 0.16, 0.13); }
+      __nextSoundAt = startAt + dur2;
       return;
     } catch (e) { etherLog("warn", "[sound] message (webaudio):", String(e)); }
   }
@@ -946,7 +1233,7 @@ function playMessageSound() {
   // (и для foreground, если ctx почему-то suspended). Элемент разблокирован
   // unlockSoundPool() в первом user gesture.
   try {
-    const el = getSoundEl(SOUND_FILES.message, false);
+    const el = getSoundEl(MESSAGE_SOUND_FILES[style] || SOUND_FILES.message, false);
     el.muted = false;
     el.volume = 1;
     el.currentTime = 0;
@@ -1352,8 +1639,13 @@ function startApp() {
     window.addEventListener("storage", (e) => { if (e.key === null) location.reload(); });
   }, "wireCrossTabReset");
   safeCall(() => {
+    // Раньше тап по индикатору соединения переключал на вкладку
+    // настроек — единственный способ понять, что происходит с
+    // соединением, был "иди в настройки и смотри". Теперь он открывает
+    // очередь отправки (P1.14): что именно зависло и почему. Настройки
+    // остаются на расстоянии одного тапа через нижнюю вкладку Settings.
     const nav = $("#nav-conn-indicator");
-    if (nav) nav.addEventListener("click", () => { state.tab = "settings"; state.chatId = null; state.contactCardId = null; renderTab(); });
+    if (nav) nav.addEventListener("click", () => { openOutboxSheet(); });
   }, "wireNavConnIndicator");
   safeCall(wireConnectScreen, "wireConnectScreen");
   safeCall(wireQrButtons, "wireQrButtons");
@@ -1363,14 +1655,19 @@ function startApp() {
   safeCall(wireSettingsScreen, "wireSettingsScreen");
   safeCall(wireDebugScreen, "wireDebugScreen");
   safeCall(wireSheetBackdrops, "wireSheetBackdrops");
-  safeCall(wireCameraScreen, "wireCameraScreen");
+  safeCall(wireCameraButton, "wireCameraButton");
   safeCall(wireSearchHandlers, "wireSearchHandlers");
+  safeCall(wireMediaComposeSheet, "wireMediaComposeSheet");
+  safeCall(wireJumpToDateSheet, "wireJumpToDateSheet");
+  safeCall(wireEmojiPicker, "wireEmojiPicker");
   safeCall(wireNotificationPermission, "wireNotificationPermission");
   safeCall(wireServiceWorker, "wireServiceWorker");
   safeCall(wireRenameSheet, "wireRenameSheet");
   safeCall(wireNotifBanner, "wireNotifBanner");
   safeCall(wireContactCard, "wireContactCard");
+  safeCall(wireContactGallery, "wireContactGallery");
   safeCall(wireNavTitleTaps, "wireNavTitleTaps");
+  safeCall(wirePanicButton, "wirePanicButton");
   safeCall(wireKeyboardFix, "wireKeyboardFix");
   safeCall(wireNetworkListeners, "wireNetworkListeners");
   safeCall(wireViewportRecalc, "wireViewportRecalc");
@@ -1379,6 +1676,7 @@ function startApp() {
   safeCall(applyDebugTabVisibility, "applyDebugTabVisibility");
   safeCall(() => { const el = $("#about-version"); if (el) el.textContent = APP_VERSION; }, "aboutVersion");
   safeCall(initAudioWarmup, "initAudioWarmup");
+  safeCall(applyChatAppearancePrefs, "applyChatAppearancePrefs");
   safeCall(setupLanguageSelector, "setupLanguageSelector");
   safeCall(applyStaticTranslations, "applyStaticTranslations");
 
@@ -1389,21 +1687,24 @@ function startApp() {
     $$(".theme-seg button").forEach((b) => b.classList.toggle("active", b.dataset.theme === Store.theme));
     const sn = $("#settings-name"); if (sn) sn.value = Store.name;
     const si = $("#settings-identity"); if (si) si.value = Store.myIdentityRaw;
+    const sms = $("#settings-my-status"); if (sms) sms.value = Store.myStatus;
     const ss = $("#settings-signaling-url"); if (ss) ss.value = Store.signalingUrl || "";
     const sd = $("#settings-discoverable"); if (sd) sd.checked = Store.discoverable;
     const sr = $("#settings-receipts"); if (sr) sr.checked = Store.receiptsEnabled;
     const sls = $("#settings-last-seen"); if (sls) sls.checked = Store.lastSeenVisible;
     const sp = $("#settings-presence"); if (sp) sp.checked = Store.presenceVisible;
     const snn = $("#settings-notifications"); if (snn) snn.checked = Store.notificationsEnabled;
+    const shn = $("#settings-hide-notif"); if (shn) shn.checked = Store.hideNotifContent;
     const slp = $("#settings-link-previews"); if (slp) slp.checked = Store.linkPreviewsEnabled;
     const ssn = $("#settings-sounds"); if (ssn) ssn.checked = Store.soundsEnabled;
     const srt = $("#settings-ringtone"); if (srt) srt.value = Store.ringtone;
     const spl = $("#settings-pinlock"); if (spl) spl.checked = Store.pinEnabled;
+    const sae = $("#settings-auto-emoji"); if (sae) sae.checked = Store.autoEmoji;
   } catch (e) { etherLog("error", "[startApp] settings init:", String(e)); }
 
   try {
     loadContacts(); loadLastSeen(); loadDrafts();
-    restoreOutbox(); restorePendingNoKey(); loadCallLog();
+    restoreOutbox(); restoreGroupDeliveryMap(); restorePendingNoKey(); restoreRecentlyDeleted(); loadCallLog();
     migrateServerAckedFlags();
   } catch (e) { etherLog("error", "[startApp] load data:", String(e)); }
 
@@ -1418,6 +1719,14 @@ function startApp() {
   } catch (e) { etherLog("error", "[startApp] incoming code:", String(e)); }
 
   try { renderTab(); } catch (e) { etherLog("error", "[startApp] renderTab:", String(e)); }
+  // Снимаем skeleton-флаг чуть погодя: на холодном старте contacts ещё
+  // могла не успеть восстановиться из IndexedDB-бэкапа в этот самый тик,
+  // 400мс достаточно, чтобы это не мигало на быстрых устройствах, но
+  // хватило на медленных, чтобы показать skeleton, а не пустой экран.
+  setTimeout(() => {
+    state._firstRenderDone = true;
+    if (state.tab === "chats" && !state.chatId) { try { renderChatsList(); } catch (e) {} }
+  }, 400);
   try { initSignaling(); } catch (e) { etherLog("error", "[startApp] initSignaling:", String(e)); }
   try { startOutboxRetryLoop(); } catch (e) {}
   try { setInterval(sweepExpiredMessages, 30000); sweepExpiredMessages(); } catch (e) {}
@@ -1586,14 +1895,23 @@ function migrateServerAckedFlags() {
 function maybeShowOnboardingHint() {
   if (localStorage.getItem(ONBOARDING_HINT_SHOWN) === "1") return;
   localStorage.setItem(ONBOARDING_HINT_SHOWN, "1");
+  // Небольшая задержка — чтобы подсказка не всплыла поверх самого
+  // первого рендера (пока ещё идёт анимация появления экрана чатов),
+  // а появилась через чуть погодя, когда пользователь уже освоился
+  // с интерфейсом.
+  // Отдельный ключ от "onboarding.hint" (тот уже занят текстом про
+  // восстановление личности на экране входа) — здесь подсказка про
+  // жесты в самом интерфейсе чата.
+  setTimeout(() => { try { toast(T("onboarding.gestureHint")); } catch (e) {} }, 1500);
 }
 
-function openFromNotification(contactId, kind) {
+function openFromNotification(contactId, kind, focusInput) {
   try { closeChatSearch(); } catch (e) {}
   if (!contactId) return;
   window.focus();
   state.chatId = contactId;
   __lastRenderedChatId = null;
+  state.multiSelect = null;
   state.contactCardId = null; // иначе после закрытия этого чата могла неожиданно всплыть карточка контакта, на которой пользователь был до уведомления
   renderTab();
   if (kind === "call") {
@@ -1603,6 +1921,14 @@ function openFromNotification(contactId, kind) {
     } else {
       toast(T("toast.missedCall"));
     }
+  } else if (focusInput) {
+    // P2.37 (урезанный вариант) — клик по кнопке "Ответить" в уведомлении:
+    // полноценного инлайн-ответа веб-API не даёт (см. showNotification),
+    // но можно хотя бы сразу поставить курсор в поле ввода, не заставляя
+    // пользователя ещё и тапать по нему самому. renderTab() выше рендерит
+    // асинхронно/синхронно в зависимости от перехода — small delay, чтобы
+    // #chat-input гарантированно уже был в DOM.
+    setTimeout(() => { const inp = $("#chat-input"); if (inp) inp.focus(); }, 50);
   }
 }
 // Открытие по клику на декларативное push-уведомление (Safari/iOS): в
@@ -1660,7 +1986,7 @@ function wireServiceWorker() {
   navigator.serviceWorker.addEventListener("message", (ev) => {
     const data = ev.data || {};
     if (data.type === "open-contact" && data.contactId) {
-      openFromNotification(data.contactId, data.kind);
+      openFromNotification(data.contactId, data.kind, data.focusInput);
     }
     if (data.type === "push-subscription-changed") {
       ensurePushSubscription().catch(() => {});
@@ -1770,6 +2096,13 @@ function showNotification(title, body, opts) {
   if (!("Notification" in window)) return;
   if (Notification.permission !== "granted") return;
   if (document.visibilityState === "visible" && !opts.force) return;
+  // P1.17 — скрывает ТЕКСТ сообщения в уведомлении (экран блокировки
+  // виден кому угодно), но не имя контакта: иначе непонятно, кто вообще
+  // написал. Звонки не трогаем — там body уже не содержит произвольного
+  // пользовательского текста.
+  if (Store.hideNotifContent && opts.kind !== "call") {
+    body = T("notif.newMessage");
+  }
   const payload = {
     type: "show-notification", title, body,
     tag: opts.tag || "ether",
@@ -1777,6 +2110,16 @@ function showNotification(title, body, opts) {
     kind: opts.kind || "message",
     silent: !Store.soundsEnabled,
   };
+  // P2.37 (урезанный вариант) — настоящего инлайн-ответа (текстовое поле
+  // прямо в уведомлении) в вебе не существует — это нативный API
+  // (Android RemoteInput и т.п.), у Notification API есть только
+  // кнопки-действия. Поэтому кнопка "Ответить" не отправляет текст сама,
+  // а открывает чат уже с фокусом в поле ввода (см. notificationclick в
+  // sw.js и openFromNotification(..., focusInput) в app.js) — на один тап
+  // ближе к ответу, чем просто разворачивание уведомления.
+  if (payload.kind !== "call" && payload.contactId) {
+    payload.actions = [{ action: "reply", title: T("notif.action.reply") }];
+  }
   if (navigator.serviceWorker && navigator.serviceWorker.controller) {
     navigator.serviceWorker.controller.postMessage(payload); return;
   }
@@ -1919,12 +2262,15 @@ function loadContacts() {
       messages: Array.isArray(c.messages) ? c.messages : [],
       lastActivity: c.lastActivity || 0,
       archived: !!c.archived, muted: !!c.muted, blocked: !!c.blocked,
+      pinned: !!c.pinned, pinnedMessageId: c.pinnedMessageId || null,
       // Группы — без этих полей запись после перезагрузки превращается в
       // битый обычный контакт (isGroup(c) === false, участников нет).
       isGroup: !!c.isGroup,
       members: Array.isArray(c.members) ? c.members : undefined,
       createdBy: c.createdBy || undefined,
+      avatar: c.avatar || undefined,
       disappearingTimer: c.disappearingTimer || 0,
+      notificationSound: c.notificationSound || undefined,
     });
   }
 }
@@ -1933,10 +2279,13 @@ function persistContacts() {
     id: c.id, name: c.name, raw: c.raw, publicKey: c.publicKey,
     messages: c.messages, lastActivity: c.lastActivity,
     archived: c.archived, muted: c.muted, blocked: c.blocked,
+    pinned: c.pinned || undefined, pinnedMessageId: c.pinnedMessageId || undefined,
     isGroup: c.isGroup || undefined,
     members: c.isGroup ? c.members : undefined,
     createdBy: c.isGroup ? c.createdBy : undefined,
+    avatar: c.isGroup ? c.avatar : undefined,
     disappearingTimer: c.disappearingTimer || undefined,
+    notificationSound: c.notificationSound || undefined,
   }));
   try {
     Store.contactsJson = JSON.stringify(arr);
@@ -1949,6 +2298,19 @@ function loadLastSeen() { try { state.lastSeen = JSON.parse(Store.lastSeenJson) 
 function persistLastSeen() { try { Store.lastSeenJson = JSON.stringify(state.lastSeen); } catch (e) { handlePersistError(e, "lastSeen"); } }
 function loadDrafts() { try { state.drafts = JSON.parse(Store.draftsJson) || {}; } catch (e) { state.drafts = {}; } if (typeof state.drafts !== "object") state.drafts = {}; }
 function persistDrafts() { try { Store.draftsJson = JSON.stringify(state.drafts); } catch (e) { handlePersistError(e, "drafts"); } }
+// При быстрой печати обработчик "input" дёргает persistDrafts() на
+// каждый символ — 5-10 localStorage.setItem в секунду. Дебаунс в
+// 250мс группирует их в одну запись за паузу в наборе текста.
+// saveCurrentDraft() (срабатывает при выходе из чата) остаётся
+// синхронным — там нужна гарантия, что черновик лёг ДО размонтирования.
+let __draftPersistTimer = null;
+function scheduleDraftPersist() {
+  if (__draftPersistTimer) return;
+  __draftPersistTimer = setTimeout(() => {
+    __draftPersistTimer = null;
+    persistDrafts();
+  }, 250);
+}
 function keysDiffer(a, b) { return JSON.stringify(a || null) !== JSON.stringify(b || null); }
 
 function ensureContactEntry(id, suggestedName) {
@@ -2016,6 +2378,12 @@ function closeChatSafely() {
   try { cancelEditing(); } catch (e) {}
   try { cancelReply(); } catch (e) {}
   try { closeChatSearch(); } catch (e) {}
+  // Режим мультивыбора — состояние ОДНОГО конкретного треда, а не
+  // приложения в целом. Без сброса здесь: вошли в мультивыбор в чате A,
+  // вышли (‹ или edge-свайп-назад) — state.multiSelect остаётся
+  // непустым, и первый же тап по пузырю в ЛЮБОМ другом чате B тихо
+  // переключает выбор вместо обычного действия (открыть меню/лайтбокс).
+  state.multiSelect = null;
   try { renderTab(); } catch (e) {}
 }
 function closeContactCardSafely() { state.contactCardId = null; try { renderTab(); } catch (e) {} }
@@ -2116,19 +2484,56 @@ function contactStatusClass(c) {
 function isReachable(c) { return c.status === "connected" || c.status === "in-call"; }
 function unreadCount(c) { let n = 0; for (const m of c.messages) if (m.from === "them" && !m.readAckSent) n++; return n; }
 
+function renderChatsSkeleton(list) {
+  list.innerHTML = "";
+  for (let i = 0; i < 5; i++) {
+    const row = document.createElement("div");
+    row.className = "skeleton-row";
+    row.innerHTML = `
+      <div class="skeleton-avatar"></div>
+      <div class="skeleton-lines">
+        <div class="skeleton-line" style="width:${55 + (i % 3) * 10}%"></div>
+        <div class="skeleton-line short"></div>
+      </div>`;
+    list.appendChild(row);
+  }
+}
+function formatChatListTime(ts) {
+  if (!ts) return "";
+  const d = new Date(ts);
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) return formatTime(ts);
+  const yest = new Date(now); yest.setDate(yest.getDate() - 1);
+  if (d.toDateString() === yest.toDateString()) return T("status.yesterday");
+  if (d.getFullYear() === now.getFullYear()) { try { return d.toLocaleDateString(I18N.current, { day: "2-digit", month: "2-digit" }); } catch (e) { return formatDay(ts); } }
+  return formatDay(ts);
+}
 function renderChatsList() {
   const list = $("#chats-list"), empty = $("#chats-empty"), archivedToggle = $("#chats-archived-toggle");
   if (!list) return;
   list.innerHTML = "";
   const query = state.searchQuery.toLowerCase();
   const all = Array.from(state.contacts.values());
+  // Холодный старт: пока не прошло ~400мс с запуска (см. startApp), и
+  // контактов ещё нет в памяти — показываем skeleton вместо пустого
+  // экрана, чтобы не мигать "No one is online yet" на долю секунды,
+  // пока состояние только восстанавливается из хранилища.
+  if (!state._firstRenderDone && all.length === 0 && !query) {
+    if (empty) empty.classList.add("hidden");
+    if (archivedToggle) archivedToggle.classList.add("hidden");
+    renderChatsSkeleton(list);
+    return;
+  }
   const withArchived = all.some((c) => c.archived);
-  const visible = all.filter((c) => c.archived ? state.showArchived : true);
+  let visible = all.filter((c) => c.archived ? state.showArchived : true);
+  if (state.chatFilter === "unread") visible = visible.filter((c) => unreadCount(c) > 0);
+  else if (state.chatFilter === "groups") visible = visible.filter((c) => isGroup(c));
+  else if (state.chatFilter === "direct") visible = visible.filter((c) => !isGroup(c));
   const filtered = query
     ? visible.filter((c) => (c.name || "").toLowerCase().includes(query) || c.messages.some((m) => (m.text || "").toLowerCase().includes(query) || (m.file && m.file.name || "").toLowerCase().includes(query) || (m.contactCard && m.contactCard.name || "").toLowerCase().includes(query)))
     : visible;
   if (filtered.length === 0) {
-    if (empty) empty.classList.toggle("hidden", query.length > 0);
+    if (empty) empty.classList.toggle("hidden", query.length > 0 || state.chatFilter !== "all");
     if (archivedToggle) archivedToggle.classList.toggle("hidden", !withArchived);
     return;
   }
@@ -2144,6 +2549,8 @@ function renderChatsList() {
     ta.classList.toggle("is-open", state.showArchived);
   }
   const items = filtered.sort((a, b) => {
+    const aPinned = a.pinned ? 1 : 0, bPinned = b.pinned ? 1 : 0;
+    if (aPinned !== bPinned) return bPinned - aPinned;
     const aLive = isReachable(a) || a.online ? 1 : 0, bLive = isReachable(b) || b.online ? 1 : 0;
     if (aLive !== bLive) return bLive - aLive;
     return (b.lastActivity || 0) - (a.lastActivity || 0);
@@ -2157,8 +2564,13 @@ function renderChatsList() {
     row.type = "button";
     row.className = "chat-row flat-content" + (c.archived ? " archived" : "");
     const badge = unread > 0 ? `<span class="unread-badge">${unread > 99 ? "99+" : unread}</span>` : "";
-    const muteIcon = c.muted ? `<span class="muted-icon" title="Mute"><svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M12 2a1 1 0 0 1 1 1v.6a6 6 0 0 1 5 5.9v4l1.6 2.4a1 1 0 0 1-.8 1.6H5.2a1 1 0 0 1-.8-1.6L6 13.5v-4a6 6 0 0 1 5-5.9V3a1 1 0 0 1 1-1zm-2 18a2 2 0 0 0 4 0h-4z"/><line x1="3.5" y1="20.5" x2="20.5" y2="3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>` : "";
-    const blockIcon = c.blocked ? `<span class="muted-icon" title="Blocked"><svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><line x1="6" y1="18" x2="18" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>` : "";
+    const mentionIcon = state.mentionedChats.has(c.id) ? `<span class="chat-row-mention" title="${escapeHtml(T("chats.mentioned"))}">@</span>` : "";
+    // Раньше title у этих двух иконок был захардкожен на английском ("Mute"/
+    // "Blocked") — единственное место в списке чатов, где подсказка не шла
+    // через T(). При смене языка подсказка оставалась английской.
+    const muteIcon = c.muted ? `<span class="muted-icon" title="${escapeHtml(T("chat.contact.mute"))}"><svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M12 2a1 1 0 0 1 1 1v.6a6 6 0 0 1 5 5.9v4l1.6 2.4a1 1 0 0 1-.8 1.6H5.2a1 1 0 0 1-.8-1.6L6 13.5v-4a6 6 0 0 1 5-5.9V3a1 1 0 0 1 1-1zm-2 18a2 2 0 0 0 4 0h-4z"/><line x1="3.5" y1="20.5" x2="20.5" y2="3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>` : "";
+    const blockIcon = c.blocked ? `<span class="muted-icon" title="${escapeHtml(T("chat.contact.block"))}"><svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><line x1="6" y1="18" x2="18" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>` : "";
+    const pinIcon = c.pinned ? `<span class="muted-icon" title="${escapeHtml(T("chats.pin"))}"><svg viewBox="0 0 24 24" width="13" height="13"><path fill="currentColor" d="M14 2 22 10l-3 3-1-1-4 4 1 5-2 2-5-5-5 5-1-1 5-5-5-5 2-2 5 1 4-4-1-1z"/></svg></span>` : "";
     let preview = last
       ? (last.from === "system" && last.textKey ? escapeHtml(renderSystemMessageText(last)) : last.file ? escapeHtml(T("chat.file.preview." + last.file.kind)) : (last.contactCard ? escapeHtml(T("chat.contactCard.preview", { name: last.contactCard.name || T("sys.someone") })) : escapeHtml(truncate(last.text, 42))))
       : escapeHtml(contactStatusLabel(c));
@@ -2167,25 +2579,41 @@ function renderChatsList() {
     // только в шапке уже открытого треда, хотя состояние (typingTimers)
     // уже отслеживалось и для списка чатов, просто не использовалось.
     const isTyping = !isGroup(c) && state.typingTimers.has(c.id);
-    if (isTyping) preview = `<em class="chat-row-typing">${escapeHtml(T("chat.typing"))}</em>`;
+    if (isTyping) {
+      preview = `<span class="chat-row-typing"><span class="typing-dots" aria-label="${escapeHtml(T("chat.typing"))}"><span></span><span></span><span></span></span></span>`;
+    } else {
+      // Черновик перекрывает обычное превью (но не "печатает") — только
+      // если он не пуст. Хранится отдельно от самого текста сообщения,
+      // поэтому не влияет на последнее реальное сообщение в чате.
+      const draft = state.drafts[c.id];
+      if (draft && draft.trim()) {
+        preview = `<span class="chat-row-draft">${escapeHtml(T("chats.draft"))}:</span> ` + escapeHtml(truncate(draft, 34));
+      }
+    }
+    // "Не доставлено" — последнее МОЁ сообщение в чате зависло в ack=failed.
+    const lastMine = c.messages.length ? [...c.messages].reverse().find((m) => m.from === "me") : null;
+    const failIcon = lastMine && lastMine.ack === "failed"
+      ? `<span class="muted-icon chat-row-fail-icon" title="${escapeHtml(T("ack.failed"))}"><svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path fill="currentColor" d="M11 7h2v6h-2zm0 8h2v2h-2z"/></svg></span>`
+      : "";
 
     // Статус онлайн теперь точкой прямо на аватаре (как Signal/WhatsApp),
     // а не текстовым символом ● справа от имени. У групп точку не
     // показываем — там статус не про presence одного человека.
     const showDot = !isGroup(c) && c.managed;
     const statusDot = showDot ? `<span class="avatar-status-dot ${contactStatusClass(c)}"></span>` : "";
+    const timeLabel = last ? escapeHtml(formatChatListTime(last.ts)) : "";
     row.innerHTML = `
-      <div class="avatar" style="background:${avatarGradient(c.name)}">${escapeHtml(initials(c.name))}${statusDot}</div>
+      ${avatarCircleHtml(c, null, statusDot)}
       <div class="chat-row-body">
         <div class="chat-row-top">
-          <span class="chat-row-name${unread > 0 ? " unread" : ""}">${escapeHtml(c.name || T("sys.someone"))} ${muteIcon}${blockIcon}</span>
+          <span class="chat-row-name${unread > 0 ? " unread" : ""}">${pinIcon}${escapeHtml(c.name || T("sys.someone"))} ${muteIcon}${blockIcon}</span>
+          <span class="chat-row-time">${timeLabel}</span>
         </div>
-        <div class="chat-row-sub"><span class="chat-row-preview-text">${preview}</span>${badge}</div>
+        <div class="chat-row-sub"><span class="chat-row-preview-text">${preview}</span>${failIcon}${mentionIcon}${badge}</div>
       </div>`;
-    // Свайп открывает фоновые действия (архив/удалить) — сама кнопка
-    // строки едет поверх них через translateX. Раньше список чатов был
-    // просто <button> без единого жеста — тап открывал чат, и больше
-    // ничего. Структура: wrapper > [фон с действиями] + [сама строка].
+    // Свайп открывает фоновые действия (pin/архив слева, удалить справа)
+    // — сама кнопка строки едет поверх них через translateX. Структура:
+    // wrapper > [фон с действиями] + [сама строка].
     wrapper.innerHTML = `
       <div class="chat-row-actions chat-row-actions-start">
         <button type="button" class="chat-row-action-btn chat-row-action-archive" data-action="archive">
@@ -2194,13 +2622,17 @@ function renderChatsList() {
         </button>
       </div>
       <div class="chat-row-actions chat-row-actions-end">
+        <button type="button" class="chat-row-action-btn chat-row-action-pin" data-action="pin">
+          <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M14 2 22 10l-3 3-1-1-4 4 1 5-2 2-5-5-5 5-1-1 5-5-5-5 2-2 5 1 4-4-1-1z"/></svg>
+          <span>${escapeHtml(c.pinned ? T("chats.unpin") : T("chats.pin"))}</span>
+        </button>
         <button type="button" class="chat-row-action-btn chat-row-action-delete" data-action="delete">
           <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M6 7h12l-1 13.5a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 7 20.5L6 7zm3.5-4h5l1 2H19v1.5H5V5h4.5l1-2z"/></svg>
           <span>${escapeHtml(T("chats.action.delete"))}</span>
         </button>
       </div>`;
     wrapper.appendChild(row);
-    row.addEventListener("click", () => { try { closeChatSearch(); } catch (e) {} cancelVoiceRecordingIfLeavingChat(c.id); state.chatId = c.id; renderTab(); });
+    row.addEventListener("click", () => { try { closeChatSearch(); } catch (e) {} cancelVoiceRecordingIfLeavingChat(c.id); state.multiSelect = null; state.chatId = c.id; renderTab(); });
     attachChatRowSwipe(wrapper, row, c);
     list.appendChild(wrapper);
   }
@@ -2221,15 +2653,45 @@ function isLightTheme() {
 // от хэша имени. В тёмной теме — приглушённее (light 42%), в светлой
 // — наоборот светлее (52%). Два угла градиента берутся из одного
 // оттенка с комплементарным сдвигом +40°.
+// P2: кэш по имени+теме — список чатов/контактов пересчитывал один и
+// тот же градиент на каждый renderChatsList (и это не только hsl()
+// строка, а ещё и цикл по символам имени на хэш). Инвалидируется вместе
+// с __isLightCache, тем же local reset в applyTheme()/слушателе
+// prefers-color-scheme — ключ сам включает признак темы, так что даже
+// без явной чистки старые записи просто не совпадут по ключу.
+const _avatarGradientCache = new Map();
 function avatarGradient(name) {
   const s = String(name || "?");
+  const light = isLightTheme();
+  const cacheKey = (light ? "L:" : "D:") + s;
+  const cached = _avatarGradientCache.get(cacheKey);
+  if (cached) return cached;
   let h = 0;
   for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) | 0;
   const hue = ((h % 360) + 360) % 360;
   const hue2 = (hue + 40) % 360;
   const sat = 65 + (h % 15);
-  const lt = isLightTheme() ? 52 : 42;
-  return `linear-gradient(150deg, hsl(${hue}, ${sat}%, ${lt + 8}%), hsl(${hue2}, ${sat}%, ${lt - 6}%))`;
+  const lt = light ? 52 : 42;
+  const grad = `linear-gradient(150deg, hsl(${hue}, ${sat}%, ${lt + 8}%), hsl(${hue2}, ${sat}%, ${lt - 6}%))`;
+  // Защита от неограниченного роста — на практике число разных имён в
+  // одном клиенте мало (контакты + участники групп), но на всякий
+  // случай не копим бесконечно (например, если имя меняется часто).
+  // Раньше при переполнении карта чистилась ПОЛНОСТЬЮ (.clear()) — это
+  // не LRU, а просто сброс всего кэша разом: на следующей же перерисовке
+  // списка чатов все контакты заново считают градиент. Map хранит ключи
+  // в порядке вставки, так что первые ключи — самые старые; вытесняем
+  // только их, как и в fileBlobUrlCache.
+  if (_avatarGradientCache.size > 500) {
+    const toRemove = _avatarGradientCache.size - 450;
+    let removed = 0;
+    for (const k of _avatarGradientCache.keys()) {
+      if (removed >= toRemove) break;
+      _avatarGradientCache.delete(k);
+      removed++;
+    }
+  }
+  _avatarGradientCache.set(cacheKey, grad);
+  return grad;
 }
 
 function renderContactsList() {
@@ -2269,41 +2731,71 @@ function openContactCard(contactId) {
   if (isGroup(c)) { openGroupInfo(contactId); return; }
   state.chatId = null;
   __lastRenderedChatId = null;
+  state.multiSelect = null; // см. комментарий в closeChatSafely — этот путь выхода из чата её не вызывает
   state.contactCardId = contactId;
   renderTab();
 }
 function openGroupInfo(groupId) {
   const g = state.contacts.get(groupId); if (!g || !isGroup(g)) return;
   state.activeGroupContext = groupId;
+  const avatarBtn = $("#group-info-avatar-btn");
+  if (avatarBtn) {
+    if (g.avatar) { avatarBtn.style.backgroundImage = `url('${g.avatar}')`; avatarBtn.style.background = ""; avatarBtn.textContent = ""; }
+    else { avatarBtn.style.backgroundImage = ""; avatarBtn.style.background = avatarGradient(g.name); avatarBtn.textContent = initials(g.name); }
+  }
   const nameInput = $("#group-info-name"); if (nameInput) nameInput.value = g.name || "";
   const list = $("#group-info-members");
+  const myIsAdmin = isGroupAdmin(g, Store.myId);
   if (list) {
     list.innerHTML = "";
     for (const m of g.members) {
       const row = document.createElement("div");
       row.className = "forward-row";
       const isMe = m.id === Store.myId;
-      const canRemove = g.createdBy === Store.myId && !isMe;
-      row.innerHTML = `<div class="avatar avatar-sm" style="background:${avatarGradient(m.name)}">${escapeHtml(initials(m.name))}</div><span class="forward-name">${escapeHtml(m.name)}${isMe ? " " + escapeHtml(T("group.you")) : ""}</span>`;
+      const memberIsAdmin = isGroupAdmin(g, m.id);
+      const canRemove = myIsAdmin && !isMe;
+      const roleBadge = memberIsAdmin ? `<span class="group-role-badge">${escapeHtml(T("group.admin"))}</span>` : "";
+      row.innerHTML = `<div class="avatar avatar-sm" style="background:${avatarGradient(m.name)}">${escapeHtml(initials(m.name))}</div><span class="forward-name">${escapeHtml(m.name)}${isMe ? " " + escapeHtml(T("group.you")) : ""}</span>${roleBadge}`;
+      if (myIsAdmin && !isMe && g.createdBy !== m.id) {
+        const toggle = document.createElement("button");
+        toggle.type = "button"; toggle.className = "icon-btn small";
+        toggle.textContent = memberIsAdmin ? T("group.demote") : T("group.promote");
+        toggle.addEventListener("click", (ev) => { ev.stopPropagation(); setGroupMemberRole(groupId, m.id, memberIsAdmin ? "member" : "admin"); openGroupInfo(groupId); });
+        row.appendChild(toggle);
+      }
       if (canRemove) {
         const rm = document.createElement("button");
-        rm.type = "button"; rm.className = "icon-btn"; rm.textContent = "✕";
+        rm.type = "button"; rm.className = "icon-btn"; rm.setAttribute("aria-label", T("group.remove"));
+        rm.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>';
         rm.addEventListener("click", (ev) => { ev.stopPropagation(); removeGroupMember(groupId, m.id, false); openGroupInfo(groupId); });
         row.appendChild(rm);
       }
       list.appendChild(row);
     }
   }
+  const renameBtnEl = $("#group-info-rename-btn"); if (renameBtnEl) renameBtnEl.classList.toggle("hidden", !myIsAdmin);
+  const nameInputEl = $("#group-info-name"); if (nameInputEl) nameInputEl.disabled = !myIsAdmin;
+  const addBtnEl = $("#group-info-add-btn"); if (addBtnEl) addBtnEl.classList.toggle("hidden", !myIsAdmin);
+  const avatarBtnEl = $("#group-info-avatar-btn"); if (avatarBtnEl) avatarBtnEl.disabled = !myIsAdmin;
   const sheet = $("#group-info-sheet"); if (sheet) sheet.classList.remove("hidden");
 }
 function renderContactCard() {
   const c = state.contacts.get(state.contactCardId);
   if (!c) { state.contactCardId = null; renderTab(); return; }
   const av = $("#contact-avatar");
-  if (av) { av.style.background = avatarGradient(c.name); av.textContent = initials(c.name); }
+  if (av) {
+    if (c.avatar) { av.style.backgroundImage = `url('${c.avatar}')`; av.style.background = ""; av.textContent = ""; }
+    else { av.style.backgroundImage = ""; av.style.background = avatarGradient(c.name); av.textContent = initials(c.name); }
+  }
   const n = $("#contact-name"); if (n) n.textContent = c.name || T("sys.someone");
   const navT = $("#nav-contact-title"); if (navT) navT.textContent = c.name || T("sys.someone");
   const st = $("#contact-status"); if (st) st.textContent = contactStatusLabel(c);
+  const aboutEl = $("#contact-about-status");
+  if (aboutEl) {
+    const about = (c.peerStatus || "").trim();
+    aboutEl.textContent = about;
+    aboutEl.classList.toggle("hidden", !about);
+  }
   const idEl = $("#contact-info-id"); if (idEl) idEl.textContent = c.raw || T("chat.contact.identifier.unknown");
   const mutedEl = $("#contact-info-muted");
   if (mutedEl) {
@@ -2314,7 +2806,47 @@ function renderContactCard() {
   const blockBtn = $("#contact-block-btn"); if (blockBtn) blockBtn.textContent = c.blocked ? T("chat.contact.unblock") : T("chat.contact.block");
   const archBtn = $("#contact-archive-btn"); if (archBtn) archBtn.textContent = T("chat.contact.archive");
   const muteBtn = $("#contact-mute-btn"); if (muteBtn) muteBtn.textContent = T("chat.contact.mute");
+  const pinBtnLbl = $("#contact-pin-btn span"); if (pinBtnLbl) pinBtnLbl.textContent = c.pinned ? T("chats.unpin") : T("chats.pin");
   const disSel = $("#contact-disappearing-select"); if (disSel) disSel.value = String(c.disappearingTimer || 0);
+  const soundSel = $("#contact-sound-select"); if (soundSel) soundSel.value = c.notificationSound || "";
+  renderContactGallery(c);
+}
+// P2 — галерея медиа контакта: мини-грид последних фото/видео из переписки,
+// в карточке контакта. Загружаем object URL лениво, только когда карточка
+// открыта (getFileBlobUrl уже кеширует и ограничивает размер кеша).
+function renderContactGallery(c) {
+  const group = $("#contact-gallery-group");
+  const grid = $("#contact-gallery-grid");
+  const countEl = $("#contact-gallery-count");
+  if (!group || !grid) return;
+  const media = c.messages.filter((m) => m.file && !m.file.pending && !m.file.failed && (m.file.kind === "image" || m.file.kind === "video")).slice(-24).reverse();
+  if (media.length === 0) { group.classList.add("hidden"); grid.innerHTML = ""; return; }
+  group.classList.remove("hidden");
+  if (countEl) countEl.textContent = String(media.length);
+  grid.innerHTML = media.map((m) => `<button type="button" class="contact-gallery-item" data-msg-id="${escapeHtml(m.id)}" data-kind="${escapeHtml(m.file.kind)}"><div class="contact-gallery-loading"></div></button>`).join("");
+  for (const m of media) {
+    const btn = grid.querySelector(`[data-msg-id="${CSS.escape(m.id)}"]`);
+    if (!btn) continue;
+    getFileBlobUrl(m.id).then((url) => {
+      if (!url || !btn.isConnected) return;
+      if (m.file.kind === "video") {
+        btn.innerHTML = `<video src="${escapeHtml(url)}" muted playsinline></video><span class="contact-gallery-play"><svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M8 5v14l11-7z"/></svg></span>`;
+      } else {
+        btn.innerHTML = `<img src="${escapeHtml(url)}" alt="" loading="lazy" />`;
+      }
+    }).catch(() => {});
+  }
+}
+function wireContactGallery() {
+  const grid = $("#contact-gallery-grid");
+  if (!grid) return;
+  grid.addEventListener("click", async (ev) => {
+    const btn = ev.target.closest(".contact-gallery-item");
+    if (!btn) return;
+    const msgId = btn.dataset.msgId;
+    const url = await getFileBlobUrl(msgId);
+    if (url) window.open(url, "_blank");
+  });
 }
 function wireContactCard() {
   const msgBtn = $("#contact-msg-btn");
@@ -2343,11 +2875,24 @@ function wireContactCard() {
     const id = state.contactCardId; if (!id) return;
     setDisappearingTimer(id, parseInt(e.target.value, 10) || 0);
   });
+  const soundSel = $("#contact-sound-select");
+  if (soundSel) soundSel.addEventListener("change", (e) => {
+    const c = state.contacts.get(state.contactCardId); if (!c) return;
+    const v = e.target.value;
+    if (v) c.notificationSound = v; else delete c.notificationSound; // "" = убрать override, снова использовать общий дефолт
+    persistContacts();
+  });
   const mute = $("#contact-mute-btn");
   if (mute) mute.addEventListener("click", () => {
     const c = state.contacts.get(state.contactCardId); if (!c) return;
     c.muted = !c.muted; persistContacts(); renderContactCard();
     toast(c.muted ? T("toast.muted") : T("toast.unmuted"));
+  });
+  const pinBtn = $("#contact-pin-btn");
+  if (pinBtn) pinBtn.addEventListener("click", () => {
+    const c = state.contacts.get(state.contactCardId); if (!c) return;
+    c.pinned = !c.pinned; persistContacts(); renderContactCard();
+    try { renderChatsList(); } catch (e) {}
   });
   const archive = $("#contact-archive-btn");
   if (archive) archive.addEventListener("click", () => {
@@ -2470,7 +3015,35 @@ function renderChatThreadInner() {
   const typing = !isGroup(c) && state.typingTimers.has(c.id);
   if (statusEl) {
     if (isGroup(c)) { statusEl.textContent = T("group.memberCount", { n: c.members.length }); statusEl.classList.remove("typing"); }
-    else { statusEl.textContent = typing ? T("chat.typing") : contactStatusLabel(c); statusEl.classList.toggle("typing", typing); }
+    else if (typing) {
+      statusEl.innerHTML = `<span class="typing-dots" aria-label="${escapeHtml(T("chat.typing"))}"><span></span><span></span><span></span></span>`;
+      statusEl.classList.add("typing");
+    } else {
+      statusEl.textContent = contactStatusLabel(c);
+      statusEl.classList.remove("typing");
+    }
+  }
+  const retryAllBtn = $("#chat-retry-all-btn");
+  if (retryAllBtn) retryAllBtn.classList.toggle("hidden", !c.messages.some((m) => m.from === "me" && m.ack === "failed"));
+  updateMultiSelectBanner();
+  const pinnedBanner = $("#pinned-msg-banner");
+  if (pinnedBanner) {
+    const pinnedMsg = c.pinnedMessageId ? c.messages.find((m) => m.id === c.pinnedMessageId) : null;
+    pinnedBanner.classList.toggle("hidden", !pinnedMsg);
+    if (pinnedMsg) {
+      const textEl = $("#pinned-msg-text");
+      if (textEl) textEl.textContent = pinnedMsg.file ? T("chat.file.preview." + pinnedMsg.file.kind) : truncate(pinnedMsg.text || "", 60);
+    } else if (c.pinnedMessageId) {
+      // Сообщение удалено — чистим висячую ссылку. Раньше это не
+      // сохранялось через persistContacts(): после перезагрузки страницы
+      // c.pinnedMessageId читался из storage снова ненулевым и каждый
+      // renderChatThreadInner заново его обнулял — чисто косметическая
+      // гонка, но лишняя работа и теоретически мигающий баннер на долю
+      // кадра до следующего рендера. Персистим один раз, когда реально
+      // меняем значение (не на каждый рендер, когда оно уже null).
+      c.pinnedMessageId = null;
+      persistContacts();
+    }
   }
   const canCall = !isGroup(c) && (isReachable(c) || (c.managed && c.online));
   const ccb = $("#chat-call-btn");
@@ -2483,7 +3056,7 @@ function renderChatThreadInner() {
   // updateSendVsMic() (там же учитывается видимость от текста в поле —
   // два независимых переключателя одного и того же .hidden конфликтовали бы).
   const attachBtn = $("#chat-attach-btn"); if (attachBtn) attachBtn.classList.toggle("hidden", isGroup(c));
-  const cameraBtn = $("#chat-camera-btn"); if (cameraBtn) cameraBtn.classList.toggle("hidden", isGroup(c) || !__cameraAvailable);
+  const cameraBtn = $("#chat-camera-btn"); if (cameraBtn) cameraBtn.classList.toggle("hidden", isGroup(c));
 
   const badge = $("#chat-transport-badge");
   const link = (mesh && !isGroup(c)) ? mesh.get(c.id) : null;
@@ -2586,10 +3159,13 @@ function renderChatThreadInner() {
     const dayStr = formatDayGroup(m.ts);
     if (dayStr && dayStr !== lastDay) {
       const sep = document.createElement("div");
-      sep.className = "date-sep";
+      sep.className = "date-sep date-sep-clickable";
       const inner = document.createElement("span");
       inner.textContent = dayStr;
       sep.appendChild(inner);
+      // P2 — тап по разделителю даты открывает пикер даты, чтобы
+      // прыгнуть в произвольный день переписки (а не просто подпись).
+      sep.addEventListener("click", () => openJumpToDateSheet(state.chatId));
       frag.appendChild(sep);
       lastDay = dayStr;
       prevMsg = null; // новый день — тоже новая группа
@@ -2599,16 +3175,23 @@ function renderChatThreadInner() {
     // "реплика", а не череда отдельных сообщений.
     const grouped = !!(prevMsg && prevMsg.from === m.from && (m.from !== "them" || !isGroup(c) || prevMsg.fromId === m.fromId) && m.ts - prevMsg.ts < 5 * 60 * 1000);
     const bubble = document.createElement("div");
-    bubble.className = "bubble-row " + (m.from === "me" ? "mine" : "theirs") + (grouped ? " grouped" : "") + freshnessClass;
+    const msIsOn = !!state.multiSelect;
+    const msSelected = msIsOn && state.multiSelect.has(m.id);
+    bubble.className = "bubble-row " + (m.from === "me" ? "mine" : "theirs") + (grouped ? " grouped" : "") + freshnessClass + (msIsOn ? " multiselect-active" : "") + (msSelected ? " multiselect-selected" : "");
+    if (msIsOn) {
+      const check = document.createElement("div");
+      check.className = "multiselect-checkbox" + (msSelected ? " checked" : "");
+      bubble.appendChild(check);
+    }
     const tick = m.from === "me" ? ackGlyph(m.ack) : "";
     const editedMark = m.edited ? `<span class="bubble-edited">${escapeHtml(T("chat.edit"))}</span>` : "";
-    const ttlMark = m.ttl ? `<span class="bubble-ttl" title="${escapeHtml(disappearingTimerLabel(m.ttl))}">⏳</span>` : "";
+    const ttlMark = m.ttl ? `<span class="bubble-ttl" title="${escapeHtml(disappearingTimerLabel(m.ttl))}"><svg viewBox="0 0 24 24" width="12" height="12"><path fill="currentColor" d="M6 2h12v2l-4.5 5L18 14v2H6v-2l4.5-5L6 4V2zm2.2 2L11 7.5h2L15.8 4H8.2zM11 13.5 8.2 17h7.6L13 13.5h-2z"/></svg></span>` : "";
     const inner = document.createElement("div");
     // Класс glass-content убран с чужих пузырей: новый дизайн — матовый
     // фон --bg-2 + тонкий border (см. styles.css). Стекло на десятках
     // пузырей одновременно и перегружало визуально, и нагружало
     // композитинг (20+ blur-слоёв).
-    inner.className = "bubble";
+    inner.className = "bubble" + (m.mentionMe ? " bubble-mentioned" : "");
     inner.setAttribute("data-msg-id", m.id); // для прокрутки к оригиналу по тапу на цитате ответа
     const body = m.file ? fileBubbleHtml(m.id, m.file) : (m.contactCard ? contactCardBubbleHtml(m.contactCard) : linkifyAndHighlight(m.text, q));
     const senderLabel = (isGroup(c) && m.from === "them" && m.fromId && (!prevMsg || prevMsg.fromId !== m.fromId || prevMsg.from !== "them"))
@@ -2654,7 +3237,7 @@ if (m.replyTo) {
       lpStartX = x; lpStartY = y;
       clearTimeout(longPressTimer);
       longPressTimer = setTimeout(() => {
-        if (!longPressMoved) {
+        if (!longPressMoved && !state.multiSelect) {
           longPressFired = true;
           try { if (navigator.vibrate) navigator.vibrate(15); } catch (e) {}
           openMessageSheet(m.id, c.id);
@@ -2676,6 +3259,7 @@ if (m.replyTo) {
 
     inner.addEventListener("click", (ev) => {
       if (longPressFired) { longPressFired = false; return; } // меню уже открыто долгим нажатием — не открываем ещё и обычное действие следом
+      if (state.multiSelect) { ev.stopPropagation(); toggleMultiSelectMsg(m.id); return; }
       const addBtn = ev.target.closest(".contact-card-add-btn");
       if (addBtn) {
         ev.stopPropagation();
@@ -2761,7 +3345,14 @@ if (m.replyTo) {
   // Сохраняем набор отрендеренных id — при следующем рендере только
   // сообщения, которых тут не было, получат анимацию появления.
   __prevRenderedMsgIds = nextMsgIds;
-  urlsToFetch.forEach((u) => renderLinkPreviewInto(u));
+  // Лениво: не фетчим всё сразу (см. observeLinkPreviewSlot) — наблюдаем
+  // только реально созданные в этом рендере слоты, а не вызываем
+  // renderLinkPreviewInto(u) для каждого url из urlsToFetch напрямую.
+  if (urlsToFetch.size > 0) {
+    wrap.querySelectorAll('.link-preview-slot[data-preview-for]').forEach((slot) => {
+      if (urlsToFetch.has(slot.getAttribute("data-preview-for"))) observeLinkPreviewSlot(slot);
+    });
+  }
   hydrateFileSlots(wrap);
   // Hydrate асинхронно подгружает картинки/видео из IDB и заметно
   // увеличивает высоту контента. Если пользователь был у низа — дожимаем
@@ -2837,7 +3428,8 @@ function closeOpenChatRow() {
     __openChatRowWrapper = null;
   }
 }
-const CHAT_ROW_REVEAL_PX = 84;
+const CHAT_ROW_REVEAL_PX = 84; // одна кнопка (архив, слева)
+const CHAT_ROW_REVEAL_END_PX = 168; // две кнопки (pin + удалить, справа)
 function attachChatRowSwipe(wrapper, row, c) {
   let startX = 0, startY = 0, dragging = false, currentX = 0;
   const isRtl = document.documentElement.dir === "rtl";
@@ -2848,11 +3440,13 @@ function attachChatRowSwipe(wrapper, row, c) {
   // сломанным ни в LTR, ни в RTL. RTL влияет ТОЛЬКО на то, какую панель
   // означает положительный/отрицательный сдвиг — это решается один раз,
   // в момент отпускания, а не размазано по вычислению координат.
+  // Панели асимметричны (start — 1 кнопка, end — 2 кнопки: pin+delete),
+  // поэтому дистанция "полного открытия" разная для каждой стороны.
   row.addEventListener("touchstart", (e) => {
     startX = e.touches[0].clientX; startY = e.touches[0].clientY;
     dragging = false;
     if (__openChatRowWrapper && __openChatRowWrapper !== wrapper) closeOpenChatRow();
-    currentX = wrapper.classList.contains("swiped-start") ? CHAT_ROW_REVEAL_PX : wrapper.classList.contains("swiped-end") ? -CHAT_ROW_REVEAL_PX : 0;
+    currentX = wrapper.classList.contains("swiped-start") ? CHAT_ROW_REVEAL_PX : wrapper.classList.contains("swiped-end") ? -CHAT_ROW_REVEAL_END_PX : 0;
     row.style.transition = "none";
   }, { passive: true });
   row.addEventListener("touchmove", (e) => {
@@ -2860,7 +3454,7 @@ function attachChatRowSwipe(wrapper, row, c) {
     const dy = Math.abs(e.touches[0].clientY - startY);
     if (!dragging && Math.abs(rawDx - currentX) > 10 && Math.abs(rawDx - currentX) > dy) dragging = true;
     if (!dragging) return;
-    const dx = Math.max(-CHAT_ROW_REVEAL_PX * 1.3, Math.min(CHAT_ROW_REVEAL_PX * 1.3, rawDx));
+    const dx = Math.max(-CHAT_ROW_REVEAL_END_PX * 1.3, Math.min(CHAT_ROW_REVEAL_PX * 1.3, rawDx));
     row.style.transform = `translateX(${dx}px)`;
   }, { passive: true });
   row.addEventListener("touchend", () => {
@@ -2871,7 +3465,7 @@ function attachChatRowSwipe(wrapper, row, c) {
     // Положительный сдвиг открывает панель, которая физически СЛЕВА —
     // это "start" в LTR, но "end" в RTL (см. комментарий выше).
     const wantsPhysicalLeftPanel = dx > CHAT_ROW_REVEAL_PX / 2;
-    const wantsPhysicalRightPanel = dx < -CHAT_ROW_REVEAL_PX / 2;
+    const wantsPhysicalRightPanel = dx < -CHAT_ROW_REVEAL_END_PX / 2;
     const opensStart = isRtl ? wantsPhysicalRightPanel : wantsPhysicalLeftPanel;
     const opensEnd = isRtl ? wantsPhysicalLeftPanel : wantsPhysicalRightPanel;
     if (opensStart) {
@@ -2880,7 +3474,7 @@ function attachChatRowSwipe(wrapper, row, c) {
       __openChatRowWrapper = wrapper;
       haptic("light");
     } else if (opensEnd) {
-      row.style.transform = `translateX(${-CHAT_ROW_REVEAL_PX}px)`;
+      row.style.transform = `translateX(${-CHAT_ROW_REVEAL_END_PX}px)`;
       wrapper.classList.add("swiped-end"); wrapper.classList.remove("swiped-start");
       __openChatRowWrapper = wrapper;
       haptic("light");
@@ -2902,6 +3496,10 @@ function attachChatRowSwipe(wrapper, row, c) {
   wrapper.querySelector(".chat-row-action-archive").addEventListener("click", () => {
     closeOpenChatRow();
     c.archived = !c.archived; persistContacts(); haptic("light"); renderChatsList();
+  });
+  wrapper.querySelector(".chat-row-action-pin").addEventListener("click", () => {
+    closeOpenChatRow();
+    c.pinned = !c.pinned; persistContacts(); haptic("light"); renderChatsList();
   });
   wrapper.querySelector(".chat-row-action-delete").addEventListener("click", () => {
     if (!confirm(T("toast.confirmDeleteContact", { name: c.name }))) { closeOpenChatRow(); return; }
@@ -2962,6 +3560,7 @@ function updateScrollBottomButton() {
 function markThreadRead(c) {
   const toAck = [];
   for (const m of c.messages) if (m.from === "them" && !m.readAckSent) { m.readAckSent = true; toAck.push(m); }
+  state.mentionedChats.delete(c.id); // весь тред помечен прочитанным выше — упоминания в нём больше не "непрочитанные"
   if (toAck.length === 0) return;
   persistContacts();
   // receiptsEnabled=false — не отправляем read-квитанции вовсе (но
@@ -2994,6 +3593,11 @@ function saveCurrentDraft() {
   const input = $("#chat-input"); if (!input) return;
   const v = input.value.trim();
   if (v) state.drafts[state.chatId] = v; else delete state.drafts[state.chatId];
+  // Выход из чата — пишем ГАРАНТИРОВАННО синхронно (не через
+  // scheduleDraftPersist), иначе на быстром уходе из чата отложенная
+  // запись может не успеть сработать до размонтирования. Отменяем
+  // отложенный вызов, чтобы не писать то же самое дважды.
+  if (__draftPersistTimer) { clearTimeout(__draftPersistTimer); __draftPersistTimer = null; }
   persistDrafts();
 }
 function wireKeyboardFix() {
@@ -3024,6 +3628,7 @@ function wireKeyboardFix() {
 async function sendChatMessage(contactId, text, replyTo) {
   const c = state.contacts.get(contactId); if (!c) return;
   if (c.blocked) { toast(T("toast.blocked")); return; }
+  text = applyEmojiAutoReplace(text);
   if (text.length > MAX_MESSAGE_LENGTH) { text = text.slice(0, MAX_MESSAGE_LENGTH); toast(T("toast.messageCut")); }
   const msgId = crypto.randomUUID();
   const ts = Date.now();
@@ -3050,7 +3655,7 @@ function trimMessages(c) { if (c.messages.length <= MAX_MESSAGES_PER_CHAT) retur
 async function commitEdit(contactId, msgId, newText) {
   const c = state.contacts.get(contactId); if (!c) return;
   const m = c.messages.find((x) => x.id === msgId); if (!m) return;
-  newText = String(newText).slice(0, MAX_MESSAGE_LENGTH);
+  newText = applyEmojiAutoReplace(String(newText)).slice(0, MAX_MESSAGE_LENGTH);
   m.text = newText; m.edited = true; m.ts = Date.now();
   c.lastActivity = m.ts;
   persistContacts();
@@ -3095,7 +3700,7 @@ function contactCardBubbleHtml(card) {
 function addContactFromCard(id, name) {
   if (id === Store.myId) { toast(T("toast.ownId")); return; }
   if (state.contacts.has(id)) { toast(T("toast.alreadyAdded")); renderChatThread(); return; }
-  recentlyDeletedIds.delete(id); // осознанное повторное добавление снимает блокировку из deleteContact
+  if (recentlyDeletedIds.delete(id)) persistRecentlyDeleted(); // осознанное повторное добавление снимает блокировку из deleteContact
   ensureContactEntry(id, name);
   persistContacts();
   toast(T("toast.contactAdded"));
@@ -3271,7 +3876,80 @@ async function compressImageToTarget(file, maxBytes) {
   }
   return null;
 }
-async function sendFileMessage(contactId, file) {
+// Единая точка входа для файлов, выбранных через скрепку ИЛИ системную
+// камеру (P1.11 мультивыбор + P1.12 превью с подписью перед отправкой).
+// Один файл-изображение/видео — превью-шит с полем подписи. Несколько
+// файлов сразу, или один файл другого типа — отправляются как раньше,
+// без промежуточного экрана (для документов подпись не так полезна,
+// а шит на 10 файлов подряд был бы утомителен).
+let __pendingComposeFile = null;
+function handlePickedFiles(files) {
+  if (!files.length || !state.chatId) return;
+  if (files.length === 1) {
+    const kind = fileKindFromMime(files[0].type);
+    if (kind === "image" || kind === "video") { openMediaComposeSheet(files[0]); return; }
+    sendFileMessage(state.chatId, files[0]);
+    return;
+  }
+  // Несколько файлов — та же логика, что для одного, но без тостов на
+  // каждый (sendFileMessage(..., {silent:true})), иначе 10 файлов дают
+  // 10 "Connecting…" тостов подряд.
+  const contactId = state.chatId;
+  (async () => {
+    for (const f of files) { try { await sendFileMessage(contactId, f, { silent: true }); } catch (e) {} }
+  })();
+}
+function openMediaComposeSheet(file) {
+  __pendingComposeFile = file;
+  const preview = $("#media-compose-preview");
+  const captionInput = $("#media-compose-caption");
+  if (captionInput) captionInput.value = "";
+  if (preview) {
+    preview.innerHTML = "";
+    const url = URL.createObjectURL(file);
+    const isVideo = fileKindFromMime(file.type) === "video";
+    const el = document.createElement(isVideo ? "video" : "img");
+    el.src = url;
+    if (isVideo) { el.controls = true; el.playsInline = true; } else { el.alt = ""; }
+    // Шит может быть закрыт без отправки (Cancel/backdrop) — освобождаем
+    // object URL при следующем открытии, а не копим их бесконечно.
+    preview.dataset.objectUrl = url;
+    preview.appendChild(el);
+  }
+  const sheet = $("#media-compose-sheet"); if (sheet) sheet.classList.remove("hidden");
+  setTimeout(() => { if (captionInput) captionInput.focus(); }, 50);
+}
+function closeMediaComposeSheet() {
+  const preview = $("#media-compose-preview");
+  if (preview && preview.dataset.objectUrl) { try { URL.revokeObjectURL(preview.dataset.objectUrl); } catch (e) {} delete preview.dataset.objectUrl; }
+  __pendingComposeFile = null;
+  const sheet = $("#media-compose-sheet"); if (sheet) sheet.classList.add("hidden");
+}
+function wireMediaComposeSheet() {
+  const sendBtn = $("#media-compose-send");
+  if (sendBtn) sendBtn.addEventListener("click", () => {
+    const file = __pendingComposeFile;
+    const contactId = state.chatId;
+    const captionInput = $("#media-compose-caption");
+    const caption = captionInput ? captionInput.value.trim() : "";
+    closeMediaComposeSheet();
+    if (file && contactId) sendFileMessage(contactId, file, { caption });
+  });
+  const sheet = $("#media-compose-sheet");
+  if (sheet) {
+    // Доп. к общему wireSheetBackdrops (который просто прячет шторку) —
+    // освобождаем object URL превью, иначе он утекает до следующего
+    // открытия шита.
+    const backdrop = sheet.querySelector(".sheet-backdrop");
+    if (backdrop) backdrop.addEventListener("click", closeMediaComposeSheet);
+    const cancelBtn = sheet.querySelector(".sheet-cancel");
+    if (cancelBtn) cancelBtn.addEventListener("click", closeMediaComposeSheet);
+  }
+}
+async function sendFileMessage(contactId, file, opts) {
+  opts = opts || {};
+  const caption = typeof opts.caption === "string" ? opts.caption.trim().slice(0, 200) : "";
+  const silent = !!opts.silent; // при массовой отправке (P1.11) не плодим тост на каждый файл
   const c = state.contacts.get(contactId); if (!c) return;
   if (isGroup(c)) { toast(T("toast.fileGroupsUnsupported")); return; }
   if (c.blocked) { toast(T("toast.blocked")); return; }
@@ -3300,7 +3978,7 @@ async function sendFileMessage(contactId, file) {
   }
   const existingLink = mesh.get(contactId);
   const alreadyLive = existingLink && (existingLink.status === "connected" || existingLink.status === "in-call");
-  if (!alreadyLive) toast(T("toast.connecting"));
+  if (!alreadyLive && !silent) toast(T("toast.connecting"));
   const link = alreadyLive ? existingLink : await ensureLiveLink(contactId, 8000);
   if (!link) {
     // Раньше тут просто отказывали — теперь, поскольку file гарантированно
@@ -3308,7 +3986,7 @@ async function sendFileMessage(contactId, file) {
     // MAX_PAYLOAD в 8МБ даже с учётом base64), шлём через тот же
     // зашифрованный почтовый ящик сервера, что и текст (sendFileOffline
     // ниже), вместо жёсткого отказа.
-    await sendFileOffline(contactId, file);
+    await sendFileOffline(contactId, file, { caption });
     return;
   }
 
@@ -3316,8 +3994,9 @@ async function sendFileMessage(contactId, file) {
   const ts = Date.now();
   const rec = {
     id: msgId, from: "me", text: "", ts, ack: "sent", serverAcked: false,
-    file: { name: file.name, mime: file.type || "application/octet-stream", size: file.size, kind: fileKindFromMime(file.type), pending: true },
+    file: { name: file.name, mime: file.type || "application/octet-stream", size: file.size, kind: fileKindFromMime(file.type), pending: true, progress: 0 },
   };
+  if (caption) rec.file.caption = caption;
   c.messages.push(rec); trimMessages(c); c.lastActivity = ts; persistContacts();
   if (state.chatId === contactId) { renderChatThreadInner(); const wrap = $("#chat-messages"); if (wrap) wrap.scrollTop = wrap.scrollHeight; }
   if (state.tab === "chats") renderChatsList();
@@ -3332,7 +4011,11 @@ async function sendFileMessage(contactId, file) {
   for (let offset = 0; offset < buffer.byteLength; offset += FILE_CHUNK_SIZE) {
     chunks.push(arrayBufferToBase64(buffer.slice(offset, offset + FILE_CHUNK_SIZE)));
   }
-  const ok = await link.sendFile({ id: msgId, name: file.name, mime: rec.file.mime, size: file.size }, chunks);
+  const ok = await link.sendFile({ id: msgId, name: file.name, mime: rec.file.mime, size: file.size, caption: caption || undefined }, chunks, (done, total) => {
+    rec.file.progress = total > 0 ? done / total : 0;
+    const el = document.querySelector(`.file-bubble[data-msg-id="${CSS.escape(msgId)}"] .file-progress-fill`);
+    if (el) el.style.width = (rec.file.progress * 100).toFixed(1) + "%";
+  });
   rec.file.pending = false;
   rec.ack = ok ? "sent" : "failed";
   persistContacts();
@@ -3348,7 +4031,9 @@ async function sendFileMessage(contactId, file) {
 // ровно тот же trySendOrQueue/почтовый ящик, что и текстовые сообщения
 // — сервер не видит содержимого файла, только зашифрованный envelope,
 // как и для текста.
-async function sendFileOffline(contactId, file) {
+async function sendFileOffline(contactId, file, opts) {
+  opts = opts || {};
+  const caption = typeof opts.caption === "string" ? opts.caption.trim().slice(0, 200) : "";
   const c = state.contacts.get(contactId); if (!c) return;
   const msgId = crypto.randomUUID();
   const ts = Date.now();
@@ -3356,6 +4041,7 @@ async function sendFileOffline(contactId, file) {
     id: msgId, from: "me", text: "", ts, ack: "sent", serverAcked: false,
     file: { name: file.name, mime: file.type || "application/octet-stream", size: file.size, kind: fileKindFromMime(file.type), pending: true },
   };
+  if (caption) rec.file.caption = caption;
   c.messages.push(rec); trimMessages(c); c.lastActivity = ts; persistContacts();
   if (state.chatId === contactId) { renderChatThreadInner(); const wrap = $("#chat-messages"); if (wrap) wrap.scrollTop = wrap.scrollHeight; }
   if (state.tab === "chats") renderChatsList();
@@ -3366,6 +4052,7 @@ async function sendFileOffline(contactId, file) {
   try { await IDB.set("file:" + msgId, new Blob([buffer], { type: rec.file.mime })); } catch (e) {}
 
   const payload = { kind: "file", id: msgId, name: file.name, mime: rec.file.mime, size: file.size, dataB64: arrayBufferToBase64(buffer) };
+  if (caption) payload.caption = caption;
   await trySendOrQueue(c, msgId, payload);
   rec.file.pending = false;
   persistContacts();
@@ -3520,12 +4207,23 @@ function stopVoiceRecording(send) {
   if (!voiceRecorder) return;
   const recorder = voiceRecorder;
   const mimeType = recorder.mimeType || "audio/webm";
+  // Снимки локально, ДО того, как снимем voiceRecorder — recorder.stop()
+  // асинхронный ("stop" может сработать через 50-300мс), и если
+  // пользователь успеет нажать "Записать" снова до этого момента,
+  // startVoiceRecording() (её guard смотрит только на voiceRecorder,
+  // который мы уже обнулили) перезапишет voiceRecordStream и
+  // voiceRecordChunks живыми данными НОВОЙ записи. Без снимков этот
+  // обработчик "stop" остановил бы поток новой записи и отправил бы
+  // чанки новой записи под длительностью старой.
+  const streamSnapshot = voiceRecordStream;
+  const chunksSnapshot = voiceRecordChunks;
   voiceRecorder = null;
+  voiceRecordStream = null;
+  voiceRecordChunks = [];
   recorder.addEventListener("stop", () => {
-    if (voiceRecordStream) { voiceRecordStream.getTracks().forEach((t) => t.stop()); voiceRecordStream = null; }
-    if (!send || durationSec < 0.6) { voiceRecordChunks = []; return; } // случайное короткое нажатие — не отправляем пустышку
-    const blob = new Blob(voiceRecordChunks, { type: mimeType });
-    voiceRecordChunks = [];
+    if (streamSnapshot) streamSnapshot.getTracks().forEach((t) => t.stop());
+    if (!send || durationSec < 0.6) return; // случайное короткое нажатие — не отправляем пустышку
+    const blob = new Blob(chunksSnapshot, { type: mimeType });
     if (contactId) sendVoiceMessage(contactId, blob, durationSec);
   });
   try { recorder.stop(); } catch (e) {}
@@ -3565,6 +4263,7 @@ function handleFilePayload(from, payload) {
     const rec = { id: payload.id, from: "them", text: "", ts: Date.now(), readAckSent: false,
       file: { name: payload.name, mime: payload.mime, size: payload.size, kind: fileKindFromMime(payload.mime), duration: payload.duration || 0, pending: true } };
     if (payload.forwarded) rec.forwarded = true;
+    if (typeof payload.caption === "string" && payload.caption) rec.file.caption = payload.caption.slice(0, 200);
     c.messages.push(rec); trimMessages(c); c.lastActivity = Date.now(); persistContacts();
     if (isOpen) renderChatThread();
     if (state.tab === "chats") renderChatsList();
@@ -3616,12 +4315,12 @@ async function finishIncomingFile(msgId, buf, from) {
     rec.file.pending = false;
     persistContacts();
     const isOpen = state.chatId === from;
-    if (isOpen) { renderChatThread(); playMessageSound(); vibrate([80, 40, 80]); }
+    if (isOpen) { renderChatThread(); playMessageSound(from); vibrate([80, 40, 80]); }
     else {
       const label = T("chat.file.preview." + rec.file.kind);
       toast(`${c.name}: ${label}`);
       if (!c.muted) showNotification(c.name || T("app.name"), label, { tag: "ether-msg-" + c.id, contactId: c.id, kind: "message" });
-      playMessageSound();
+      playMessageSound(from);
       vibrate([80, 40, 80]);
     }
     if (state.tab === "chats") renderChatsList();
@@ -3718,27 +4417,35 @@ async function getFileBlobUrl(msgId) {
 }
 function fileBubbleHtml(msgId, fileInfo) {
   if (fileInfo.pending) {
-    // Добавили бегущую полоску внизу — визуально честнее, чем просто
-    // крутящийся спиннер: пользователь понимает, что передача идёт,
-    // а не «зависла». Полоска — CSS-анимация без процентов, потому что
-    // мы не имеем точного прогресса (sendFile гоняет чанки через
-    // bufferedAmount, но не отдаёт callback с процентами).
-    return `<div class="file-bubble file-bubble-pending"><div class="file-spinner"></div><span>${escapeHtml(T("chat.file.sending"))}</span><div class="file-progress-indeterminate"></div></div>`;
+    // Если известен точный прогресс (живая P2P-передача даёт его через
+    // onProgress в sendFile) — показываем честный процент. Если нет
+    // (офлайн-путь через почтовый ящик сервера, где файл уходит одним
+    // payload без чанкования) — бегущая полоска без цифр, чтобы не
+    // врать нулём или вечными 0%.
+    const bar = typeof fileInfo.progress === "number"
+      ? `<div class="file-progress"><div class="file-progress-fill" style="width:${(fileInfo.progress * 100).toFixed(1)}%"></div></div>`
+      : `<div class="file-progress-indeterminate"></div>`;
+    return `<div class="file-bubble file-bubble-pending" data-msg-id="${escapeHtml(msgId)}"><div class="file-spinner"></div><span>${escapeHtml(T("chat.file.sending"))}</span>${bar}</div>`;
   }
   if (fileInfo.failed) {
     return `<div class="file-bubble file-bubble-failed"><svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 2 1 21h22L12 2zm0 6 6.5 11h-13L12 8zm-1 2.5v4h2v-4h-2zm0 5.5v2h2v-2h-2z"/></svg> <span>${escapeHtml(T("chat.file.failed"))}</span></div>`;
   }
   const sizeStr = formatFileSize(fileInfo.size);
+  // Подпись (P1.12) — под медиа-слотом, отдельной строкой. Применима к
+  // фото/видео (где и есть кнопка "Превью с подписью" при отправке);
+  // для голосовых/документов caption в UI пока не предлагается, но
+  // если пришла (например, от будущей версии клиента) — тоже покажем.
+  const captionHtml = fileInfo.caption ? `<div class="file-caption">${escapeHtml(fileInfo.caption)}</div>` : "";
   if (fileInfo.kind === "image") {
-    return `<div class="file-media-slot" data-file-id="${escapeHtml(msgId)}" data-file-kind="image"><div class="file-media-loading">${escapeHtml(T("chat.file.loading"))}</div></div>`;
+    return `<div class="file-media-wrap"><div class="file-media-slot" data-file-id="${escapeHtml(msgId)}" data-file-kind="image"><div class="file-media-loading">${escapeHtml(T("chat.file.loading"))}</div></div>${captionHtml}</div>`;
   }
   if (fileInfo.kind === "video") {
-    return `<div class="file-media-slot" data-file-id="${escapeHtml(msgId)}" data-file-kind="video"><div class="file-media-loading">${escapeHtml(T("chat.file.loading"))}</div></div>`;
+    return `<div class="file-media-wrap"><div class="file-media-slot" data-file-id="${escapeHtml(msgId)}" data-file-kind="video"><div class="file-media-loading">${escapeHtml(T("chat.file.loading"))}</div></div>${captionHtml}</div>`;
   }
   if (fileInfo.kind === "audio") {
     const durLabel = fileInfo.duration ? formatVoiceDuration(fileInfo.duration) : "";
     return `<div class="voice-bubble" data-file-id="${escapeHtml(msgId)}" data-file-kind="audio" data-duration="${fileInfo.duration || 0}">
-      <button type="button" class="voice-play-btn" disabled>▶</button>
+      <button type="button" class="voice-play-btn" disabled>${VOICE_PLAY_ICON_SVG}</button>
       <div class="voice-progress"><div class="voice-progress-fill"></div></div>
       <span class="voice-duration">${escapeHtml(durLabel)}</span>
     </div>`;
@@ -3749,10 +4456,18 @@ function fileBubbleHtml(msgId, fileInfo) {
   </a>`;
 }
 function formatVoiceDuration(sec) {
-  sec = Math.max(0, Math.round(sec));
+  // floor, не round: 59.6с реально длится 59.6с — round дал бы "1:00",
+  // хотя запись ещё не дотянула до минуты. Для таймера записи и длины
+  // готового голосового это обманывает пользователя в большую сторону.
+  sec = Math.max(0, Math.floor(sec));
   const m = Math.floor(sec / 60), s = sec % 60;
   return m + ":" + String(s).padStart(2, "0");
 }
+// Единая иконография — play/pause голосового сообщения раньше были
+// текстовыми символами ▶/⏸ (textContent), теперь те же SVG, что и
+// везде в приложении (viewBox 24×24, currentColor).
+const VOICE_PLAY_ICON_SVG = '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>';
+const VOICE_PAUSE_ICON_SVG = '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>';
 const voiceAudioCache = new Map(); // msgId -> { audio, playing } — переиспользуем между рендерами
 // Раньше при уходе из чата (в список чатов или в другой чат) голосовое,
 // если оно играло, продолжало звучать в фоне — кнопки для остановки
@@ -3761,7 +4476,7 @@ function pauseAllVoicePlayback() {
   for (const entry of voiceAudioCache.values()) {
     if (entry.playing) { entry.audio.pause(); entry.playing = false; }
   }
-  document.querySelectorAll(".voice-play-btn").forEach((b) => { b.textContent = "▶"; });
+  document.querySelectorAll(".voice-play-btn").forEach((b) => { b.innerHTML = VOICE_PLAY_ICON_SVG; });
 }
 function hydrateFileSlots(root) {
   root.querySelectorAll(".file-media-slot[data-file-id], .file-bubble-doc[data-file-id]").forEach((el) => {
@@ -3827,7 +4542,7 @@ function hydrateFileSlots(root) {
       }
       const audio = entry.audio;
       playBtn.disabled = false;
-      playBtn.textContent = entry.playing ? "⏸" : "▶";
+      playBtn.innerHTML = entry.playing ? VOICE_PAUSE_ICON_SVG : VOICE_PLAY_ICON_SVG;
       // ontimeupdate/onended — присвоение свойства, а не addEventListener:
       // корректно ЗАМЕНЯЕТ предыдущий обработчик (указывавший на элементы
       // прошлого рендера) вместо накопления дублей при каждом ре-рендере.
@@ -3837,7 +4552,7 @@ function hydrateFileSlots(root) {
         if (durEl) durEl.textContent = formatVoiceDuration(dur - audio.currentTime);
       };
       audio.onended = () => {
-        entry.playing = false; playBtn.textContent = "▶";
+        entry.playing = false; playBtn.innerHTML = VOICE_PLAY_ICON_SVG;
         if (fill) fill.style.width = "0%";
         if (durEl) durEl.textContent = formatVoiceDuration(knownDuration || audio.duration || 0);
       };
@@ -3850,8 +4565,8 @@ function hydrateFileSlots(root) {
         for (const [otherId, other] of voiceAudioCache) {
           if (otherId !== msgId && other.playing) { other.audio.pause(); other.playing = false; }
         }
-        if (entry.playing) { audio.pause(); entry.playing = false; playBtn.textContent = "▶"; }
-        else { audio.play().catch(() => {}); entry.playing = true; playBtn.textContent = "⏸"; }
+        if (entry.playing) { audio.pause(); entry.playing = false; playBtn.innerHTML = VOICE_PLAY_ICON_SVG; }
+        else { audio.play().catch(() => {}); entry.playing = true; playBtn.innerHTML = VOICE_PAUSE_ICON_SVG; }
       };
     });
   });
@@ -3909,7 +4624,39 @@ const MAX_GROUP_MEMBERS = 10;
 
 function isGroup(c) { return !!(c && c.isGroup); }
 
-function createGroup(name, memberIds) {
+// Роли в группе: создатель группы (g.createdBy) всегда админ, даже если
+// запись об этом потерялась при синхронизации — остальные становятся
+// админами только явно (m.role === "admin"), назначаются другим админом.
+function isGroupAdmin(g, userId) {
+  if (!g || !userId) return false;
+  if (g.createdBy === userId) return true;
+  const m = g.members.find((x) => x.id === userId);
+  return !!(m && m.role === "admin");
+}
+function setGroupMemberRole(groupId, memberId, role) {
+  const g = state.contacts.get(groupId); if (!g || !g.isGroup) return;
+  if (!isGroupAdmin(g, Store.myId)) { toast(T("toast.groupAdminOnly")); return; }
+  const m = g.members.find((x) => x.id === memberId); if (!m) return;
+  m.role = role;
+  g.messages.push({ id: crypto.randomUUID(), from: "system", text: T(role === "admin" ? "group.systemPromoted" : "group.systemDemoted", { name: m.name }), textKey: role === "admin" ? "group.systemPromoted" : "group.systemDemoted", textParams: { name: m.name }, ts: Date.now() });
+  trimMessages(g);
+  persistContacts();
+  broadcastGroupRoster(g);
+  if (state.chatId === groupId) renderChatThread();
+}
+
+// @упоминания в группах: ищем "@" + имя как отдельное слово, без учёта
+// регистра. Простая, но достаточная эвристика — полноценный токенайзер
+// избыточен для мессенджера на 10 участников.
+function isMentioned(text, name) {
+  if (!text || !name) return false;
+  const escaped = String(name).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  if (!escaped) return false;
+  const re = new RegExp("@" + escaped + "(?![\\wа-яА-ЯёЁ])", "iu");
+  return re.test(text);
+}
+
+function createGroup(name, memberIds, avatar) {
   if (memberIds.length + 1 > MAX_GROUP_MEMBERS) { toast(T("toast.groupTooBig", { max: MAX_GROUP_MEMBERS })); return null; }
   if (memberIds.length === 0) { toast(T("toast.groupNeedsMembers")); return null; }
   const groupId = crypto.randomUUID();
@@ -3917,12 +4664,13 @@ function createGroup(name, memberIds) {
     const c = state.contacts.get(id);
     return { id, name: (c && c.name) || T("sys.someone") };
   });
-  members.push({ id: Store.myId, name: Store.name || T("sys.someone") });
+  members.push({ id: Store.myId, name: Store.name || T("sys.someone"), role: "admin" });
   const g = {
     id: groupId, isGroup: true, name: (name || "").trim() || T("group.defaultName"),
     members, messages: [], lastActivity: Date.now(), archived: false, muted: false,
     createdBy: Store.myId, managed: true,
   };
+  if (avatar) g.avatar = avatar; // dataURL, уменьшенный до компактного размера на клиенте перед сохранением
   state.contacts.set(groupId, g);
   persistContacts();
   g.messages.push({
@@ -3960,13 +4708,18 @@ function broadcastGroupRoster(g) {
 // НИЧЕГО не пересылало ему ростер заново, пока кто-то не совершит новое
 // действие в группе. Группа просто не появлялась у него снова.
 function sendGroupRosterTo(g, memberId) {
-  const payload = { kind: "group-invite", id: crypto.randomUUID(), groupId: g.id, groupName: g.name, members: g.members };
+  const payload = { kind: "group-invite", id: crypto.randomUUID(), groupId: g.id, groupName: g.name, members: g.members, groupAvatar: g.avatar || undefined };
   etherLog("info", "[group] roster →", String(memberId).slice(0, 8) + "…", "groupId=" + String(g.id).slice(0, 8) + "…", "payload.id=" + String(payload.id).slice(0, 8) + "…");
   const mc = ensureContactEntry(memberId, (g.members.find((m) => m.id === memberId) || {}).name);
   trySendOrQueue(mc, crypto.randomUUID(), payload).catch(() => {});
 }
 async function sendGroupMessage(groupId, text, replyTo) {
   const g = state.contacts.get(groupId); if (!g || !g.isGroup) return;
+  text = applyEmojiAutoReplace(text);
+  // Симметрично sendChatMessage — иначе длинное сообщение, отправленное
+  // программно (retry, вставка через JS), а не через <input maxlength>
+  // обычным набором текста, уходит без обрезки.
+  if (text.length > MAX_MESSAGE_LENGTH) { text = text.slice(0, MAX_MESSAGE_LENGTH); toast(T("toast.messageCut")); }
   const msgId = crypto.randomUUID();
   const ts = Date.now();
   const rec = { id: msgId, from: "me", text, ts, ack: "sent" };
@@ -3976,6 +4729,7 @@ async function sendGroupMessage(groupId, text, replyTo) {
   if (state.chatId === groupId) { renderChatThreadInner(); const wrap = $("#chat-messages"); if (wrap) wrap.scrollTop = wrap.scrollHeight; }
   if (state.tab === "chats") renderChatsList();
   playOutgoingSound();
+  haptic("light"); // симметрично sendChatMessage — раньше в группах не вибрировало при отправке
   const payload = { kind: "chat", id: msgId, text, ts, groupId, senderName: Store.name || T("sys.someone") };
   if (replyTo) payload.replyTo = { id: replyTo.msgId, text: replyTo.text, authorName: replyTo.authorName };
   if (g.disappearingTimer) payload.ttl = g.disappearingTimer;
@@ -3985,11 +4739,21 @@ async function sendGroupMessage(groupId, text, replyTo) {
     // Отдельный id доставки на каждого получателя — outbox в проекте
     // ключуется только по msgId, без адресата; один и тот же msgId на
     // нескольких получателей потерял бы все копии кроме первой.
-    await trySendOrQueue(mc, crypto.randomUUID(), payload);
+    const deliveryId = crypto.randomUUID();
+    // Фиксируем deliveryId -> {groupId, contentId} ДО отправки — ack от
+    // этого получателя (в т.ч. "доставлено"/"прочитано" через много
+    // часов, когда outbox-запись давно удалена по deliver-ack с
+    // сервера) должен находить именно это сообщение в группе. См.
+    // groupDeliveryMap / resolveGroupDelivery.
+    groupDeliveryMap.set(deliveryId, { groupId, contentId: msgId });
+    trimMap(groupDeliveryMap, GROUP_DELIVERY_MAP_LIMIT);
+    persistGroupDeliveryMap();
+    await trySendOrQueue(mc, deliveryId, payload);
   }
 }
 function addGroupMember(groupId, memberId) {
   const g = state.contacts.get(groupId); if (!g || !g.isGroup) return;
+  if (!isGroupAdmin(g, Store.myId)) { toast(T("toast.groupAdminOnly")); return; }
   if (g.members.some((m) => m.id === memberId)) return;
   if (g.members.length >= MAX_GROUP_MEMBERS) { toast(T("toast.groupTooBig", { max: MAX_GROUP_MEMBERS })); return; }
   const c = state.contacts.get(memberId);
@@ -4006,6 +4770,7 @@ function addGroupMember(groupId, memberId) {
 }
 function removeGroupMember(groupId, memberId, leftBySelf) {
   const g = state.contacts.get(groupId); if (!g || !g.isGroup) return;
+  if (!leftBySelf && !isGroupAdmin(g, Store.myId)) { toast(T("toast.groupAdminOnly")); return; }
   const wasIn = g.members.some((m) => m.id === memberId);
   if (!wasIn) return;
   const removedName = (g.members.find((m) => m.id === memberId) || {}).name || T("sys.someone");
@@ -4021,8 +4786,9 @@ function removeGroupMember(groupId, memberId, leftBySelf) {
     delete state.drafts[groupId]; persistDrafts();
     unreadDividerFor.delete(groupId);
     dividerScrolledFor.delete(groupId);
+    state.mentionedChats.delete(groupId); // иначе бейдж @упоминания переживает удаление группы до перезагрузки
     persistContacts();
-    if (state.chatId === groupId) { state.chatId = null; __lastRenderedChatId = null; renderTab(); }
+    if (state.chatId === groupId) { state.chatId = null; __lastRenderedChatId = null; state.multiSelect = null; renderTab(); }
     else if (state.tab === "chats") renderChatsList();
     return;
   }
@@ -4038,8 +4804,38 @@ function removeGroupMember(groupId, memberId, leftBySelf) {
   if (state.chatId === groupId) renderChatThread();
   if (state.tab === "chats") renderChatsList();
 }
+function setGroupAvatar(groupId, dataUrl) {
+  const g = state.contacts.get(groupId); if (!g || !g.isGroup) return;
+  if (!isGroupAdmin(g, Store.myId)) { toast(T("toast.groupAdminOnly")); return; }
+  g.avatar = dataUrl || null;
+  persistContacts();
+  if (state.chatId === groupId) renderChatThreadInner();
+  if (state.tab === "chats") renderChatsList();
+  if (state.contactCardId === groupId) renderContactCard();
+}
+// Сжимаем выбранное фото до маленького квадратного аватара (как иконки
+// контактов) — иначе dataURL из телефона в несколько МБ разбухал бы
+// persistContacts() (localStorage) на каждую группу.
+function readImageAsAvatarDataUrl(file, size = 160) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error);
+    reader.onload = () => { img.onerror = () => reject(new Error("img")); img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      const side = Math.min(img.width, img.height);
+      const sx = (img.width - side) / 2, sy = (img.height - side) / 2;
+      ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+      resolve(canvas.toDataURL("image/jpeg", 0.85));
+    }; img.src = reader.result; };
+    reader.readAsDataURL(file);
+  });
+}
 function renameGroup(groupId, name) {
   const g = state.contacts.get(groupId); if (!g || !g.isGroup) return;
+  if (!isGroupAdmin(g, Store.myId)) { toast(T("toast.groupAdminOnly")); return; }
   name = (name || "").trim(); if (!name || name === g.name) return;
   g.name = name;
   g.messages.push({ id: crypto.randomUUID(), from: "system", text: T("group.systemRenamed", { name }), textKey: "group.systemRenamed", textParams: { name }, ts: Date.now() });
@@ -4098,6 +4894,9 @@ async function forwardMessage(msgId, fromContactId, toContactId) {
       pending: true,
     };
     if (m.file.duration != null) rec.file.duration = m.file.duration;
+    // retryMessage сохраняет caption при повторной отправке — forwardMessage
+    // раньше его терял: подпись к фото/видео пропадала при пересылке.
+    if (m.file.caption) rec.file.caption = m.file.caption;
   }
   // ── Копируем карточку контакта ──
   if (m.contactCard) {
@@ -4146,6 +4945,7 @@ async function forwardMessage(msgId, fromContactId, toContactId) {
         }
         const meta = { id: msgId2, name: m.file.name, mime: m.file.mime, size: m.file.size, forwarded: true };
         if (m.file.duration != null) meta.duration = m.file.duration;
+        if (m.file.caption) meta.caption = m.file.caption;
         const ok = await link.sendFile(meta, chunks);
         rec.file.pending = false;
         rec.ack = ok ? "sent" : "failed";
@@ -4172,6 +4972,7 @@ async function forwardMessage(msgId, fromContactId, toContactId) {
         forwarded: true,
       };
       if (m.file.duration != null) payload.duration = m.file.duration;
+      if (m.file.caption) payload.caption = m.file.caption;
       await trySendOrQueue(to, msgId2, payload);
       rec.file.pending = false;
       persistContacts();
@@ -4245,6 +5046,35 @@ function restoreOutbox() {
   for (const e of arr) if (e && typeof e.msgId === "string" && typeof e.to === "string" && e.payload) {
     outbox.set(e.msgId, { msgId: e.msgId, to: e.to, payload: e.payload, sentAt: e.sentAt || Date.now(), attempts: e.attempts || 0, serverAcked: !!e.serverAcked });
   }
+}
+// См. комментарий у Store.groupDeliveryMapJson и groupDeliveryMap: эта
+// карта — единственный надёжный способ сопоставить deliveryId (ack,
+// пришедший от конкретного получателя группового сообщения, в том
+// числе через много часов после отправки) с самим сообщением в группе,
+// независимо от того, жива ли ещё соответствующая запись в outbox.
+function persistGroupDeliveryMap() {
+  const arr = Array.from(groupDeliveryMap.entries()).map(([deliveryId, v]) => ({ deliveryId, groupId: v.groupId, contentId: v.contentId }));
+  try { Store.groupDeliveryMapJson = JSON.stringify(arr); } catch (e) { handlePersistError(e, "groupDeliveryMap"); }
+}
+function restoreGroupDeliveryMap() {
+  let arr = []; try { arr = JSON.parse(Store.groupDeliveryMapJson) || []; } catch (e) { arr = []; }
+  if (!Array.isArray(arr)) arr = [];
+  for (const e of arr) if (e && typeof e.deliveryId === "string" && typeof e.groupId === "string" && typeof e.contentId === "string") {
+    groupDeliveryMap.set(e.deliveryId, { groupId: e.groupId, contentId: e.contentId });
+  }
+}
+// Резолвит deliveryId в { ownerChat, targetMsg } для группового
+// сообщения "от меня", независимо от состояния outbox. Возвращает null,
+// если deliveryId не относится к группе (личные сообщения через эту
+// карту не проходят) или сама запись сообщения не найдена (например,
+// группу уже удалили).
+function resolveGroupDelivery(deliveryId) {
+  const entry = groupDeliveryMap.get(deliveryId);
+  if (!entry) return null;
+  const g = state.contacts.get(entry.groupId);
+  const m = g && g.messages.find((mm) => mm.id === entry.contentId && mm.from === "me");
+  if (!g || !m) return null;
+  return { ownerChat: g, targetMsg: m };
 }
 async function flushOutboxItem(msgId) {
   const entry = outbox.get(msgId); if (!entry) return;
@@ -4369,7 +5199,11 @@ function resumeUnsentMessages() {
 const _recentAckSent = new Map();
 function sendAckBatch(contactId, originalMsgIds, ackState) {
   if (!Array.isArray(originalMsgIds) || originalMsgIds.length === 0) return;
-  const key = contactId + ":" + ackState + ":" + originalMsgIds.join(",");
+  // JSON.stringify, не join(",") — id'шники здесь обычные crypto.
+  // randomUUID() без запятых, но join() молча склеил бы два разных
+  // набора id в один и тот же ключ, если в массив когда-нибудь попадёт
+  // строка с запятой (например, ручной retry через консоль).
+  const key = contactId + ":" + ackState + ":" + JSON.stringify(originalMsgIds);
   const now = Date.now();
   const last = _recentAckSent.get(key);
   if (last && now - last < ACK_DEDUP_WINDOW_MS) return;
@@ -4399,18 +5233,30 @@ function markMessageAck(contactId, msgId, ack) {
 
   // Ищем сообщение и его чат-«владелец» (личный или групповой).
   // 1) Сначала — прямой путь через outbox-entry, если запись ещё жива.
-  // 2) Затем — личный чат с contactId.
-  // 3) В конце — fallback для P2P-групповых ack'ов: пир присылает ack
-  //    с contentId, но в outbox запись лежала под отдельным delivery-
-  //    UUID (см. sendGroupMessage — там crypto.randomUUID() на каждого
-  //    получателя). Без этого fallback'а запись не находится, и
-  //    групповое сообщение навсегда остаётся с одной галочкой.
+  // 2) Затем — groupDeliveryMap: переживает удаление outbox-записи по
+  //    deliver-ack с сервера, и это ЕДИНСТВЕННЫЙ надёжный путь для
+  //    группового сообщения, доставленного через офлайн-mailbox —
+  //    настоящая квитанция "доставлено"/"прочитано" от получателя может
+  //    прийти через много часов после того, как deliver-ack (просто
+  //    подтверждение, что конверт лёг на сервер) уже удалил outbox-
+  //    запись. См. resolveGroupDelivery.
+  // 3) Затем — личный чат с contactId.
+  // 4) В конце — fallback для P2P-групповых ack'ов: при P2P-доставке
+  //    deliveryId, который получатель возвращает в ack'е, совпадает с
+  //    contentId самого сообщения (см. applyIncomingPayload — там для
+  //    P2P-пути envelopeMsgId = payload.id), так что достаточно простого
+  //    поиска по id. Без этого fallback'а P2P-групповое сообщение
+  //    навсегда осталось бы с одной галочкой.
   let ownerChat = null, targetMsg = null;
 
   if (groupId && contentId) {
     const g = state.contacts.get(groupId);
     const m = g && g.messages.find((mm) => mm.id === contentId && mm.from === "me");
     if (m) { ownerChat = g; targetMsg = m; }
+  }
+  if (!targetMsg) {
+    const resolved = resolveGroupDelivery(msgId);
+    if (resolved) { ownerChat = resolved.ownerChat; targetMsg = resolved.targetMsg; }
   }
   if (!targetMsg) {
     const c = state.contacts.get(contactId);
@@ -4434,6 +5280,10 @@ function markMessageAck(contactId, msgId, ack) {
   if (ack === "delivered" || ack === "read") {
     if (outbox.has(msgId)) { outbox.delete(msgId); persistOutbox(); }
   }
+  // "read" — старший статус (rank 2), выше него квитанций не бывает,
+  // так что groupDeliveryMap-запись для этого deliveryId больше не
+  // нужна — убираем, чтобы карта не росла бессмысленно до лимита.
+  if (ack === "read" && groupDeliveryMap.has(msgId)) { groupDeliveryMap.delete(msgId); persistGroupDeliveryMap(); }
 }
 function sendTypingStart(contactId) {
   if (state.typingSendingState.get(contactId)) return;
@@ -4465,7 +5315,7 @@ function sendTypingStop(contactId) {
 function sendPrivacyPrefsTo(contactId) {
   const link = mesh.get(contactId);
   if (!link || (link.status !== "connected" && link.status !== "in-call")) return;
-  link.send({ kind: "privacy-pref", receiptsEnabled: Store.receiptsEnabled, lastSeenVisible: Store.lastSeenVisible, presenceVisible: Store.presenceVisible });
+  link.send({ kind: "privacy-pref", receiptsEnabled: Store.receiptsEnabled, lastSeenVisible: Store.lastSeenVisible, presenceVisible: Store.presenceVisible, status: Store.myStatus || "" });
 }
 function broadcastPrivacyPrefs() {
   for (const c of state.contacts.values()) if (!isGroup(c)) sendPrivacyPrefsTo(c.id);
@@ -4646,6 +5496,26 @@ function wireSignalingEvents(sig) {
     // сохранённый JSON устарел или сама подписка на стороне браузера
     // истекла.
     setTimeout(() => { ensurePushSubscription().catch(() => {}); }, 500);
+
+    // Периодическая переотправка push-подписки — обход той же эфемерной
+    // ФС Render (free tier теряет .ether-push-subs.json при каждом
+    // рестарте инстанса, в т.ч. простое 15 минут). Переотправка выше
+    // срабатывает только при "connected" (новое WS-соединение) — но
+    // если телефон не закрывал приложение и WS не переподключался,
+    // а сервер за это время перезапустился, клиент никогда не узнает,
+    // что сервер "забыл" подписку. Раз в час подчищаем и это. Таймер
+    // ставим один раз на весь жизненный цикл страницы — обработчик
+    // "connected" может сработать многократно за сессию.
+    if (!window.__etherPushResendTimer) {
+      window.__etherPushResendTimer = setInterval(() => {
+        if (signaling && signaling.connected && Store.pushSubscriptionJson) {
+          try {
+            const sub = JSON.parse(Store.pushSubscriptionJson);
+            signaling.sendPushSubscription(sub);
+          } catch (e) {}
+        }
+      }, 60 * 60 * 1000);
+    }
   }));
   subs.push(on("register-rate-limited", () => {
     updateSignalingStatusUI("off", T("status.rateLimited"));
@@ -4820,7 +5690,13 @@ function wireSignalingEvents(sig) {
       // remoteDescription ещё не установлен). Если link'а ещё нет
       // (offer/answer в пути) — копим глобально, разберём в
       // handleIncomingOffer/attemptConnect через flushPendingIceFor.
-      if (packet.candidate) {
+      // recentlyDeletedIds — та же защита, что в handleIncomingOffer:
+      // удалённый контакт, который продолжает слать ICE-кандидаты
+      // (например, не узнал об удалении и ретраит переподключение),
+      // не должен копить их здесь — без link'а эти кандидаты никогда
+      // никому не передадутся, просто занимают память до следующего
+      // удаления или до перезагрузки.
+      if (packet.candidate && !recentlyDeletedIds.has(from)) {
         const link = mesh.get(from);
         if (link) {
           link.addIceCandidate(packet.candidate).catch(() => {});
@@ -4905,7 +5781,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
   if (kind === "chat") {
     const groupId = payload.groupId;
     const c = groupId ? state.contacts.get(groupId) : ensureContactEntry(from, null);
-    if (!c) return; // сообщение в группу, о которой нам ничего не известно (приглашение не дошло) — не с чем сопоставить
+    if (!c) return; // сообщение в группу, о которой нам ничего не известно (приглашение не дошло) — сопоставляем именно с группой (c = state.contacts.get(groupId)), а не с отправителем from; группы нет локально — некуда класть сообщение
     if (c.messages.some((m) => m.id === payload.id)) return;
     const routeId = groupId || from;
     const isOpen = state.chatId === routeId;
@@ -4914,12 +5790,16 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     if (payload.replyTo) rec.replyTo = payload.replyTo;
     if (payload.forwarded) rec.forwarded = true;
     if (payload.ttl) rec.ttl = payload.ttl;
+    if (groupId && Store.name && typeof payload.text === "string" && isMentioned(payload.text, Store.name)) {
+      rec.mentionMe = true;
+      state.mentionedChats.add(groupId);
+    }
     c.messages.push(rec); trimMessages(c); c.lastActivity = Date.now();
     persistContacts();
     const displayName = c.name;
     const previewPrefix = groupId ? `${rec.fromName}: ` : "";
     if (isOpen) {
-      renderChatThread(); playMessageSound(); vibrate([80, 40, 80]);
+      renderChatThread(); playMessageSound(routeId); vibrate([80, 40, 80]);
       // aria-live на #chat-messages спамил бы весь список на каждую
       // перерисовку — объявляем только реально новое сообщение через
       // отдельный скрытый узел.
@@ -4927,7 +5807,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     } else {
       toast(`${displayName}: ${previewPrefix}${truncate(payload.text, 40)}`);
       if (!c.muted) showNotification(displayName || T("app.name"), previewPrefix + truncate(payload.text, 80), { tag: "ether-msg-" + c.id, contactId: c.id, kind: "message" });
-      playMessageSound();
+      playMessageSound(routeId);
       vibrate([80, 40, 80]);
     }
     if (state.tab === "chats") renderChatsList();
@@ -4947,6 +5827,13 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     // сразу, собирать по частям нечего.
     const c = ensureContactEntry(from, null);
     if (c.messages.some((m) => m.id === payload.id)) return;
+    // Симметрично handleFilePayload (чанкованный P2P-путь) — там
+    // payload.size проверяется EtherFileLimits.isValidFileMetaSize ещё до
+    // того, как собирать чанки. Этот офлайн-путь получает файл целиком
+    // одним payload'ом через почтовый ящик сервера, и раньше размер вообще
+    // не проверялся. Эксплуатация ограничена isValidEnvelope на сервере и
+    // SCTP-лимитами P2P, но для согласованности проверка нужна и тут.
+    if (!EtherFileLimits.isValidFileMetaSize(payload.size)) return;
     let blob;
     try { blob = new Blob([base64ToUint8Array(payload.dataB64)], { type: payload.mime || "application/octet-stream" }); }
     catch (e) { etherLog("error", "[file] decode failed:", String(e)); return; }
@@ -4955,6 +5842,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
       file: { name: payload.name || "file", mime: payload.mime || "application/octet-stream", size: payload.size || blob.size, kind: fileKindFromMime(payload.mime), duration: payload.duration, pending: false },
     };
     if (payload.forwarded) rec.forwarded = true;
+    if (typeof payload.caption === "string" && payload.caption) rec.file.caption = payload.caption.slice(0, 200);
     c.messages.push(rec); trimMessages(c); c.lastActivity = Date.now();
     persistContacts();
     // Раньше IDB.set не дожидались: renderChatThread → hydrateFileSlots →
@@ -4965,12 +5853,12 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     IDB.set("file:" + payload.id, blob)
       .then(() => {
         const isOpen = state.chatId === from;
-        if (isOpen) { renderChatThread(); playMessageSound(); vibrate([80, 40, 80]); }
+        if (isOpen) { renderChatThread(); playMessageSound(from); vibrate([80, 40, 80]); }
         else {
           const label = T("chat.file.preview." + rec.file.kind);
           toast(`${c.name}: ${label}`);
           if (!c.muted) showNotification(c.name || T("app.name"), label, { tag: "ether-msg-" + c.id, contactId: c.id, kind: "message" });
-          playMessageSound();
+          playMessageSound(from);
           vibrate([80, 40, 80]);
         }
         if (state.tab === "chats") renderChatsList();
@@ -5009,7 +5897,6 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
   let g = state.contacts.get(payload.groupId);
   etherLog("info", "[group] invite in:", "from=" + String(from).slice(0, 8) + "…", "payload.groupId=" + String(payload.groupId).slice(0, 8) + "…", "isNew=" + (!g), "existingKeys=" + Array.from(state.contacts.keys()).filter((k) => state.contacts.get(k).isGroup).length);
   if (!g) {
-    const meId = Store.myId;
     const incomingIds = payload.members.map((m) => m.id).sort().join("|");
     const incomingName = (payload.groupName || "").trim();
     for (const other of state.contacts.values()) {
@@ -5033,12 +5920,18 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
       g = { id: payload.groupId, isGroup: true, name: payload.groupName || T("group.defaultName"),
         members: payload.members, messages: [], lastActivity: Date.now(), archived: false, muted: false,
         createdBy: from, managed: true };
+      // Валидируем формат ДО записи в g.avatar — тогда "заражённый" аватар
+      // (CSS-инъекция через background-image, см. AVATAR_DATAURL_RE выше
+      // avatarCircleHtml) просто не попадёт в localStorage вовсе, а не
+      // будет каждый раз отфильтровываться только на рендере.
+      if (payload.groupAvatar && AVATAR_DATAURL_RE.test(payload.groupAvatar)) g.avatar = payload.groupAvatar;
       state.contacts.set(payload.groupId, g);
       g.messages.push({ id: crypto.randomUUID(), from: "system", text: T("group.systemCreated", { name: g.name }), textKey: "group.systemCreated", textParams: { name: g.name }, ts: Date.now() });
       trimMessages(g);
     } else {
       g.members = payload.members;
       if (payload.groupName) g.name = payload.groupName;
+      if (payload.groupAvatar !== undefined) g.avatar = (payload.groupAvatar && AVATAR_DATAURL_RE.test(payload.groupAvatar)) ? payload.groupAvatar : null;
     }
     g.lastActivity = Date.now();
     persistContacts();
@@ -5079,6 +5972,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
       c.peerReceiptsEnabled = payload.receiptsEnabled !== false;
       c.peerLastSeenVisible = payload.lastSeenVisible !== false;
       c.peerPresenceVisible = payload.presenceVisible !== false;
+      if (typeof payload.status === "string") c.peerStatus = payload.status;
       if (state.chatId === from || state.tab === "chats") renderTab();
     }
   } else if (kind === "reaction") {
@@ -5092,11 +5986,11 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     c.messages.push(rec); trimMessages(c); c.lastActivity = Date.now();
     persistContacts();
     const previewText = T("chat.contactCard.preview", { name: payload.contactName || T("sys.someone") });
-    if (isOpen) { renderChatThread(); playMessageSound(); vibrate([80, 40, 80]); }
+    if (isOpen) { renderChatThread(); playMessageSound(from); vibrate([80, 40, 80]); }
     else {
       toast(`${c.name}: ${previewText}`);
       if (!c.muted) showNotification(c.name || T("app.name"), previewText, { tag: "ether-msg-" + c.id, contactId: c.id, kind: "message" });
-      playMessageSound();
+      playMessageSound(from);
       vibrate([80, 40, 80]);
     }
     if (state.tab === "chats") renderChatsList();
@@ -5270,7 +6164,10 @@ async function attemptConnect(id, force) {
     try {
       const packet = await link.createInitialOffer("");
       if (!packet) return;
-      signaling.signal(id, packet);
+      // Результат signal() раньше игнорировался молча — если WS в этот
+      // момент отвалился, offer просто терялся без следа в диагностике,
+      // и единственным симптомом было "почему-то не подключается".
+      if (!signaling.signal(id, packet)) etherLog("warn", "[connect] " + tag, "signal офера не отправлен (WS не готов)");
       watchConnectionTimeout(id);
     } catch (e) {
       mesh.remove(id);
@@ -5315,7 +6212,7 @@ function renderOnlineRosterList() {
       <span class="roster-name">${escapeHtml(u.name || T("sys.someone"))}</span>
       <button type="button" class="btn-secondary roster-add-btn">${escapeHtml(T("connect.addButton"))}</button>`;
     row.querySelector(".roster-add-btn").addEventListener("click", () => {
-      recentlyDeletedIds.delete(id); // осознанное повторное добавление снимает блокировку из deleteContact
+      if (recentlyDeletedIds.delete(id)) persistRecentlyDeleted(); // осознанное повторное добавление снимает блокировку из deleteContact
       state.contacts.set(id, {
         id, name: u.name || T("sys.someone"), raw: "", managed: true,
         publicKey: u.publicKey || null, online: true, status: "disconnected",
@@ -5433,6 +6330,21 @@ function wireQrButtons() {
 }
 
 function wireGroupInfo() {
+  const avatarBtn = $("#group-info-avatar-btn");
+  const avatarInput = $("#group-info-avatar-input");
+  if (avatarBtn && avatarInput) {
+    avatarBtn.addEventListener("click", () => avatarInput.click());
+    avatarInput.addEventListener("change", async () => {
+      const file = avatarInput.files && avatarInput.files[0];
+      avatarInput.value = "";
+      const groupId = state.activeGroupContext; if (!file || !groupId) return;
+      try {
+        const dataUrl = await readImageAsAvatarDataUrl(file);
+        setGroupAvatar(groupId, dataUrl);
+        avatarBtn.style.backgroundImage = `url('${dataUrl}')`; avatarBtn.style.background = ""; avatarBtn.textContent = "";
+      } catch (e) { toast(T("toast.avatarFailed")); }
+    });
+  }
   const renameInput = $("#group-info-name");
   const renameBtn = $("#group-info-rename-btn");
   if (renameBtn) renameBtn.addEventListener("click", () => {
@@ -5472,13 +6384,31 @@ function wireGroupInfo() {
     if (!confirm(T("group.confirmLeave", { name: g.name }))) return;
     removeGroupMember(groupId, Store.myId, true);
     const gis = $("#group-info-sheet"); if (gis) gis.classList.add("hidden");
-    if (state.chatId === groupId) { state.chatId = null; renderTab(); }
+    if (state.chatId === groupId) { state.chatId = null; state.multiSelect = null; renderTab(); }
   });
 }
 
 function wireConnectScreen() {
+  state._newGroupAvatar = null;
+  const newGroupAvatarBtn = $("#new-group-avatar-btn");
+  const newGroupAvatarInput = $("#new-group-avatar-input");
+  if (newGroupAvatarBtn && newGroupAvatarInput) {
+    newGroupAvatarBtn.addEventListener("click", () => newGroupAvatarInput.click());
+    newGroupAvatarInput.addEventListener("change", async () => {
+      const file = newGroupAvatarInput.files && newGroupAvatarInput.files[0];
+      newGroupAvatarInput.value = "";
+      if (!file) return;
+      try {
+        const dataUrl = await readImageAsAvatarDataUrl(file);
+        state._newGroupAvatar = dataUrl;
+        newGroupAvatarBtn.style.backgroundImage = `url('${dataUrl}')`; newGroupAvatarBtn.style.background = ""; newGroupAvatarBtn.innerHTML = "";
+      } catch (e) { toast(T("toast.avatarFailed")); }
+    });
+  }
   const newGroupBtn = $("#new-group-btn");
   if (newGroupBtn) newGroupBtn.addEventListener("click", () => {
+    state._newGroupAvatar = null;
+    if (newGroupAvatarBtn) { newGroupAvatarBtn.style.backgroundImage = ""; newGroupAvatarBtn.style.background = "var(--accent)"; newGroupAvatarBtn.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M11 5a1 1 0 1 1 2 0v6h6a1 1 0 1 1 0 2h-6v6a1 1 0 1 1-2 0v-6H5a1 1 0 1 1 0-2h6V5z"/></svg>'; }
     const nameInput = $("#new-group-name"); if (nameInput) nameInput.value = "";
     const list = $("#new-group-members");
     if (list) {
@@ -5505,7 +6435,7 @@ function wireConnectScreen() {
     const checked = $$(".group-member-check:checked").map((el) => el.value);
     if (checked.length === 0) { toast(T("toast.groupNeedsMembers")); return; }
     if (checked.length > MAX_GROUP_MEMBERS - 1) { toast(T("toast.groupTooBig", { max: MAX_GROUP_MEMBERS })); return; }
-    const groupId = createGroup(name, checked);
+    const groupId = createGroup(name, checked, state._newGroupAvatar);
     if (!groupId) return;
     const sheet = $("#new-group-sheet"); if (sheet) sheet.classList.add("hidden");
     state.chatId = groupId;
@@ -5531,7 +6461,7 @@ function wireConnectScreen() {
     if (identity.id === Store.myId) { toast(T("toast.ownId")); return; }
     if (state.contacts.has(identity.id)) toast(T("toast.alreadyAdded"));
     else {
-      recentlyDeletedIds.delete(identity.id); // осознанное повторное добавление снимает блокировку из deleteContact
+      if (recentlyDeletedIds.delete(identity.id)) persistRecentlyDeleted(); // осознанное повторное добавление снимает блокировку из deleteContact
       state.contacts.set(identity.id, {
         id: identity.id, name: nameVal || identity.normalized, raw: identity.normalized,
         managed: true, publicKey: null, online: onlineSet.has(identity.id),
@@ -5667,237 +6597,20 @@ function copyText(text, msg) {
 // =====================================================================
 // Шиты
 // =====================================================================
-const __camera = { stream: null, facing: "environment", capturedBlob: null, capturedKind: "photo", contactId: null,
-  recorder: null, recordedChunks: [], recordStartedAt: 0, recordTimerId: null, longPressTimerId: null, isRecording: false };
-async function openCameraScreen(contactId) {
-  const screen = $("#camera-screen"); if (!screen) return;
-  __camera.contactId = contactId;
-  __camera.capturedBlob = null;
-  __camera.capturedKind = "photo";
-  screen.classList.remove("hidden");
-  showCameraLiveState();
-  await startCameraStream(__camera.facing);
-}
-async function startCameraStream(facing) {
-  stopCameraStream();
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing }, audio: false });
-    __camera.stream = stream;
-    __camera.facing = facing;
-    const video = $("#camera-preview");
-    if (video) video.srcObject = stream;
-  } catch (e) {
-    // Отказ в доступе или отсутствие камеры — тот же честный подход,
-    // что и для микрофона при звонке: не молчим и не показываем общую
-    // ошибку "нет связи с сервером".
-    const name = e && e.name;
-    if (name === "NotAllowedError" || name === "PermissionDeniedError") toast(T("toast.cameraPermissionDenied"));
-    else if (name === "NotFoundError" || name === "DevicesNotFoundError") toast(T("toast.cameraNotFound"));
-    else toast(T("toast.cameraPermissionDenied"));
-    closeCameraScreen();
-  }
-}
-function stopCameraStream() {
-  if (__camera.stream) { try { __camera.stream.getTracks().forEach((t) => t.stop()); } catch (e) {} __camera.stream = null; }
-}
-function closeCameraScreen() {
-  stopVideoRecording(true); // true = отменить, не сохранять — закрытие экрана посреди записи не должно молча отправлять недописанное видео
-  stopCameraStream();
-  __camera.capturedBlob = null;
-  const screen = $("#camera-screen"); if (screen) screen.classList.add("hidden");
-}
-function showCameraLiveState() {
-  const video = $("#camera-preview"), img = $("#camera-captured-img"), capVideo = $("#camera-captured-video");
-  const live = $("#camera-controls-live"), preview = $("#camera-controls-preview");
-  const hint = $("#camera-shutter-hint");
-  if (video) video.classList.remove("hidden");
-  if (img) img.classList.add("hidden");
-  if (capVideo) { capVideo.pause(); if (capVideo.src) URL.revokeObjectURL(capVideo.src); capVideo.src = ""; capVideo.classList.add("hidden"); }
-  if (hint) hint.classList.remove("hidden");
-  if (live) live.classList.remove("hidden");
-  if (preview) preview.classList.add("hidden");
-}
-function pickVideoMimeType() {
-  const candidates = ["video/mp4", "video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"];
-  for (const c of candidates) {
-    if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(c)) return c;
-  }
-  return "";
-}
-function updateCameraRecTimer() {
-  const el = $("#camera-rec-timer"); if (!el) return;
-  const sec = Math.floor((Date.now() - __camera.recordStartedAt) / 1000);
-  el.textContent = Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0");
-}
-const CAMERA_MAX_VIDEO_SEC = 60; // разумный потолок для видео-сообщения, не полноценной видеосъёмки
-async function startVideoRecording() {
-  if (__camera.isRecording || !__camera.stream) return;
-  if (!window.MediaRecorder) { toast(T("toast.videoUnsupported")); return; }
-  // Превью-поток снимался БЕЗ звука (audio:false) — чтобы не спрашивать
-  // разрешение на микрофон у тех, кто только фотографирует. Для видео
-  // звук нужен — добираем аудиодорожку отдельным вызовом и объединяем
-  // с уже идущим видеопотоком в один MediaStream для рекордера.
-  let audioStream = null;
-  try { audioStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
-  catch (e) { /* без звука лучше, чем совсем без видео — продолжаем без аудиодорожки */ }
-  const tracks = [...__camera.stream.getVideoTracks()];
-  if (audioStream) tracks.push(...audioStream.getAudioTracks());
-  const combined = new MediaStream(tracks);
-  __camera.recordedChunks = [];
-  const mimeType = pickVideoMimeType();
-  try {
-    __camera.recorder = mimeType ? new MediaRecorder(combined, { mimeType }) : new MediaRecorder(combined);
-  } catch (e) {
-    toast(T("toast.videoUnsupported"));
-    if (audioStream) audioStream.getTracks().forEach((t) => t.stop());
-    return;
-  }
-  __camera._audioStream = audioStream; // для остановки дорожек отдельно от превью-потока при завершении
-  __camera.recorder.ondataavailable = (ev) => { if (ev.data && ev.data.size > 0) __camera.recordedChunks.push(ev.data); };
-  __camera.recorder.onstop = () => onVideoRecordingStopped(mimeType);
-  __camera.recorder.start();
-  __camera.isRecording = true;
-  __camera.recordStartedAt = Date.now();
-  const shutterBtn = $("#camera-shutter-btn"); if (shutterBtn) shutterBtn.classList.add("recording");
-  const hint = $("#camera-shutter-hint"); if (hint) hint.classList.add("hidden");
-  const rec = $("#camera-rec-indicator"); if (rec) rec.classList.remove("hidden");
-  updateCameraRecTimer();
-  __camera.recordTimerId = setInterval(() => {
-    updateCameraRecTimer();
-    if (Date.now() - __camera.recordStartedAt >= CAMERA_MAX_VIDEO_SEC * 1000) stopVideoRecording(false);
-  }, 250);
-}
-function stopVideoRecording(cancel) {
-  if (!__camera.isRecording) return;
-  __camera.isRecording = false;
-  if (__camera.recordTimerId) { clearInterval(__camera.recordTimerId); __camera.recordTimerId = null; }
-  const shutterBtn = $("#camera-shutter-btn"); if (shutterBtn) shutterBtn.classList.remove("recording");
-  const rec = $("#camera-rec-indicator"); if (rec) rec.classList.add("hidden");
-  __camera._cancelPending = !!cancel;
-  if (__camera.recorder && __camera.recorder.state !== "inactive") __camera.recorder.stop();
-  if (__camera._audioStream) { __camera._audioStream.getTracks().forEach((t) => t.stop()); __camera._audioStream = null; }
-}
-function onVideoRecordingStopped(mimeType) {
-  const cancel = __camera._cancelPending;
-  __camera._cancelPending = false;
-  __camera.recorder = null;
-  if (cancel || __camera.recordedChunks.length === 0) { __camera.recordedChunks = []; return; }
-  const blob = new Blob(__camera.recordedChunks, { type: mimeType || "video/webm" });
-  __camera.recordedChunks = [];
-  // Слишком короткое удержание (дрогнула рука, не успел записать ничего
-  // осмысленного) — не показываем превью на долю секунды видео.
-  if (Date.now() - __camera.recordStartedAt < 500) return;
-  __camera.capturedBlob = blob;
-  __camera.capturedKind = "video";
-  const v = $("#camera-captured-video");
-  if (v) { v.src = URL.createObjectURL(blob); v.classList.remove("hidden"); v.play().catch(() => {}); }
-  const live = $("#camera-preview"); if (live) live.classList.add("hidden");
-  const liveControls = $("#camera-controls-live"), preview = $("#camera-controls-preview");
-  if (liveControls) liveControls.classList.add("hidden");
-  if (preview) preview.classList.remove("hidden");
-}
-function capturePhoto() {
-  const video = $("#camera-preview"), canvas = $("#camera-canvas");
-  if (!video || !canvas || !video.videoWidth) return;
-  canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-  const ctx = canvas.getContext("2d");
-  // Фронтальная камера превью зеркалится для привычного вида "как в
-  // зеркале" — сам снимок сохраняем НЕзеркальным (как его видит
-  // собеседник, а не как видел себя отправитель).
-  if (__camera.facing === "user") { ctx.translate(canvas.width, 0); ctx.scale(-1, 1); }
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  canvas.toBlob((blob) => {
-    if (!blob) return;
-    __camera.capturedBlob = blob;
-    __camera.capturedKind = "photo";
-    const img = $("#camera-captured-img");
-    if (img) { img.src = URL.createObjectURL(blob); img.classList.remove("hidden"); }
-    const video2 = $("#camera-preview"); if (video2) video2.classList.add("hidden");
-    const live = $("#camera-controls-live"), preview = $("#camera-controls-preview");
-    if (live) live.classList.add("hidden");
-    if (preview) preview.classList.remove("hidden");
-  }, "image/jpeg", 0.9);
-}
-let __cameraAvailable = true;
-function wireCameraScreen() {
+function wireCameraButton() {
+  // Кнопка "Камера" в чате открывает СИСТЕМНУЮ камеру через
+  // <input type="file" accept="image/*" capture="environment">
+  // (обработчик change для #chat-camera-input подключён отдельно, в
+  // startApp). Самодельный виджет-камера (запись видео, flip, таймер)
+  // был удалён как мёртвый код: он нигде не вызывался, а видеозвонки
+  // используют PeerLink.enableVideo() напрямую, без этого виджета.
   const openBtn = $("#chat-camera-btn");
   const cameraInput = $("#chat-camera-input");
   if (!cameraInput || !openBtn) return;
-  // Кнопка "Камера" в чате теперь открывает СИСТЕМНУЮ камеру через
-  // <input type="file" accept="image/*" capture="environment">, а не
-  // самодельный виджет openCameraScreen. Причины:
-  //  1) На iPhone/iPad системная камера даёт больше возможностей
-  //     (HDR, ночной режим, портретный режим, Deep Fusion, выбор
-  //     разрешения) — всё это самодельный виджет не умеет.
-  //  2) Меньше расхождений в UX: до этой правки иконка-скрепка
-  //     вызывала системное окно выбора (Фото/Камера/Файлы), а
-  //     иконка-камера — самодельное окно, что сбивало пользователя.
-  // Самодельный виджет остаётся только для видеозвонков (openCameraScreen
-  // вызывается напрямую из контекста звонка), там он нужен для
-  // интеграции локального видеотрека в PeerLink.
   openBtn.addEventListener("click", () => {
     if (!state.chatId) return;
     cameraInput.value = "";
     cameraInput.click();
-  });
-  const closeBtn = $("#camera-close-btn");
-  if (closeBtn) closeBtn.addEventListener("click", closeCameraScreen);
-  const switchBtn = $("#camera-switch-btn");
-  if (switchBtn) switchBtn.addEventListener("click", () => { haptic("light"); startCameraStream(__camera.facing === "environment" ? "user" : "environment"); });
-  const shutterBtn = $("#camera-shutter-btn");
-  if (shutterBtn) {
-    // Тап — фото, удержание (350мс+) — видео. pointerdown/up вместо
-    // отдельных touch/mouse обработчиков — единый API работает и на
-    // сенсорных, и на мышиных устройствах без дублирования логики.
-    let pressStarted = false;
-    shutterBtn.addEventListener("pointerdown", (ev) => {
-      ev.preventDefault();
-      pressStarted = true;
-      __camera.longPressTimerId = setTimeout(() => {
-        __camera.longPressTimerId = null;
-        if (pressStarted) { haptic("medium"); startVideoRecording(); }
-      }, 350);
-    });
-    const releaseShutter = () => {
-      if (!pressStarted) return;
-      pressStarted = false;
-      if (__camera.longPressTimerId) {
-        // Отпустили ДО срабатывания долгого нажатия — это был обычный
-        // тап, видеозапись даже не начиналась.
-        clearTimeout(__camera.longPressTimerId);
-        __camera.longPressTimerId = null;
-        haptic("medium");
-        capturePhoto();
-      } else if (__camera.isRecording) {
-        haptic("light");
-        stopVideoRecording(false);
-      }
-    };
-    shutterBtn.addEventListener("pointerup", releaseShutter);
-    shutterBtn.addEventListener("pointercancel", releaseShutter);
-    shutterBtn.addEventListener("pointerleave", releaseShutter);
-  }
-  const retakeBtn = $("#camera-retake-btn");
-  if (retakeBtn) retakeBtn.addEventListener("click", () => {
-    const img = $("#camera-captured-img");
-    if (img && img.src) { URL.revokeObjectURL(img.src); img.src = ""; }
-    __camera.capturedBlob = null;
-    showCameraLiveState();
-  });
-  const sendBtn = $("#camera-send-btn");
-  if (sendBtn) sendBtn.addEventListener("click", () => {
-    if (!__camera.capturedBlob || !__camera.contactId) return;
-    // Раньше тут ВСЕГДА собирался файл как "photo-*.jpg" с типом
-    // image/jpeg — даже если только что записали видео (тип реального
-    // Blob'а от MediaRecorder игнорировался полностью, а получатель
-    // увидел бы испорченный "jpg", который на самом деле видео).
-    const isVideo = __camera.capturedKind === "video";
-    const ext = isVideo ? (__camera.capturedBlob.type.includes("mp4") ? "mp4" : "webm") : "jpg";
-    const mime = isVideo ? (__camera.capturedBlob.type || "video/webm") : "image/jpeg";
-    const file = new File([__camera.capturedBlob], (isVideo ? "video-" : "photo-") + Date.now() + "." + ext, { type: mime });
-    const contactId = __camera.contactId;
-    closeCameraScreen();
-    sendFileMessage(contactId, file);
   });
 }
 function wireSheetBackdrops() {
@@ -5982,7 +6695,9 @@ function openMessageSheet(msgId, contactId) {
   // тихо. Локальные действия (копировать, удалить у себя) — безопасны
   // всегда.
   if (!groupCtx) actions.push(`<button type="button" class="sheet-action" data-action="forward">${escapeHtml(T("chat.forward"))}</button>`);
+  actions.push(`<button type="button" class="sheet-action" data-action="pin">${escapeHtml(c.pinnedMessageId === msgId ? T("chat.unpinMsg") : T("chat.pinMsg"))}</button>`);
   actions.push(`<button type="button" class="sheet-action" data-action="copy">${escapeHtml(T("chat.copy"))}</button>`);
+  actions.push(`<button type="button" class="sheet-action" data-action="select">${escapeHtml(T("chat.selectMsgs"))}</button>`);
   if (m.ack === "failed" && isOwn && !groupCtx) actions.push(`<button type="button" class="sheet-action" data-action="retry">${escapeHtml(T("chat.retry"))}</button>`);
   if (isOwn) {
     if (!groupCtx && !m.file && !m.contactCard) actions.push(`<button type="button" class="sheet-action" data-action="edit">${escapeHtml(T("chat.edit"))}</button>`);
@@ -6015,44 +6730,88 @@ async function handleMessageAction(action, msgId, contactId) {
     showReplyBanner();
     const inp = $("#chat-input"); if (inp) inp.focus();
   } else if (action === "forward") openForwardSheet((toId) => forwardMessage(msgId, contactId, toId));
-  else if (action === "retry") {
-    m.serverAcked = false;
-    m.ack = "sent";
-    if (outbox.has(msgId)) outbox.delete(msgId);
+  else if (action === "retry") retryMessage(contactId, msgId);
+  else if (action === "pin") togglePinnedMessage(contactId, msgId);
+  else if (action === "select") enterMultiSelect(msgId);
+}
+// P2 — мультивыбор сообщений: долгое нажатие → меню → "Выбрать" входит в
+// режим, дальнейшие тапы по пузырям переключают выбор вместо обычного
+// действия. Шапка (#multiselect-banner) показывает счётчик и действия
+// над выбранными разом (удалить у себя / переслать).
+function enterMultiSelect(firstMsgId) {
+  state.multiSelect = new Set([firstMsgId]);
+  renderChatThreadInner();
+}
+function exitMultiSelect() {
+  state.multiSelect = null;
+  renderChatThreadInner();
+}
+function toggleMultiSelectMsg(msgId) {
+  if (!state.multiSelect) return;
+  if (state.multiSelect.has(msgId)) state.multiSelect.delete(msgId); else state.multiSelect.add(msgId);
+  if (state.multiSelect.size === 0) { exitMultiSelect(); return; }
+  renderChatThreadInner();
+}
+function updateMultiSelectBanner() {
+  const banner = $("#multiselect-banner");
+  if (!banner) return;
+  const active = !!state.multiSelect;
+  banner.classList.toggle("hidden", !active);
+  if (active) { const countEl = $("#multiselect-count"); if (countEl) countEl.textContent = String(state.multiSelect.size); }
+}
+// P2 — закреплённое сообщение чата (в отличие от уже реализованного
+// закрепления ЧАТА в списке — chats.pin). Одно закреплённое сообщение на
+// чат, показывается плашкой над лентой; тап по плашке прокручивает к
+// оригиналу.
+function togglePinnedMessage(contactId, msgId) {
+  const c = state.contacts.get(contactId); if (!c) return;
+  c.pinnedMessageId = c.pinnedMessageId === msgId ? null : msgId;
+  persistContacts();
+  if (state.chatId === contactId) renderChatThread();
+}
+// Вынесена из handleMessageAction("retry", ...) в отдельную функцию —
+// нужна и для одиночного повтора из меню сообщения, и для кнопки
+// "Повторить всё" в шапке чата (P1.15), которая обходит все failed
+// сообщения разом.
+async function retryMessage(contactId, msgId) {
+  const c = state.contacts.get(contactId); if (!c) return;
+  const m = c.messages.find((x) => x.id === msgId); if (!m) return;
+  m.serverAcked = false;
+  m.ack = "sent";
+  if (outbox.has(msgId)) outbox.delete(msgId);
 
-    // Файл/голосовое: собираем Blob из IndexedDB и формируем полный
-    // file-payload (тот же формат, что в sendFileOffline/sendVoiceOffline).
-    // Пустой text тут не годится — собеседник получил бы пустышку.
-    if (m.file) {
-      (async () => {
-        try {
-          const blob = await IDB.get("file:" + msgId);
-          if (!blob) {
-            toast(T("chat.file.unavailable"));
-            m.ack = "failed"; persistContacts();
-            if (state.chatId === contactId) renderChatThread();
-            return;
-          }
-          const buffer = await blob.arrayBuffer();
-          const payload = {
-            kind: "file", id: msgId,
-            name: m.file.name || "file",
-            mime: m.file.mime || "application/octet-stream",
-            size: m.file.size || blob.size,
-            dataB64: arrayBufferToBase64(buffer),
-          };
-          if (m.file.duration != null) payload.duration = m.file.duration;
-          await trySendOrQueue(c, msgId, payload);
-        } catch (e) {
-          etherLog("error", "[retry] file failed:", String(e));
-          m.ack = "failed"; persistContacts();
-          if (state.chatId === contactId) renderChatThread();
-        }
-      })();
-      return;
+  // Файл/голосовое: собираем Blob из IndexedDB и формируем полный
+  // file-payload (тот же формат, что в sendFileOffline/sendVoiceOffline).
+  // Пустой text тут не годится — собеседник получил бы пустышку.
+  if (m.file) {
+    try {
+      const blob = await IDB.get("file:" + msgId);
+      if (!blob) {
+        toast(T("chat.file.unavailable"));
+        m.ack = "failed"; persistContacts();
+        if (state.chatId === contactId) renderChatThread();
+        return;
+      }
+      const buffer = await blob.arrayBuffer();
+      const payload = {
+        kind: "file", id: msgId,
+        name: m.file.name || "file",
+        mime: m.file.mime || "application/octet-stream",
+        size: m.file.size || blob.size,
+        dataB64: arrayBufferToBase64(buffer),
+      };
+      if (m.file.duration != null) payload.duration = m.file.duration;
+      if (m.file.caption) payload.caption = m.file.caption;
+      await trySendOrQueue(c, msgId, payload);
+    } catch (e) {
+      etherLog("error", "[retry] file failed:", String(e));
+      m.ack = "failed"; persistContacts();
+      if (state.chatId === contactId) renderChatThread();
     }
+    return;
+  }
 
-    // Карточка контакта: повторяем как contact-card, не текстом.
+  // Карточка контакта: повторяем как contact-card, не текстом.
   if (m.contactCard) {
     const payload = {
       kind: "contact-card", id: msgId, ts: m.ts,
@@ -6063,12 +6822,21 @@ async function handleMessageAction(action, msgId, contactId) {
     return;
   }
 
-    // Обычный текст.
-    const payload = { kind: "chat", id: msgId, text: m.text, ts: m.ts };
-    if (m.replyTo) payload.replyTo = { id: m.replyTo.id, text: m.replyTo.text, authorName: m.replyTo.authorName };
-    if (m.ttl) payload.ttl = m.ttl;
-    trySendOrQueue(c, msgId, payload);
-  }
+  // Обычный текст.
+  const payload = { kind: "chat", id: msgId, text: m.text, ts: m.ts };
+  if (m.replyTo) payload.replyTo = { id: m.replyTo.id, text: m.replyTo.text, authorName: m.replyTo.authorName };
+  if (m.ttl) payload.ttl = m.ttl;
+  trySendOrQueue(c, msgId, payload);
+}
+// P1.15 — обходит все failed-сообщения "от меня" в чате и повторяет
+// каждое. Отправляются не параллельно, а последовательно (await в
+// цикле) — иначе N одновременных retry одного и того же канала наперегонки
+// друг с другом ничего хорошего не даёт, а trySendOrQueue и так не
+// бесплатен (шифрование на сообщение).
+async function retryAllFailed(contactId) {
+  const c = state.contacts.get(contactId); if (!c) return;
+  const failedIds = c.messages.filter((m) => m.from === "me" && m.ack === "failed").map((m) => m.id);
+  for (const id of failedIds) { try { await retryMessage(contactId, id); } catch (e) {} }
 }
 function startEditing(msgId) {
   const c = state.contacts.get(state.chatId); if (!c) return;
@@ -6100,6 +6868,200 @@ function openForwardSheet(onPick) {
   }
   const fs = $("#forward-sheet"); if (fs) fs.classList.remove("hidden");
 }
+// P1.14 — что именно сейчас застряло в очереди отправки и почему: две
+// разные причины, два разных источника данных. outbox — сообщение ушло
+// на сервер-посредник, но ещё нет deliver-ack (сервер его не подтвердил:
+// контакт пока не в сети или сам сервер недоступен). pendingNoKey —
+// сообщение вообще не могло быть зашифровано, потому что публичный ключ
+// собеседника ещё не получен (ждём его следующего выхода на связь).
+function renderOutboxSheet() {
+  const list = $("#outbox-list"), empty = $("#outbox-empty");
+  if (!list) return;
+  list.innerHTML = "";
+  const rows = [];
+  for (const entry of outbox.values()) {
+    const c = state.contacts.get(entry.to);
+    rows.push({ contactId: entry.to, name: c ? (c.name || T("sys.someone")) : T("sys.someone"), sentAt: entry.sentAt, reasonKey: "outbox.reason.offline" });
+  }
+  for (const [contactId, items] of pendingNoKey) {
+    if (!items || items.length === 0) continue;
+    const c = state.contacts.get(contactId);
+    rows.push({ contactId, name: c ? (c.name || T("sys.someone")) : T("sys.someone"), sentAt: null, reasonKey: "outbox.reason.noKey", count: items.length });
+  }
+  rows.sort((a, b) => (b.sentAt || 0) - (a.sentAt || 0));
+  if (empty) empty.classList.toggle("hidden", rows.length > 0);
+  for (const row of rows) {
+    const el = document.createElement("div");
+    el.className = "outbox-row";
+    const timeLabel = row.sentAt ? formatChatListTime(row.sentAt) : "";
+    const countLabel = row.count ? ` (${row.count})` : "";
+    el.innerHTML = `
+      <div class="avatar avatar-sm" style="background:${avatarGradient(row.name)}">${escapeHtml(initials(row.name))}</div>
+      <div class="outbox-row-body">
+        <span class="outbox-row-name">${escapeHtml(row.name)}${countLabel}</span>
+        <span class="outbox-row-meta">${escapeHtml(T(row.reasonKey))}${timeLabel ? " · " + escapeHtml(timeLabel) : ""}</span>
+      </div>`;
+    list.appendChild(el);
+  }
+}
+function openOutboxSheet() {
+  renderOutboxSheet();
+  const sheet = $("#outbox-sheet"); if (sheet) sheet.classList.remove("hidden");
+}
+// P2 — "Прыжок к дате": открывает <input type="date"> в шите, затем
+// скроллит к первому сообщению того дня. contactId запоминается на
+// шите (data-attribute), потому что к моменту нажатия "Go" пользователь
+// теоретически мог успеть закрыть чат (в теории, не на практике — шит
+// модальный, но дешевле перестраховаться, чем гадать).
+function openJumpToDateSheet(contactId) {
+  if (!contactId) return;
+  const sheet = $("#jump-date-sheet"); if (!sheet) return;
+  sheet.dataset.contactId = contactId;
+  const input = $("#jump-date-input");
+  if (input) { try { input.valueAsDate = new Date(); } catch (e) {} }
+  sheet.classList.remove("hidden");
+}
+let __emojiActiveCategory = 0;
+function renderEmojiGrid(emojis) {
+  const grid = $("#emoji-grid"); if (!grid) return;
+  grid.innerHTML = "";
+  for (const e of emojis) {
+    const btn = document.createElement("button");
+    btn.type = "button"; btn.className = "emoji-grid-btn"; btn.textContent = e;
+    btn.addEventListener("click", () => insertEmojiAtCursor(e));
+    grid.appendChild(btn);
+  }
+}
+function renderEmojiTabs() {
+  const tabs = $("#emoji-tabs"); if (!tabs) return;
+  tabs.innerHTML = "";
+  EMOJI_CATEGORIES.forEach((cat, i) => {
+    const btn = document.createElement("button");
+    btn.type = "button"; btn.className = "emoji-tab-btn" + (i === __emojiActiveCategory ? " active" : "");
+    btn.textContent = cat.icon;
+    btn.addEventListener("click", () => {
+      __emojiActiveCategory = i;
+      const search = $("#emoji-search-input"); if (search) search.value = "";
+      renderEmojiTabs();
+      renderEmojiGrid(cat.emojis);
+    });
+    tabs.appendChild(btn);
+  });
+}
+// Вставляет эмодзи в позицию курсора (а не всегда в конец — пользователь
+// может редактировать середину текста) и держит фокус в поле ввода,
+// чтобы можно было вставить несколько эмодзи подряд без лишних тапов.
+// @упоминания в группах — автодополнение имени участника при вводе "@".
+// Находим незакрытый токен "@partial" от последнего "@" до каретки (без
+// пробелов внутри), ищем совпадающих по префиксу участников группы.
+function currentMentionToken(input) {
+  const pos = input.selectionStart ?? input.value.length;
+  const before = input.value.slice(0, pos);
+  const at = before.lastIndexOf("@");
+  if (at === -1) return null;
+  const token = before.slice(at + 1);
+  if (/\s/.test(token)) return null; // пробел закрывает токен
+  return { start: at, end: pos, partial: token };
+}
+function updateMentionAutocomplete() {
+  const input = $("#chat-input");
+  const box = $("#mention-autocomplete");
+  if (!input || !box) return;
+  const c = state.chatId ? state.contacts.get(state.chatId) : null;
+  if (!c || !isGroup(c)) { closeMentionAutocomplete(); return; }
+  const tok = currentMentionToken(input);
+  if (!tok) { closeMentionAutocomplete(); return; }
+  const q = tok.partial.toLowerCase();
+  const candidates = c.members.filter((m) => m.id !== Store.myId && (m.name || "").toLowerCase().startsWith(q));
+  if (candidates.length === 0) { closeMentionAutocomplete(); return; }
+  box.innerHTML = candidates.slice(0, 6).map((m) => `<button type="button" class="mention-autocomplete-item" data-member-id="${escapeHtml(m.id)}" data-member-name="${escapeHtml(m.name || "")}">${escapeHtml(m.name || T("sys.someone"))}</button>`).join("");
+  box.classList.remove("hidden");
+  state._mentionTokenRange = { start: tok.start, end: tok.end };
+}
+function closeMentionAutocomplete() {
+  const box = $("#mention-autocomplete");
+  if (box) { box.classList.add("hidden"); box.innerHTML = ""; }
+  state._mentionTokenRange = null;
+}
+function applyMentionChoice(name) {
+  const input = $("#chat-input");
+  const range = state._mentionTokenRange;
+  if (!input || !range) return;
+  const insert = name + " ";
+  input.value = input.value.slice(0, range.start) + "@" + insert + input.value.slice(range.end);
+  const newPos = range.start + 1 + insert.length;
+  closeMentionAutocomplete();
+  input.focus();
+  input.setSelectionRange(newPos, newPos);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+function wireMentionAutocomplete() {
+  const box = $("#mention-autocomplete");
+  if (!box) return;
+  box.addEventListener("click", (ev) => {
+    const btn = ev.target.closest(".mention-autocomplete-item");
+    if (!btn) return;
+    applyMentionChoice(btn.dataset.memberName || "");
+  });
+}
+function insertEmojiAtCursor(emoji) {
+  const input = $("#chat-input"); if (!input) return;
+  const start = input.selectionStart ?? input.value.length;
+  const end = input.selectionEnd ?? input.value.length;
+  input.value = input.value.slice(0, start) + emoji + input.value.slice(end);
+  const newPos = start + emoji.length;
+  input.setSelectionRange(newPos, newPos);
+  input.focus();
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+function openEmojiPicker() {
+  const sheet = $("#emoji-picker-sheet"); if (!sheet) return;
+  const search = $("#emoji-search-input"); if (search) search.value = "";
+  renderEmojiTabs();
+  renderEmojiGrid(EMOJI_CATEGORIES[__emojiActiveCategory].emojis);
+  sheet.classList.remove("hidden");
+  setTimeout(() => { if (search) search.focus(); }, 50);
+}
+function wireEmojiPicker() {
+  const btn = $("#chat-emoji-btn");
+  if (btn) btn.addEventListener("click", () => { if (state.chatId) openEmojiPicker(); });
+  const search = $("#emoji-search-input");
+  if (search) search.addEventListener("input", (e) => {
+    const q = e.target.value;
+    const results = emojiSearchResults(q);
+    if (results === null) { renderEmojiGrid(EMOJI_CATEGORIES[__emojiActiveCategory].emojis); return; }
+    renderEmojiGrid(results);
+  });
+}
+function wireJumpToDateSheet() {
+  const goBtn = $("#jump-date-go-btn");
+  if (!goBtn) return;
+  goBtn.addEventListener("click", () => {
+    const sheet = $("#jump-date-sheet");
+    const input = $("#jump-date-input");
+    const contactId = sheet ? sheet.dataset.contactId : null;
+    if (sheet) sheet.classList.add("hidden");
+    if (!contactId || !input || !input.value) return;
+    const target = new Date(input.value + "T00:00:00");
+    const c = state.contacts.get(contactId); if (!c) return;
+    const match = c.messages.find((m) => {
+      const d = new Date(m.ts);
+      return d.getFullYear() === target.getFullYear() && d.getMonth() === target.getMonth() && d.getDate() === target.getDate();
+    });
+    if (!match) { toast(T("toast.noMessagesOnDate")); return; }
+    if (state.chatId !== contactId) { state.chatId = contactId; renderTab(); }
+    // renderChatThread уже отрисовала DOM синхронно выше — ищем элемент
+    // сообщения по data-msg-id, который проставляется в разметке пузыря.
+    setTimeout(() => {
+      const el = document.querySelector(`#chat-messages [data-msg-id="${CSS.escape(match.id)}"]`);
+      if (el) {
+        el.scrollIntoView({ block: "center", behavior: "auto" });
+        el.classList.add("jump-highlight");
+        setTimeout(() => el.classList.remove("jump-highlight"), 1500);
+      }
+    }, 50);
+  });
+}
 function wireRenameSheet() {
   const btn = $("#rename-save-btn"); if (!btn) return;
   btn.addEventListener("click", () => {
@@ -6118,6 +7080,17 @@ function wireRenameSheet() {
   });
 }
 function deleteContact(id) {
+  // Карточка контакта сегодня никогда не открывает эту функцию для
+  // группы (openContactCard редиректит в openGroupInfo) — но функция
+  // остаётся вызываемой напрямую (консоль, будущий код), и без этой
+  // проверки она удалила бы группу молча ЛОКАЛЬНО: mesh.remove(groupId)
+  // — no-op (у группы нет своего линка), state.contacts.delete(groupId)
+  // убирает её у меня, но остальные участники ничего не узнают и
+  // продолжат считать меня в группе. removeGroupMember(.., Store.myId,
+  // true) — тот же путь, что и обычный "Выйти из группы": оповещает
+  // оставшихся через broadcastGroupRoster ДО удаления.
+  const cg = state.contacts.get(id);
+  if (isGroup(cg)) { removeGroupMember(id, Store.myId, true); return; }
   // Если удаляют контакт прямо во время звонка с ним — раньше это
   // полагалось на побочный эффект mesh.remove() ниже, а не на настоящий
   // closeCallScreen(). pendingRemoteStreams и другая очистка (audio-
@@ -6136,14 +7109,27 @@ function deleteContact(id) {
   unreadDividerFor.delete(id);
   dividerScrolledFor.delete(id);
   relayAttemptCooldown.delete(id);
+  // До 200 непримененных ICE-кандидатов на контакт (см. лимит в
+  // handleIncomingOffer) иначе остаются в памяти до перезагрузки —
+  // этот контакт уже удалён, они больше никогда не будут востребованы.
+  pendingIceCandidates.delete(id);
   if (state.activeContactContext === id) state.activeContactContext = null;
+  state.mentionedChats.delete(id); // на прямые контакты не вешается, но безопасно и симметрично остальной чистке
   const audioEl = document.getElementById("remote-audio-" + id); if (audioEl) audioEl.remove();
   state.contacts.delete(id);
-  recentlyDeletedIds.add(id);
-  if (recentlyDeletedIds.size > 500) recentlyDeletedIds.delete(recentlyDeletedIds.values().next().value);
+  recentlyDeletedIds.set(id, Date.now());
+  // .keys().next().value — самый старый id по порядку вставки (Map, как и
+  // Set, сохраняет порядок вставки); .values() здесь дал бы timestamp, а не
+  // id, раз recentlyDeletedIds стал Map<id, ts>.
+  if (recentlyDeletedIds.size > 500) recentlyDeletedIds.delete(recentlyDeletedIds.keys().next().value);
+  persistRecentlyDeleted();
   persistContacts();
-  if (state.callId === id) closeCallScreen();
-  if (state.chatId === id) { state.chatId = null; __lastRenderedChatId = null; }
+  // Раньше здесь была повторная проверка if (state.callId === id)
+  // closeCallScreen() — мёртвый код: closeCallScreen("failed") уже
+  // вызван выше (строка с комментарием про pendingRemoteStreams/аудио) и
+  // безусловно обнуляет state.callId внутри себя, так что к этому месту
+  // state.callId уже не может быть равен id.
+  if (state.chatId === id) { state.chatId = null; __lastRenderedChatId = null; state.multiSelect = null; }
   if (state.contactCardId === id) state.contactCardId = null;
   renderTab();
   toast(T("toast.contactDeleted"));
@@ -6308,6 +7294,7 @@ async function beginCall(id, withVideo) {
   state._callMuteOnAnswer = false;
   state._callDeadSeconds = 0;
   state.callWantsVideo = !!withVideo;
+  if (withVideo) requestWakeLock();
 
   openCallScreen(id, "calling");
   playDialingSound();
@@ -6519,6 +7506,7 @@ function attachRemoteAudio(id, stream) {
   if (ctx && window.MediaStreamAudioDestinationNode) {
     try {
       if (audioEl._relaySource) { try { audioEl._relaySource.disconnect(); } catch (e) {} }
+      if (audioEl._relayDest) { try { audioEl._relayDest.disconnect(); } catch (e) {} }
       const source = ctx.createMediaStreamSource(stream);
       const dest = ctx.createMediaStreamDestination();
       source.connect(dest);
@@ -6553,6 +7541,17 @@ function attachRemoteAudio(id, stream) {
     }).catch(() => {});
   }
 }
+// Доступность Picture-in-Picture: requestPictureInPicture (Chrome/Edge,
+// большинство Android-браузеров) ИЛИ webkitSetPresentationMode (старый
+// Safari/iOS). document.pictureInPictureEnabled === false означает, что
+// браузер явно отключил API (например, через Permissions-Policy) —
+// в этом случае кнопку не показываем вовсе, а не оставляем декоративной.
+function pipSupported() {
+  const v = document.createElement("video");
+  if (typeof document.pictureInPictureEnabled === "boolean" && document.pictureInPictureEnabled && typeof v.requestPictureInPicture === "function") return true;
+  if (typeof v.webkitSetPresentationMode === "function") return true;
+  return false;
+}
 function attachRemoteVideo(id, stream) {
   if (state.callId !== id) return;
   const videoTracks = stream.getVideoTracks ? stream.getVideoTracks() : [];
@@ -6563,6 +7562,7 @@ function attachRemoteVideo(id, stream) {
   v.classList.remove("hidden");
   const cs = $("#call-screen"); if (cs) cs.classList.add("video-active");
   const p = v.play(); if (p && p.catch) p.catch(() => {});
+  const pipBtn = $("#call-pip-btn"); if (pipBtn) pipBtn.classList.toggle("hidden", !pipSupported());
 }
 function showLocalVideoPreview(link) {
   const v = $("#call-local-video");
@@ -6574,19 +7574,27 @@ function showLocalVideoPreview(link) {
   const switchBtn = $("#call-switch-camera-btn"); if (switchBtn) switchBtn.classList.remove("hidden");
   const flipOverlay = $("#call-flip-overlay-btn"); if (flipOverlay) flipOverlay.classList.remove("hidden");
   const videoBtn = $("#call-video-btn"); if (videoBtn) videoBtn.classList.add("active");
+  const pipBtn = $("#call-pip-btn"); if (pipBtn) pipBtn.classList.toggle("hidden", !pipSupported());
 }
 function hideCallVideo() {
+  // Если в этот момент активен PiP — закрываем его явно. Без этого
+  // плавающее окошко продолжает показывать видео-поток, который мы вот-вот
+  // обнулим (srcObject = null) — на экране остаётся "подвисший" чёрный
+  // PiP-прямоугольник вместо того, чтобы просто исчезнуть вместе со звонком.
+  if (document.pictureInPictureElement) { try { document.exitPictureInPicture(); } catch (e) {} }
   const rv = $("#call-remote-video"); if (rv) { rv.classList.add("hidden"); rv.srcObject = null; }
   const lv = $("#call-local-video"); if (lv) { lv.classList.add("hidden"); lv.srcObject = null; }
   const cs = $("#call-screen"); if (cs) cs.classList.remove("video-active");
   const switchBtn = $("#call-switch-camera-btn"); if (switchBtn) switchBtn.classList.add("hidden");
   const flipOverlay = $("#call-flip-overlay-btn"); if (flipOverlay) flipOverlay.classList.add("hidden");
   const videoBtn = $("#call-video-btn"); if (videoBtn) videoBtn.classList.remove("active");
+  const pipBtn = $("#call-pip-btn"); if (pipBtn) pipBtn.classList.add("hidden");
 }
 function startCallTimer() {
   const started = Date.now();
   clearInterval(callTimerInterval);
   state._callDeadSeconds = 0;
+  let qualityTick = 0;
   callTimerInterval = setInterval(() => {
     const secs = Math.floor((Date.now() - started) / 1000);
     const mm = String(Math.floor(secs / 60)).padStart(2, "0");
@@ -6596,12 +7604,40 @@ function startCallTimer() {
     if (!cid) { state._callDeadSeconds = 0; return; }
     const link = mesh.get(cid);
     const alive = link && (link.status === "connected" || link.status === "in-call");
-    if (alive) { state._callDeadSeconds = 0; return; }
-    state._callDeadSeconds = (state._callDeadSeconds || 0) + 1;
-    if (state._callDeadSeconds * 1000 >= CALL_DEAD_LINK_TIMEOUT_MS) {
-      closeCallScreen("completed");
+    if (alive) { state._callDeadSeconds = 0; }
+    else {
+      state._callDeadSeconds = (state._callDeadSeconds || 0) + 1;
+      if (state._callDeadSeconds * 1000 >= CALL_DEAD_LINK_TIMEOUT_MS) { closeCallScreen("completed"); return; }
     }
+    // P2 — иконка качества связи, раз в 3 секунды (getStats недёшев,
+    // раз в секунду было бы избыточно для индикатора на глаз).
+    qualityTick++;
+    if (alive && link.pc && qualityTick % 3 === 0) updateCallQualityIcon(link.pc);
   }, 1000);
+}
+let __lastCallQualityRtt = null;
+async function updateCallQualityIcon(pc) {
+  const icon = $("#call-quality-icon"); if (!icon) return;
+  try {
+    const stats = await pc.getStats();
+    let rttMs = null, lossRatio = 0;
+    stats.forEach((s) => {
+      if (s.type === "candidate-pair" && s.state === "succeeded" && typeof s.currentRoundTripTime === "number") {
+        rttMs = s.currentRoundTripTime * 1000;
+      }
+      if (s.type === "inbound-rtp" && typeof s.packetsLost === "number" && typeof s.packetsReceived === "number" && s.packetsReceived + s.packetsLost > 0) {
+        lossRatio = Math.max(lossRatio, s.packetsLost / (s.packetsReceived + s.packetsLost));
+      }
+    });
+    __lastCallQualityRtt = rttMs;
+    let level = "good";
+    if (rttMs == null) { icon.classList.add("hidden"); return; }
+    if (rttMs > 300 || lossRatio > 0.08) level = "poor";
+    else if (rttMs > 150 || lossRatio > 0.03) level = "medium";
+    icon.classList.remove("hidden", "quality-good", "quality-medium", "quality-poor");
+    icon.classList.add("quality-" + level);
+    icon.title = T("call.quality." + level) + (rttMs ? ` (${Math.round(rttMs)} ms)` : "");
+  } catch (e) { /* getStats недоступен/звонок закрылся между тиком и ответом — не страшно, следующий тик попробует снова */ }
 }
 
 // Системные сообщения обо ВСЕХ звонках — в обе стороны.
@@ -6623,11 +7659,13 @@ function systemMessageForCall(rec, reason) {
 function closeCallScreen(reason) {
   const rec = state.currentCallRecord;
   clearInterval(callTimerInterval); callTimerInterval = null;
+  const qIcon = $("#call-quality-icon"); if (qIcon) qIcon.classList.add("hidden");
   state._callDeadSeconds = 0;
   state._callAcceptInFlight = false;
   state._callUserAccepted = false;
   state._callMuteOnAnswer = false;
   state.callWantsVideo = false;
+  releaseWakeLock();
   clearPendingCall();
   stopRingtone();
   stopCallSounds();
@@ -6657,7 +7695,18 @@ function closeCallScreen(reason) {
   // только что завершён, и будем игнорировать такие пакеты 15 секунд.
   if (rec && rec.contactId) {
     recentlyEndedCalls.set(rec.contactId, Date.now());
-    // и почистим старые записи, чтобы Map не рос
+    // Самоочистка по таймеру — раньше запись пропадала только "заодно",
+    // при завершении СЛЕДУЮЩЕГО звонка (см. ниже). Если после этого
+    // звонка приложение час провисит без единого нового звонка, старая
+    // запись просто висела в Map (безвредно, но мусор). setTimeout
+    // гарантирует уборку независимо от того, будут ли ещё звонки.
+    const ccid = rec.contactId;
+    setTimeout(() => {
+      const ts = recentlyEndedCalls.get(ccid);
+      if (ts && Date.now() - ts >= RECENTLY_ENDED_CALL_MS) recentlyEndedCalls.delete(ccid);
+    }, RECENTLY_ENDED_CALL_MS + 100);
+    // и всё равно почистим попутно старые записи от других контактов,
+    // чтобы не ждать их собственных таймеров без необходимости.
     const now = Date.now();
     for (const [id, ts] of recentlyEndedCalls) {
       if (now - ts > RECENTLY_ENDED_CALL_MS) recentlyEndedCalls.delete(id);
@@ -6714,18 +7763,55 @@ function wireCallScreen() {
     const turningOn = !videoBtn.classList.contains("active");
     if (turningOn) {
       const ok = await link.enableVideo();
-      if (ok) { state.callWantsVideo = true; showLocalVideoPreview(link); }
+      if (ok) { state.callWantsVideo = true; showLocalVideoPreview(link); requestWakeLock(); }
       else toast(T("toast.videoNoCamera"));
     } else {
       link.disableVideo();
       const lv = $("#call-local-video"); if (lv) { lv.classList.add("hidden"); lv.srcObject = null; }
       videoBtn.classList.remove("active");
       const switchBtn = $("#call-switch-camera-btn"); if (switchBtn) switchBtn.classList.add("hidden");
+      // PiP-кнопку прячем только если и удалённого видео тоже нет —
+      // пользователь мог выключить СВОЮ камеру, но продолжать смотреть
+      // видео собеседника (PiP по-прежнему осмысленен).
+      const rv = $("#call-remote-video");
+      const remoteActive = rv && rv.srcObject && !rv.classList.contains("hidden");
+      if (!remoteActive) { const pipBtn = $("#call-pip-btn"); if (pipBtn) pipBtn.classList.add("hidden"); }
+      // Видео выключено (но звонок продолжается) — экран больше не
+      // обязан гореть сам по себе, отдаём управление системе (на
+      // Android это снова уход в сон через её собственный таймаут).
+      releaseWakeLock();
     }
   });
   const switchCamBtn = $("#call-switch-camera-btn");
   if (switchCamBtn) switchCamBtn.addEventListener("click", () => {
     const link = mesh.get(state.callId); if (link) link.switchCamera();
+  });
+  // P2.36 — Picture-in-Picture: веб-API, не нужна нативная обёртка, но
+  // неравномерная поддержка (надёжно в Chrome/Edge, частично в iOS
+  // Safari через webkitSetPresentationMode) — поэтому кнопка показывается
+  // только когда API реально доступен (см. pipSupported() ниже), а не
+  // просто всегда с no-op при клике.
+  const pipBtn = $("#call-pip-btn");
+  if (pipBtn) pipBtn.addEventListener("click", async () => {
+    // В PiP выносим именно удалённое видео (посмотреть на собеседника,
+    // переключившись в другое приложение) — если его ещё нет (например,
+    // идёт дозвон и показан только свой превью), используем локальное
+    // как резервный вариант, чтобы кнопка не была no-op.
+    const rv = $("#call-remote-video");
+    const lv = $("#call-local-video");
+    const v = (rv && rv.srcObject && !rv.classList.contains("hidden")) ? rv : lv;
+    if (!v || !v.srcObject) return;
+    try {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+      } else if (v.requestPictureInPicture) {
+        await v.requestPictureInPicture();
+      } else if (v.webkitSetPresentationMode) {
+        // Старый Safari/iOS путь — у него нет requestPictureInPicture(),
+        // а есть webkitSetPresentationMode("picture-in-picture"|"inline").
+        v.webkitSetPresentationMode(v.webkitPresentationMode === "picture-in-picture" ? "inline" : "picture-in-picture");
+      }
+    } catch (e) { etherLog("warn", "[call] PiP failed:", String(e)); }
   });
   const speakerBtn = $("#call-speaker-btn");
   if (speakerBtn) speakerBtn.addEventListener("click", () => toggleSpeaker());
@@ -6785,7 +7871,7 @@ async function acceptCall(withMute) {
         if (signaling && signaling.connected) {
           try { signaling.signal(cid, { t: "call-accepted" }); } catch (e) {}
         }
-        if (state.callWantsVideo) showLocalVideoPreview(link);
+        if (state.callWantsVideo) { showLocalVideoPreview(link); requestWakeLock(); }
         if (withMute) {
           link.setMuted(true);
           const mb = $("#call-mute-btn");
@@ -6831,6 +7917,13 @@ function wireSearchHandlers() {
   if (gs) gs.addEventListener("input", (e) => { state.searchQuery = e.target.value.trim(); renderChatsList(); });
   const ta = $("#toggle-archived");
   if (ta) ta.addEventListener("click", () => { state.showArchived = !state.showArchived; renderChatsList(); });
+  $$("#chat-filters .chat-filter-chip").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      state.chatFilter = chip.dataset.filter || "all";
+      $$("#chat-filters .chat-filter-chip").forEach((b) => b.classList.toggle("active", b === chip));
+      renderChatsList();
+    });
+  });
   const csb = $("#chat-search-btn");
   if (csb) csb.addEventListener("click", () => {
     const bar = $("#chat-search-bar"); if (!bar) return;
@@ -6845,6 +7938,11 @@ function wireSearchHandlers() {
 }
 function closeChatSearch() {
   state.chatSearchQuery = "";
+  // Сбрасываем отложенный скролл к первому попаданию — иначе ранее
+  // поставленный таймер сработает уже после закрытия поиска (или
+  // всего чата) и попытается прокрутить #chat-messages, которого к
+  // этому моменту может не быть на экране вовсе.
+  if (__chatSearchScrollTimer) { clearTimeout(__chatSearchScrollTimer); __chatSearchScrollTimer = null; }
   const input = $("#chat-search-input"); if (input) input.value = "";
   const bar = $("#chat-search-bar"); if (bar) bar.classList.add("hidden");
   const counter = $("#chat-search-counter"); if (counter) counter.textContent = "";
@@ -6862,6 +7960,30 @@ function updateSearchCounter() {
 // Настройки
 // =====================================================================
 function wireSettingsScreen() {
+  const settingsSearch = $("#settings-search");
+  if (settingsSearch) {
+    // Нюанс (как и предупреждал ревьюер): .settings-row.column — это
+    // контейнер с несколькими подэлементами (например, Privacy), а не
+    // одна строка с одним текстом — простая фильтрация по textContent
+    // всё равно работает приемлемо (ищет по всему тексту внутри), не
+    // идеально для таких составных блоков, но этого достаточно для
+    // первой версии.
+    settingsSearch.addEventListener("input", (e) => {
+      // Отдельный класс search-hidden, а не общий "hidden" — часть строк
+      // (например #change-pin-btn) уже скрыта своей собственной логикой
+      // независимо от поиска; трогать их общий "hidden" напрямую стёрло
+      // бы это состояние при очистке поля поиска.
+      const q = e.target.value.trim().toLowerCase();
+      $$("#screen-settings .settings-row").forEach((row) => {
+        const text = (row.textContent || "").toLowerCase();
+        row.classList.toggle("search-hidden", q.length > 0 && !text.includes(q));
+      });
+      $$("#screen-settings .settings-group").forEach((group) => {
+        const anyVisible = Array.from(group.querySelectorAll(".settings-row")).some((r) => !r.classList.contains("search-hidden") && !r.classList.contains("hidden"));
+        group.classList.toggle("search-hidden", q.length > 0 && !anyVisible);
+      });
+    });
+  }
   const helpBtn = $("#help-btn");
   if (helpBtn) helpBtn.addEventListener("click", () => {
     renderHelp();
@@ -6887,6 +8009,10 @@ function wireSettingsScreen() {
       if (!state.callId) initSignaling();
     }
   });
+  const hideNotifEl = $("#settings-hide-notif");
+  if (hideNotifEl) hideNotifEl.addEventListener("change", (e) => { Store.hideNotifContent = e.target.checked; });
+  const myStatusEl = $("#settings-my-status");
+  if (myStatusEl) myStatusEl.addEventListener("change", (e) => { Store.myStatus = e.target.value.trim().slice(0, 80); });
   const idEl = $("#settings-identity");
   if (idEl) {
     idEl.addEventListener("input", () => {
@@ -6928,6 +8054,10 @@ function wireSettingsScreen() {
   const sounds = $("#settings-sounds");
   if (sounds) sounds.addEventListener("change", (e) => {
     Store.soundsEnabled = e.target.checked;
+  });
+  const autoEmoji = $("#settings-auto-emoji");
+  if (autoEmoji) autoEmoji.addEventListener("change", (e) => {
+    Store.autoEmoji = e.target.checked;
   });
   const ringtoneSel = $("#settings-ringtone");
   if (ringtoneSel) {
@@ -7031,6 +8161,10 @@ function wireSettingsScreen() {
       $$(".theme-seg button").forEach((b) => b.classList.toggle("active", b === btn));
     });
   });
+  const bubbleSizeSel = $("#settings-bubble-size");
+  if (bubbleSizeSel) { bubbleSizeSel.value = Store.bubbleSize; bubbleSizeSel.addEventListener("change", () => { Store.bubbleSize = bubbleSizeSel.value; applyChatAppearancePrefs(); }); }
+  const wallpaperSel = $("#settings-wallpaper");
+  if (wallpaperSel) { wallpaperSel.value = Store.chatWallpaper; wallpaperSel.addEventListener("change", () => { Store.chatWallpaper = wallpaperSel.value; applyChatAppearancePrefs(); }); }
 }
 
 // =====================================================================
@@ -7055,6 +8189,31 @@ function wireNavTitleTaps() {
       __navTitleTaps = [];
       Store.debugHidden = false;
       applyDebugTabVisibility();
+    }
+  });
+}
+// P3.47 — "паника": 5 тапов по логотипу в "О приложении" → подтверждение
+// → необратимая мгновенная очистка всех данных устройства и перезапуск
+// с чистого листа. Нарочно скрыто за тапами (а не отдельной видимой
+// кнопкой в UI) и НЕ требует предварительной разблокировки debug-вкладки
+// (в отличие от debug-hard-reset-btn, который делает то же самое, но
+// спрятан на 2 экрана глубже) — весь смысл паника-кнопки в том, чтобы
+// быть доступной за секунды в стрессовой ситуации, а не быть удобной
+// для случайного нажатия.
+function wirePanicButton() {
+  const el = document.getElementById("about-app-logo");
+  if (!el) return;
+  el.addEventListener("click", () => {
+    const now = Date.now();
+    __panicTaps = __panicTaps.filter((t) => now - t < 2000);
+    __panicTaps.push(now);
+    if (__panicTaps.length >= 5) {
+      __panicTaps = [];
+      if (!confirm(T("toast.confirmPanic"))) return;
+      try { localStorage.clear(); } catch (e) {}
+      if ("caches" in window) { try { caches.keys().then((names) => names.forEach((n) => caches.delete(n))); } catch (e) {} }
+      if ("indexedDB" in window) { try { indexedDB.deleteDatabase("ether-db"); } catch (e) {} }
+      location.reload();
     }
   });
 }
@@ -7097,10 +8256,25 @@ function wireDebugScreen() {
   const logsClear = $("#logs-clear-btn");
   if (logsClear) logsClear.addEventListener("click", () => { window.__etherDiag = []; renderLogsSheet(); });
 
+  const blockedBtn = $("#settings-blocked-btn");
+  if (blockedBtn) blockedBtn.addEventListener("click", () => { renderBlockedSheet(); const el = $("#blocked-sheet"); if (el) el.classList.remove("hidden"); });
+  const blockedClose = $("#blocked-close");
+  if (blockedClose) blockedClose.addEventListener("click", () => { const el = $("#blocked-sheet"); if (el) el.classList.add("hidden"); });
+  const blockedList = $("#blocked-list");
+  if (blockedList) blockedList.addEventListener("click", (ev) => {
+    const btn = ev.target.closest("[data-unblock-id]"); if (!btn) return;
+    const c = state.contacts.get(btn.dataset.unblockId); if (!c) return;
+    c.blocked = false; persistContacts(); toast(T("toast.unblocked")); renderBlockedSheet();
+  });
   const storageBtn = $("#debug-storage-btn");
   if (storageBtn) storageBtn.addEventListener("click", () => { renderStorageSheet(); const el = $("#storage-sheet"); if (el) el.classList.remove("hidden"); });
   const storageClose = $("#storage-close");
   if (storageClose) storageClose.addEventListener("click", () => { const el = $("#storage-sheet"); if (el) el.classList.add("hidden"); });
+  const clearOldMediaBtn = $("#storage-clear-old-media-btn");
+  if (clearOldMediaBtn) clearOldMediaBtn.addEventListener("click", () => {
+    if (!confirm(T("storage.clearOldMedia") + "?")) return;
+    clearOldMedia(30);
+  });
   const exportDiag = $("#export-diagnostics-btn");
   if (exportDiag) exportDiag.addEventListener("click", exportFullDiagnostics);
 
@@ -7116,11 +8290,11 @@ function wireDebugScreen() {
     for (const id of Array.from(state.contacts.keys())) mesh.remove(id);
     for (const t of autoConnectTimers.values()) clearTimeout(t);
     autoConnectTimers.clear();
-    onlineSet.clear(); outbox.clear(); pendingNoKey.clear(); seenDeliverIds.clear(); recentlyDeletedIds.clear();
+    onlineSet.clear(); outbox.clear(); groupDeliveryMap.clear(); pendingNoKey.clear(); seenDeliverIds.clear(); recentlyDeletedIds.clear();
     state.contacts.clear(); state.callLog = []; state.currentCallRecord = null;
     state.lastSeen = {}; state.drafts = {};
-    Store.contactsJson = "[]"; Store.outboxJson = "[]"; Store.pendingNoKeyJson = "{}";
-    Store.callLogJson = "[]"; Store.lastSeenJson = "{}"; Store.draftsJson = "{}";
+    Store.contactsJson = "[]"; Store.outboxJson = "[]"; Store.groupDeliveryMapJson = "[]"; Store.pendingNoKeyJson = "{}";
+    Store.callLogJson = "[]"; Store.lastSeenJson = "{}"; Store.draftsJson = "{}"; Store.recentlyDeletedJson = "{}";
     resetConnectScreen(); renderTab();
   });
   const hard = $("#debug-hard-reset-btn");
@@ -7148,7 +8322,23 @@ function buildLogsText() {
   }
   return lines.join("\n");
 }
-function renderStorageSheet() {
+// P2 — отдельный экран "Заблокированные": раньше разблокировать можно
+// было только найдя контакт и открыв его карточку, что неудобно, если
+// хочешь просто обзору список кого заблокировал.
+function renderBlockedSheet() {
+  const list = $("#blocked-list");
+  const empty = $("#blocked-empty");
+  if (!list) return;
+  const blocked = Array.from(state.contacts.values()).filter((c) => c.blocked && !isGroup(c));
+  list.innerHTML = blocked.map((c) => `
+    <div class="forward-row">
+      ${avatarCircleHtml(c, "avatar-sm")}
+      <span class="forward-name">${escapeHtml(c.name || T("sys.someone"))}</span>
+      <button type="button" class="btn-secondary small" data-unblock-id="${escapeHtml(c.id)}">${escapeHtml(T("chat.contact.unblock"))}</button>
+    </div>`).join("");
+  if (empty) empty.classList.toggle("hidden", blocked.length > 0);
+}
+async function renderStorageSheet() {
   const el = $("#storage-summary"); if (!el) return;
   const items = [];
   for (let i = 0; i < localStorage.length; i++) {
@@ -7159,7 +8349,37 @@ function renderStorageSheet() {
   }
   items.sort((a, b) => b.size - a.size);
   const totalBytes = items.reduce((s, x) => s + x.size, 0);
-  el.innerHTML = `<div>localStorage: ${(totalBytes / 1024).toFixed(1)} KB, ${items.length} keys</div>` + buildEnvText();
+  // IndexedDB (файлы/медиа) + Cache Storage (сервис-воркер) — то, что
+  // реально занимает место на диске, в отличие от localStorage (там
+  // только метаданные/ссылки). navigator.storage.estimate() не точен
+  // по байту, но даёт честный порядок величины.
+  let idbSize = "—";
+  try {
+    if (navigator.storage && navigator.storage.estimate) {
+      const est = await navigator.storage.estimate();
+      if (est && typeof est.usage === "number") {
+        idbSize = `${(est.usage / 1024 / 1024).toFixed(1)} MB` + (est.quota ? ` / ${(est.quota / 1024 / 1024).toFixed(0)} MB` : "");
+      }
+    }
+  } catch (e) {}
+  el.innerHTML = `<div>localStorage: ${(totalBytes / 1024).toFixed(1)} KB, ${items.length} keys</div><div>IndexedDB + Cache: ${escapeHtml(idbSize)}</div>` + buildEnvText();
+}
+// P1.19 — удаляет блобы (фото/видео/голосовые/документы) старше N дней
+// из IndexedDB, не трогая сами сообщения (текст и метаданные остаются,
+// просто сам файл станет "недоступен" — как при истёкшем TTL). Текст
+// переписки — не то, что обычно раздувает хранилище, медиа — то, что
+// нужно.
+async function clearOldMedia(days) {
+  const cutoff = Date.now() - days * 24 * 3600 * 1000;
+  let cleared = 0;
+  for (const c of state.contacts.values()) {
+    const old = c.messages.filter((m) => m.file && m.ts < cutoff);
+    for (const m of old) { try { await IDB.del("file:" + m.id); cleared++; } catch (e) {} }
+  }
+  toast(T("toast.oldMediaCleared"));
+  if (state.chatId) { try { renderChatThreadInner(); } catch (e) {} }
+  try { await renderStorageSheet(); } catch (e) {}
+  return cleared;
 }
 function buildEnvText() {
   return `<hr><div>UA: ${escapeHtml(navigator.userAgent)}</div>`;
@@ -7289,7 +8509,7 @@ function wireMeshEvents() {
           if (state.callPhase === "calling") {
             if (!link._audioAdded) {
               link.startCall(state.callWantsVideo).then(() => {
-                if (state.callWantsVideo) showLocalVideoPreview(link);
+                if (state.callWantsVideo) { showLocalVideoPreview(link); requestWakeLock(); }
                 // P2P установлен = собеседник в сети и его экран входящего
                 // уже открыт. Обновляем фазу на "Гудки…" — независимо от
                 // того, дошёл ли call-invite-ack через сигналинг (он мог
@@ -7306,7 +8526,7 @@ function wireMeshEvents() {
             }
           } else if (state._callUserAccepted && state.callPhase !== "active") {
             link.answerCall(state.callWantsVideo).then(() => {
-              if (state.callWantsVideo) showLocalVideoPreview(link);
+              if (state.callWantsVideo) { showLocalVideoPreview(link); requestWakeLock(); }
               if (state._callMuteOnAnswer) {
                 link.setMuted(true);
                 const mb = $("#call-mute-btn");
@@ -7411,7 +8631,15 @@ if (payload && payload.kind === "call-state") {
   mesh.addEventListener("remote-track", (ev) => {
     try {
       const { id, stream, track } = ev.detail;
-      if (state.callId === id && state.callPhase !== "active") { pendingRemoteStreams.set(id, stream); return; }
+      // Раньше это условие проверяло ТОЛЬКО "callId===id && не active" и
+      // буферизовало поток — но если callId вообще не совпадает с id (мы
+      // не в звонке с этим контактом, например, собеседник не отреагировал
+      // на call-busy и всё равно продолжил слать медиа), код проваливался
+      // прямо в attachRemoteAudio без проверки. attachRemoteVideo сам
+      // внутри себя проверяет state.callId !== id — attachRemoteAudio такой
+      // защиты не имеет, поэтому тут нужна она явно, симметрично.
+      if (state.callId !== id) return;
+      if (state.callPhase !== "active") { pendingRemoteStreams.set(id, stream); return; }
       attachRemoteAudio(id, stream);
       if (track && track.kind === "video") attachRemoteVideo(id, stream);
     } catch (e) {
@@ -7476,17 +8704,26 @@ if (attachBtn && fileInput) {
     fileInput.click();
   });
   fileInput.addEventListener("change", () => {
-    const file = fileInput.files && fileInput.files[0];
-    if (file && state.chatId) sendFileMessage(state.chatId, file);
+    const files = Array.from(fileInput.files || []);
+    handlePickedFiles(files);
     fileInput.value = "";
   });
 }
 const cameraInput = $("#chat-camera-input");
 if (cameraInput) {
   cameraInput.addEventListener("change", () => {
-    const file = cameraInput.files && cameraInput.files[0];
-    if (file && state.chatId) sendFileMessage(state.chatId, file);
+    const files = Array.from(cameraInput.files || []);
     cameraInput.value = "";
+    // Снимок с СИСТЕМНОЙ камеры (capture="environment") — пользователь
+    // уже подтвердил кадр в самой камере (отдельный экран с галочкой/
+    // пересъёмкой — это UI ОС, не наш). Прогонять его ещё и через
+    // handlePickedFiles → openMediaComposeSheet значит показать ВТОРОЙ
+    // экран подтверждения с полем подписи поверх уже принятого решения —
+    // раздражающее двойное подтверждение. Поэтому снимок уходит сразу,
+    // в отличие от обычного выбора файлов (#chat-file-input), где
+    // openMediaComposeSheet — первое и единственное подтверждение.
+    if (!files.length || !state.chatId) return;
+    sendFileMessage(state.chatId, files[0]);
   });
 }
   const input = $("#chat-input");
@@ -7499,13 +8736,16 @@ if (cameraInput) {
       if (state.editingMessageId) return; // не затираем черновик текстом редактируемого сообщения
       const v = input.value.trim();
       if (v) state.drafts[state.chatId] = v; else delete state.drafts[state.chatId];
-      persistDrafts();
+      scheduleDraftPersist();
       sendTypingStart(state.chatId);
       clearTimeout(typingSendTimer);
       typingSendTimer = setTimeout(() => sendTypingStop(state.chatId), TYPING_DEBOUNCE_MS);
+      updateMentionAutocomplete();
     });
-    input.addEventListener("blur", () => { if (state.chatId) sendTypingStop(state.chatId); });
+    input.addEventListener("blur", () => { if (state.chatId) sendTypingStop(state.chatId); closeMentionAutocomplete(); });
+    input.addEventListener("keydown", (ev) => { if (ev.key === "Escape") closeMentionAutocomplete(); });
   }
+  wireMentionAutocomplete();
   const micBtn = $("#voice-record-btn");
   if (micBtn) micBtn.addEventListener("click", () => { startVoiceRecording(); });
   const voiceCancelBtn = $("#voice-cancel-btn");
@@ -7524,6 +8764,39 @@ if (cameraInput) {
   });
   const moreBtn = $("#chat-more-btn");
   if (moreBtn) moreBtn.addEventListener("click", () => { const id = state.chatId; if (id) openContactCard(id); });
+  const retryAllBtn = $("#chat-retry-all-btn");
+  if (retryAllBtn) retryAllBtn.addEventListener("click", () => {
+    const id = state.chatId; if (!id) return;
+    retryAllFailed(id).then(() => { if (state.chatId === id) renderChatThreadInner(); if (state.tab === "chats") renderChatsList(); });
+  });
+  const pinnedJump = $("#pinned-msg-jump");
+  if (pinnedJump) pinnedJump.addEventListener("click", () => {
+    const c = state.chatId && state.contacts.get(state.chatId); if (!c || !c.pinnedMessageId) return;
+    const el = document.querySelector(`.bubble[data-msg-id="${CSS.escape(c.pinnedMessageId)}"]`);
+    if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.classList.add("jump-highlight"); setTimeout(() => el.classList.remove("jump-highlight"), 1200); }
+  });
+  const pinnedUnpin = $("#pinned-msg-unpin");
+  if (pinnedUnpin) pinnedUnpin.addEventListener("click", () => {
+    const id = state.chatId; if (!id) return;
+    const c = state.contacts.get(id); if (!c) return;
+    c.pinnedMessageId = null; persistContacts(); renderChatThreadInner();
+  });
+  const msCancel = $("#multiselect-cancel-btn");
+  if (msCancel) msCancel.addEventListener("click", () => exitMultiSelect());
+  const msDelete = $("#multiselect-delete-btn");
+  if (msDelete) msDelete.addEventListener("click", () => {
+    const id = state.chatId; if (!id || !state.multiSelect) return;
+    if (!confirm(T("chat.selectMsgs.deleteConfirm", { n: state.multiSelect.size }))) return;
+    for (const msgId of state.multiSelect) deleteMessageLocal(id, msgId);
+    exitMultiSelect();
+  });
+  const msForward = $("#multiselect-forward-btn");
+  if (msForward) msForward.addEventListener("click", () => {
+    const id = state.chatId; if (!id || !state.multiSelect || state.multiSelect.size === 0) return;
+    const ids = Array.from(state.multiSelect);
+    openForwardSheet((toId) => { for (const msgId of ids) forwardMessage(msgId, id, toId); });
+    exitMultiSelect();
+  });
   const peerTap = $("#chat-peer-tap");
   if (peerTap) peerTap.addEventListener("click", () => { const id = state.chatId; if (id) openContactCard(id); });
   const editCancel = $("#edit-cancel-btn");
@@ -7554,6 +8827,39 @@ if (cameraInput) {
       }
     }
   });
+  wireChatEdgeBackGesture();
+}
+// Свайп от самого левого края экрана закрывает открытый чат — привычный
+// iOS-жест "назад", дополняющий кнопку "‹" в шапке. Срабатывает только
+// если палец стартовал в первых 24px экрана (почти никогда не совпадает
+// с пузырём сообщения — у того есть свой свайп-ответ, см. attachSwipeReply)
+// и палец ушёл по горизонтали больше чем по вертикали.
+function wireChatEdgeBackGesture() {
+  const chatScreenEl = $("#screen-chat");
+  if (!chatScreenEl || chatScreenEl.dataset.edgeBackWired) return;
+  chatScreenEl.dataset.edgeBackWired = "1";
+  let edgeStartX = 0, edgeStartY = 0, edgeTracking = false;
+  chatScreenEl.addEventListener("touchstart", (e) => {
+    const t = e.touches[0];
+    if (t.clientX < 24 && Math.abs(t.clientY - window.innerHeight / 2) < window.innerHeight / 2) {
+      edgeStartX = t.clientX; edgeStartY = t.clientY;
+      edgeTracking = true;
+    } else edgeTracking = false;
+  }, { passive: true });
+  chatScreenEl.addEventListener("touchmove", (e) => {
+    if (!edgeTracking) return;
+    const t = e.touches[0];
+    if (Math.abs(t.clientY - edgeStartY) > 60) { edgeTracking = false; return; }
+  }, { passive: true });
+  chatScreenEl.addEventListener("touchend", (e) => {
+    if (!edgeTracking) return;
+    edgeTracking = false;
+    const t = e.changedTouches[0];
+    if (t.clientX - edgeStartX > 80) {
+      closeChatSafely();
+      if (navigator.vibrate) try { navigator.vibrate(5); } catch (e) {}
+    }
+  }, { passive: true });
 }
 
 // =====================================================================
@@ -7688,6 +8994,13 @@ document.addEventListener("visibilitychange", () => {
         if (ca) ca.classList.remove("hidden");
       }
     }
+    // Wake Lock автоматически освобождается браузером при уходе
+    // вкладки/приложения в фон (это часть спецификации, не баг) —
+    // при возврате на передний план запрашиваем заново, если в этот
+    // момент идёт видеозвонок. Без этого экран начинал гаснуть по
+    // таймауту ОС после каждого переключения в другое приложение и
+    // обратно, хотя видеозвонок продолжался.
+    if (state.callId && state.callWantsVideo) requestWakeLock();
     if (state.chatId) {
       const c = state.contacts.get(state.chatId);
       const wrap = $("#chat-messages");
