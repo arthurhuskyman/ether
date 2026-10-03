@@ -1,4 +1,4 @@
-const CACHE_VERSION = "ether-shell-v136";
+const CACHE_VERSION = "ether-shell-v146";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -23,7 +23,12 @@ const SHELL_FILES = [
   "./icons/favicon-32.png",
   "./fonts/InterVariable.woff2",
   "./sounds/ring-classic.mp3",
+  "./sounds/ring-soft.mp3",
+  "./sounds/ring-bell.mp3",
   "./sounds/msg.mp3",
+  "./sounds/msg-chime.mp3",
+  "./sounds/msg-pop.mp3",
+  "./sounds/msg-bell.mp3",
   "./sounds/call-dialing.mp3",
   "./sounds/call-busy.mp3",
   "./sounds/call-noanswer.mp3"
@@ -133,6 +138,12 @@ self.addEventListener("message", (event) => {
   const title = String(data.title || "Эфир").slice(0, 60);
   const body = String(data.body || "").slice(0, 200);
   const tag = String(data.tag || "ether");
+  // P2.37 (урезанный вариант) — actions пришли уже локализованными из
+  // app.js (там доступен T()); в Service Worker своего i18n нет.
+  // Notification.actions — расширение, которое просто игнорируется там,
+  // где не поддерживается (например, часть версий iOS Safari) — ничего
+  // не ломает, кнопка молча не появляется.
+  const actions = Array.isArray(data.actions) ? data.actions.slice(0, 2) : undefined;
   self.registration.showNotification(title, {
     body,
     tag,
@@ -142,6 +153,7 @@ self.addEventListener("message", (event) => {
     silent: !!data.silent,
     vibrate: data.kind === "call" ? [300, 150, 300, 150, 300] : [100, 50, 100],
     requireInteraction: data.kind === "call",
+    actions,
   });
 });
 
@@ -159,6 +171,13 @@ self.addEventListener("push", (event) => {
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
       const hasVisibleClient = clientList.some((c) => c.visibilityState === "visible");
       if (hasVisibleClient) return;
+      // P2.37 (урезанный вариант) — для настоящего web-push (сервер
+      // сигналинга будит нас, пока вкладка не открыта) сервер не знает
+      // язык интерфейса пользователя, поэтому если он сам не прислал
+      // n.actions — используем нейтральный англ. текст "Reply" как
+      // разумный фолбэк, а не оставляем кнопку без неё вовсе.
+      const actions = Array.isArray(n.actions) ? n.actions.slice(0, 2)
+        : (data.kind !== "call" && data.contactId ? [{ action: "reply", title: "Reply" }] : undefined);
       return self.registration.showNotification(n.title || "Эфир", {
         body: n.body || "",
         tag: n.tag || "ether",
@@ -168,6 +187,7 @@ self.addEventListener("push", (event) => {
         vibrate: n.vibrate || (data.kind === "call" ? [300, 150, 300, 150, 300] : [100, 50, 100]),
         requireInteraction: !!n.requireInteraction || data.kind === "call",
         renotify: !!n.renotify,
+        actions,
       });
     })
   );
@@ -187,11 +207,17 @@ self.addEventListener("notificationclick", (event) => {
   const contactId = data.contactId;
   const kind = data.kind || "message";
   const navigateUrl = data.navigate || "./";
+  // P2.37 (урезанный вариант) — клик по самой кнопке-действию "Ответить"
+  // (event.action === "reply") помечаем флагом focusInput, который
+  // app.js использует, чтобы поставить курсор сразу в поле ввода после
+  // открытия чата — настоящего инлайн-ответа без открытия приложения
+  // в Web Notification API нет, см. комментарий у showNotification().
+  const focusInput = event.action === "reply";
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
       for (const c of list) {
         if ("focus" in c) {
-          c.postMessage({ type: "open-contact", contactId, kind });
+          c.postMessage({ type: "open-contact", contactId, kind, focusInput });
           return c.focus();
         }
       }

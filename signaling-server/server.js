@@ -189,6 +189,13 @@ function wsRateLimitPairOk(senderId, recipientId, limitPerMin) {
 const TURN_CHECK_TIMEOUT_MS = 1500;
 const TURN_CHECK_CACHE_MS = 5 * 60 * 1000; // раз в 5 минут достаточно
 let turnCheckCache = { at: 0, ok: null };
+// Проверка по TCP может давать ложный "недоступен" у провайдеров, у
+// которых TCP-порт закрыт, а реально используемый UDP — открыт (TURN в
+// основном работает по UDP). Для таких доверенных серверов можно отключить
+// проверку целиком, а не чинить это полноценным STUN Binding Request по UDP
+// (больше кода и свой набор граничных случаев — не обязательно того стоит
+// для одного конкретного провайдера).
+const TURN_CHECK_DISABLED = process.env.TURN_CHECK_DISABLED === "1";
 
 function checkTurnAlive(url) {
   return new Promise((resolve) => {
@@ -213,6 +220,7 @@ function checkTurnAlive(url) {
 }
 
 async function isTurnAlive(url) {
+  if (TURN_CHECK_DISABLED) return true;
   const now = Date.now();
   if (turnCheckCache.ok !== null && now - turnCheckCache.at < TURN_CHECK_CACHE_MS) {
     return turnCheckCache.ok;
@@ -735,7 +743,12 @@ function pushText(lang, key, params) {
 
 function buildDeclarativePush(payload, lang) {
   const isCall = payload.kind === "call";
-  const navigate = APP_ORIGIN + "/" + (isCall ? ("?call=" + encodeURIComponent(payload.contactId || "")) : ("?chat=" + encodeURIComponent(payload.contactId || "")));
+  // Раньше: APP_ORIGIN + "/" + "?call=..." — сейчас APP_BASE_URL всегда без
+  // хвостового "/" (см. .replace(/\/+$/, "") выше), так что результат
+  // корректен (.../ether/?call=abc), но конструкция хрупкая: если
+  // APP_BASE_URL когда-нибудь будет задан с собственным query-параметром,
+  // жёстко вшитый "/" перед "?" всё сломает. Строим без промежуточного "/".
+  const navigate = APP_ORIGIN + (isCall ? "?call=" : "?chat=") + encodeURIComponent(payload.contactId || "");
   const notification = {
     title: payload.title || "Эфир",
     body: payload.body || "",
@@ -754,14 +767,15 @@ function buildDeclarativePush(payload, lang) {
 async function actuallySendPush(subEntry, payload) {
   if (!PUSH_ENABLED) return false;
   try {
+    // TTL: 30с для звонков (устаревший рингтон, доигравший через час
+    // простоя сервера, — хуже, чем отсутствие звонка вовсе), 5 минут
+    // для обычных сообщений. Apple может задерживать доставку push на
+    // 10-20 секунд при плохой связи или в Low Power Mode — TTL 30с для
+    // сообщений означало, что такой push просто отбрасывался Apple, и
+    // уведомление пропадало без следа.
+    const ttl = payload.kind === "call" ? 30 : 5 * 60;
     await webpush.sendNotification(subEntry.subscription, JSON.stringify(buildDeclarativePush(payload, subEntry.lang)), {
-      // TTL 30 секунд. Раньше было 15 — но Apple может задерживать
-      // доставку push даже на 10-20 секунд при плохой связи или
-      // low-power mode, и push с TTL 15 просто отбрасывался в этот
-      // момент. 30 секунд — компромисс: достаточно для реальных
-      // задержек, но не настолько много, чтобы через час проиграть
-      // рингтон от старого звонка.
-      TTL: 30,
+      TTL: ttl,
       urgency: payload.kind === "call" ? "high" : "normal",
     });
     return true;

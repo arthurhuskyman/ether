@@ -71,5 +71,84 @@ console.log("\n=== Маршрутизация входящих: 1-к-1 vs гру
   check("сообщение в неизвестную группу тихо игнорируется, не падает", routeIncomingChat("bob", { id: "m3", text: "hi", groupId: "unknown" }) === "no-target");
 }
 
+console.log("\n=== groupDeliveryMap: ack группового сообщения находится даже после удаления outbox-записи ===");
+{
+  // Миниатюрная копия реальной логики markMessageAck из js/app.js —
+  // воспроизводит именно тот баг, который был найден в ревью
+  // ("Ack-квитанции для групповых сообщений через сервер теряются"):
+  // deliver-ack с сервера удаляет outbox-запись почти сразу после
+  // отправки, а настоящая квитанция "доставлено"/"прочитано" от
+  // получателя может прийти намного позже, когда outbox уже пуст.
+  const outbox = new Map();
+  const groupDeliveryMap = new Map();
+  const contacts = new Map();
+  contacts.set("g1", { id: "g1", isGroup: true, messages: [{ id: "content-1", from: "me", ack: "sent" }] });
+  contacts.set("bob", { id: "bob", messages: [] }); // 1-к-1 "контакт"-обёртка участника группы
+
+  function resolveGroupDelivery(deliveryId) {
+    const entry = groupDeliveryMap.get(deliveryId);
+    if (!entry) return null;
+    const g = contacts.get(entry.groupId);
+    const m = g && g.messages.find((mm) => mm.id === entry.contentId && mm.from === "me");
+    if (!g || !m) return null;
+    return { ownerChat: g, targetMsg: m };
+  }
+
+  function markMessageAck(contactId, msgId, ack) {
+    const rank = { failed: -1, sent: 0, delivered: 1, read: 2 };
+    const entry = outbox.get(msgId);
+    const groupId = entry && entry.payload && entry.payload.groupId;
+    const contentId = entry && entry.payload && entry.payload.id;
+    let ownerChat = null, targetMsg = null;
+    if (groupId && contentId) {
+      const g = contacts.get(groupId);
+      const m = g && g.messages.find((mm) => mm.id === contentId && mm.from === "me");
+      if (m) { ownerChat = g; targetMsg = m; }
+    }
+    if (!targetMsg) {
+      const resolved = resolveGroupDelivery(msgId);
+      if (resolved) { ownerChat = resolved.ownerChat; targetMsg = resolved.targetMsg; }
+    }
+    if (!targetMsg) {
+      const c = contacts.get(contactId);
+      const m = c && c.messages.find((mm) => mm.id === msgId && mm.from === "me");
+      if (m) { ownerChat = c; targetMsg = m; }
+    }
+    if (!targetMsg) {
+      for (const g of contacts.values()) {
+        if (!g.isGroup) continue;
+        const m = g.messages.find((mm) => mm.id === msgId && mm.from === "me");
+        if (m) { ownerChat = g; targetMsg = m; break; }
+      }
+    }
+    if (targetMsg && ((rank[ack] ?? 0) >= (rank[targetMsg.ack] ?? 0) || ack === "failed")) targetMsg.ack = ack;
+    return !!targetMsg;
+  }
+
+  // 1) Отправка группового сообщения bob'у: отдельный deliveryId,
+  //    запись в outbox И в groupDeliveryMap (см. sendGroupMessage).
+  const deliveryId = "delivery-uuid-1";
+  outbox.set(deliveryId, { payload: { kind: "chat", groupId: "g1", id: "content-1" } });
+  groupDeliveryMap.set(deliveryId, { groupId: "g1", contentId: "content-1" });
+
+  // 2) Сервер подтверждает приём конверта в mailbox (deliver-ack) —
+  //    outbox-запись удаляется немедленно, groupDeliveryMap остаётся.
+  outbox.delete(deliveryId);
+
+  // 3) Много позже bob оказывается онлайн и шлёт настоящую квитанцию
+  //    "доставлено", а потом "прочитано" — с тем же deliveryId.
+  const deliveredOk = markMessageAck("bob", deliveryId, "delivered");
+  check("ack 'delivered', пришедший после удаления outbox-записи, находит сообщение в группе", deliveredOk && contacts.get("g1").messages[0].ack === "delivered");
+
+  const readOk = markMessageAck("bob", deliveryId, "read");
+  check("ack 'read', пришедший после удаления outbox-записи, тоже находит сообщение (не застревает на 'delivered')", readOk && contacts.get("g1").messages[0].ack === "read");
+
+  // Личные (не групповые) ack'и не должны случайно резолвиться через
+  // groupDeliveryMap — у них там просто нет записи.
+  contacts.get("bob").messages.push({ id: "private-msg-1", from: "me", ack: "sent" });
+  const privateOk = markMessageAck("bob", "private-msg-1", "delivered");
+  check("личный (1-к-1) ack продолжает резолвиться как раньше, минуя groupDeliveryMap", privateOk && contacts.get("bob").messages[0].ack === "delivered");
+}
+
 console.log(`\nИтого: ${pass} прошло, ${fail} упало`);
 process.exit(fail > 0 ? 1 : 0);

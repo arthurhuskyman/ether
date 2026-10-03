@@ -78,7 +78,15 @@ function arrayBufferToBase64(buffer) {
   const ok = await a.sendFile({ id: "f1", name: "test.bin", mime: "application/octet-stream", size: totalSize }, chunks);
   check("sendFile() вернул true (успех)", ok === true);
 
-  await sleep(500); // дать последним сообщениям долететь и обработаться
+  // Раньше тут был фиксированный sleep(500) — "дать последним сообщениям
+  // долететь". На реальном WebRTC data channel (не моке) под нагрузкой
+  // песочницы передача иногда не укладывается в эти 500мс сама по себе
+  // (не баг кода, а просто более медленная итерация event loop) — тест
+  // тогда ложно падал на "не все чанки дошли", хотя чуть позже они бы
+  // дошли. Опрашиваем вместо фиксированной паузы — ждём либо file-done,
+  // либо явного таймаута (с большим запасом).
+  const fileTransferDeadline = Date.now() + 8000;
+  while (!received.done && Date.now() < fileTransferDeadline) await sleep(50);
 
   check("получен file-meta с верными полями", received.meta && received.meta.name === "test.bin" && received.meta.totalChunks === chunks.length);
   check("получен file-done", received.done === true);

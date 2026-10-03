@@ -81,7 +81,18 @@ function makeMockPc() {
 
   const pc = makeMockPc();
   const sent = [];
-  const fake = Object.create(PeerLink.prototype);
+  // Object.create(PeerLink.prototype) даёт объект с нужным прототипом, но
+  // МИНУЯ настоящий конструктор EventTarget — у Node его внутреннее
+  // состояние (карта слушателей и т.п.) заводится именно в конструкторе,
+  // и без него dispatchEvent() падает с "Cannot read properties of
+  // undefined (reading 'get')" при первом же _setStatus(). Это баг
+  // тестового мока, а не PeerLink: реальный `new PeerLink(...)` в
+  // проде всегда проходит через EventTarget(). Reflect.construct с
+  // newTarget=PeerLink вызывает настоящий EventTarget-конструктор, но
+  // результат получает прототип PeerLink — без побочных эффектов
+  // собственного конструктора PeerLink (WebRTC-специфичной инициализации,
+  // которая тут не нужна и не настроена).
+  const fake = Reflect.construct(EventTarget, [], PeerLink);
   fake.id = "peer-under-test";
   fake.pc = pc;
   fake.dc = { readyState: "open" };
@@ -89,6 +100,12 @@ function makeMockPc() {
   fake._makingOffer = false;
   fake._pendingNegotiation = false;
   fake._polite = true; // именно вежливая сторона делает rollback при коллизии — тот случай, что нужно проверить
+  // Ещё одно поле из настоящего конструктора PeerLink, которое пропущено
+  // вместе с ним (см. комментарий выше): _handleRemoteSdp всегда зовёт
+  // _flushPendingRemoteCandidates(), а та читает .length у этого массива —
+  // без него она бросает, try/catch в _handleRemoteSdp это молча глотает
+  // и свёрнутый collision-кейс выглядит как "ничего не отправлено".
+  fake._pendingRemoteCandidates = [];
   fake._log = () => {};
   fake.send = (payload) => { sent.push(payload); return true; };
 
@@ -135,7 +152,7 @@ function makeMockPc() {
   {
     const pc2 = makeMockPc();
     const sent2 = [];
-    const fake2 = Object.create(PeerLink.prototype);
+    const fake2 = Reflect.construct(EventTarget, [], PeerLink); // см. комментарий у fake выше
     fake2.id = "peer-no-collision";
     fake2.pc = pc2;
     fake2.dc = { readyState: "open" };
@@ -143,6 +160,7 @@ function makeMockPc() {
     fake2._makingOffer = false;
     fake2._pendingNegotiation = false;
     fake2._polite = true;
+    fake2._pendingRemoteCandidates = []; // см. комментарий у fake выше
     fake2._log = () => {};
     fake2.send = (payload) => { sent2.push(payload); return true; };
 
