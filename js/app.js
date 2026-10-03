@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.33.4.0";
+const APP_VERSION = "V.33.5.0";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 const MAX_MESSAGE_LENGTH = 4000;
@@ -7562,7 +7562,15 @@ function attachRemoteVideo(id, stream) {
   v.classList.remove("hidden");
   const cs = $("#call-screen"); if (cs) cs.classList.add("video-active");
   const p = v.play(); if (p && p.catch) p.catch(() => {});
-  const pipBtn = $("#call-pip-btn"); if (pipBtn) pipBtn.classList.toggle("hidden", !pipSupported());
+  // Раньше здесь была отдельная кнопка PiP (#call-pip-btn), показываемая
+  // независимо от showLocalVideoPreview — именно для случая "смотрю
+  // видео собеседника, свою камеру не включал". Теперь PiP и flip —
+  // один оверлей-контейнер (#call-video-overlays), и его включает только
+  // showLocalVideoPreview — без этой строки контейнер остался бы скрыт,
+  // пока пользователь не включит СВОЮ камеру, хотя PiP для чужого видео
+  // уже осмысленен. flip в этом случае — безопасный no-op
+  // (PeerLink.switchCamera() сам проверяет наличие localVideoTrack).
+  const overlays = $("#call-video-overlays"); if (overlays) overlays.classList.remove("hidden");
 }
 function showLocalVideoPreview(link) {
   const v = $("#call-local-video");
@@ -7571,10 +7579,16 @@ function showLocalVideoPreview(link) {
   v.classList.remove("hidden");
   const cs = $("#call-screen"); if (cs) cs.classList.add("video-active");
   const p = v.play(); if (p && p.catch) p.catch(() => {});
-  const switchBtn = $("#call-switch-camera-btn"); if (switchBtn) switchBtn.classList.remove("hidden");
-  const flipOverlay = $("#call-flip-overlay-btn"); if (flipOverlay) flipOverlay.classList.remove("hidden");
+  // Раньше тут были отдельные #call-switch-camera-btn (в основном ряду) и
+  // #call-flip-overlay-btn (сам по себе поверх видео) плюс #call-pip-btn
+  // в основном ряду — три кнопки управления видео вперемешку с
+  // микрофоном/громкой связью/завершением звонка. Теперь flip и PiP —
+  // единый оверлей-контейнер над превью (#call-video-overlays), а
+  // основной ряд всегда состоит из 4 кнопок (микрофон/громкая связь/
+  // видео/завершить). PiP-кнопка внутри оверлея видна всегда — нажатие
+  // при неподдерживаемом PiP показывает toast (см. wireCallScreen).
+  const overlays = $("#call-video-overlays"); if (overlays) overlays.classList.remove("hidden");
   const videoBtn = $("#call-video-btn"); if (videoBtn) videoBtn.classList.add("active");
-  const pipBtn = $("#call-pip-btn"); if (pipBtn) pipBtn.classList.toggle("hidden", !pipSupported());
 }
 function hideCallVideo() {
   // Если в этот момент активен PiP — закрываем его явно. Без этого
@@ -7585,10 +7599,8 @@ function hideCallVideo() {
   const rv = $("#call-remote-video"); if (rv) { rv.classList.add("hidden"); rv.srcObject = null; }
   const lv = $("#call-local-video"); if (lv) { lv.classList.add("hidden"); lv.srcObject = null; }
   const cs = $("#call-screen"); if (cs) cs.classList.remove("video-active");
-  const switchBtn = $("#call-switch-camera-btn"); if (switchBtn) switchBtn.classList.add("hidden");
-  const flipOverlay = $("#call-flip-overlay-btn"); if (flipOverlay) flipOverlay.classList.add("hidden");
+  const overlays = $("#call-video-overlays"); if (overlays) overlays.classList.add("hidden");
   const videoBtn = $("#call-video-btn"); if (videoBtn) videoBtn.classList.remove("active");
-  const pipBtn = $("#call-pip-btn"); if (pipBtn) pipBtn.classList.add("hidden");
 }
 function startCallTimer() {
   const started = Date.now();
@@ -7769,30 +7781,42 @@ function wireCallScreen() {
       link.disableVideo();
       const lv = $("#call-local-video"); if (lv) { lv.classList.add("hidden"); lv.srcObject = null; }
       videoBtn.classList.remove("active");
-      const switchBtn = $("#call-switch-camera-btn"); if (switchBtn) switchBtn.classList.add("hidden");
-      // PiP-кнопку прячем только если и удалённого видео тоже нет —
-      // пользователь мог выключить СВОЮ камеру, но продолжать смотреть
-      // видео собеседника (PiP по-прежнему осмысленен).
+      // Оверлей (flip+PiP) прячем только если и удалённого видео тоже
+      // нет — пользователь мог выключить СВОЮ камеру, но продолжать
+      // смотреть видео собеседника (PiP по-прежнему осмысленен, flip
+      // своей камеры — нет, но прятать весь контейнер по отдельности
+      // сложнее и не нужно: без видео вообще оверлей всё равно скрыт).
       const rv = $("#call-remote-video");
       const remoteActive = rv && rv.srcObject && !rv.classList.contains("hidden");
-      if (!remoteActive) { const pipBtn = $("#call-pip-btn"); if (pipBtn) pipBtn.classList.add("hidden"); }
+      const overlays = $("#call-video-overlays");
+      if (!remoteActive && overlays) overlays.classList.add("hidden");
       // Видео выключено (но звонок продолжается) — экран больше не
       // обязан гореть сам по себе, отдаём управление системе (на
       // Android это снова уход в сон через её собственный таймаут).
       releaseWakeLock();
     }
   });
-  const switchCamBtn = $("#call-switch-camera-btn");
-  if (switchCamBtn) switchCamBtn.addEventListener("click", () => {
-    const link = mesh.get(state.callId); if (link) link.switchCamera();
+  // Оверлеи на своём видео: flip камеры + PiP. Раньше это были три
+  // отдельные кнопки в основном ряду управления звонком вперемешку с
+  // микрофоном/громкой связью/завершением (#call-switch-camera-btn,
+  // #call-pip-btn) плюс отдельный #call-flip-overlay-btn поверх видео —
+  // теперь единый контейнер-оверлей над превью (#call-video-overlays,
+  // см. showLocalVideoPreview/hideCallVideo), основной ряд всегда из 4
+  // кнопок.
+  const flipOverlayBtn = $("#call-flip-overlay-btn");
+  if (flipOverlayBtn) flipOverlayBtn.addEventListener("click", () => {
+    const link = mesh.get(state.callId);
+    if (link) link.switchCamera();
   });
   // P2.36 — Picture-in-Picture: веб-API, не нужна нативная обёртка, но
   // неравномерная поддержка (надёжно в Chrome/Edge, частично в iOS
-  // Safari через webkitSetPresentationMode) — поэтому кнопка показывается
-  // только когда API реально доступен (см. pipSupported() ниже), а не
-  // просто всегда с no-op при клике.
-  const pipBtn = $("#call-pip-btn");
-  if (pipBtn) pipBtn.addEventListener("click", async () => {
+  // Safari через webkitSetPresentationMode). Кнопка в оверлее теперь
+  // видна всегда (а не скрывается через pipSupported(), как раньше
+  // #call-pip-btn) — на неподдерживающем устройстве клик просто
+  // показывает toast вместо тихого no-op/скрытой кнопки.
+  const pipOverlayBtn = $("#call-pip-overlay-btn");
+  if (pipOverlayBtn) pipOverlayBtn.addEventListener("click", async () => {
+    if (!pipSupported()) { toast(T("toast.pipUnsupported")); return; }
     // В PiP выносим именно удалённое видео (посмотреть на собеседника,
     // переключившись в другое приложение) — если его ещё нет (например,
     // идёт дозвон и показан только свой превью), используем локальное
@@ -7842,12 +7866,11 @@ function wireCallScreen() {
       }
     });
   }
-
-  const flipOverlay = $("#call-flip-overlay-btn");
-  if (flipOverlay) flipOverlay.addEventListener("click", () => {
-    const link = mesh.get(state.callId);
-    if (link) link.switchCamera();
-  });
+  // flip-камеры и PiP (#call-flip-overlay-btn/#call-pip-overlay-btn)
+  // уже подключены выше, вместе с остальными кнопками оверлея — второй
+  // отдельный addEventListener на ту же кнопку flip здесь раньше был
+  // дублем (навешивал второй идентичный обработчик при каждом вызове
+  // wireCallScreen).
 }
 
 async function acceptCall(withMute) {

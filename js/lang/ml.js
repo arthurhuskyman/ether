@@ -271,6 +271,7 @@ window.__LANG_DICTS["ml"] = {
     "call.video": "വീഡിയോ",
     "call.switchCamera": "മാറ്റുക",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "പിക്ചർ-ഇൻ-പിക്ചർ ഈ ഡിവൈസിൽ പിന്തുണയ്‌ക്കുന്നില്ല",
     "toast.videoNoCamera": "ക്യാമറ ആക്സസ് ചെയ്യാനായില്ല",
     "toast.callGroupsUnsupported": "ഗ്രൂപ്പുകളിൽ കോളുകൾ ഇതുവരെ പിന്തുണയ്ക്കുന്നില്ല",
     "audio.background.title": "ബന്ധിതമായി തുടരുന്നു",

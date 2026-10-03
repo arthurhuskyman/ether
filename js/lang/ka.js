@@ -271,6 +271,7 @@ window.__LANG_DICTS["ka"] = {
     "call.video": "ვიდეო",
     "call.switchCamera": "გადართვა",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "სურათი სურათში ამ მოწყობილობაზე მხარდაჭერილი არ არის",
     "toast.videoNoCamera": "კამერასთან წვდომა ვერ მოხერხდა",
     "toast.callGroupsUnsupported": "ზარები ჯერ არ არის მხარდაჭერილი ჯგუფებში",
     "audio.background.title": "რჩება ონლაინ",

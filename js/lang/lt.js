@@ -271,6 +271,7 @@ window.__LANG_DICTS["lt"] = {
     "call.video": "Vaizdo skambutis",
     "call.switchCamera": "Perjungti",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "Vaizdas vaizde nepalaikomas šiame įrenginyje",
     "toast.videoNoCamera": "Nepavyko pasiekti kameros",
     "toast.callGroupsUnsupported": "Skambučiai grupėse dar nepalaikomi",
     "audio.background.title": "išlieka prisijungęs",

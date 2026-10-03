@@ -271,6 +271,7 @@ window.__LANG_DICTS["az"] = {
     "call.video": "Video",
     "call.switchCamera": "Dəyiş",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "Şəkil-içində-şəkil bu cihazda dəstəklənmir",
     "toast.videoNoCamera": "Kameraya giriş mümkün olmadı",
     "toast.callGroupsUnsupported": "Qruplarda zənglər hələ dəstəklənmir",
     "audio.background.title": "əlaqədə qalır",

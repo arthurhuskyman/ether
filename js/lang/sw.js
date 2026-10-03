@@ -271,6 +271,7 @@ window.__LANG_DICTS["sw"] = {
     "call.video": "Video",
     "call.switchCamera": "Geuza",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "Picture-in-Picture haitumiki kwenye kifaa hiki",
     "toast.videoNoCamera": "Imeshindwa kufikia kamera",
     "toast.callGroupsUnsupported": "Simu hazitumiki kwenye vikundi bado",
     "audio.background.title": "inabaki mtandaoni",

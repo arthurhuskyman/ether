@@ -271,6 +271,7 @@ window.__LANG_DICTS["si"] = {
     "call.video": "වීඩියෝ",
     "call.switchCamera": "මාරු කරන්න",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "මෙම උපාංගයේ Picture-in-Picture සඳහා සහාය නොදක්වයි",
     "toast.videoNoCamera": "කැමරාවට ප්‍රවේශ විය නොහැකි විය",
     "toast.callGroupsUnsupported": "සමූහවල ඇමතුම් තවම සහාය නොදක්වයි",
     "audio.background.title": "සම්බන්ධව පවතී",

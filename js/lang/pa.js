@@ -271,6 +271,7 @@ window.__LANG_DICTS["pa"] = {
     "call.video": "ਵੀਡੀਓ",
     "call.switchCamera": "ਬਦਲੋ",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "ਇਸ ਡਿਵਾਈਸ ਉੱਤੇ ਪਿਕਚਰ-ਇਨ-ਪਿਕਚਰ ਸਮਰਥਿਤ ਨਹੀਂ ਹੈ",
     "toast.videoNoCamera": "ਕੈਮਰੇ ਤੱਕ ਪਹੁੰਚ ਨਹੀਂ ਹੋ ਸਕੀ",
     "toast.callGroupsUnsupported": "ਗਰੁੱਪਾਂ ਵਿੱਚ ਕਾਲਾਂ ਹਾਲੇ ਸਮਰਥਿਤ ਨਹੀਂ ਹਨ",
     "audio.background.title": "ਜੁੜੇ ਰਹਿਣਾ",

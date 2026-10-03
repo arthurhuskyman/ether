@@ -271,6 +271,7 @@ window.__LANG_DICTS["ceb"] = {
     "call.video": "Video",
     "call.switchCamera": "Ilisan",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "Ang Picture-in-Picture dili suportado niini nga device",
     "toast.videoNoCamera": "Wala maabot ang camera",
     "toast.callGroupsUnsupported": "Wala pa gisuportahan ang mga tawag sa mga grupo",
     "audio.background.title": "nagpabilin nga konektado",

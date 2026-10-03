@@ -271,6 +271,7 @@ window.__LANG_DICTS["et"] = {
     "call.video": "Video",
     "call.switchCamera": "Vaheta",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "Pilt pildis ei ole selles seadmes toetatud",
     "toast.videoNoCamera": "Kaamerale ei pääsenud ligi",
     "toast.callGroupsUnsupported": "Kõned pole rühmades veel toetatud",
     "audio.background.title": "püsib ühenduses",

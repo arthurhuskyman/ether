@@ -271,6 +271,7 @@ window.__LANG_DICTS["ja"] = {
     "call.video": "ビデオ",
     "call.switchCamera": "切替",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "このデバイスはピクチャー イン ピクチャーに対応していません",
     "toast.videoNoCamera": "カメラにアクセスできませんでした",
     "toast.callGroupsUnsupported": "グループではまだ通話に対応していません",
     "audio.background.title": "接続を維持中",

@@ -271,6 +271,7 @@ window.__LANG_DICTS["yo"] = {
     "call.video": "Fídíò",
     "call.switchCamera": "Yí padà",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "Ẹ̀rọ yìí kò ṣètìlẹ́yìn fún Picture-in-Picture",
     "toast.videoNoCamera": "A kò lè wọlé sí kámẹ́rà",
     "toast.callGroupsUnsupported": "Kò tí ì ṣe é ṣe láti pe ẹnìkan nínú ẹgbẹ́",
     "audio.background.title": "dúró ní ìsopọ̀",

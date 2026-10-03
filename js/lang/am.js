@@ -271,6 +271,7 @@ window.__LANG_DICTS["am"] = {
     "call.video": "ቪዲዮ",
     "call.switchCamera": "ቀያይር",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "ፒክቸር-ኢን-ፒክቸር በዚህ መሣሪያ ላይ አይደገፍም",
     "toast.videoNoCamera": "ካሜራ ማግኘት አልተቻለም",
     "toast.callGroupsUnsupported": "ጥሪዎች በቡድኖች ውስጥ እስካሁን አይደገፉም",
     "audio.background.title": "ተገናኝቶ መቆየት",

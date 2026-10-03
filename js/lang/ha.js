@@ -271,6 +271,7 @@ window.__LANG_DICTS["ha"] = {
     "call.video": "Bidiyo",
     "call.switchCamera": "Sauya",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "Na'urar nan ba ta goyon bayan Picture-in-Picture ba",
     "toast.videoNoCamera": "An kasa samun kamara",
     "toast.callGroupsUnsupported": "Ba a goyi bayan kira a cikin ƙungiyoyi tukuna ba",
     "audio.background.title": "kasancewa a haɗe",

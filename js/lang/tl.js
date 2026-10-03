@@ -271,6 +271,7 @@ window.__LANG_DICTS["tl"] = {
     "call.video": "Video",
     "call.switchCamera": "Baliktarin",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "Hindi suportado ang Picture-in-Picture sa device na ito",
     "toast.videoNoCamera": "Hindi ma-access ang camera",
     "toast.callGroupsUnsupported": "Hindi pa suportado ang mga tawag sa mga grupo",
     "audio.background.title": "nananatiling konektado",

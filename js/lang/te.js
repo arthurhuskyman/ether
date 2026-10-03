@@ -271,6 +271,7 @@ window.__LANG_DICTS["te"] = {
     "call.video": "వీడియో",
     "call.switchCamera": "మార్చు",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "పిక్చర్-ఇన్-పిక్చర్ ఈ పరికరంలో మద్దతు లేదు",
     "toast.videoNoCamera": "కెమెరాను యాక్సెస్ చేయలేకపోయాం",
     "toast.callGroupsUnsupported": "గ్రూప్‌లలో కాల్‌లు ఇంకా మద్దతు లేవు",
     "audio.background.title": "కనెక్ట్ అయి ఉంది",

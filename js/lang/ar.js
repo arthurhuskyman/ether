@@ -271,6 +271,7 @@ window.__LANG_DICTS["ar"] = {
     "call.video": "فيديو",
     "call.switchCamera": "تبديل",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "الصورة داخل الصورة غير مدعومة على هذا الجهاز",
     "toast.videoNoCamera": "تعذّر الوصول إلى الكاميرا",
     "toast.callGroupsUnsupported": "المكالمات غير مدعومة في المجموعات بعد",
     "audio.background.title": "على اتصال",

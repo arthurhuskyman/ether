@@ -271,6 +271,7 @@ window.__LANG_DICTS["es"] = {
     "call.video": "Vídeo",
     "call.switchCamera": "Girar",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "Imagen en imagen no es compatible con este dispositivo",
     "toast.videoNoCamera": "No se pudo acceder a la cámara",
     "toast.callGroupsUnsupported": "Las llamadas aún no son compatibles en grupos",
     "audio.background.title": "conectado",

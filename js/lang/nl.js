@@ -271,6 +271,7 @@ window.__LANG_DICTS["nl"] = {
     "call.video": "Video",
     "call.switchCamera": "Wisselen",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "Beeld-in-beeld wordt niet ondersteund op dit apparaat",
     "toast.videoNoCamera": "Geen toegang tot de camera",
     "toast.callGroupsUnsupported": "Oproepen worden nog niet ondersteund in groepen",
     "audio.background.title": "blijft verbonden",

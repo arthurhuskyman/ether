@@ -271,6 +271,7 @@ window.__LANG_DICTS["he"] = {
     "call.video": "וידאו",
     "call.switchCamera": "החלפה",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "תמונה-בתוך-תמונה אינה נתמכת במכשיר זה",
     "toast.videoNoCamera": "לא ניתן היה לגשת למצלמה",
     "toast.callGroupsUnsupported": "שיחות עדיין לא נתמכות בקבוצות",
     "audio.background.title": "נשאר מחובר",

@@ -271,6 +271,7 @@ window.__LANG_DICTS["my"] = {
     "call.video": "ဗီဒီယို",
     "call.switchCamera": "ပြောင်းရန်",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "ဤစက်ပစ္စည်းတွင် Picture-in-Picture ကို မပံ့ပိုးပါ",
     "toast.videoNoCamera": "ကင်မရာကို အသုံးပြု၍မရပါ",
     "toast.callGroupsUnsupported": "အုပ်စုများတွင် ခေါ်ဆိုမှုများကို လက်ရှိတွင် ပံ့ပိုးမထားပါ",
     "audio.background.title": "ချိတ်ဆက်ထားဆဲ",

@@ -271,6 +271,7 @@ window.__LANG_DICTS["el"] = {
     "call.video": "Βίντεο",
     "call.switchCamera": "Εναλλαγή",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "Το Picture-in-Picture δεν υποστηρίζεται σε αυτή τη συσκευή",
     "toast.videoNoCamera": "Δεν ήταν δυνατή η πρόσβαση στην κάμερα",
     "toast.callGroupsUnsupported": "Οι κλήσεις δεν υποστηρίζονται ακόμη σε ομάδες",
     "audio.background.title": "παραμένει συνδεδεμένο",

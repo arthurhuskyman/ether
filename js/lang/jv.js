@@ -271,6 +271,7 @@ window.__LANG_DICTS["jv"] = {
     "call.video": "Video",
     "call.switchCamera": "Ganti",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "Picture-in-Picture ora didhukung ing piranti iki",
     "toast.videoNoCamera": "Ora bisa ngakses kamera",
     "toast.callGroupsUnsupported": "Telpon durung didhukung ing grup",
     "audio.background.title": "tetep sambung",

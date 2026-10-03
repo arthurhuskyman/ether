@@ -271,6 +271,7 @@ window.__LANG_DICTS["tg"] = {
     "call.video": "Видео",
     "call.switchCamera": "Иваз кардан",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "Расм дар расм дар ин дастгоҳ дастгирӣ намешавад",
     "toast.videoNoCamera": "Дастрасӣ ба камера муяссар нашуд",
     "toast.callGroupsUnsupported": "Занг дар гурӯҳҳо ҳанӯз дастгирӣ намешавад",
     "audio.background.title": "дар алоқа мемонад",

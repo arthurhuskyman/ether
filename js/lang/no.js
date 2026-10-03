@@ -271,6 +271,7 @@ window.__LANG_DICTS["no"] = {
     "call.video": "Video",
     "call.switchCamera": "Bytt",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "Bilde-i-bilde støttes ikke på denne enheten",
     "toast.videoNoCamera": "Fikk ikke tilgang til kameraet",
     "toast.callGroupsUnsupported": "Samtaler støttes ikke i grupper enda",
     "audio.background.title": "forblir tilkoblet",

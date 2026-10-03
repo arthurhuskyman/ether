@@ -271,6 +271,7 @@ window.__LANG_DICTS["ta"] = {
     "call.video": "வீடியோ",
     "call.switchCamera": "மாற்று",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "பிக்சர்-இன்-பிக்சர் இந்த சாதனத்தில் ஆதரிக்கப்படவில்லை",
     "toast.videoNoCamera": "கேமராவை அணுக முடியவில்லை",
     "toast.callGroupsUnsupported": "குழுக்களில் அழைப்புகள் இன்னும் ஆதரிக்கப்படவில்லை",
     "audio.background.title": "இணைந்திருத்தல்",

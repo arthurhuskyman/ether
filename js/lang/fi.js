@@ -271,6 +271,7 @@ window.__LANG_DICTS["fi"] = {
     "call.video": "Video",
     "call.switchCamera": "Vaihda",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "Kuva kuvassa -toimintoa ei tueta tällä laitteella",
     "toast.videoNoCamera": "Kameraan ei saatu yhteyttä",
     "toast.callGroupsUnsupported": "Puheluita ei vielä tueta ryhmissä",
     "audio.background.title": "pysyy yhteydessä",

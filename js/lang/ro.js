@@ -271,6 +271,7 @@ window.__LANG_DICTS["ro"] = {
     "call.video": "Video",
     "call.switchCamera": "Comută",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "Imagine în imagine nu este acceptat pe acest dispozitiv",
     "toast.videoNoCamera": "Nu s-a putut accesa camera",
     "toast.callGroupsUnsupported": "Apelurile nu sunt încă acceptate în grupuri",
     "audio.background.title": "rămâne conectat",

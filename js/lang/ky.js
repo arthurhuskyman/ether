@@ -271,6 +271,7 @@ window.__LANG_DICTS["ky"] = {
     "call.video": "Видео",
     "call.switchCamera": "Которуу",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "Бул түзмөктө Picture-in-Picture колдоого алынбайт",
     "toast.videoNoCamera": "Камерага мүмкүнчүлүк алынган жок",
     "toast.callGroupsUnsupported": "Топтордо чалуулар азырынча колдоого алынбайт",
     "audio.background.title": "байланышта калат",

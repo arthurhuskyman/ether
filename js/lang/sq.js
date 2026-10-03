@@ -271,6 +271,7 @@ window.__LANG_DICTS["sq"] = {
     "call.video": "Video",
     "call.switchCamera": "Ndërro",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "Picture-in-Picture nuk mbështetet në këtë pajisje",
     "toast.videoNoCamera": "Nuk u arrit qasja te kamera",
     "toast.callGroupsUnsupported": "Thirrjet nuk mbështeten ende në grupe",
     "audio.background.title": "mbetet i lidhur",

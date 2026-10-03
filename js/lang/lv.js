@@ -271,6 +271,7 @@ window.__LANG_DICTS["lv"] = {
     "call.video": "Video",
     "call.switchCamera": "Pārslēgt",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "Attēls attēlā netiek atbalstīts šajā ierīcē",
     "toast.videoNoCamera": "Neizdevās piekļūt kamerai",
     "toast.callGroupsUnsupported": "Zvani grupās pagaidām netiek atbalstīti",
     "audio.background.title": "paliek savienots",

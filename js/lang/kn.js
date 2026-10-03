@@ -271,6 +271,7 @@ window.__LANG_DICTS["kn"] = {
     "call.video": "ವೀಡಿಯೊ",
     "call.switchCamera": "ಬದಲಿಸಿ",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "ಪಿಕ್ಚರ್-ಇನ್-ಪಿಕ್ಚರ್ ಈ ಡಿವೈಸ್‌ನಲ್ಲಿ ಬೆಂಬಲಿತವಾಗಿಲ್ಲ",
     "toast.videoNoCamera": "ಕ್ಯಾಮೆರಾ ಪ್ರವೇಶಿಸಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ",
     "toast.callGroupsUnsupported": "ಗುಂಪುಗಳಲ್ಲಿ ಕರೆಗಳು ಇನ್ನೂ ಬೆಂಬಲಿತವಾಗಿಲ್ಲ",
     "audio.background.title": "ಸಂಪರ್ಕದಲ್ಲಿದೆ",

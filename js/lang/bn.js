@@ -271,6 +271,7 @@ window.__LANG_DICTS["bn"] = {
     "call.video": "ভিডিও",
     "call.switchCamera": "পরিবর্তন",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "এই ডিভাইসে পিকচার-ইন-পিকচার সমর্থিত নয়",
     "toast.videoNoCamera": "ক্যামেরা অ্যাক্সেস করা যায়নি",
     "toast.callGroupsUnsupported": "গ্রুপে কল এখনও সমর্থিত নয়",
     "audio.background.title": "সংযুক্ত থাকা",

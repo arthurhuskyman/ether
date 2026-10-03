@@ -271,6 +271,7 @@ window.__LANG_DICTS["bs"] = {
     "call.video": "Video",
     "call.switchCamera": "Promijeni",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "Slika u slici nije podržana na ovom uređaju",
     "toast.videoNoCamera": "Pristup kameri nije uspio",
     "toast.callGroupsUnsupported": "Pozivi još nisu podržani u grupama",
     "audio.background.title": "ostaje povezan",

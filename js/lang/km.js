@@ -271,6 +271,7 @@ window.__LANG_DICTS["km"] = {
     "call.video": "វីដេអូ",
     "call.switchCamera": "ប្ដូរ",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "ឧបករណ៍នេះមិនគាំទ្រមុខងារ Picture-in-Picture ទេ",
     "toast.videoNoCamera": "មិនអាចចូលប្រើកាមេរ៉ាបានទេ",
     "toast.callGroupsUnsupported": "ក្រុមមិនទាន់គាំទ្រការហៅទូរស័ព្ទនៅឡើយទេ",
     "audio.background.title": "នៅតែភ្ជាប់",

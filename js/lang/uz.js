@@ -271,6 +271,7 @@ window.__LANG_DICTS["uz"] = {
     "call.video": "Video",
     "call.switchCamera": "Almashtirish",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "Rasm ichida rasm bu qurilmada qo'llab-quvvatlanmaydi",
     "toast.videoNoCamera": "Kameraga kirish imkonsiz bo'ldi",
     "toast.callGroupsUnsupported": "Guruhlarda qo'ng'iroqlar hali qo'llab-quvvatlanmaydi",
     "audio.background.title": "aloqada qoladi",

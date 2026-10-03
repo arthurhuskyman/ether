@@ -271,6 +271,7 @@ window.__LANG_DICTS["sk"] = {
     "call.video": "Video",
     "call.switchCamera": "Prepnúť",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "Obraz v obraze nie je na tomto zariadení podporovaný",
     "toast.videoNoCamera": "Nepodarilo sa získať prístup ku kamere",
     "toast.callGroupsUnsupported": "Hovory v skupinách ešte nie sú podporované",
     "audio.background.title": "zostáva pripojené",

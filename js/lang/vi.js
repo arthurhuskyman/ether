@@ -271,6 +271,7 @@ window.__LANG_DICTS["vi"] = {
     "call.video": "Video",
     "call.switchCamera": "Đổi",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "Thiết bị này không hỗ trợ Picture-in-Picture",
     "toast.videoNoCamera": "Không thể truy cập camera",
     "toast.callGroupsUnsupported": "Nhóm chưa hỗ trợ gọi điện",
     "audio.background.title": "đang kết nối",

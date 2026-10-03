@@ -271,6 +271,7 @@ window.__LANG_DICTS["ko"] = {
     "call.video": "영상통화",
     "call.switchCamera": "전환",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "이 기기에서는 PIP(Picture in Picture)가 지원되지 않습니다",
     "toast.videoNoCamera": "카메라에 접근할 수 없습니다",
     "toast.callGroupsUnsupported": "그룹에서는 아직 통화를 지원하지 않습니다",
     "audio.background.title": "연결 유지 중",

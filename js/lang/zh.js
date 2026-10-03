@@ -271,6 +271,7 @@ window.__LANG_DICTS["zh"] = {
     "call.video": "视频",
     "call.switchCamera": "翻转",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "此设备不支持画中画",
     "toast.videoNoCamera": "无法访问摄像头",
     "toast.callGroupsUnsupported": "群组暂不支持通话",
     "audio.background.title": "保持在线",

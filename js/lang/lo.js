@@ -271,6 +271,7 @@ window.__LANG_DICTS["lo"] = {
     "call.video": "ວິດີໂອ",
     "call.switchCamera": "ສະຫຼັບ",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "ອຸປະກອນນີ້ບໍ່ຮອງຮັບ Picture-in-Picture",
     "toast.videoNoCamera": "ບໍ່ສາມາດເຂົ້າເຖິງກ້ອງໄດ້",
     "toast.callGroupsUnsupported": "ກຸ່ມຍັງບໍ່ຮອງຮັບການໂທ",
     "audio.background.title": "ຍັງເຊື່ອມຕໍ່ຢູ່",

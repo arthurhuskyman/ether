@@ -271,6 +271,7 @@ window.__LANG_DICTS["hu"] = {
     "call.video": "Videó",
     "call.switchCamera": "Váltás",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "A Kép a képben funkció nem támogatott ezen az eszközön",
     "toast.videoNoCamera": "Nem sikerült elérni a kamerát",
     "toast.callGroupsUnsupported": "A hívások még nem támogatottak csoportokban",
     "audio.background.title": "kapcsolatban marad",

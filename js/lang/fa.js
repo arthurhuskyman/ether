@@ -271,6 +271,7 @@ window.__LANG_DICTS["fa"] = {
     "call.video": "ویدیو",
     "call.switchCamera": "تعویض",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "تصویر در تصویر در این دستگاه پشتیبانی نمی‌شود",
     "toast.videoNoCamera": "دسترسی به دوربین ممکن نشد",
     "toast.callGroupsUnsupported": "تماس‌ها هنوز در گروه‌ها پشتیبانی نمی‌شوند",
     "audio.background.title": "متصل باقی می‌ماند",

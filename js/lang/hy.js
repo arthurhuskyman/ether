@@ -271,6 +271,7 @@ window.__LANG_DICTS["hy"] = {
     "call.video": "Տեսանյութ",
     "call.switchCamera": "Փոխել",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "Նկար նկարում գործառույթը չի աջակցվում այս սարքում",
     "toast.videoNoCamera": "Հնարավոր չեղավ մուտք գործել տեսախցիկ",
     "toast.callGroupsUnsupported": "Զանգերը դեռ չեն աջակցվում խմբերում",
     "audio.background.title": "մնում է կապի մեջ",

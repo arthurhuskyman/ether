@@ -271,6 +271,7 @@ window.__LANG_DICTS["be"] = {
     "call.video": "Відэа",
     "call.switchCamera": "Пераключыць",
     "call.pip": "PiP",
+    "toast.pipUnsupported": "Карцінка ў карцінцы не падтрымліваецца на гэтай прыладзе",
     "toast.videoNoCamera": "Не ўдалося атрымаць доступ да камеры",
     "toast.callGroupsUnsupported": "Званкі ў групах пакуль не падтрымліваюцца",
     "audio.background.title": "застаецца на сувязі",
