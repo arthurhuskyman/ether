@@ -23,6 +23,16 @@
 <meta name="description" content="Messages and calls directly between devices." />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#08080a" />
+<!--
+  apple-mobile-web-app-capable — WebKit-специфичный тег, Chrome DevTools
+  предупреждает о нём как об устаревшем и предлагает стандартный
+  mobile-web-app-capable. Но iOS Safari до сих пор ориентируется именно
+  на apple- версию для режима standalone при "Добавить на экран Домой"
+  — Apple официально стандартный тег пока не поддерживает везде. Поэтому
+  оставляем оба: apple- для iOS, обычный — чтобы Chrome/Android не
+  считал тег отсутствующим и не печатал предупреждение в консоли.
+-->
+<meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Ether" />

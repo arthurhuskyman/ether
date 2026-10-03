@@ -197,7 +197,13 @@ body {
 
 @font-face {
   font-family: "Inter";
-  src: url("fonts/InterVariable.woff2") format("woff2-variations"), url("fonts/InterVariable.woff2") format("woff2");
+  /* Путь относительно самого styles.css (css/styles.css), а не корня
+     сайта — "fonts/..." резолвился в css/fonts/..., которого не
+     существует (шрифт лежит в /fonts/, рядом с /css/, не внутри неё).
+     404 на InterVariable.woff2 — страница просто падала на системный
+     шрифт по font-display: swap, без видимой ошибки для пользователя,
+     только в консоли. */
+  src: url("../fonts/InterVariable.woff2") format("woff2-variations"), url("../fonts/InterVariable.woff2") format("woff2");
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
