@@ -1532,6 +1532,13 @@ html[data-theme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); }
 #call-mute-btn .icon-mic-off { display: none; }
 #call-mute-btn.active .icon-mic-on { display: none; }
 #call-mute-btn.active .icon-mic-off { display: block; }
+/* Общий padding:15px у .call-btn svg был рассчитан на простые
+   одноконтурные иконки (видео, трубка). У иконки микрофона из-за формы
+   самого силуэта (скруглённая "таблетка" + дуга подставки) визуальная
+   масса меньше, чем у геометрически простых иконок, и при стандартном
+   отступе она выглядела мелкой "точкой" в круге — уменьшаем отступ
+   только для этой кнопки, иконка становится заметно крупнее. */
+#call-mute-btn svg { padding: 10px; }
 
 .sheet { position: fixed; inset: 0; z-index: 70; display: flex; align-items: flex-end; }
 .sheet-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.45); }
