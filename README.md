@@ -35,16 +35,37 @@
    использовался раньше, но требует оплаты — код обращения к нему
    удалён из server.js целиком, не просто отключён.
 
+**Вариант А — Blueprint (рекомендуется, настройки зафиксированы в репозитории):**
+1. Зарегистрируйтесь на **render.com** (есть бесплатный тариф).
+2. New → Blueprint → подключите этот репозиторий через GitHub. Render
+   сам прочитает `render.yaml` из корня репозитория и создаст сервис с
+   уже правильными Build/Start Command — руками ничего вводить не надо.
+
+**Вариант Б — Web Service руками:**
 1. Зарегистрируйтесь на **render.com** (есть бесплатный тариф) — или
    на Railway/Fly.io, шаги аналогичные.
-2. New → Web Service → загрузите (или подключите через GitHub) папку
+2. New → Web Service → подключите через GitHub, Root Directory —
    `signaling-server`.
-3. Build command: `npm install`. Start command: `npm start`.
+3. **Build command: `npm install --omit=dev`. Start command: `node
+   server.js`** — именно так, не просто `yarn` и не пустое поле. Если
+   оставить Start Command пустым или равным `yarn` (без аргументов),
+   Render выполнит `yarn install`, благополучно завершится с кодом 0 — и
+   процесс, который должен слушать порт, вообще не запустится; в логах
+   это видно как «Application exited early» сразу после «Done in N s.»
+   на этапе деплоя (не сборки).
 4. После деплоя Render даст адрес вида `https://ваш-сервис.onrender.com`.
    В приложении, в Настройках → «Сигнальный сервер», укажите его как
    `wss://ваш-сервис.onrender.com` (именно `wss://`, не `https://`).
 5. У всех, кто должен находить друг друга автоматически, должен быть
    указан **один и тот же** адрес сервера.
+6. Проверьте `GET https://ваш-сервис.onrender.com/health` — должно
+   вернуть `Ether signaling relay OK`. В логах после старта должна быть
+   строка вида «Сигнальный релей "Эфир" слушает порт ...».
+7. Не забудьте задать Environment Variables (`VAPID_PUBLIC`,
+   `VAPID_PRIVATE`, `VAPID_SUBJECT`, `TURN_STATIC_URL`,
+   `TURN_STATIC_USERNAME`, `TURN_STATIC_PASSWORD`, `ALLOWED_ORIGIN`,
+   `APP_BASE_URL`) — без них сервер стартует, но push и TURN не
+   заработают. См. `signaling-server/.env.example`.
 
 Бесплатные тарифы таких хостингов обычно «засыпают» после нескольких
 минут без обращений и просыпаются секунд за 20–30 при следующем

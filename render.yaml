@@ -1,0 +1,40 @@
+# Render Blueprint — фиксирует Build/Start Command в репозитории, а не
+# только в веб-интерфейсе Render Dashboard.
+#
+# Почему это понадобилось: при создании сервиса вручную (New → Web
+# Service, без Blueprint) Render подставляет команды, введённые в
+# дашборде, и ничего не проверяет на здравый смысл. Если в поле
+# "Start Command" осталось "yarn" (или пусто и Render сам угадал не то)
+# — это алиас "yarn install": на этапе деплоя сервер молча
+# переустанавливает зависимости, завершается с кодом 0 и процесс, который
+# должен слушать порт (node server.js), вообще не запускается. В логах
+# это выглядит как "Application exited early" сразу после "Done in N s."
+# — именно это и произошло. Правильный Start Command — node server.js
+# (или yarn start / npm start — в package.json уже есть "start": "node
+# server.js", так что это то же самое).
+#
+# Это НЕ применяется автоматически к уже существующему сервису, созданному
+# руками через дашборд — Render применяет render.yaml только при создании
+# через "New → Blueprint" (указав этот репозиторий) или при явной
+# синхронизации существующего сервиса с Blueprint в его настройках. Если
+# сервис уже создан вручную — проще поменять Start Command напрямую:
+# Dashboard → ваш Web Service → Settings → Start Command → node server.js
+#
+# Также явно переключено на npm (package-lock.json уже в репозитории) —
+# в репозитории не было yarn.lock, и Render по умолчанию выбирал yarn
+# раньше, что при каждом деплое генерировало отдельный yarn.lock и
+# игнорировало актуальный package-lock.json (несогласованность версий
+# зависимостей между сборками). "--omit=dev" пропускает devDependencies
+# (@roamhq/wrtc, используется только в тестах signaling-server, не нужен
+# в проде) — быстрее и надёжнее сборка, не зависящая от наличия для
+# текущей версии Node/glibc пребилженного бинаря нативного модуля.
+services:
+  - type: web
+    name: ether-signaling-relay
+    runtime: node
+    rootDir: signaling-server
+    plan: free
+    buildCommand: npm install --omit=dev
+    startCommand: node server.js
+    healthCheckPath: /health
+    autoDeploy: true
