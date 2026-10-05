@@ -329,3 +329,4 @@ base64-конвертом, без чанкования — в отличие о�
 - CSS: `color-scheme`, фон в `data-theme="auto"` приглушается только
   при светлой системе.
 - Service worker: не кеширует cross-origin и query-string.
+- Тесты клиента: `cd tests && npm i && npm test` (jsdom + реальный WebRTC, профили iOS/Android).
