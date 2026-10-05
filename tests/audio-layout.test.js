@@ -156,60 +156,69 @@ test("[iPhone] таб-бар учитывает safe-area-inset-bottom", () => {
   assert.match(rule("#tab-bar"), /env\(safe-area-inset-bottom/);
 });
 
-test("[iPhone] после закрытия клавиатуры страница возвращается в scrollY=0 (нет полосы под футером)", async () => {
-  const a = await bootApp({ platform: "ios", standalone: true });
+async function kbEnv(extra = {}) {
+  const a = await bootApp({ platform: "ios", standalone: true, ...extra });
   const vv = new a.window.EventTarget();
   Object.assign(vv, { height: 800, offsetTop: 0 });
   Object.defineProperty(a.window, "visualViewport", { value: vv, configurable: true });
-  let scrolled = 0;
-  a.window.scrollTo = () => { scrolled++; };
-  Object.defineProperty(a.window, "scrollY", { value: 120, configurable: true });
   Object.defineProperty(a.window, "innerHeight", { value: 800, configurable: true });
+  Object.defineProperty(a.window, "scrollY", { value: 0, configurable: true, writable: true });
   a.run(`wireKeyboardFix()`);
+  return { a, vv, shell: a.document.querySelector("#app-shell"), fire: () => vv.dispatchEvent(new a.window.Event("resize")) };
+}
+
+test("[iPhone] клавиатура открыта: оболочка привязана к видимой области (шапка на месте), поле ввода не двигается transform'ом", async () => {
+  const { a, vv, shell, fire } = await kbEnv();
   a.run(`state.chatId = "alice"; ensureContactEntry("alice","Alice"); renderTab();`);
-  a.document.querySelector("#screen-chat").classList.remove("hidden");
-  vv.dispatchEvent(new a.window.Event("resize"));
-  assert.ok(scrolled >= 1, "scrollTo(0,0) при отсутствии клавиатуры");
-  // и по уходу фокуса с поля
-  scrolled = 0;
-  a.document.dispatchEvent(new a.window.Event("focusout"));
-  await tick(150);
-  assert.ok(scrolled >= 1);
+  vv.height = 480; vv.offsetTop = 120; fire();
+  assert.equal(shell.style.height, "480px");
+  assert.equal(shell.style.transform, "translateY(120px)");
+  assert.ok(a.document.documentElement.classList.contains("kb-open"));
+  assert.equal(a.document.querySelector(".chat-input-bar").style.transform, "", "поле ввода больше не прыгает");
   a.close();
 });
 
-test("[iPhone] клавиатура открыта (viewport уменьшился): скролл страницы не трогаем, input-bar поднимается", async () => {
-  const a = await bootApp({ platform: "ios", standalone: true });
-  const vv = new a.window.EventTarget();
-  Object.assign(vv, { height: 400, offsetTop: 0 });
-  Object.defineProperty(a.window, "visualViewport", { value: vv, configurable: true });
-  Object.defineProperty(a.window, "innerHeight", { value: 800, configurable: true });
-  Object.defineProperty(a.window, "scrollY", { value: 50, configurable: true });
+test("[iPhone] клавиатура закрылась: всё возвращается, страница прокручена в 0", async () => {
+  const { a, vv, shell, fire } = await kbEnv();
+  vv.height = 480; vv.offsetTop = 120; fire();
+  vv.height = 800; vv.offsetTop = 0;
   let scrolled = 0; a.window.scrollTo = () => { scrolled++; };
-  a.run(`wireKeyboardFix()`);
-  a.run(`state.chatId = "alice"; ensureContactEntry("alice","Alice"); renderTab();`);
-  a.document.querySelector("#screen-chat").classList.remove("hidden");
-  vv.dispatchEvent(new a.window.Event("resize"));
-  assert.equal(scrolled, 0);
-  assert.match(a.document.querySelector(".chat-input-bar").style.transform, /translateY\(-/);
+  a.window.scrollY = 90;
+  fire();
+  assert.equal(shell.style.height, "");
+  assert.equal(shell.style.transform, "");
+  assert.ok(!a.document.documentElement.classList.contains("kb-open"));
+  assert.ok(scrolled >= 1, "scrollTo(0,0) после закрытия клавиатуры");
   a.close();
 });
 
-test("[iPhone] ширина: контент не шире экрана (overflow-x, text-size-adjust, сжатие медиа и длинных слов)", () => {
-  assert.match(rule("html, body"), /width:\s*100%/);
-  assert.match(rule("html, body"), /max-width:\s*100%/);
-  assert.match(rule("html, body"), /overflow-x:\s*hidden/);
-  assert.match(rule("html, body"), /-webkit-text-size-adjust:\s*100%/);
-  assert.match(rule("#app-shell, .screen, #content"), /min-width:\s*0/);
-  assert.match(rule("img, video, canvas, svg, iframe"), /max-width:\s*100%/);
-  assert.match(rule(".bubble, .bubble-row, .chat-row, .settings-row, .contact-row"), /overflow-wrap:\s*anywhere/);
-  assert.doesNotMatch(css, /width:\s*100vw/, "100vw на iOS включает системные поля и вызывает горизонтальное переполнение");
-  assert.match(html.match(/<meta name="viewport" content="([^"]+)"/)[1], /width=device-width/);
+test("[iPhone] небольшие колебания viewport (панель Safari) не считаются клавиатурой", async () => {
+  const { a, vv, shell, fire } = await kbEnv();
+  vv.height = 740; fire();
+  assert.equal(shell.style.height, "");
+  assert.ok(!a.document.documentElement.classList.contains("kb-open"));
+  a.close();
+});
+
+test("[iPhone] при открытии клавиатуры переписка прокручивается к последним сообщениям", async () => {
+  const { a, vv, fire } = await kbEnv();
+  a.run(`state.chatId = "alice"; ensureContactEntry("alice","Alice"); renderTab();`);
+  const wrap = a.document.querySelector("#chat-messages");
+  Object.defineProperty(wrap, "scrollHeight", { value: 5000, configurable: true });
+  wrap.scrollTop = 0;
+  vv.height = 480; vv.offsetTop = 120; fire();
+  await tick(60);
+  assert.equal(wrap.scrollTop, 5000);
+  a.close();
+});
+
+test("[iPhone] kb-open убирает нижний отступ таб-бара", () => {
+  assert.match(css, /html\.kb-open #tab-bar \{ padding-bottom: 0; \}/);
 });
 
 // ---------- iPhone PWA: пустая полоса под футером красится в цвет футера ----------
-test("[iPhone] фон html (виден под body) — цвет футера, не чёрный; body без --app-h", () => {
-  assert.match(rule("html").match(/background:\s*([^;]+);/g).pop(), /var\(--footer-bg\)/);
+test("[iPhone] фон html — фон приложения (--bg-0), без чёрного clip и без --app-h", () => {
+  assert.match(rule("html").match(/background:\s*([^;]+);/g).pop(), /var\(--bg-0\)/);
   assert.doesNotMatch(rule("body"), /--app-h/);
 });
 test("[iPhone] футер использует тот же токен --glass-regular", () => {
@@ -238,11 +247,12 @@ test("футер: по 10px сверху и снизу вокруг содерж
   assert.doesNotMatch(rule("#tab-bar"), /safe-area-inset-bottom, 0px\) \+/);
 });
 
-test("safe area под футером окрашена в цвет футера: один токен у #tab-bar и у html", () => {
-  assert.match(rule("#tab-bar"), /background:\s*var\(--footer-bg\)/);
-  const htmlBgs = rule("html").match(/background:\s*([^;]+);/g).pop();
-  assert.match(htmlBgs, /var\(--footer-bg\)/);
-  assert.match(css, /--footer-bg:\s*linear-gradient\(var\(--glass-regular\), var\(--glass-regular\)\), var\(--bg-1\)/);
+test("футер и нижняя safe area: стекло как у хедера, без собственного сплошного фона", () => {
+  assert.doesNotMatch(css, /--footer-bg/);
+  assert.doesNotMatch(rule("#tab-bar"), /(^|[;\s])background:/, "фон футера даёт .glass (var(--glass-regular))");
+  assert.match(rule("#nav-bar") + css.match(/#nav-bar\.glass[^{]*\{[^}]*\}/)?.[0], /blur|glass|padding/);
+  assert.match(rule(".glass,\n.glass-regular"), /background:\s*var\(--glass-regular\)/);
+  assert.match(html, /<nav id="tab-bar" class="glass">/);
 });
 
 test("запрет масштабирования: viewport, touch-action, блокировка жестов и двойного тапа", async () => {

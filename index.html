@@ -397,6 +397,7 @@
         <div class="settings-row column">
           <span data-i18n="settings.translateServer">Translation server</span>
           <input id="settings-translate-endpoint" type="text" data-i18n-ph="settings.translateServer.placeholder" placeholder="LibreTranslate-compatible URL, e.g. https://…/translate" />
+          <input id="settings-translate-key" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="API key (optional)" />
           <p class="fine muted" style="margin:4px 0 0;" data-i18n="settings.translateServer.disclaimer">Empty by default — translating a message sends its text in the open to this server, so pick one you trust. Without one set, "Translate" in a message's menu just explains that.</p>
         </div>
         <label class="settings-row"><span data-i18n="settings.sounds">Sound and vibration</span><input id="settings-sounds" type="checkbox" class="switch" /></label>
@@ -419,20 +420,6 @@
         <p class="fine muted" style="margin:0 0 10px;" data-i18n="settings.backup.explain">Ether has no server backup — everything lives only on this device. If you lose or replace this device, contacts, groups and messages are gone unless you save a backup file yourself.</p>
         <button type="button" id="settings-export-backup-btn" class="settings-row link-row"><span data-i18n="debug.exportData">Export all data</span><span class="chevron"><svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M8.59 16.59 13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg></span></button>
         <button type="button" id="settings-import-backup-btn" class="settings-row link-row"><span data-i18n="debug.importData">Import data from file</span><span class="chevron"><svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M8.59 16.59 13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg></span></button>
-      </div>
-      <div class="settings-group flat-content" data-settings-category="data">
-        <div class="settings-row column"><span class="settings-group-title" data-i18n="settings.deadMan.title">Dead man's switch</span></div>
-        <p class="fine muted" style="margin:0 0 10px;" data-i18n="settings.deadMan.explain">Best-effort, not a guaranteed background trigger: each time you open Ether, it sends a small "I'm alive" signal to the contact below; it only updates when the other side also opens Ether. If you'd like, enable it there too to be alerted after your own silence.</p>
-        <label class="settings-row"><span data-i18n="settings.deadMan.enable">Enable</span><input id="settings-deadman-enabled" type="checkbox" class="switch" /></label>
-        <label class="settings-row"><span data-i18n="settings.deadMan.threshold">Alert after</span>
-          <select id="settings-deadman-threshold" class="settings-select">
-            <option value="3" data-i18n="settings.deadMan.days3">3 days</option>
-            <option value="7" data-i18n="settings.deadMan.days7">7 days</option>
-            <option value="14" data-i18n="settings.deadMan.days14">14 days</option>
-            <option value="30" data-i18n="settings.deadMan.days30">30 days</option>
-          </select>
-        </label>
-        <button type="button" id="settings-deadman-contact-btn" class="settings-row link-row"><span data-i18n="settings.deadMan.contact">Trusted contact</span><span id="settings-deadman-contact-name" class="chevron"></span></button>
       </div>
       <div class="settings-group flat-content" data-settings-category="data">
         <div class="settings-row column"><span class="settings-group-title" data-i18n="settings.dangerZone.title">Danger zone</span></div>
@@ -488,6 +475,7 @@
       </div>
       <div class="settings-group flat-content" data-settings-category="help">
         <div class="settings-row column" style="align-items:center; text-align:center;">
+          <img class="about-logo" src="icons/logo-256.png" width="96" height="96" alt="Ether" />
           <span id="about-app-logo" class="about-app-name">Ether</span>
           <span id="about-version" class="fine muted"></span>
           <span class="fine muted about-designed-by">Designed by AIK in Moscow, Holy Russia, Planet Earth, Solar System, Local Interstellar Cloud, Local Bubble, Orion Arm, Milky Way Galaxy, Local Group of Galaxies, Virgo Supercluster, Laniakea Supercluster, Pisces–Cetus Supercluster Complex, Observable Universe, Universe</span>
@@ -496,6 +484,20 @@
     </section>
 
     <section id="screen-debug" class="screen hidden">
+      <div class="settings-group flat-content">
+        <div class="settings-row column"><span class="settings-group-title" data-i18n="settings.deadMan.title">Dead man's switch</span></div>
+        <p class="fine muted" style="margin:0 0 10px;" data-i18n="settings.deadMan.explain">Best-effort, not a guaranteed background trigger: each time you open Ether, it sends a small "I'm alive" signal to the contact below; it only updates when the other side also opens Ether. If you'd like, enable it there too to be alerted after your own silence.</p>
+        <label class="settings-row"><span data-i18n="settings.deadMan.enable">Enable</span><input id="settings-deadman-enabled" type="checkbox" class="switch" /></label>
+        <label class="settings-row"><span data-i18n="settings.deadMan.threshold">Alert after</span>
+          <select id="settings-deadman-threshold" class="settings-select">
+            <option value="3" data-i18n="settings.deadMan.days3">3 days</option>
+            <option value="7" data-i18n="settings.deadMan.days7">7 days</option>
+            <option value="14" data-i18n="settings.deadMan.days14">14 days</option>
+            <option value="30" data-i18n="settings.deadMan.days30">30 days</option>
+          </select>
+        </label>
+        <button type="button" id="settings-deadman-contact-btn" class="settings-row link-row"><span data-i18n="settings.deadMan.contact">Trusted contact</span><span id="settings-deadman-contact-name" class="chevron"></span></button>
+      </div>
       <div class="settings-group flat-content">
         <div class="settings-row column">
           <span data-i18n="settings.glass">Glass transparency</span> <span id="glass-slider-value" class="fine muted"></span>

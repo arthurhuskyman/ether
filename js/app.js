@@ -3,9 +3,12 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.57.8.0";
+const APP_VERSION = "V.57.9.0";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
+// Сервер перевода по умолчанию (LibreTranslate-совместимый). Официальный публичный инстанс обычно
+// требует API-ключ — его можно указать в Настройках; свой сервер можно задать там же.
+const DEFAULT_TRANSLATE_ENDPOINT = "https://libretranslate.com/translate";
 const MAX_MESSAGE_LENGTH = 4000;
 // Два разных числа: щедрый входной потолок (что можно ВЫБРАТЬ — есть что
 // сжимать) и строгий целевой (что РЕАЛЬНО уйдёт получателю). Целевой
@@ -248,7 +251,7 @@ const CRITICAL_LS_KEYS = [
   "ether.callLog", "ether.lastSeen", "ether.drafts",
   "ether.callVolume", "ether.lang", "ether.recentReactions",
   "ether.chatFolders", "ether.emojiSkinTone", "ether.composerPlusMode",
-  "ether.translateEndpoint",
+  "ether.translateEndpoint", "ether.translateApiKey",
   "ether.deadManEnabled", "ether.deadManThresholdDays", "ether.deadManContactId", "ether.deadManLastSentAt",
   "ether.panicShakeEnabled",
 ];
@@ -307,7 +310,9 @@ const Store = {
   // бы на сторонний сервер без явного согласия пользователя на то, какому
   // серверу он доверяет (симметрично предупреждению про link-previews
   // чуть выше в Settings).
-  get translateEndpoint() { return localStorage.getItem("ether.translateEndpoint") || ""; },
+  get translateEndpoint() { return localStorage.getItem("ether.translateEndpoint") || DEFAULT_TRANSLATE_ENDPOINT; },
+  get translateApiKey() { return localStorage.getItem("ether.translateApiKey") || ""; },
+  set translateApiKey(v) { localStorage.setItem("ether.translateApiKey", (v || "").trim()); scheduleIDBBackup(); },
   set translateEndpoint(v) { localStorage.setItem("ether.translateEndpoint", (v || "").trim()); scheduleIDBBackup(); },
   // killer-features-backlog 0.5 — "мягкий" Dead Man's Switch: честно не
   // обещаем настоящий фоновый триггер (Periodic Background Sync не работает
@@ -2004,6 +2009,7 @@ function startApp() {
     const shn = $("#settings-hide-notif"); if (shn) shn.checked = Store.hideNotifContent;
     const slp = $("#settings-link-previews"); if (slp) slp.checked = Store.linkPreviewsEnabled;
     const ste = $("#settings-translate-endpoint"); if (ste) ste.value = Store.translateEndpoint;
+    const stk = $("#settings-translate-key"); if (stk) stk.value = Store.translateApiKey;
     const ssn = $("#settings-sounds"); if (ssn) ssn.checked = Store.soundsEnabled;
     const srt = $("#settings-ringtone"); if (srt) srt.value = Store.ringtone;
     const spl = $("#settings-pinlock"); if (spl) spl.checked = Store.pinEnabled;
@@ -2941,6 +2947,7 @@ function closeChatSafely() {
   cancelVoiceRecordingIfLeavingChat(null);
   pauseAllVoicePlayback();
   try { saveCurrentDraft(); } catch (e) {}
+  state._inputDraftChatId = null;
   state.chatId = null;
   // Сброс __lastRenderedChatId — иначе при повторном входе в ТОТ ЖЕ
   // чат в renderChatThreadInner срабатывает условие
@@ -4276,7 +4283,23 @@ if (m.replyTo) {
   }
   updateScrollBottomButton();
   const input = $("#chat-input");
-  if (input && state.drafts[c.id] && !state.editingMessageId) input.value = state.drafts[c.id];
+  if (input && !state.editingMessageId) {
+    // Черновик привязан к чату: при смене чата поле ЗАМЕНЯЕТСЯ его черновиком или очищается.
+    // Раньше, если у нового чата черновика не было, в поле оставался текст предыдущего чата.
+    // Перерисовка того же чата (входящее сообщение) поле не трогает — иначе сбивался бы ввод.
+    if (state._inputDraftChatId !== c.id) {
+      // Поле всё ещё содержит текст ПРЕДЫДУЩЕГО чата (смена чата в обход closeChatSafely, например из
+      // глобального поиска) — сохраняем его как черновик того чата, прежде чем заменить.
+      const prevId = state._inputDraftChatId;
+      if (prevId && state.contacts.has(prevId)) {
+        const pv = input.value.trim();
+        if (pv) state.drafts[prevId] = pv; else delete state.drafts[prevId];
+        persistDrafts();
+      }
+      input.value = state.drafts[c.id] || "";
+      state._inputDraftChatId = c.id;
+    }
+  }
   updateSendVsMic();
   // markThreadRead — только если сейчас реально видно низ переписки. Раньше
   // условие было "нет разделителя ИЛИ у низа" — но разделитель ставится
@@ -4516,29 +4539,40 @@ function saveCurrentDraft() {
 function wireKeyboardFix() {
   if (!window.visualViewport) return;
   const vv = window.visualViewport;
+  let kbWasOpen = false;
+  // iOS при открытии клавиатуры НЕ меняет layout-viewport, а прокручивает visual viewport вверх (offsetTop > 0):
+  // всё приложение "уезжало" наверх вместе с шапкой, а поле ввода дёргалось из-за собственного transform.
+  // Теперь оболочка приложения привязывается к ВИДИМОЙ области: высота = vv.height, сдвиг = vv.offsetTop.
+  // Шапка остаётся наверху видимой области, поле ввода — прямо над клавиатурой, переписка сжимается,
+  // последние сообщения остаются на экране.
   function update() {
-    const screen = document.getElementById("screen-chat");
-    if (!screen || screen.classList.contains("hidden")) return;
-    const bar = document.querySelector(".chat-input-bar"); if (!bar) return;
-    const kb = Math.max(0, window.innerHeight - vv.height - (vv.offsetTop || 0));
-    // iOS PWA иногда возвращает бессмысленные значения vv.height. Ограничиваем
-    // сдвиг так, чтобы input-bar в крайнем случае упёрся ровно в верх таб-бара,
-    // но не заехал на него и не перекрыл иконки. 60px = высота таб-бара.
-    const maxShift = Math.max(0, (window.innerHeight || 0) - 60 - bar.offsetHeight);
-    const shift = Math.min(kb, maxShift);
-    if (shift > 60) bar.style.transform = `translateY(-${shift}px)`;
-    else bar.style.transform = "";
-    // iOS после закрытия клавиатуры иногда оставляет страницу прокрученной (visual viewport смещён):
-    // под футером появляется пустая полоса, а футер "отрывается" от края экрана. Возвращаем скролл в 0.
-    if (shift <= 60 && (window.scrollY || vv.offsetTop)) { try { window.scrollTo(0, 0); } catch (e) {} }
+    const shell = document.getElementById("app-shell"); if (!shell) return;
+    const root = document.documentElement;
+    const layoutH = window.innerHeight || 0;
+    const kbOpen = layoutH - vv.height > 100; // клавиатура — это >100px разницы; мелкие колебания (панель Safari) игнорируем
+    if (kbOpen) {
+      shell.style.height = Math.round(vv.height) + "px";
+      shell.style.transform = vv.offsetTop > 0 ? "translateY(" + Math.round(vv.offsetTop) + "px)" : "";
+      root.classList.add("kb-open"); // убирает нижнюю safe-area у таб-бара, пока клавиатура открыта
+    } else {
+      shell.style.height = ""; shell.style.transform = "";
+      root.classList.remove("kb-open");
+      // iOS после закрытия клавиатуры иногда оставляет страницу прокрученной — возвращаем в 0
+      if (window.scrollY || vv.offsetTop) { try { window.scrollTo(0, 0); } catch (e) {} }
+    }
     const wrap = document.getElementById("chat-messages");
-    if (wrap) { if (isNearBottom(wrap)) wrap.scrollTop = wrap.scrollHeight; }
+    const chatVisible = wrap && !wrap.closest(".hidden");
+    if (chatVisible && (kbOpen !== kbWasOpen || isNearBottom(wrap))) {
+      requestAnimationFrame(() => { wrap.scrollTop = wrap.scrollHeight; });
+    }
+    kbWasOpen = kbOpen;
   }
   vv.addEventListener("resize", update);
   vv.addEventListener("scroll", update);
   // Страница не должна оставаться смещённой после ухода фокуса с поля ввода.
   document.addEventListener("focusout", () => setTimeout(() => {
-    if (window.scrollY || (window.visualViewport && window.visualViewport.offsetTop)) { try { window.scrollTo(0, 0); } catch (e) {} }
+    update();
+    if (window.scrollY || (window.visualViewport && window.visualViewport.offsetTop && !document.documentElement.classList.contains("kb-open"))) { try { window.scrollTo(0, 0); } catch (e) {} }
   }, 80));
 }
 
@@ -8360,7 +8394,7 @@ function toggleMessageFavorite(contactId, msgId) {
 // браузеров (см. раздел 14/16) — не годится как основной путь для
 // приложения на 72 языках. Поэтому основной путь — серверный, через любой
 // LibreTranslate-совместимый эндпоинт, который пользователь укажет сам в
-// Settings (пусто по умолчанию, см. Store.translateEndpoint) — текст
+// Settings (по умолчанию DEFAULT_TRANSLATE_ENDPOINT, см. Store.translateEndpoint) — текст
 // сообщения уходит именно на этот сервер в открытом виде, точно так же,
 // как ссылка уходит на сигнальный сервер для link-preview, и это явно
 // объясняется рядом с полем в Settings, а не скрывается.
@@ -8381,7 +8415,7 @@ async function translateMessage(contactId, msgId) {
     const res = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ q: m.text, source: "auto", target: (I18N.current || "en").split("-")[0], format: "text" }),
+      body: JSON.stringify(Object.assign({ q: m.text, source: "auto", target: (I18N.current || "en").split("-")[0], format: "text" }, Store.translateApiKey ? { api_key: Store.translateApiKey } : {})),
       signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) throw new Error("http " + res.status);
@@ -10458,7 +10492,10 @@ function wireSettingsScreen() {
   const translateEndpointEl = $("#settings-translate-endpoint");
   if (translateEndpointEl) translateEndpointEl.addEventListener("change", (e) => {
     Store.translateEndpoint = e.target.value;
+    e.target.value = Store.translateEndpoint; // пустое поле возвращает адрес по умолчанию
   });
+  const translateKeyEl = $("#settings-translate-key");
+  if (translateKeyEl) translateKeyEl.addEventListener("change", (e) => { Store.translateApiKey = e.target.value; });
   let pinSheetMode = "new"; // "new" | "verify-old" | "enter-new" | "disable"
   function updateChangePinBtnVisibility() {
     const btn = $("#change-pin-btn"); if (btn) btn.classList.toggle("hidden", !Store.pinEnabled);

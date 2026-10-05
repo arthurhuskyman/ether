@@ -80,7 +80,7 @@ window.__LANG_DICTS["en"] = {
     "toast.importContactNameOnly": "Name filled in — Ether has no phone/email directory, so enter their invite code or scan their QR code to actually add them",
     "settings.translateServer": "Translation server",
     "settings.translateServer.placeholder": "LibreTranslate-compatible URL, e.g. https://…/translate",
-    "settings.translateServer.disclaimer": "Empty by default — translating a message sends its text in the open to this server, so pick one you trust. Without one set, \"Translate\" in a message's menu just explains that.",
+    "settings.translateServer.disclaimer": "Used by default: libretranslate.com. Translating a message sends its text in the open to this server — pick one you trust, or run your own. The key is needed only if the server requires it.",
     "chat.translate": "Translate",
     "chat.translate.hide": "Hide translation",
     "chat.translated": "Translated:",

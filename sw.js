@@ -1,4 +1,4 @@
-const CACHE_VERSION = "ether-shell-v185";
+const CACHE_VERSION = "ether-shell-v186";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -20,6 +20,7 @@ const SHELL_FILES = [
   "./js/vendor/jsQR.js",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
+  "./icons/logo-256.png",
   "./icons/apple-touch-icon.png",
   "./icons/favicon-32.png",
   "./fonts/InterVariable.woff2",

@@ -48,7 +48,6 @@
   --glass-border: rgba(255, 255, 255, 0.10);
   --glass-thin: rgba(var(--glass-tint), calc(var(--glass-alpha) * 0.7));
   --glass-regular: rgba(var(--glass-tint), var(--glass-alpha));
-  --footer-bg: linear-gradient(var(--glass-regular), var(--glass-regular)), var(--bg-1); /* сплошной цвет футера и safe area под ним */
   --glass-thick: rgba(var(--glass-tint), calc(var(--glass-alpha) + 0.2));
 
   /* --- Типографика — модульная шкала 1.25 --- */
@@ -217,10 +216,7 @@ html {
   /* clip-path: inset(0) здесь убран: на iOS-PWA корневой элемент короче экрана (innerHeight 797 при
      screen 844 — на высоту верхнего инсета), и clip-path обрезал отрисовку по этой высоте, оставляя
      чёрную полосу под футером. */
-  /* Всё, что видно НИЖЕ body (полоса под футером на iPhone, где окно PWA бывает короче экрана),
-     красим в цвет футера: полупрозрачное стекло таб-бара поверх канваса. Так полоса сливается
-     с футером, а не выглядит чёрной дырой. */
-  background: var(--footer-bg);
+  background: var(--bg-0);
   font-size: 16px;
 }
 @supports (font: -apple-system-body) {
@@ -971,6 +967,7 @@ input.switch:checked::before { transform: translateX(18px); }
 .global-search-row-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .global-search-row-subtitle { font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .global-search-empty { text-align: center; padding: 24px 0; }
+.about-logo { width: 96px; height: 96px; border-radius: 22px; margin-bottom: 8px; box-shadow: 0 6px 24px rgba(120, 88, 247, 0.35); }
 .about-app-name { font-size: var(--fs-md); font-weight: 700; }
 .about-designed-by { max-width: 320px; line-height: var(--lh-normal); }
 .settings-row input[type="text"] { border: none; background: transparent; text-align: end; font-size: var(--fs-base); color: var(--accent); outline: none; max-width: 60%; }
@@ -1685,8 +1682,8 @@ html[data-theme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); }
   /* Высота футера = содержимое кнопок; у каждой кнопки по 10px сверху и снизу (см. .tab-btn). */
   padding: 0 4px env(safe-area-inset-bottom, 0px);
   box-sizing: content-box;
-  /* Сплошной цвет футера — тот же, что красит html под ним (safe area / полоса ниже окна). */
-  background: var(--footer-bg);
+  /* Фон футера — стекло .glass (var(--glass-regular)), как у хедера: под ним, включая нижнюю safe-area,
+     виден тот же фон приложения (body::before), поэтому цвет футера и нижнего поля близок к фону. */
   border-radius: 0;
   border-bottom: none;
   z-index: 20;
@@ -2108,3 +2105,6 @@ html[data-theme="light"] body::before {
   html.is-standalone body::before { bottom: auto; height: 100lvh; }
   html.is-standalone .sheet { bottom: auto; height: 100lvh; }
 }
+
+/* Клавиатура открыта: нижняя safe-area таб-бара не нужна (её закрывает клавиатура) — экономим место. */
+html.kb-open #tab-bar { padding-bottom: 0; }
