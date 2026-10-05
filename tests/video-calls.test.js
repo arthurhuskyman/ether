@@ -262,3 +262,21 @@ test("mute: отключает аудиотрек и снимает его пр�
   assert.equal(p.A._muteRecheckTimer, null);
   p.close();
 });
+
+test("ЭХО: переход аудио→видео не создаёт второй аудиоканал ни у отправителя, ни у получателя", async () => {
+  const p = await pair();
+  await p.A.startCall(false); await p.B.answerCall(false);
+  assert.ok(await until(() => p.events.A.includes("audio") && p.events.B.includes("audio")));
+  const count = (l, kind) => l.pc.getTransceivers().filter((t) => (t.sender.track && t.sender.track.kind === kind) || (t.receiver.track && t.receiver.track.kind === kind)).length;
+  const audioBefore = [count(p.A, "audio"), count(p.B, "audio")];
+  assert.equal(await p.A.enableVideo(), true);
+  assert.equal(await p.B.enableVideo(), true);
+  assert.ok(await until(() => p.events.A.includes("video") && p.events.B.includes("video"), 10000));
+  assert.ok(await until(() => p.A.pc.signalingState === "stable" && p.B.pc.signalingState === "stable"));
+  assert.deepEqual([count(p.A, "audio"), count(p.B, "audio")], audioBefore, "число аудио-трансиверов не изменилось");
+  assert.equal(audioBefore[0], 1); assert.equal(audioBefore[1], 1);
+  assert.equal(p.A.pc.getSenders().filter((s) => s.track && s.track.kind === "audio").length, 1);
+  assert.equal(p.A.localStream.getAudioTracks().length, 1, "в localStream один аудиотрек");
+  assert.equal(p.events.A.filter((e) => e === "audio").length, 1, "аудиотрек собеседника объявлен один раз");
+  p.close();
+});

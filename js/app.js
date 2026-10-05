@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.57.4.0";
+const APP_VERSION = "V.57.5.0";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 const MAX_MESSAGE_LENGTH = 4000;
@@ -4530,11 +4530,18 @@ function wireKeyboardFix() {
     const shift = Math.min(kb, maxShift);
     if (shift > 60) bar.style.transform = `translateY(-${shift}px)`;
     else bar.style.transform = "";
+    // iOS после закрытия клавиатуры иногда оставляет страницу прокрученной (visual viewport смещён):
+    // под футером появляется пустая полоса, а футер "отрывается" от края экрана. Возвращаем скролл в 0.
+    if (shift <= 60 && (window.scrollY || vv.offsetTop)) { try { window.scrollTo(0, 0); } catch (e) {} }
     const wrap = document.getElementById("chat-messages");
     if (wrap) { if (isNearBottom(wrap)) wrap.scrollTop = wrap.scrollHeight; }
   }
   vv.addEventListener("resize", update);
   vv.addEventListener("scroll", update);
+  // Страница не должна оставаться смещённой после ухода фокуса с поля ввода.
+  document.addEventListener("focusout", () => setTimeout(() => {
+    if (window.scrollY || (window.visualViewport && window.visualViewport.offsetTop)) { try { window.scrollTo(0, 0); } catch (e) {} }
+  }, 80));
 }
 
 // =====================================================================
@@ -9422,11 +9429,21 @@ async function findAudioOutputDevice(pattern) {
 async function toggleSpeaker() {
   const id = state.callId; if (!id) return;
   const audioEl = document.getElementById("remote-audio-" + id);
+  const wantSpeaker = !speakerOn;
+  // iOS Safari 16.4+: Audio Session API — "play-and-record" во время звонка ведёт звук в
+  // наушник (ресивер), "playback" — на громкую связь. setSinkId на iPhone до iOS 26 нет вовсе.
+  if (navigator.audioSession && !(audioEl && typeof audioEl.setSinkId === "function")) {
+    try {
+      navigator.audioSession.type = wantSpeaker ? "playback" : "play-and-record";
+      speakerOn = wantSpeaker;
+      const btn = $("#call-speaker-btn"); if (btn) btn.classList.toggle("active", speakerOn);
+    } catch (e) { toast(T("toast.speakerUnsupported")); }
+    return;
+  }
   if (!audioEl || typeof audioEl.setSinkId !== "function") {
     toast(T("toast.speakerUnsupported"));
     return;
   }
-  const wantSpeaker = !speakerOn;
   try {
     const deviceId = wantSpeaker
       ? (await findAudioOutputDevice(/speaker|loud/i)) || "default"
@@ -9438,6 +9455,15 @@ async function toggleSpeaker() {
     toast(T("toast.speakerUnsupported"));
   }
 }
+// Единая точка изменения громкости собеседника: GainNode (работает и на iOS) либо element.volume,
+// если звук идёт напрямую без Web Audio.
+function applyCallVolume(id, v) {
+  const vol = Math.max(0, Math.min(1, Number(v) || 0));
+  const el = document.getElementById("remote-audio-" + id);
+  if (!el) return;
+  if (el._relayGain) { try { el._relayGain.gain.value = vol; } catch (e) {} }
+  else { try { el.volume = vol; } catch (e) {} }
+}
 function attachRemoteAudio(id, stream) {
   if (!stream) { etherLog("warn", "[audio] empty stream"); return; }
   let audioEl = document.getElementById("remote-audio-" + id);
@@ -9448,6 +9474,13 @@ function attachRemoteAudio(id, stream) {
     audioEl.setAttribute("playsinline", "");
     audioEl.hidden = true;
     document.body.appendChild(audioEl);
+  }
+  // Повторный remote-track (например, когда следом приходит видеотрек того же потока) не должен
+  // пересобирать цепочку Web Audio — это даёт щелчок и дублирует источник.
+  if (audioEl._relayStream === stream && audioEl.srcObject) {
+    try { const c0 = ensureGlobalAudioCtx(); if (c0 && c0.state === "suspended") c0.resume(); } catch (e) {}
+    applyCallVolume(id, Store.callVolume);
+    return;
   }
   audioEl.volume = Store.callVolume;
   // Раньше srcObject ставился НАПРЯМУЮ из WebRTC-потока — на iOS/iPadOS
@@ -9463,11 +9496,20 @@ function attachRemoteAudio(id, stream) {
     try {
       if (audioEl._relaySource) { try { audioEl._relaySource.disconnect(); } catch (e) {} }
       if (audioEl._relayDest) { try { audioEl._relayDest.disconnect(); } catch (e) {} }
+      if (audioEl._relayGain) { try { audioEl._relayGain.disconnect(); } catch (e) {} }
+      // Контекст, созданный вне жеста, на iOS стартует "suspended" — без resume() звук молчит.
+      if (ctx.state === "suspended") { try { ctx.resume(); } catch (e) {} }
       const source = ctx.createMediaStreamSource(stream);
       const dest = ctx.createMediaStreamDestination();
-      source.connect(dest);
+      // Громкость — через GainNode: HTMLMediaElement.volume на iOS read-only (всегда 1), слайдер бы не работал.
+      const gain = ctx.createGain();
+      gain.gain.value = Store.callVolume;
+      source.connect(gain); gain.connect(dest);
       audioEl._relaySource = source;
       audioEl._relayDest = dest;
+      audioEl._relayGain = gain;
+      audioEl._relayStream = stream;
+      audioEl.volume = 1; // иначе громкость применилась бы дважды (gain * volume)
       audioEl.srcObject = dest.stream;
     } catch (e) {
       etherLog("warn", "[audio] relay через Web Audio не удался, играю поток напрямую:", String(e));
@@ -9514,6 +9556,11 @@ function attachRemoteVideo(id, stream) {
   if (videoTracks.length === 0) return;
   const v = $("#call-remote-video");
   if (!v) return;
+  // Звук собеседника играет ТОЛЬКО через #remote-audio-<id> (громкость, динамик/наушник).
+  // Не заглушённый <video> с тем же потоком проигрывал бы ту же дорожку второй раз — на
+  // видеозвонке это давало эхо/двойной звук, не подчинялось слайдеру громкости и
+  // переключению динамика.
+  v.muted = true; v.defaultMuted = true; v.volume = 0;
   v.srcObject = stream;
   v.classList.remove("hidden");
   const cs = $("#call-screen"); if (cs) cs.classList.add("video-active");
@@ -9671,6 +9718,7 @@ function closeCallScreen(reason) {
   const cm = $("#call-mute-btn"); if (cm) cm.classList.remove("active");
   const spkBtn = $("#call-speaker-btn"); if (spkBtn) spkBtn.classList.remove("active");
   speakerOn = false;
+  try { if (navigator.audioSession) navigator.audioSession.type = "auto"; } catch (e) {}
   const lbl = $("#call-mute-label"); if (lbl) lbl.textContent = T("call.mute");
   if (state.callId) {
     pendingRemoteStreams.delete(state.callId);
@@ -9883,10 +9931,7 @@ function wireCallScreen() {
       Store.callVolume = v;
       const cid = state.callId;
       if (cid) {
-        const link = mesh.get(cid);
-        if (link && link.setRemoteVolume) link.setRemoteVolume(v);
-        const el = document.getElementById("remote-audio-" + cid);
-        if (el) el.volume = v;
+        applyCallVolume(cid, v);
       }
     });
   }

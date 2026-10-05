@@ -886,7 +886,7 @@ async startCall(withVideo) {
   setRemoteVolume(v) {
     const vol = Math.max(0, Math.min(1, Number(v) || 0));
     const el = document.getElementById("remote-audio-" + this.id);
-    if (el) el.volume = vol;
+    if (el) { if (el._relayGain) el._relayGain.gain.value = vol; else el.volume = vol; }
   }
 
   async reInvite() {

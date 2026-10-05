@@ -98,6 +98,20 @@ function createApp(opts = {}) {
       applyPlatform(w, opts.platform || "desktop", opts);
       if (opts.storage) for (const [k, v] of Object.entries(opts.storage)) w.localStorage.setItem(k, v);
       w.RTCPeerConnection = class extends wrtc.RTCPeerConnection { constructor(...args) { super(...args); PCS.push(this); } }; w.RTCSessionDescription = wrtc.RTCSessionDescription; w.RTCIceCandidate = wrtc.RTCIceCandidate;
+      // Web Audio: заглушка, записывающая граф (jsdom AudioContext не имеет)
+      w.__audioNodes = [];
+      const mkNode = (type) => { const n = { type, connected: [], connect(t) { this.connected.push(t); return t; }, disconnect() { this.connected = []; } }; w.__audioNodes.push(n); return n; };
+      if (!opts.noAudioContext) {
+        w.MediaStreamAudioDestinationNode = class {};
+        w.AudioContext = class { constructor() { this.state = opts.suspendedAudio ? "suspended" : "running"; this.destination = {}; w.__audioCtx = this; this.resumed = 0; }
+          resume() { this.resumed++; this.state = "running"; return Promise.resolve(); }
+          createMediaStreamSource(stream) { const n = mkNode("source"); n.stream = stream; return n; }
+          createMediaStreamDestination() { const n = mkNode("dest"); n.stream = { id: "dest-stream", getTracks: () => [], getAudioTracks: () => [] }; return n; }
+          createGain() { const n = mkNode("gain"); n.gain = { value: 1 }; return n; }
+          createOscillator() { const n = mkNode("osc"); n.frequency = { value: 0, setValueAtTime() {} }; n.start = () => {}; n.stop = () => {}; return n; }
+          createAnalyser() { const n = mkNode("analyser"); n.fftSize = 0; n.getByteFrequencyData = () => {}; return n; }
+          get currentTime() { return 0; } };
+      }
       w.MediaStream = wrtc.MediaStream;
       if (!process.env.ETHER_TEST_VERBOSE) for (const k of ["log", "info", "warn", "debug", "error"]) w.console[k] = () => {};
     },

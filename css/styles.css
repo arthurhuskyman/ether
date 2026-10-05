@@ -194,9 +194,24 @@ html[data-theme="aurora"] {
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+/* iOS Safari увеличивает страницу при фокусе на поле с шрифтом < 16px и потом не возвращает масштаб —
+   отсюда лишняя полоса под футером. Поля ввода на iOS всегда не мельче 16px. */
+@supports (-webkit-touch-callout: none) {
+  input, textarea, select { font-size: max(16px, 1em); }
+}
+
+/* Ширина на iPhone: контент никогда не должен быть шире экрана. Safari при любом переполнении по
+   горизонтали "ужимает" страницу и она вываливается за края. Жёстко ограничиваем ширину и режем
+   переполнение, а длинные слова/ссылки/медиа переносим и сжимаем. */
+html, body { width: 100%; max-width: 100%; overflow-x: hidden; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+#app-shell, .screen, #content { width: 100%; max-width: 100%; min-width: 0; overflow-x: hidden; }
+img, video, canvas, svg, iframe { max-width: 100%; }
+.bubble, .bubble-row, .chat-row, .settings-row, .contact-row { min-width: 0; overflow-wrap: anywhere; }
+.bubble-row > *, .chat-row > *, .settings-row > * { min-width: 0; }
+.sheet-panel { max-width: 100%; box-sizing: border-box; overflow-x: hidden; }
 
 html {
-  height: 100%; height: 100dvh;
+  height: 100%;
   margin: 0; overflow: hidden;
   clip-path: inset(0);
   background: var(--bg-0);
@@ -207,7 +222,9 @@ html {
 }
 
 body {
-  height: 100dvh;
+  /* Высоту НЕ задаём через 100dvh: у body уже position: fixed + inset: 0 — он всегда ровно по
+     видимой области. Отдельный 100dvh на iOS расходится с ней (панель Safari, клавиатура,
+     возврат из фона) и оставляет полосу под футером. */
   margin: 0; overscroll-behavior: none;
   position: fixed; inset: 0; overflow: hidden;
   font-family: "Inter", -apple-system, "SF Pro Text", "SF Pro Display", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
@@ -474,7 +491,7 @@ html[data-theme="light"] .glass-content {
 }
 
 #app-shell {
-  height: 100dvh; min-height: 100dvh; display: flex; flex-direction: column; position: relative;
+  height: 100%; min-height: 0; display: flex; flex-direction: column; position: relative;
   overflow: hidden;
   contain: layout;
 }
