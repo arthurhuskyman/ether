@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.57.2.0";
+const APP_VERSION = "V.57.3.0";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 const MAX_MESSAGE_LENGTH = 4000;
@@ -571,6 +571,7 @@ const outbox = new Map();
 // Store.groupDeliveryMapJson и resolveGroupDelivery().
 const groupDeliveryMap = new Map();
 const pendingNoKey = new Map();
+const seenGroupInviteIds = new Set(); // отдельно от seenDeliverIds, чтобы инвайты не вытесняли обычные id
 const seenDeliverIds = new Set(); // ключ — "from|msgId", не голый msgId (см. ниже)
 const _connectInFlight = new Set();
 // Недавно завершённые звонки — id собеседника -> timestamp. Защита от
@@ -3113,15 +3114,17 @@ function renderChatsList() {
     renderChatsSkeleton(list);
     return;
   }
-  const withArchived = all.some((c) => c.archived);
-  let visible = all.filter((c) => c.archived ? state.showArchived : true);
-  if (state.chatFilter === "unread") visible = visible.filter((c) => unreadCount(c) > 0);
-  else if (state.chatFilter === "groups") visible = visible.filter((c) => isGroup(c));
-  else if (state.chatFilter === "direct") visible = visible.filter((c) => !isGroup(c));
-  else if (state.chatFilter.startsWith("folder:")) {
-    const folder = state.folders.find((f) => f.id === state.chatFilter.slice(7));
-    visible = folder ? visible.filter((c) => folder.contactIds.includes(c.id)) : [];
-  }
+  const activeFolder = state.chatFilter.startsWith("folder:") ? state.folders.find((f) => f.id === state.chatFilter.slice(7)) : null;
+  const passesChatFilter = (c) => {
+    if (state.chatFilter === "unread") return unreadCount(c) > 0;
+    if (state.chatFilter === "groups") return isGroup(c);
+    if (state.chatFilter === "direct") return !isGroup(c);
+    if (state.chatFilter.startsWith("folder:")) return !!activeFolder && activeFolder.contactIds.includes(c.id);
+    return true;
+  };
+  // Тумблер архива виден, только если в архиве есть чат, подходящий под текущий фильтр.
+  const withArchived = all.some((c) => c.archived && passesChatFilter(c));
+  const visible = all.filter((c) => (c.archived ? state.showArchived : true) && passesChatFilter(c));
   const filtered = query
     ? visible.filter((c) => (c.name || "").toLowerCase().includes(query) || c.messages.some((m) => (m.text || "").toLowerCase().includes(query) || (m.file && m.file.name || "").toLowerCase().includes(query) || (m.contactCard && m.contactCard.name || "").toLowerCase().includes(query)))
     : visible;
@@ -5983,7 +5986,7 @@ async function sendGroupMessage(groupId, text, replyTo) {
     // часов, когда outbox-запись давно удалена по deliver-ack с
     // сервера) должен находить именно это сообщение в группе. См.
     // groupDeliveryMap / resolveGroupDelivery.
-    groupDeliveryMap.set(deliveryId, { groupId, contentId: msgId });
+    groupDeliveryMap.set(deliveryId, { groupId, contentId: msgId, to: m.id });
     trimMap(groupDeliveryMap, GROUP_DELIVERY_MAP_LIMIT);
     persistGroupDeliveryMap();
     await trySendOrQueue(mc, deliveryId, payload);
@@ -6383,14 +6386,14 @@ function restoreOutbox() {
 // числе через много часов после отправки) с самим сообщением в группе,
 // независимо от того, жива ли ещё соответствующая запись в outbox.
 function persistGroupDeliveryMap() {
-  const arr = Array.from(groupDeliveryMap.entries()).map(([deliveryId, v]) => ({ deliveryId, groupId: v.groupId, contentId: v.contentId }));
+  const arr = Array.from(groupDeliveryMap.entries()).map(([deliveryId, v]) => ({ deliveryId, groupId: v.groupId, contentId: v.contentId, to: v.to }));
   try { Store.groupDeliveryMapJson = JSON.stringify(arr); } catch (e) { handlePersistError(e, "groupDeliveryMap"); }
 }
 function restoreGroupDeliveryMap() {
   let arr = []; try { arr = JSON.parse(Store.groupDeliveryMapJson) || []; } catch (e) { arr = []; }
   if (!Array.isArray(arr)) arr = [];
   for (const e of arr) if (e && typeof e.deliveryId === "string" && typeof e.groupId === "string" && typeof e.contentId === "string") {
-    groupDeliveryMap.set(e.deliveryId, { groupId: e.groupId, contentId: e.contentId });
+    groupDeliveryMap.set(e.deliveryId, { groupId: e.groupId, contentId: e.contentId, to: e.to });
   }
 }
 // Резолвит deliveryId в { ownerChat, targetMsg } для группового
@@ -7232,9 +7235,9 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     // получатель видел каждый групповой инвайт как два отдельных
     // события.
     const gDedupKey = "grp-inv:" + payload.id;
-    if (seenDeliverIds.has(gDedupKey)) return;
-    seenDeliverIds.add(gDedupKey);
-    if (seenDeliverIds.size > SEEN_DELIVER_LIMIT) seenDeliverIds.delete(seenDeliverIds.values().next().value);
+    if (seenGroupInviteIds.has(gDedupKey)) return;
+    seenGroupInviteIds.add(gDedupKey);
+    if (seenGroupInviteIds.size > SEEN_DELIVER_LIMIT) seenGroupInviteIds.delete(seenGroupInviteIds.values().next().value);
 
     if (!Array.isArray(payload.members) || payload.members.length === 0 || payload.members.length > MAX_GROUP_MEMBERS) return;
     if (!payload.members.some((m) => m.id === Store.myId)) return;
@@ -9005,6 +9008,9 @@ function deleteContact(id) {
   const c0 = state.contacts.get(id);
   if (c0) cleanupExpiredFileBlobs(c0.messages);
   pendingNoKey.delete(id); persistPendingNoKey();
+  { let gdChanged = false;
+    for (const [dId, e] of groupDeliveryMap) if (e.to === id) { groupDeliveryMap.delete(dId); gdChanged = true; }
+    if (gdChanged) persistGroupDeliveryMap(); }
   for (const [msgId, entry] of outbox) if (entry.to === id) outbox.delete(msgId);
   persistOutbox();
   delete state.lastSeen[id]; persistLastSeen();
@@ -9505,6 +9511,7 @@ function attachRemoteVideo(id, stream) {
   // уже осмысленен. flip в этом случае — безопасный no-op
   // (PeerLink.switchCamera() сам проверяет наличие localVideoTrack).
   const overlays = $("#call-video-overlays"); if (overlays) overlays.classList.remove("hidden");
+  { const lnk = mesh.get(id); const fb = $("#call-flip-overlay-btn"); if (fb) fb.classList.toggle("hidden", !(lnk && lnk.localVideoTrack)); }
 }
 function showLocalVideoPreview(link) {
   const v = $("#call-local-video");
@@ -9522,6 +9529,12 @@ function showLocalVideoPreview(link) {
   // видео/завершить). PiP-кнопка внутри оверлея видна всегда — нажатие
   // при неподдерживаемом PiP показывает toast (см. wireCallScreen).
   const overlays = $("#call-video-overlays"); if (overlays) overlays.classList.remove("hidden");
+  // Flip камеры бессмысленен, если своя камера не включена (только PiP) — скрываем кнопку.
+  const flipBtn = $("#call-flip-overlay-btn");
+  if (flipBtn) {
+    const lnk = state.callId ? mesh.get(state.callId) : null;
+    flipBtn.classList.toggle("hidden", !(lnk && lnk.localVideoTrack));
+  }
   const videoBtn = $("#call-video-btn"); if (videoBtn) videoBtn.classList.add("active");
 }
 function hideCallVideo() {
@@ -10916,7 +10929,7 @@ function wireDebugScreen() {
     for (const id of Array.from(state.contacts.keys())) mesh.remove(id);
     for (const t of autoConnectTimers.values()) clearTimeout(t);
     autoConnectTimers.clear();
-    onlineSet.clear(); outbox.clear(); groupDeliveryMap.clear(); pendingNoKey.clear(); seenDeliverIds.clear(); recentlyDeletedIds.clear();
+    onlineSet.clear(); outbox.clear(); groupDeliveryMap.clear(); pendingNoKey.clear(); seenDeliverIds.clear(); seenGroupInviteIds.clear(); recentlyDeletedIds.clear();
     state.contacts.clear(); state.callLog = []; state.currentCallRecord = null;
     state.lastSeen = {}; state.drafts = {}; state.scheduledMessages = []; state.folders = [];
     // Если в момент сброса был в полёте дебаунс-таймер persistContacts()
