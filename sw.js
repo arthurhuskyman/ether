@@ -1,4 +1,4 @@
-const CACHE_VERSION = "ether-shell-v187";
+const CACHE_VERSION = "ether-shell-v188";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -9,6 +9,7 @@ const SHELL_FILES = [
   "./js/lang/en.js",
   "./js/i18n.js",
   "./js/app.js",
+  "./js/features.js",
   "./js/webrtc.js",
   "./js/file-limits.js",
   "./js/signaling-codec.js",

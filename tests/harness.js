@@ -107,7 +107,7 @@ function createApp(opts = {}) {
           resume() { this.resumed++; this.state = "running"; return Promise.resolve(); }
           createMediaStreamSource(stream) { const n = mkNode("source"); n.stream = stream; return n; }
           createMediaStreamDestination() { const n = mkNode("dest"); n.stream = { id: "dest-stream", getTracks: () => [], getAudioTracks: () => [] }; return n; }
-          createGain() { const n = mkNode("gain"); n.gain = { value: 1 }; return n; }
+          createGain() { const n = mkNode("gain"); n.gain = { value: 1, setValueAtTime() {}, exponentialRampToValueAtTime() {}, linearRampToValueAtTime() {} }; return n; }
           createOscillator() { const n = mkNode("osc"); n.frequency = { value: 0, setValueAtTime() {} }; n.start = () => {}; n.stop = () => {}; return n; }
           createAnalyser() { const n = mkNode("analyser"); n.fftSize = 0; n.getByteFrequencyData = () => {}; return n; }
           get currentTime() { return 0; } };
