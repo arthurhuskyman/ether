@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.57.3.1";
+const APP_VERSION = "V.57.3.2";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 const MAX_MESSAGE_LENGTH = 4000;
@@ -5379,7 +5379,15 @@ function handleFilePayload(from, payload) {
     if (incomingFileBuffers.size >= MAX_INCOMING_FILE_TRANSFERS) return;
     {
       const existing = state.contacts.get(from);
-      if (existing && existing.messages.some((m) => m.id === payload.id)) return;
+      const prev = existing && existing.messages.find((m) => m.id === payload.id);
+      if (prev) {
+        // Приём брошенной (буфер вычищен по TTL) передачи, которую пир повторил:
+        // заводим буфер заново, но сообщение не дублируем.
+        if (prev.file && prev.file.pending) {
+          incomingFileBuffers.set(payload.id, { name: payload.name, mime: payload.mime, size: payload.size, totalChunks, chunks: new Array(totalChunks).fill(null), from, receivedAt: Date.now() });
+        }
+        return;
+      }
     }
     incomingFileBuffers.set(payload.id, { name: payload.name, mime: payload.mime, size: payload.size, totalChunks, chunks: new Array(totalChunks).fill(null), from, receivedAt: Date.now() });
     const c = ensureContactEntry(from, null);
@@ -11300,6 +11308,9 @@ async function importBackupFile(file) {
       }
     }
     if (!data || typeof data !== "object") throw new Error("bad");
+    // Файл без единого ключа ether.* — не бэкап; без этой проверки импорт
+    // стёр бы все локальные данные и ничего не восстановил.
+    if (!Object.keys(data).some((k) => k.startsWith("ether.") && typeof data[k] === "string")) throw new Error("bad");
     if (!await confirmSheet(T("toast.confirmHardReset"), { destructive: true })) return;
     // Отменяем (не сбрасываем!) любой "летящий" дебаунс-таймер
     // persistContacts() — он держит СТАРЫЙ снимок контактов (ещё с ДО
@@ -11311,7 +11322,7 @@ async function importBackupFile(file) {
       const k = localStorage.key(i);
       if (k && k.startsWith("ether.")) localStorage.removeItem(k);
     }
-    for (const k of Object.keys(data)) if (k.startsWith("ether.")) localStorage.setItem(k, data[k]);
+    for (const k of Object.keys(data)) if (k.startsWith("ether.") && typeof data[k] === "string") localStorage.setItem(k, data[k]);
     toast(T("toast.imported"));
     setTimeout(() => location.reload(), 800);
   } catch (e) { toast(String(e.message)); }
