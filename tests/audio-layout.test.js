@@ -283,3 +283,14 @@ test("запрет поворота: manifest portrait, screen.orientation.lock(
   assert.ok(a.window.__LANG_DICTS.en["rotate.lock"] && a.window.__LANG_DICTS.ru["rotate.lock"]);
   a.close();
 });
+
+test("диагностика: метрики вьюпорта для разбора safe area на iPhone", async () => {
+  const a = await bootApp({ platform: "ios", standalone: true });
+  const text = a.run(`buildDiagnosticsText()`);
+  for (const key of ["--- viewport ---", "Standalone: true", "inner:", "screen:", "visualViewport:", "100vh:", "100dvh:", "100svh:", "100lvh:", "safe-area top/bottom/left/right:", "#tab-bar:", "viewport meta:"]) {
+    assert.ok(text.includes(key), "нет строки: " + key);
+  }
+  assert.doesNotMatch(text, /metrics error/);
+  assert.equal(a.document.body.querySelectorAll("div[aria-hidden=true][style*='visibility:hidden']").length, 0, "пробные элементы удаляются");
+  a.close();
+});

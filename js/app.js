@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.57.7.0";
+const APP_VERSION = "V.57.7.1";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 const MAX_MESSAGE_LENGTH = 4000;
@@ -11125,6 +11125,36 @@ function buildStorageText() {
   lines.push("UA: " + navigator.userAgent);
   return lines.join("\n");
 }
+// Метрики окна/вьюпорта для разбора проблем вёрстки на iPhone (полоса под футером, safe area):
+// сравнение innerHeight, screen.height, visualViewport, 100vh/100dvh/100svh/100lvh и инсетов.
+function collectViewportMetrics() {
+  const out = [];
+  const r1 = (n) => (typeof n === "number" && isFinite(n) ? String(Math.round(n * 10) / 10) : "—");
+  try {
+    const vv = window.visualViewport;
+    out.push("Standalone: " + isStandalone() + " (navigator.standalone=" + String(navigator.standalone) + ")");
+    out.push("inner: " + r1(window.innerWidth) + "x" + r1(window.innerHeight) + ", outer: " + r1(window.outerWidth) + "x" + r1(window.outerHeight));
+    out.push("screen: " + r1(screen.width) + "x" + r1(screen.height) + ", avail: " + r1(screen.availWidth) + "x" + r1(screen.availHeight) + ", dpr: " + r1(window.devicePixelRatio));
+    out.push("visualViewport: " + (vv ? r1(vv.width) + "x" + r1(vv.height) + " off(" + r1(vv.offsetLeft) + "," + r1(vv.offsetTop) + ") scale " + r1(vv.scale) : "—"));
+    out.push("html client: " + r1(document.documentElement.clientWidth) + "x" + r1(document.documentElement.clientHeight) + ", scrollY: " + r1(window.scrollY));
+    const probe = document.createElement("div");
+    probe.setAttribute("aria-hidden", "true");
+    probe.style.cssText = "position:fixed;left:0;top:0;width:0;visibility:hidden;pointer-events:none;";
+    document.body.appendChild(probe);
+    const measure = (css) => { probe.style.cssText = "position:fixed;left:0;top:0;width:0;visibility:hidden;pointer-events:none;" + css; return probe.getBoundingClientRect().height; };
+    out.push("100vh: " + r1(measure("height:100vh")) + ", 100dvh: " + r1(measure("height:100dvh")) + ", 100svh: " + r1(measure("height:100svh")) + ", 100lvh: " + r1(measure("height:100lvh")) + ", 100%: " + r1(measure("height:100%")));
+    out.push("fixed inset:0 → " + r1(measure("top:0;bottom:0;height:auto;position:fixed")) + ", fill-available: " + r1(measure("height:-webkit-fill-available")));
+    out.push("safe-area top/bottom/left/right: " + ["top", "bottom", "left", "right"].map((side) => r1(measure("height:env(safe-area-inset-" + side + ", 0px)"))).join(" / "));
+    probe.remove();
+    const rect = (sel) => { const el = document.querySelector(sel); if (!el) return "—"; const r = el.getBoundingClientRect(); return "top " + r1(r.top) + " bottom " + r1(r.bottom) + " h " + r1(r.height); };
+    out.push("body: " + rect("body"));
+    out.push("#app-shell: " + rect("#app-shell"));
+    out.push("#tab-bar: " + rect("#tab-bar"));
+    const vp = document.querySelector('meta[name="viewport"]');
+    out.push("viewport meta: " + (vp ? vp.content : "—"));
+  } catch (e) { out.push("metrics error: " + String(e)); }
+  return out;
+}
 function buildDiagnosticsText() {
   const lines = [];
   lines.push("Ether — diagnostics");
@@ -11136,6 +11166,8 @@ function buildDiagnosticsText() {
   lines.push("Online: " + onlineSet.size);
   lines.push("outbox: " + outbox.size + ", pendingNoKey: " + pendingNoKey.size);
   lines.push("Call: " + (state.callId ? state.callId.slice(0, 10) + " phase=" + state.callPhase : "—"));
+  lines.push("--- viewport ---");
+  for (const l of collectViewportMetrics()) lines.push(l);
   return lines.join("\n");
 }
 function renderDiagnostics() {
