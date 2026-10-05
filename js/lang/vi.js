@@ -466,6 +466,7 @@ window.__LANG_DICTS["vi"] = {
     "chat.translated": "Đã dịch:",
     "toast.translateNoServer": "Hãy đặt máy chủ dịch trong Cài đặt → Thông báo trước",
     "toast.translateFailed": "Không thể kết nối với máy chủ dịch",
+    "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
     "settings.blocked": "Liên hệ đã chặn",
     "settings.blocked.empty": "Không có liên hệ nào bị chặn.",
     "chat.pinMsg": "Ghim tin nhắn",

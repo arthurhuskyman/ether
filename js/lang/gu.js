@@ -466,6 +466,7 @@ window.__LANG_DICTS["gu"] = {
     "chat.translated": "અનુવાદિત:",
     "toast.translateNoServer": "પહેલા સેટિંગ્સ → નોટિફિકેશનમાં અનુવાદ સર્વર સેટ કરો",
     "toast.translateFailed": "અનુવાદ સર્વર સુધી પહોંચી શકાયું નથી",
+    "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
     "settings.blocked": "બ્લોક કરેલા સંપર્કો",
     "settings.blocked.empty": "કોઈ બ્લોક કરેલા સંપર્કો નથી.",
     "chat.pinMsg": "સંદેશ પિન કરો",

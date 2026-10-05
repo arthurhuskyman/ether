@@ -466,6 +466,7 @@ window.__LANG_DICTS["zh"] = {
     "chat.translated": "已翻译:",
     "toast.translateNoServer": "请先在设置 → 通知中设置翻译服务器",
     "toast.translateFailed": "无法连接到翻译服务器",
+    "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
     "settings.blocked": "已屏蔽的联系人",
     "settings.blocked.empty": "暂无已屏蔽的联系人。",
     "chat.pinMsg": "置顶消息",

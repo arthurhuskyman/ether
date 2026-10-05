@@ -466,6 +466,7 @@ window.__LANG_DICTS["mn"] = {
     "chat.translated": "Орчуулсан:",
     "toast.translateNoServer": "Эхлээд Тохиргоо → Мэдэгдэл хэсэгт орчуулгын сервер тохируулна уу",
     "toast.translateFailed": "Орчуулгын серверт холбогдож чадсангүй",
+    "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
     "settings.blocked": "Блоклосон харилцагчид",
     "settings.blocked.empty": "Блоклосон харилцагч алга.",
     "chat.pinMsg": "Мессеж бэхлэх",

@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.57.1.0";
+const APP_VERSION = "V.57.2.0";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 const MAX_MESSAGE_LENGTH = 4000;
@@ -2661,8 +2661,10 @@ function handlePersistError(e, what) {
 }
 function loadContacts() {
   let arr = [];
-  try { arr = JSON.parse(Store.contactsJson) || []; } catch (e) { arr = []; }
-  if (!Array.isArray(arr)) arr = [];
+  let loadFailed = false;
+  try { arr = JSON.parse(Store.contactsJson) || []; } catch (e) { arr = []; loadFailed = true; }
+  if (!Array.isArray(arr)) { arr = []; loadFailed = true; }
+  if (loadFailed) { try { toast(T("toast.contactsLoadFailed")); } catch (e) {} }
   for (const c of arr) {
     if (!c || typeof c.id !== "string") continue;
     state.contacts.set(c.id, {
@@ -7302,16 +7304,18 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
       if (state.activeGroupContext === payload.groupId) openGroupInfo(payload.groupId);
     }
   } else if (kind === "edit") {
-    const c = ensureContactEntry(from, null);
-    const m = c.messages.find((x) => x.id === payload.id);
+    const c = resolveEditDeleteTarget(from, payload);
+    if (!c) return;
+    const m = c.messages.find((x) => x.id === payload.id && (!c.isGroup || x.fromId === from));
     if (m) { m.text = payload.text; m.edited = true; m.ts = payload.ts || m.ts; c.lastActivity = Date.now(); persistContacts();
-      if (state.chatId === from) renderChatThread(); if (state.tab === "chats") renderChatsList(); }
+      if (state.chatId === c.id) renderChatThread(); if (state.tab === "chats") renderChatsList(); }
   } else if (kind === "delete") {
-    const c = ensureContactEntry(from, null);
+    const c = resolveEditDeleteTarget(from, payload);
+    if (!c) return;
     const before = c.messages.length;
-    c.messages = c.messages.filter((x) => x.id !== payload.id);
+    c.messages = c.messages.filter((x) => !(x.id === payload.id && (!c.isGroup || x.fromId === from)));
     if (c.messages.length !== before) { persistContacts();
-      if (state.chatId === from) renderChatThread(); if (state.tab === "chats") renderChatsList(); }
+      if (state.chatId === c.id) renderChatThread(); if (state.tab === "chats") renderChatsList(); }
   } else if (kind === "ack" || (kind === "ack-batch" && Array.isArray(payload.ids))) {
     // Ветка "ack" (в отличие от "ack-batch") в проекте никем не
     // отправляется — но если такой payload всё же придёт (испорченный
@@ -8092,6 +8096,16 @@ function confirmSheet(message, opts) {
   });
 }
 let __confirmSheetWired = false;
+// edit/delete с payload.groupId применяются к группе (и только если
+// отправитель — её участник), иначе — к 1:1 чату с отправителем.
+function resolveEditDeleteTarget(from, payload) {
+  if (payload && payload.groupId) {
+    const g = state.contacts.get(payload.groupId);
+    if (!g || !isGroup(g) || !Array.isArray(g.members) || !g.members.some((m) => m.id === from)) return null;
+    return g;
+  }
+  return ensureContactEntry(from, null);
+}
 function wireConfirmSheet() {
   if (__confirmSheetWired) return;
   __confirmSheetWired = true;
@@ -8107,6 +8121,13 @@ function wireConfirmSheet() {
   };
   if (okBtn) okBtn.addEventListener("click", () => settle(true));
   if (cancelBtn) cancelBtn.addEventListener("click", () => settle(false));
+  // wireSheetBackdrops/wireEscCloseAnySheet подключаются только в
+  // startApp() — на экране блокировки их ещё нет.
+  const backdrop = sheet.querySelector(".sheet-backdrop");
+  if (backdrop) backdrop.addEventListener("click", () => settle(false));
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !sheet.classList.contains("hidden")) settle(false);
+  });
   new MutationObserver(() => {
     if (sheet.classList.contains("hidden")) settle(false); // любое другое закрытие — считаем отменой, не подтверждением
   }).observe(sheet, { attributes: true, attributeFilter: ["class"] });
@@ -8467,7 +8488,7 @@ async function retryMessage(contactId, msgId) {
         kind: "file", id: msgId,
         name: m.file.name || "file",
         mime: m.file.mime || "application/octet-stream",
-        size: m.file.size || blob.size,
+        size: (Number.isFinite(m.file.size) && m.file.size > 0) ? m.file.size : blob.size,
         dataB64: arrayBufferToBase64(buffer),
       };
       if (m.file.duration != null) payload.duration = m.file.duration;
@@ -10572,7 +10593,12 @@ function wireGlobalSearch() {
   const btn = $("#global-search-btn");
   if (btn) btn.addEventListener("click", openGlobalSearch);
   const input = $("#global-search-input");
-  if (input) input.addEventListener("input", (e) => renderGlobalSearchResults(e.target.value));
+  let searchTimer = null;
+  if (input) input.addEventListener("input", (e) => {
+    const v = e.target.value;
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => renderGlobalSearchResults(v), 150);
+  });
   const resultsEl = $("#global-search-results");
   if (resultsEl) {
     resultsEl.addEventListener("click", (e) => {

@@ -466,6 +466,7 @@ window.__LANG_DICTS["ka"] = {
     "chat.translated": "ითარგმნა:",
     "toast.translateNoServer": "ჯერ დააყენეთ თარგმანის სერვერი პარამეტრები → შეტყობინებები-ში",
     "toast.translateFailed": "თარგმანის სერვერთან დაკავშირება ვერ მოხერხდა",
+    "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
     "settings.blocked": "დაბლოკილი კონტაქტები",
     "settings.blocked.empty": "დაბლოკილი კონტაქტები არ არის.",
     "chat.pinMsg": "შეტყობინების დამაგრება",

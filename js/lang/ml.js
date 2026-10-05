@@ -466,6 +466,7 @@ window.__LANG_DICTS["ml"] = {
     "chat.translated": "പരിഭാഷപ്പെടുത്തി:",
     "toast.translateNoServer": "ആദ്യം ക്രമീകരണങ്ങൾ → അറിയിപ്പുകളിൽ ഒരു പരിഭാഷാ സെർവർ സെറ്റ് ചെയ്യുക",
     "toast.translateFailed": "പരിഭാഷാ സെർവറിലേക്ക് എത്തിച്ചേരാൻ കഴിഞ്ഞില്ല",
+    "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
     "settings.blocked": "ബ്ലോക്ക് ചെയ്ത കോൺടാക്റ്റുകൾ",
     "settings.blocked.empty": "ബ്ലോക്ക് ചെയ്ത കോൺടാക്റ്റുകൾ ഇല്ല.",
     "chat.pinMsg": "സന്ദേശം പിൻ ചെയ്യുക",

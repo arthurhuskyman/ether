@@ -466,6 +466,7 @@ window.__LANG_DICTS["tl"] = {
     "chat.translated": "Isinalin:",
     "toast.translateNoServer": "Itakda muna ang translation server sa Settings → Notifications",
     "toast.translateFailed": "Hindi maabot ang translation server",
+    "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
     "settings.blocked": "Mga na-block na kontak",
     "settings.blocked.empty": "Walang na-block na kontak.",
     "chat.pinMsg": "I-pin ang mensahe",

@@ -466,6 +466,7 @@ window.__LANG_DICTS["hr"] = {
     "chat.translated": "Prevedeno:",
     "toast.translateNoServer": "Najprije postavite poslužitelj za prijevod u Postavke → Obavijesti",
     "toast.translateFailed": "Nije moguće povezati se s poslužiteljem za prijevod",
+    "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
     "settings.blocked": "Blokirani kontakti",
     "settings.blocked.empty": "Nema blokiranih kontakata.",
     "chat.pinMsg": "Zakači poruku",

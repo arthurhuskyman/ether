@@ -466,6 +466,7 @@ window.__LANG_DICTS["ky"] = {
     "chat.translated": "Которулду:",
     "toast.translateNoServer": "Адегенде Жөндөөлөр → Билдирмелерде котормо серверин орнотуңуз",
     "toast.translateFailed": "Котормо серверине жетүү мүмкүн болбоду",
+    "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
     "settings.blocked": "Бөгөттөлгөн байланыштар",
     "settings.blocked.empty": "Бөгөттөлгөн байланыштар жок.",
     "chat.pinMsg": "Билдирүүнү кадаштыруу",

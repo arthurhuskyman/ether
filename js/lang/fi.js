@@ -466,6 +466,7 @@ window.__LANG_DICTS["fi"] = {
     "chat.translated": "Käännetty:",
     "toast.translateNoServer": "Aseta ensin käännöspalvelin kohdassa Asetukset → Ilmoitukset",
     "toast.translateFailed": "Käännöspalvelimeen ei saatu yhteyttä",
+    "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
     "settings.blocked": "Estetyt kontaktit",
     "settings.blocked.empty": "Ei estettyjä kontakteja.",
     "chat.pinMsg": "Kiinnitä viesti",

@@ -466,6 +466,7 @@ window.__LANG_DICTS["mk"] = {
     "chat.translated": "Преведено:",
     "toast.translateNoServer": "Прво поставете сервер за превод во Поставки → Известувања",
     "toast.translateFailed": "Не можеше да се поврзе со серверот за превод",
+    "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
     "settings.blocked": "Блокирани контакти",
     "settings.blocked.empty": "Нема блокирани контакти.",
     "chat.pinMsg": "Закачи ја пораката",
