@@ -157,6 +157,19 @@ class PeerLink extends EventTarget {
     this._audioAdded = false;
     this._videoAdded = false;
     this.localVideoTrack = null;
+    // Screen sharing (раздел 7 роадмапа) — отдельный набор полей, не
+    // переиспользует _videoAdded/localVideoTrack семантически, а ДЕЛИТ их
+    // с камерой: во время показа экрана localVideoTrack временно указывает
+    // на track экрана, а не камеры. _preScreenShareTrack хранит трек
+    // камеры (если он был) на время показа экрана — чтобы вернуть его при
+    // остановке, не запрашивая getUserMedia заново. _screenShareAddedVideo
+    // отличает случай "видео не было вообще, экран добавил сендер с нуля"
+    // от случая "видео (камера) уже было, экран просто заменил трек" — при
+    // остановке в первом случае нужно убрать видео-сендер целиком, во
+    // втором — вернуть камеру.
+    this._screenSharing = false;
+    this._screenShareAddedVideo = false;
+    this._preScreenShareTrack = null;
     this._muted = false;
     this._muteRecheckTimer = null;
     this._pendingNegotiation = false;
@@ -714,6 +727,92 @@ async switchCamera() {
   }
 }
 
+// Screen sharing (раздел 7 роадмапа) через getDisplayMedia в тот же
+// video-сендер, что уже используется камерой — переиспользует ровно тот
+// же replaceTrack-приём, что switchCamera() выше, просто источник трека
+// другой. Если видео в звонке ещё не было вообще, добавляет новый сендер
+// (как enableVideo()), а не падает — показ экрана должен работать и в
+// изначально чисто аудио-звонке.
+async startScreenShare() {
+  if (this._closed) return false;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) return false;
+  if (this._screenSharing) return true;
+  let stream = null;
+  try {
+    stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+  } catch (e) {
+    // Пользователь закрыл системный выбор окна/экрана, либо браузер
+    // запретил — не ошибка приложения, просто показ не начался.
+    this._log("warn", "[webrtc] getDisplayMedia failed/cancelled:", String(e));
+    return false;
+  }
+  const screenTrack = stream.getVideoTracks()[0];
+  if (!screenTrack) { try { stream.getTracks().forEach((t) => t.stop()); } catch (e) {} return false; }
+  try {
+    if (this._videoAdded) {
+      const sender = this.pc.getSenders().find((s) => s.track && s.track.kind === "video");
+      if (!sender) throw new Error("video sender missing despite _videoAdded");
+      await sender.replaceTrack(screenTrack);
+      // Камеру НЕ останавливаем — запоминаем трек, чтобы вернуть его при
+      // stopScreenShare() без повторного getUserMedia (который заново
+      // спросил бы разрешение/мигнул индикатором камеры).
+      this._preScreenShareTrack = this.localVideoTrack;
+    } else {
+      if (!this.localStream) this.localStream = new MediaStream();
+      this.localStream.addTrack(screenTrack);
+      this.pc.addTrack(screenTrack, this.localStream);
+      this._videoAdded = true;
+      this._screenShareAddedVideo = true;
+    }
+  } catch (e) {
+    try { screenTrack.stop(); } catch (e2) {}
+    this._log("warn", "[webrtc] startScreenShare failed:", String(e));
+    return false;
+  }
+  this.localVideoTrack = screenTrack;
+  this._screenSharing = true;
+  // "Stop sharing" из системного UI браузера (полоска/нотификация ОС) —
+  // единственный надёжный кросс-браузерный сигнал о том, что показ экрана
+  // прервали НЕ через нашу кнопку. Без этого обработчика состояние
+  // _screenSharing осталось бы true навечно, хотя трек уже мёртв.
+  screenTrack.onended = () => {
+    if (!this._screenSharing) return;
+    this.stopScreenShare()
+      .then(() => this.dispatchEvent(new CustomEvent("screen-share-ended")))
+      .catch((e) => this._log("warn", "[webrtc] stopScreenShare (onended) failed:", String(e)));
+  };
+  return true;
+}
+async stopScreenShare() {
+  if (!this._screenSharing) return;
+  this._screenSharing = false;
+  const screenTrack = this.localVideoTrack;
+  try {
+    if (this._screenShareAddedVideo) {
+      // Видео до показа экрана не было вообще — убираем видео-сендер
+      // целиком (симметрично тому, как endCall() выше чистит сендеры).
+      const senders = this.pc.getSenders().filter((s) => s.track && s.track.kind === "video");
+      senders.forEach((s) => { try { this.pc.removeTrack(s); } catch (e) {} });
+      this._videoAdded = false;
+      this._screenShareAddedVideo = false;
+      if (this.localStream) { try { this.localStream.getVideoTracks().forEach((t) => this.localStream.removeTrack(t)); } catch (e) {} }
+      this.localVideoTrack = null;
+    } else if (this._preScreenShareTrack) {
+      const sender = this.pc.getSenders().find((s) => s.track && s.track.kind === "video");
+      if (sender) await sender.replaceTrack(this._preScreenShareTrack);
+      this.localVideoTrack = this._preScreenShareTrack;
+      if (this.localStream) {
+        this.localStream.getVideoTracks().forEach((t) => this.localStream.removeTrack(t));
+        this.localStream.addTrack(this._preScreenShareTrack);
+      }
+      this._preScreenShareTrack = null;
+    }
+  } catch (e) {
+    this._log("warn", "[webrtc] stopScreenShare failed:", String(e));
+  }
+  try { if (screenTrack) screenTrack.stop(); } catch (e) {}
+}
+
 async startCall(withVideo) {
   if (this._closed) throw new Error("link closed");
   await this._addAudioTrackOnce();
@@ -799,6 +898,15 @@ async startCall(withVideo) {
     this._audioAdded = false;
     this._videoAdded = false;
     this._muted = false;
+    // Если звонок завершился ПРЯМО во время показа экрана, localVideoTrack
+    // (уже остановленный выше) — это трек экрана, а не камеры. Камера,
+    // отложенная в _preScreenShareTrack на время показа, своим треком
+    // никуда не делась и продолжила бы "гореть" (индикатор камеры у ОС),
+    // если её не остановить отдельно — она не входит в senders выше и не
+    // равна localVideoTrack в этот момент.
+    if (this._preScreenShareTrack) { try { this._preScreenShareTrack.stop(); } catch (e) {} this._preScreenShareTrack = null; }
+    this._screenSharing = false;
+    this._screenShareAddedVideo = false;
     if (this._muteRecheckTimer) { clearInterval(this._muteRecheckTimer); this._muteRecheckTimer = null; }
     this._setStatus(this.dc && this.dc.readyState === "open" ? "connected" : "disconnected");
     this.send({ kind: "call-state", state: "ended", ts: Date.now() });
@@ -892,6 +1000,13 @@ class MeshManager extends EventTarget {
     });
     link.addEventListener("pc-connection-state", (ev) => {
       this.dispatchEvent(new CustomEvent("pc-connection-state", { detail: { id: link.id, ...ev.detail } }));
+    });
+    // Показ экрана прервали через системный UI браузера (не через нашу
+    // кнопку) — см. startScreenShare()/screenTrack.onended выше. UI
+    // (кнопка #call-screenshare-btn) должен узнать об этом, чтобы не
+    // остаться "залипшей" в активном состоянии.
+    link.addEventListener("screen-share-ended", () => {
+      this.dispatchEvent(new CustomEvent("screen-share-ended", { detail: { id: link.id } }));
     });
   }
   broadcast(payload, excludeId = null) {

@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.33.5.2";
+const APP_VERSION = "V.57.0.0";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 const MAX_MESSAGE_LENGTH = 4000;
@@ -57,14 +57,99 @@ const EMOJI_CATEGORIES = [
   { id: "food", icon: "🍕", emojis: ["🍕","🍔","🍟","🌭","🍩","🍪","🎂","🍰","☕","🍵","🍺","🍷","🍎","🍌","🍇","🍓","🥑","🍉"] },
   { id: "objects", icon: "🎉", emojis: ["🎉","🎊","🎁","🎈","🎵","🎮","📱","💻","📷","🚗","✈️","⚽","🏆","💰","🔑","💡","📌","✅","❌","⚠️"] },
 ];
+
+// Раздел 9 роадмапа — категории Settings с back-навигацией вместо
+// плоского списка ~13 секций. Каждая категория — это ПОДМНОЖЕСТВО уже
+// существующих .settings-group (см. data-settings-category на них в
+// index.html), сгруппированных по смыслу; внутри самих групп ничего не
+// менялось — только добавлен уровень навигации сверху. iconPath — один
+// SVG path (без обёртки <svg>, чтобы не плодить 6 почти одинаковых
+// строк разметки в renderSettingsCategories()).
+const SETTINGS_CATEGORIES = [
+  { id: "profile", labelKey: "settings.category.profile", iconPath: "M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2c-4.4 0-8 2.2-8 5v3h16v-3c0-2.8-3.6-5-8-5z" },
+  { id: "privacy", labelKey: "settings.category.privacy", iconPath: "M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3zm0 9.99h6c-.5 3.6-2.9 6.8-6 8-3.1-1.2-5.5-4.4-6-8h6V4.2l6 2.2v4.6l-6-1.03z" },
+  { id: "notifications", labelKey: "settings.category.notifications", iconPath: "M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2zm6-6v-5a6 6 0 0 0-4-5.66V5a2 2 0 1 0-4 0v.34A6 6 0 0 0 6 11v5l-2 2v1h16v-1l-2-2z" },
+  { id: "appearance", labelKey: "settings.category.appearance", iconPath: "M12 2a10 10 0 1 0 0 20c.8 0 1.4-.6 1.4-1.4 0-.4-.2-.7-.4-1-.3-.3-.4-.6-.4-1 0-.8.6-1.4 1.4-1.4h1.7a5.3 5.3 0 0 0 5.3-5.3C21 6.6 17 2 12 2zM6.5 11a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm3-4a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm3 4a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z" },
+  { id: "data", labelKey: "settings.category.data", iconPath: "M4 6a8 3 0 1 0 16 0 8 3 0 1 0-16 0zm0 0v12a8 3 0 0 0 16 0V6M4 11a8 3 0 0 0 16 0" },
+  { id: "help", labelKey: "settings.category.help", iconPath: "M11 18h2v-2h-2v2zm1-16a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 2a8 8 0 1 1 0 16 8 8 0 0 1 0-16zm0 3a3.5 3.5 0 0 0-3.5 3.5h2a1.5 1.5 0 1 1 3 0c0 .8-.4 1.2-1.1 1.8-.8.7-1.9 1.6-1.9 3.2h2c0-.8.4-1.2 1.1-1.8.8-.7 1.9-1.6 1.9-3.2A3.5 3.5 0 0 0 12 7z" },
+];
+// Раздел 6 роадмапа — skin-tone selector для inline-эмодзи-пикера.
+// Полноценный выезд пикера как inline-панели (вместо текущего
+// bottom-sheet) остаётся отдельной отложенной задачей — слишком крупная
+// переделка разметки/жестов для одного PR; сам skin-tone selector,
+// наоборот, самодостаточен и не зависит от того, как показан пикер.
+// SKIN_TONE_MODIFIERS — порядок и ID тонов; "none" не добавляет модификатор
+// (классический жёлтый эмодзи-дефолт), остальные пять — стандартные
+// Unicode Fitzpatrick-модификаторы (U+1F3FB..U+1F3FF). swatch — только для
+// рендера круглой кнопки-превью в самом пикере, не влияет на сам эмодзи.
+const SKIN_TONE_MODIFIERS = [
+  { id: "none", mod: "", swatch: "#ffcc4d" },
+  { id: "light", mod: "\u{1F3FB}", swatch: "#fadcbc" },
+  { id: "mediumLight", mod: "\u{1F3FC}", swatch: "#e0bb95" },
+  { id: "medium", mod: "\u{1F3FD}", swatch: "#bf8f68" },
+  { id: "mediumDark", mod: "\u{1F3FE}", swatch: "#9b643d" },
+  { id: "dark", mod: "\u{1F3FF}", swatch: "#594539" },
+];
+// Эмодзи, у которых есть одиночный skin-tone вариант (жест/рука одной
+// "руки"). 🤝 и 🫶 добавлены в V.53.0.0 (раздел 11 роадмапа — "двусторонний
+// skin-tone для 🤝/🫶"): быстрый тап по-прежнему вставляет вариант с ЕДИНЫМ
+// текущим тоном (как и любой другой эмодзи из этого набора — обычный tap
+// должен вести себя предсказуемо одинаково для всех), а полноценный выбор
+// ДВУХ РАЗНЫХ тонов для 🤝 (долгое нажатие → #handshake-tone-sheet, две
+// независимые свотч-строки) реализован отдельно ниже через официальную
+// RGI ZWJ-последовательность Unicode 🫱<тон>‍🫲<тон> (U+1FAF1/U+1FAF2) — это
+// единственная из двух эмодзи, для которой Unicode вообще определяет
+// двутональную комбинацию. У 🫶 (U+1FAF6, Heart Hands) такой RGI-последовательности
+// с ДВУМЯ РАЗНЫМИ тонами не существует в принципе — Unicode описывает для
+// неё только одиночный модификатор (оба "крыла" сердца одним тоном), так
+// что для 🫶 единственно корректное поведение — именно одиночный тон,
+// который она и получает здесь наравне с остальными; это не недоделанная
+// версия задачи, а полный охват того, что Unicode реально поддерживает.
+const SKIN_TONE_MODIFIABLE = new Set([
+  "👍", "👎", "👌", "✌️", "🤞", "🤟", "🤘", "👊", "✊", "💪",
+  "👋", "🖐️", "☝️", "🙏", "👏", "🤌", "👉", "👈", "🤙", "🤝", "🫶",
+]);
+// Официальная RGI-последовательность Unicode для рукопожатия с ДВУМЯ
+// разными тонами кожи (см. комментарий к SKIN_TONE_MODIFIABLE выше):
+// U+1FAF1 (rightwards hand) + модификатор + ZWJ + U+1FAF2 (leftwards hand)
+// + модификатор. Если оба тона совпадают (или оба "none") — используется
+// обычная одиночная форма 🤝<модификатор>, она короче и надёжнее
+// отрисовывается на старых системах, чем ZWJ-последовательность с
+// одинаковыми половинками.
+const HANDSHAKE_RIGHTWARDS_HAND = "\u{1FAF1}";
+const HANDSHAKE_LEFTWARDS_HAND = "\u{1FAF2}";
+function buildHandshakeEmoji(toneAId, toneBId) {
+  const a = SKIN_TONE_MODIFIERS.find((t) => t.id === toneAId) || SKIN_TONE_MODIFIERS[0];
+  const b = SKIN_TONE_MODIFIERS.find((t) => t.id === toneBId) || SKIN_TONE_MODIFIERS[0];
+  if (toneAId === toneBId) return "🤝" + a.mod;
+  return HANDSHAKE_RIGHTWARDS_HAND + a.mod + "‍" + HANDSHAKE_LEFTWARDS_HAND + b.mod;
+}
+function applySkinTone(emoji) {
+  if (!SKIN_TONE_MODIFIABLE.has(emoji)) return emoji;
+  const tone = Store.emojiSkinTone;
+  if (tone === "none") return emoji;
+  const entry = SKIN_TONE_MODIFIERS.find((t) => t.id === tone);
+  return entry ? emoji + entry.mod : emoji;
+}
 const EMOJI_KEYWORDS = {
-  "😀":"smile happy","😂":"laugh joy tears lol","🤣":"rofl laugh","😊":"smile blush happy","😍":"love heart eyes","🥰":"love hearts",
-  "😘":"kiss love","🙂":"smile slight","🤗":"hug","😎":"cool sunglasses","🥳":"party celebrate","😏":"smirk","😢":"sad cry",
-  "😭":"cry sob sad","😡":"angry mad","🤔":"think","😮":"surprised wow","🥺":"pleading cute","😴":"sleep tired","🙏":"please thanks pray",
-  "👍":"thumbs up good yes like","👎":"thumbs down no bad dislike","👌":"ok perfect","✌️":"peace victory","👏":"clap applause",
-  "💪":"strong muscle","👋":"wave hi hello bye","❤️":"heart love red","🔥":"fire hot lit","💯":"hundred perfect","✨":"sparkle shine",
-  "🎉":"party celebrate confetti","🎂":"cake birthday","☕":"coffee","🍕":"pizza food","😢":"sad tear","😡":"angry","🤝":"handshake deal",
-  "🙌":"praise hands up","😅":"sweat smile relief","🤩":"starstruck excited","😋":"yum tasty","🫶":"heart hands love",
+  // EN + RU ключевые слова в одной строке — emojiSearchResults() ищет
+  // простым includes() по нижнему регистру, так что добавление русских
+  // синонимов рядом с английскими не требует отдельной логики или
+  // i18n-ключей (это не UI-строки, а внутренние данные для поиска).
+  "😀":"smile happy улыбка счастье","😂":"laugh joy tears lol смех ржу слёзы","🤣":"rofl laugh ржу смех","😊":"smile blush happy улыбка смущение",
+  "😍":"love heart eyes любовь обожаю влюблён","🥰":"love hearts любовь сердечки",
+  "😘":"kiss love поцелуй","🙂":"smile slight улыбка","🤗":"hug объятия","😎":"cool sunglasses круто очки","🥳":"party celebrate праздник вечеринка",
+  "😏":"smirk ухмылка","😢":"sad cry грусть плачу",
+  "😭":"cry sob sad рыдаю плачу грусть","😡":"angry mad злой бешусь","🤔":"think думаю","😮":"surprised wow удивлён ого",
+  "🥺":"pleading cute умоляю мило","😴":"sleep tired сплю устал","🙏":"please thanks pray спасибо пожалуйста молитва",
+  "👍":"thumbs up good yes like палец вверх хорошо да лайк","👎":"thumbs down no bad dislike палец вниз плохо нет",
+  "👌":"ok perfect окей отлично","✌️":"peace victory мир победа","👏":"clap applause аплодисменты хлопаю",
+  "💪":"strong muscle сила мышцы","👋":"wave hi hello bye привет пока машу","❤️":"heart love red сердце любовь",
+  "🔥":"fire hot lit огонь жара круто","💯":"hundred perfect сто процентов идеально","✨":"sparkle shine блеск сияние",
+  "🎉":"party celebrate confetti праздник конфетти","🎂":"cake birthday торт день рождения","☕":"coffee кофе","🍕":"pizza food пицца еда",
+  "🤝":"handshake deal договор рукопожатие",
+  "🙌":"praise hands up руки вверх ура","😅":"sweat smile relief неловко облегчение","🤩":"starstruck excited восторг звёзды",
+  "😋":"yum tasty вкусно ням","🫶":"heart hands love сердце руками любовь",
 };
 function emojiSearchResults(query) {
   const q = query.trim().toLowerCase();
@@ -162,6 +247,10 @@ const CRITICAL_LS_KEYS = [
   "ether.vapidPublicKey", "ether.pushSubscription",
   "ether.callLog", "ether.lastSeen", "ether.drafts",
   "ether.callVolume", "ether.lang", "ether.recentReactions",
+  "ether.chatFolders", "ether.emojiSkinTone", "ether.composerPlusMode",
+  "ether.translateEndpoint",
+  "ether.deadManEnabled", "ether.deadManThresholdDays", "ether.deadManContactId", "ether.deadManLastSentAt",
+  "ether.panicShakeEnabled",
 ];
 
 async function backupToIDB() {
@@ -213,6 +302,35 @@ const Store = {
   set presenceVisible(v) { localStorage.setItem("ether.presenceVisible", v ? "1" : "0"); broadcastPrivacyPrefs(); },
   get linkPreviewsEnabled() { return localStorage.getItem("ether.linkPreviews") !== "0"; },
   set linkPreviewsEnabled(v) { localStorage.setItem("ether.linkPreviews", v ? "1" : "0"); scheduleIDBBackup(); },
+  // "Перевести" (раздел 5 роадмапа) — честно пусто по умолчанию, НЕ
+  // захардкожен публичный LibreTranslate-эндпоинт: текст сообщения ушёл
+  // бы на сторонний сервер без явного согласия пользователя на то, какому
+  // серверу он доверяет (симметрично предупреждению про link-previews
+  // чуть выше в Settings).
+  get translateEndpoint() { return localStorage.getItem("ether.translateEndpoint") || ""; },
+  set translateEndpoint(v) { localStorage.setItem("ether.translateEndpoint", (v || "").trim()); scheduleIDBBackup(); },
+  // killer-features-backlog 0.5 — "мягкий" Dead Man's Switch: честно не
+  // обещаем настоящий фоновый триггер (Periodic Background Sync не работает
+  // на iOS и сильно троттлится даже в Chrome) — вместо этого при каждом
+  // открытии приложения отправляем доверенному контакту heartbeat
+  // ("я жив"), а получатель при СВОЁМ открытии приложения сравнивает время
+  // последнего полученного heartbeat с порогом. Срабатывает только если
+  // кто-то из двоих реально откроет Эфир — это предел того, что может
+  // честно гарантировать чистый PWA без сервера.
+  get deadManEnabled() { return localStorage.getItem("ether.deadManEnabled") === "1"; },
+  set deadManEnabled(v) { localStorage.setItem("ether.deadManEnabled", v ? "1" : "0"); scheduleIDBBackup(); },
+  get deadManThresholdDays() { const n = parseInt(localStorage.getItem("ether.deadManThresholdDays") || "7", 10); return Number.isFinite(n) && n > 0 ? n : 7; },
+  set deadManThresholdDays(v) { localStorage.setItem("ether.deadManThresholdDays", String(parseInt(v, 10) || 7)); scheduleIDBBackup(); },
+  get deadManContactId() { return localStorage.getItem("ether.deadManContactId") || ""; },
+  set deadManContactId(v) { localStorage.setItem("ether.deadManContactId", v || ""); scheduleIDBBackup(); },
+  get deadManLastSentAt() { return parseInt(localStorage.getItem("ether.deadManLastSentAt") || "0", 10) || 0; },
+  set deadManLastSentAt(v) { localStorage.setItem("ether.deadManLastSentAt", String(v || 0)); },
+  // killer-features-backlog 1.7 — Panic Clean (встряхнуть телефон → очистка).
+  // DeviceMotion на iOS 13+ требует явный permission-промпт по жесту
+  // пользователя и ненадёжен в фоне — честно не "silent background
+  // trigger", включается явным тумблером с предупреждением в UI.
+  get panicShakeEnabled() { return localStorage.getItem("ether.panicShakeEnabled") === "1"; },
+  set panicShakeEnabled(v) { localStorage.setItem("ether.panicShakeEnabled", v ? "1" : "0"); scheduleIDBBackup(); },
   get contactsJson() { return localStorage.getItem("ether.contacts") || "[]"; },
   set contactsJson(v) { localStorage.setItem("ether.contacts", v); scheduleIDBBackup(); },
   get outboxJson() { return localStorage.getItem("ether.outbox") || "[]"; },
@@ -237,6 +355,13 @@ const Store = {
   set lastSeenJson(v) { localStorage.setItem("ether.lastSeen", v); scheduleIDBBackup(); },
   get draftsJson() { return localStorage.getItem("ether.drafts") || "{}"; },
   set draftsJson(v) { localStorage.setItem("ether.drafts", v); scheduleIDBBackup(); },
+  get scheduledMessagesJson() { return localStorage.getItem("ether.scheduledMessages") || "[]"; },
+  set scheduledMessagesJson(v) { localStorage.setItem("ether.scheduledMessages", v); scheduleIDBBackup(); },
+  // Раздел 4 роадмапа: кастомные папки чатов (Работа/Семья/...) —
+  // именованные наборы id контактов, хранятся как плоский массив
+  // {id, name, contactIds[]}, тот же паттерн, что scheduledMessages.
+  get chatFoldersJson() { return localStorage.getItem("ether.chatFolders") || "[]"; },
+  set chatFoldersJson(v) { localStorage.setItem("ether.chatFolders", v); scheduleIDBBackup(); },
   get pinHash() { return localStorage.getItem("ether.pinHash") || ""; },
   set pinHash(v) { localStorage.setItem("ether.pinHash", v); scheduleIDBBackup(); },
   get pinSalt() { return localStorage.getItem("ether.pinSalt") || ""; },
@@ -253,6 +378,18 @@ const Store = {
   // умолчанию (большинство мессенджеров делают так же), но можно отключить.
   get autoEmoji() { return localStorage.getItem("ether.autoEmoji") !== "0"; },
   set autoEmoji(v) { localStorage.setItem("ether.autoEmoji", v ? "1" : "0"); scheduleIDBBackup(); },
+  // Раздел 6 роадмапа — skin-tone selector для эмодзи-пикера. Храним ID
+  // тона ("none"/"light"/"mediumLight"/"medium"/"mediumDark"/"dark"), а не
+  // сам Unicode-модификатор, — удобнее сверяться с SKIN_TONE_MODIFIERS и
+  // не завязываться на конкретные кодпойнты при чтении из хранилища.
+  get emojiSkinTone() { return localStorage.getItem("ether.emojiSkinTone") || "none"; },
+  set emojiSkinTone(v) { localStorage.setItem("ether.emojiSkinTone", v); scheduleIDBBackup(); },
+  // Раздел 6 роадмапа — "кнопка «+» для композера" прямо в формулировке
+  // задачи помечена риском для мышечной памяти существующих пользователей,
+  // поэтому реализована как переключаемый эксперимент (выключен по
+  // умолчанию), а не тихая замена трёх кнопок — см. wireComposerPlusMode().
+  get composerPlusMode() { return localStorage.getItem("ether.composerPlusMode") === "1"; },
+  set composerPlusMode(v) { localStorage.setItem("ether.composerPlusMode", v ? "1" : "0"); scheduleIDBBackup(); },
   // Быстрые реакции — раньше меню реакций всегда показывало ВСЕ 110
   // эмодзи целиком, самая частая жалоба на перегруженность. Теперь
   // показываем недавно использованные, полная сетка — по кнопке "+".
@@ -299,6 +436,12 @@ const Store = {
   set chatWallpaper(v) { localStorage.setItem("ether.chatWallpaper", v); scheduleIDBBackup(); },
   get bubbleSize() { return localStorage.getItem("ether.bubbleSize") || "normal"; },
   set bubbleSize(v) { localStorage.setItem("ether.bubbleSize", v); scheduleIDBBackup(); },
+  // Отдельно от bubbleSize: тот меняет только размер/паддинг ПУЗЫРЕЙ
+  // сообщений, этот — размер ВСЕГО текста приложения (доступность).
+  get fontSize() { return localStorage.getItem("ether.fontSize") || "normal"; },
+  set fontSize(v) { localStorage.setItem("ether.fontSize", v); scheduleIDBBackup(); },
+  get calmMode() { return localStorage.getItem("ether.calmMode") === "1"; },
+  set calmMode(v) { localStorage.setItem("ether.calmMode", v ? "1" : "0"); scheduleIDBBackup(); },
   get myStatus() { return localStorage.getItem("ether.myStatus") || ""; },
   set myStatus(v) { localStorage.setItem("ether.myStatus", v || ""); scheduleIDBBackup(); broadcastPrivacyPrefs(); },
 };
@@ -351,8 +494,11 @@ const state = {
   showArchived: false,
   searchQuery: "",
   chatSearchQuery: "",
+  contactsSearchQuery: "",
   lastSeen: {},
   drafts: {},
+  scheduledMessages: [],
+  folders: [], // раздел 4 роадмапа: кастомные папки чатов {id, name, contactIds[]}
   typingTimers: new Map(),
   typingSendingState: new Map(),
   unlockAttempts: 0,
@@ -365,6 +511,7 @@ const state = {
   _firstRenderDone: false, // снимается через 400мс после старта — пока false, список чатов рисует skeleton вместо "пусто"
   multiSelect: null, // Set<id> выбранных сообщений в режиме мультивыбора, либо null вне режима
   mentionedChats: new Set(), // id чатов, где есть непрочитанное упоминание @меня
+  settingsCategory: null, // раздел 9 роадмапа: null = список категорий Settings, иначе id открытой категории (см. SETTINGS_CATEGORIES)
 };
 
 let mesh = null;
@@ -617,6 +764,17 @@ function safeCall(fn, label) {
 function escapeHtml(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
+// Подсветка @упоминаний в тексте — раньше @Имя попадало в m.mentionMe
+// (сам факт "меня упомянули" уже работал, см. isMentioned ниже), но
+// визуально @Имя ничем не отличалось от обычного текста внутри самого
+// сообщения. Чисто косметический проход: оборачивает ЛЮБОЙ "@слово" в
+// span, не только реальных участников группы — так же делает подсветка
+// в большинстве мессенджеров (разбор по факту существования контакта
+// избыточен для простой визуальной подсказки).
+function highlightMentions(html) {
+  if (!html || html.indexOf("@") === -1) return html;
+  return html.replace(/(^|[\s(])@([\p{L}\p{N}_]{1,32})/gu, (m, pre, name) => `${pre}<span class="mention">@${name}</span>`);
+}
 function linkifyAndHighlight(text, query) {
   const esc = escapeHtml(text);
   // Работаем с НЕэкранированным текстом для поиска (escapeHtml меняет
@@ -626,13 +784,13 @@ function linkifyAndHighlight(text, query) {
   let result = "";
   let lastIdx = 0;
   for (const u of found) {
-    if (u.start > lastIdx) result += applyMarkdown(highlightRaw(escapeHtml(text.slice(lastIdx, u.start)), query));
+    if (u.start > lastIdx) result += applyMarkdown(highlightMentions(highlightRaw(escapeHtml(text.slice(lastIdx, u.start)), query)));
     const hrefUrl = u.normalized; // https://... даже для "голого" домена — иначе браузер трактует как относительный путь
     const displayText = escapeHtml(u.raw); // показываем то, что пользователь реально написал (без добавленного https://)
     result += `<a href="${escapeHtml(hrefUrl)}" target="_blank" rel="noopener noreferrer">${highlightRaw(displayText, query)}</a>`;
     lastIdx = u.end;
   }
-  if (lastIdx < text.length) result += applyMarkdown(highlightRaw(escapeHtml(text.slice(lastIdx)), query));
+  if (lastIdx < text.length) result += applyMarkdown(highlightMentions(highlightRaw(escapeHtml(text.slice(lastIdx)), query)));
   return result || esc;
 }
 // P2.39 — автозамена текстовых смайликов на эмодзи при отправке (:) → 🙂
@@ -1004,6 +1162,13 @@ function applyChatAppearancePrefs() {
   const messages = $("#chat-messages");
   if (messages) messages.dataset.wallpaper = Store.chatWallpaper || "none";
   document.documentElement.dataset.bubbleSize = Store.bubbleSize || "normal";
+  document.documentElement.dataset.fontSize = Store.fontSize || "normal";
+}
+// «Спокойный режим» — отключает анимацию фона и снижает блюр для тех,
+// кому текущая эстетика (glass + градиентные волны) кажется отвлекающей
+// при долгом чтении. Один флаг на html[data-calm-mode], вся логика — в CSS.
+function applyCalmMode() {
+  document.documentElement.dataset.calmMode = Store.calmMode ? "1" : "0";
 }
 
 try {
@@ -1414,7 +1579,7 @@ async function tryUnlock(pin) {
   if (!pin) return;
   if (state._unlockLockedUntil && Date.now() < state._unlockLockedUntil) return;
   if (!Store.pinSalt) {
-    if (confirm(T("toast.confirmHardReset"))) { localStorage.clear(); location.reload(); }
+    if (await confirmSheet(T("toast.confirmHardReset"), { destructive: true })) { localStorage.clear(); location.reload(); }
     return;
   }
   // pbkdf2Hex с 120000 итерациями занимает 200-500мс на мобильном.
@@ -1442,7 +1607,7 @@ async function tryUnlock(pin) {
       // отклонить диалог можно было бесконечно, каждый раз получая
       // полный новый запас попыток. Теперь при отказе поле блокируется
       // на паузу (растущую с каждым разом), а счётчик НЕ сбрасывается.
-      if (confirm(T("toast.confirmHardReset"))) { localStorage.clear(); location.reload(); return; }
+      if (await confirmSheet(T("toast.confirmHardReset"), { destructive: true })) { localStorage.clear(); location.reload(); return; }
       const lockoutRounds = Math.floor(state.unlockAttempts / UNLOCK_ATTEMPTS_LIMIT);
       const lockoutMs = Math.min(30000 * lockoutRounds, 5 * 60 * 1000); // 30с, 60с, 90с... максимум 5 минут
       state._unlockLockedUntil = Date.now() + lockoutMs;
@@ -1466,8 +1631,8 @@ function wireLockScreen() {
   const submit = $("#lock-submit"), pin = $("#lock-pin"), forgot = $("#lock-forgot");
   if (submit) submit.addEventListener("click", (e) => { e.preventDefault(); tryUnlock(pin ? pin.value : ""); });
   if (pin) pin.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); tryUnlock(pin.value); } });
-  if (forgot) forgot.addEventListener("click", () => {
-    if (confirm(T("toast.confirmHardReset"))) { localStorage.clear(); location.reload(); }
+  if (forgot) forgot.addEventListener("click", async () => {
+    if (await confirmSheet(T("toast.confirmHardReset"), { destructive: true })) { localStorage.clear(); location.reload(); }
   });
 }
 
@@ -1506,6 +1671,13 @@ function bootAfterUnlock() {
   }
 }
 function initBoot() {
+  // confirmSheet() используется и на экране блокировки (забыли PIN →
+  // жёсткий сброс) — то есть ДО bootAfterUnlock()/основного safeCall-
+  // списка, где эта шторка обычно подключалась бы. Подключаем здесь же,
+  // раньше show/hide lock-screen, иначе на confirmSheet() с экрана
+  // блокировки некому было бы ответить (шторка в DOM статична и есть
+  // всегда, не хватало бы только обработчиков кнопок).
+  wireConfirmSheet();
   wireLockScreen();
   if (Store.pinEnabled && Store.pinHash) { showLockScreen(); return; }
   bootAfterUnlock();
@@ -1525,6 +1697,81 @@ function wireImportBackupInput() {
   const impInput = $("#import-backup-input");
   if (impInput) impInput.addEventListener("change", importBackup);
 }
+// Раздел 2 роадмапа — флоу онбординга из 4 слайдов. Навигация — кнопки
+// Next/Back (не свайп): для разового 4-шагового флоу это надёжнее, чем
+// вводить ещё один жест, который пришлось бы отличать от уже существующих
+// в приложении (свайп табов V.38.0.0, свайп строки чата и т.п.).
+const ONBOARDING_SLIDE_COUNT = 4;
+let __onboardingSlide = 0;
+let __onboardingKeyPairPromise = null;
+// 8 "популярных" языков для сетки на слайде 1 — не претендуют на
+// исчерпывающий охват (как и EMOJI_CATEGORIES, который тоже не покрывает
+// все ~3000 эмодзи): это быстрый путь для большинства, полный список из
+// всех 72 языков доступен тут же через обычный <select> ниже сетки.
+const ONBOARDING_POPULAR_LANG_CODES = ["ru", "en", "es", "pt", "de", "fr", "ar", "zh"];
+function goToOnboardingSlide(idx) {
+  __onboardingSlide = Math.max(0, Math.min(ONBOARDING_SLIDE_COUNT - 1, idx));
+  $$(".onboarding-slide").forEach((el) => {
+    el.classList.toggle("hidden", Number(el.dataset.slide) !== __onboardingSlide);
+  });
+  $$(".onboarding-dot").forEach((el) => {
+    el.classList.toggle("active", Number(el.dataset.dot) === __onboardingSlide);
+  });
+  if (__onboardingSlide === 3) renderOnboardingReadySlide();
+}
+function renderOnboardingLangGrid() {
+  const grid = $("#onboarding-lang-grid"); if (!grid) return;
+  grid.innerHTML = "";
+  const byCode = new Map(I18N.languages.map((l) => [l.code, l]));
+  for (const code of ONBOARDING_POPULAR_LANG_CODES) {
+    const lang = byCode.get(code); if (!lang) continue;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "onboarding-lang-btn" + (code === I18N.current ? " active" : "");
+    btn.dataset.lang = code;
+    btn.textContent = lang.native;
+    btn.addEventListener("click", () => applyOnboardingLanguage(code));
+    grid.appendChild(btn);
+  }
+}
+function populateOnboardingLangSelect() {
+  const sel = $("#onboarding-lang-select"); if (!sel) return;
+  sel.innerHTML = "";
+  const langs = I18N.languages.slice().sort((a, b) => a.english.localeCompare(b.english, "en"));
+  for (const lang of langs) {
+    const opt = document.createElement("option");
+    opt.value = lang.code;
+    opt.textContent = lang.english + " · " + lang.native;
+    sel.appendChild(opt);
+  }
+  sel.value = I18N.current;
+  sel.addEventListener("change", () => applyOnboardingLanguage(sel.value));
+}
+// Смена языка прямо на слайде онбординга — минимальная версия того, что
+// делает setupLanguageSelector() в Settings: до startApp() ещё не
+// существует ни открытого чата, ни списка контактов, которые пришлось бы
+// перерисовывать, так что нужны только ensureLoaded+setLang+применение
+// статичных переводов (они покрывают и текст самого онбординга).
+function applyOnboardingLanguage(code) {
+  const sel = $("#onboarding-lang-select");
+  if (sel) sel.disabled = true;
+  I18N.ensureLoaded(code, (ok) => {
+    if (sel) sel.disabled = false;
+    if (!ok) { toast(T("toast.langLoadFailed")); return; }
+    I18N.setLang(code);
+    applyStaticTranslations();
+    $$(".onboarding-lang-btn").forEach((b) => b.classList.toggle("active", b.dataset.lang === code));
+    if (sel) sel.value = code;
+  });
+}
+function renderOnboardingReadySlide() {
+  const name = Store.name || "";
+  const av = $("#onboarding-avatar");
+  if (av) { av.style.background = avatarGradient(name); av.textContent = initials(name); }
+  const nameEl = $("#onboarding-ready-name"); if (nameEl) nameEl.textContent = name;
+  renderQrToCanvas($("#onboarding-qr-canvas"));
+  const codeEl = $("#onboarding-invite-code"); if (codeEl) codeEl.textContent = Store.myIdentityRaw || Store.myId || "";
+}
 function wireOnboardingOnce() {
   if (__onboardingWired) return;
   __onboardingWired = true;
@@ -1535,40 +1782,85 @@ function wireOnboardingOnce() {
   // переустановки, когда он ещё даже не внутри приложения. importBackup
   // сама перезагружает страницу после успешного импорта — онбординг
   // корректно пропустится, раз Store.name/myId уже заполнены из бэкапа.
+  // Доступно с первого (Welcome) слайда — обходит весь флоу целиком.
   wireImportBackupInput();
+  wireBackupPasswordSheet();
   const impBtn = $("#onboarding-import-backup-btn");
   if (impBtn) impBtn.addEventListener("click", () => { const el = $("#import-backup-input"); if (el) el.click(); });
+  // Drag-and-drop файла бэкапа — висит на самой карточке (а не на
+  // конкретном слайде), поэтому работает независимо от того, какой слайд
+  // сейчас показан. Актуально в первую очередь для desktop-сценария.
+  const card = document.querySelector(".onboarding-card");
+  if (card) {
+    const prevent = (e) => { e.preventDefault(); e.stopPropagation(); };
+    ["dragenter", "dragover"].forEach((evt) => card.addEventListener(evt, (e) => { prevent(e); card.classList.add("drag-over"); }));
+    ["dragleave", "dragend"].forEach((evt) => card.addEventListener(evt, (e) => { prevent(e); card.classList.remove("drag-over"); }));
+    card.addEventListener("drop", (e) => {
+      prevent(e);
+      card.classList.remove("drag-over");
+      const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (file) importBackupFile(file);
+    });
+  }
+  renderOnboardingLangGrid();
+  populateOnboardingLangSelect();
+  $$(".onboarding-next").forEach((btn) => btn.addEventListener("click", () => goToOnboardingSlide(__onboardingSlide + 1)));
+  $$(".onboarding-back").forEach((btn) => btn.addEventListener("click", () => goToOnboardingSlide(__onboardingSlide - 1)));
   const form = $("#onboarding-form");
   if (!form) return;
-  // Живая подсветка формата телефона/email по мере ввода — раньше её не
-  // было вовсе, ошибка формата обнаруживалась только в момент отправки
-  // (жёсткая блокировка уже была, но пользователь узнавал об этом
-  // только post-factum, без подсказки заранее). idFor() тут вызывается
-  // только ради проверки формата — результат (id/хэш) отбрасывается,
-  // сама проверка достаточно дешёвая для запуска на каждый ввод.
+  // Живая ✓-индикация валидности (раздел 2 роадмапа) вместо исключительно
+  // красной обводки при ошибке, как было на едином экране раньше. idFor()
+  // тут вызывается только ради проверки формата — результат (id/хэш)
+  // отбрасывается, сама проверка достаточно дешёвая для запуска на
+  // каждый ввод.
   const idField = $("#onboarding-identity");
+  const idCheck = $("#onboarding-id-check");
   if (idField) {
     idField.addEventListener("input", () => {
       const v = idField.value.trim();
-      if (!v) { idField.classList.remove("input-invalid"); return; }
+      if (!v) { idField.classList.remove("input-invalid"); if (idCheck) idCheck.classList.add("hidden"); return; }
       Identity.idFor(v).then(
-        () => idField.classList.remove("input-invalid"),
-        () => idField.classList.add("input-invalid")
+        () => { idField.classList.remove("input-invalid"); if (idCheck) idCheck.classList.remove("hidden"); },
+        () => { idField.classList.add("input-invalid"); if (idCheck) idCheck.classList.add("hidden"); }
       );
     });
   }
+  // Переход слайд 2 → 3: вычисляем идентичность и запускаем генерацию
+  // ключевой пары В ФОНЕ (не блокируя переход на слайд с аватаром/QR —
+  // они используют Store.myId/Store.name, которые уже установлены ниже,
+  // а не сам факт готовности ключей). Сам запуск приложения — отдельное
+  // действие на слайде 4 (#onboarding-start-btn), которое дожидается эту
+  // же Promise перед тем, как продолжить — порядок асинхронных шагов
+  // идентичен тому, что было на едином экране, просто разнесён по двум
+  // UI-шагам вместо одного.
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const nameVal = $("#onboarding-name").value.trim();
     const idVal = $("#onboarding-identity").value.trim();
-    if (!nameVal || !idVal) return;
-    let identity;
-    try { identity = await Identity.idFor(idVal); }
-    catch (err) { toast(T(err.message)); idField && idField.classList.add("input-invalid"); return; }
+    if (!nameVal) return;
+    // killer-features-backlog 0.1 — Анонимная identity как default UX:
+    // телефон/email больше не обязателен. Если поле пустое — профиль
+    // анонимный: id генерируется случайно (crypto.randomUUID()) и НЕ
+    // выводится из телефона/email, значит найти такого пользователя по
+    // номеру/почте нельзя — добавить его можно только по инвайт-коду/QR.
+    if (idVal) {
+      let identity;
+      try { identity = await Identity.idFor(idVal); }
+      catch (err) { toast(T(err.message)); idField && idField.classList.add("input-invalid"); return; }
+      Store.myIdentityRaw = identity.normalized;
+      Store.myId = identity.id;
+    } else {
+      Store.myIdentityRaw = "";
+      Store.myId = crypto.randomUUID();
+    }
     Store.name = nameVal;
-    Store.myIdentityRaw = identity.normalized;
-    Store.myId = identity.id;
-    await ensureKeyPair().catch(() => {});
+    __onboardingKeyPairPromise = ensureKeyPair().catch(() => {});
+    goToOnboardingSlide(3);
+  });
+  const startBtn = $("#onboarding-start-btn");
+  if (startBtn) startBtn.addEventListener("click", async () => {
+    startBtn.disabled = true;
+    await (__onboardingKeyPairPromise || Promise.resolve()).catch(() => {});
     await (window.__etherIceReady || Promise.resolve()).catch(() => {});
     await backupToIDB().catch(() => {});
     const o = $("#onboarding"); if (o) o.classList.add("hidden");
@@ -1629,6 +1921,7 @@ function startApp() {
   // рингтона, но такой ценой она не оправдана — откатываем.
   safeCall(wireMeshEvents, "wireMeshEvents");
   safeCall(wireTabBar, "wireTabBar");
+  safeCall(wireTabSwipe, "wireTabSwipe");
   safeCall(() => {
     // Если данные были полностью сброшены (localStorage.clear()) в ДРУГОЙ
     // открытой вкладке — эта вкладка иначе продолжала бы работать со
@@ -1651,15 +1944,25 @@ function startApp() {
   safeCall(wireQrButtons, "wireQrButtons");
   safeCall(wireGroupInfo, "wireGroupInfo");
   safeCall(wireChatScreen, "wireChatScreen");
+  safeCall(wireScheduleSend, "wireScheduleSend");
+  safeCall(wireMuteSheet, "wireMuteSheet");
   safeCall(wireCallScreen, "wireCallScreen");
   safeCall(wireSettingsScreen, "wireSettingsScreen");
+  safeCall(wireGlobalSearch, "wireGlobalSearch");
+  safeCall(wireEscCloseAnySheet, "wireEscCloseAnySheet");
+  safeCall(wireSheetFocusManagement, "wireSheetFocusManagement");
   safeCall(wireDebugScreen, "wireDebugScreen");
   safeCall(wireSheetBackdrops, "wireSheetBackdrops");
   safeCall(wireCameraButton, "wireCameraButton");
   safeCall(wireSearchHandlers, "wireSearchHandlers");
+  safeCall(wireChatFolders, "wireChatFolders");
+  safeCall(wirePullToRefresh, "wirePullToRefresh");
   safeCall(wireMediaComposeSheet, "wireMediaComposeSheet");
   safeCall(wireJumpToDateSheet, "wireJumpToDateSheet");
   safeCall(wireEmojiPicker, "wireEmojiPicker");
+  safeCall(wireComposerPlusMode, "wireComposerPlusMode");
+  safeCall(wireBackupPasswordSheet, "wireBackupPasswordSheet");
+  safeCall(wireHandshakeToneSheet, "wireHandshakeToneSheet");
   safeCall(wireNotificationPermission, "wireNotificationPermission");
   safeCall(wireServiceWorker, "wireServiceWorker");
   safeCall(wireRenameSheet, "wireRenameSheet");
@@ -1668,6 +1971,8 @@ function startApp() {
   safeCall(wireContactGallery, "wireContactGallery");
   safeCall(wireNavTitleTaps, "wireNavTitleTaps");
   safeCall(wirePanicButton, "wirePanicButton");
+  safeCall(wirePanicShakeBanner, "wirePanicShakeBanner");
+  safeCall(() => { if (Store.panicShakeEnabled) wirePanicShake(); }, "wirePanicShakeAutostart");
   safeCall(wireKeyboardFix, "wireKeyboardFix");
   safeCall(wireNetworkListeners, "wireNetworkListeners");
   safeCall(wireViewportRecalc, "wireViewportRecalc");
@@ -1677,6 +1982,7 @@ function startApp() {
   safeCall(() => { const el = $("#about-version"); if (el) el.textContent = APP_VERSION; }, "aboutVersion");
   safeCall(initAudioWarmup, "initAudioWarmup");
   safeCall(applyChatAppearancePrefs, "applyChatAppearancePrefs");
+  safeCall(applyCalmMode, "applyCalmMode");
   safeCall(setupLanguageSelector, "setupLanguageSelector");
   safeCall(applyStaticTranslations, "applyStaticTranslations");
 
@@ -1696,19 +2002,36 @@ function startApp() {
     const snn = $("#settings-notifications"); if (snn) snn.checked = Store.notificationsEnabled;
     const shn = $("#settings-hide-notif"); if (shn) shn.checked = Store.hideNotifContent;
     const slp = $("#settings-link-previews"); if (slp) slp.checked = Store.linkPreviewsEnabled;
+    const ste = $("#settings-translate-endpoint"); if (ste) ste.value = Store.translateEndpoint;
     const ssn = $("#settings-sounds"); if (ssn) ssn.checked = Store.soundsEnabled;
     const srt = $("#settings-ringtone"); if (srt) srt.value = Store.ringtone;
     const spl = $("#settings-pinlock"); if (spl) spl.checked = Store.pinEnabled;
     const sae = $("#settings-auto-emoji"); if (sae) sae.checked = Store.autoEmoji;
+    const scp = $("#settings-composer-plus"); if (scp) scp.checked = Store.composerPlusMode;
+    const dme = $("#settings-deadman-enabled"); if (dme) dme.checked = Store.deadManEnabled;
+    const dmt = $("#settings-deadman-threshold"); if (dmt) dmt.value = String(Store.deadManThresholdDays);
+    const psEl = $("#settings-panic-shake"); if (psEl) psEl.checked = Store.panicShakeEnabled;
   } catch (e) { etherLog("error", "[startApp] settings init:", String(e)); }
 
   try {
-    loadContacts(); loadLastSeen(); loadDrafts();
+    loadContacts(); loadLastSeen(); loadDrafts(); loadScheduledMessages(); loadChatFolders();
     restoreOutbox(); restoreGroupDeliveryMap(); restorePendingNoKey(); restoreRecentlyDeleted(); loadCallLog();
     migrateServerAckedFlags();
+    // Контакты теперь загружены — можно подставить имя уже выбранного
+    // доверенного контакта для Dead Man's Switch (до этой точки
+    // state.contacts был бы ещё пуст, см. settings init выше).
+    const dmcName = $("#settings-deadman-contact-name");
+    if (dmcName) {
+      const dmc = state.contacts.get(Store.deadManContactId);
+      dmcName.textContent = dmc ? (dmc.name || T("sys.someone")) : "";
+    }
   } catch (e) { etherLog("error", "[startApp] load data:", String(e)); }
 
   try { handleNotificationNavigateParams(); } catch (e) { etherLog("error", "[startApp] notification params:", String(e)); }
+
+  try { handleShareTargetParams(); } catch (e) { etherLog("error", "[startApp] share target params:", String(e)); }
+
+  try { checkDeadManSwitch(); } catch (e) { etherLog("error", "[startApp] dead man switch:", String(e)); }
 
   try {
     const incoming = SignalingCodec.extractCodeFromLocation();
@@ -1730,6 +2053,11 @@ function startApp() {
   try { initSignaling(); } catch (e) { etherLog("error", "[startApp] initSignaling:", String(e)); }
   try { startOutboxRetryLoop(); } catch (e) {}
   try { setInterval(sweepExpiredMessages, 30000); sweepExpiredMessages(); } catch (e) {}
+  // Проверяем раз в 30с + сразу при старте (не ждём первого тика) — так
+  // отложенное сообщение, время которого уже прошло пока приложение было
+  // закрыто, уходит немедленно при следующем запуске, а не теряется.
+  try { setInterval(sweepScheduledMessages, 30000); sweepScheduledMessages(); } catch (e) {}
+  try { document.addEventListener("visibilitychange", () => { if (!document.hidden) sweepScheduledMessages(); }); } catch (e) {}
   try { updateNotifBanner(); } catch (e) {}
   try { resumeUnsentMessages(); } catch (e) {}
   try { updateAppBadge(); } catch (e) {}
@@ -1762,6 +2090,9 @@ function applyStaticTranslations() {
   // пользователь видел английский заголовок вкладки/PWA-плитки и в
   // поиске браузера независимо от выбранного языка приложения.
   document.title = T("app.title");
+  // Смена языка меняет ширину подписей вкладок (а значит и центр
+  // иконки) — индикатор нужно пересчитать уже после реального реflow.
+  requestAnimationFrame(() => { try { updateTabIndicator(); } catch (e) {} });
   const metaDesc = document.querySelector('meta[name="description"]');
   if (metaDesc) metaDesc.setAttribute("content", T("app.description"));
 }
@@ -1872,6 +2203,10 @@ function wireViewportRecalc() {
 function wireNetworkListeners() {
   window.addEventListener("online", () => etherLog("info", "[net] online"));
   window.addEventListener("offline", () => etherLog("warn", "[net] offline"));
+  // Поворот экрана/ресайз окна сдвигает позиции кнопок таб-бара —
+  // индикатор иначе остался бы на старых координатах до следующего
+  // переключения вкладки.
+  window.addEventListener("resize", () => updateTabIndicator());
   const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
   if (conn) {
     conn.addEventListener("change", () => {
@@ -1949,6 +2284,63 @@ function handleNotificationNavigateParams() {
     }
   } catch (e) {}
 }
+// killer-features-backlog 0.4 — Share Target (Android "Поделиться" → Эфир).
+// GET-метод, только text/url (см. manifest.webmanifest "share_target") —
+// без POST/файлов, чтобы не усложнять sw.js перехватом multipart-запроса.
+// Открываем список контактов (переиспользуя forward-sheet) — пользователь
+// сам выбирает, кому отправить, текст подставляется в поле ввода, но НЕ
+// отправляется автоматически — так его можно проверить/дополнить перед отправкой.
+function handleShareTargetParams() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const title = params.get("share_title") || "";
+    const text = params.get("share_text") || "";
+    const url = params.get("share_url") || "";
+    const combined = [title, text, url].filter(Boolean).join("\n").trim();
+    if (!combined) return;
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.search = "";
+    window.history.replaceState({}, "", cleanUrl.toString());
+    openForwardSheet((contactId) => {
+      state.contactCardId = null; state.chatId = contactId; renderTab();
+      const inp = $("#chat-input");
+      if (inp) { inp.value = combined; inp.dispatchEvent(new Event("input")); setTimeout(() => inp.focus(), 50); }
+    }, "shareTarget.pickChat");
+  } catch (e) {}
+}
+// killer-features-backlog 0.5 — "мягкий" Dead Man's Switch. Два независимых
+// направления в одной функции, обе стороны вызывают её при каждом СВОЁМ
+// открытии приложения — никакого фонового таймера нет и не может быть
+// (см. Store.deadManEnabled выше):
+//  1) отправить: если я настроил наблюдение за мной (включил тумблер и
+//     выбрал доверенный контакт) — шлю ему heartbeat, но не чаще раза в
+//     12 часов (не на каждый перезапуск подряд).
+//  2) проверить: для ЛЮБОГО контакта, от которого я когда-либо получал
+//     heartbeat (значит, он когда-то настроил наблюдение, где доверенным
+//     указан я), если с последнего heartbeat прошло больше заявленного
+//     порога — предупреждаю один раз (не на каждый повторный запуск,
+//     пока не придёт новый heartbeat или не истечёт сутки).
+function checkDeadManSwitch() {
+  try {
+    const now = Date.now();
+    if (Store.deadManEnabled && Store.deadManContactId) {
+      const target = state.contacts.get(Store.deadManContactId);
+      if (target && now - Store.deadManLastSentAt > 12 * 60 * 60 * 1000) {
+        Store.deadManLastSentAt = now;
+        trySendOrQueue(target, crypto.randomUUID(), { kind: "heartbeat", ts: now, thresholdDays: Store.deadManThresholdDays }).catch(() => {});
+      }
+    }
+    for (const c of state.contacts.values()) {
+      if (!c.lastHeartbeatAt || !c.heartbeatThresholdDays) continue;
+      const staleMs = c.heartbeatThresholdDays * 24 * 60 * 60 * 1000;
+      if (now - c.lastHeartbeatAt <= staleMs) continue;
+      if (c.heartbeatAlertedAt && now - c.heartbeatAlertedAt < 24 * 60 * 60 * 1000) continue; // уже предупреждали за последние сутки
+      c.heartbeatAlertedAt = now;
+      persistContacts();
+      toast(T("toast.deadManAlert", { name: c.name || T("sys.someone"), days: c.heartbeatThresholdDays }));
+    }
+  } catch (e) {}
+}
 
 function wireServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
@@ -1987,6 +2379,14 @@ function wireServiceWorker() {
     const data = ev.data || {};
     if (data.type === "open-contact" && data.contactId) {
       openFromNotification(data.contactId, data.kind, data.focusInput);
+    }
+    if (data.type === "mark-read" && data.contactId) {
+      const c = state.contacts.get(data.contactId);
+      if (c) {
+        markThreadRead(c);
+        if (state.tab === "chats" && state.chatsSegment === "chats" && !state.chatId) renderChatsList();
+        if (state.chatId === data.contactId) renderChatThreadInner();
+      }
     }
     if (data.type === "push-subscription-changed") {
       ensurePushSubscription().catch(() => {});
@@ -2108,7 +2508,9 @@ function showNotification(title, body, opts) {
     tag: opts.tag || "ether",
     contactId: opts.contactId || null,
     kind: opts.kind || "message",
-    silent: !Store.soundsEnabled,
+    // Per-contact "только вибрация" (opts.forceSilent) перебивает общий
+    // звуковой тоггл — специфичнее настройка должна выигрывать у общей.
+    silent: opts.forceSilent || !Store.soundsEnabled,
   };
   // P2.37 (урезанный вариант) — настоящего инлайн-ответа (текстовое поле
   // прямо в уведомлении) в вебе не существует — это нативный API
@@ -2118,7 +2520,14 @@ function showNotification(title, body, opts) {
   // sw.js и openFromNotification(..., focusInput) в app.js) — на один тап
   // ближе к ответу, чем просто разворачивание уведомления.
   if (payload.kind !== "call" && payload.contactId) {
-    payload.actions = [{ action: "reply", title: T("notif.action.reply") }];
+    // Notification.actions ограничены 2 видимыми кнопками на большинстве
+    // платформ (см. комментарий у showNotification в sw.js) — "Ответить"
+    // уже занимает одну, вторая — "Прочитано" (переиспользуем T("ack.read"),
+    // он уже переведён на все 72 языка, отдельный ключ не нужен).
+    payload.actions = [
+      { action: "reply", title: T("notif.action.reply") },
+      { action: "mark-read", title: T("ack.read") },
+    ];
   }
   if (navigator.serviceWorker && navigator.serviceWorker.controller) {
     navigator.serviceWorker.controller.postMessage(payload); return;
@@ -2261,32 +2670,94 @@ function loadContacts() {
       online: false, status: "disconnected",
       messages: Array.isArray(c.messages) ? c.messages : [],
       lastActivity: c.lastActivity || 0,
-      archived: !!c.archived, muted: !!c.muted, blocked: !!c.blocked,
+      archived: !!c.archived, muted: !!c.muted, muteUntil: c.muteUntil || null, blocked: !!c.blocked, vibrateOnly: !!c.vibrateOnly,
       pinned: !!c.pinned, pinnedMessageId: c.pinnedMessageId || null,
+      pinOrder: typeof c.pinOrder === "number" ? c.pinOrder : null,
       // Группы — без этих полей запись после перезагрузки превращается в
       // битый обычный контакт (isGroup(c) === false, участников нет).
       isGroup: !!c.isGroup,
       members: Array.isArray(c.members) ? c.members : undefined,
       createdBy: c.createdBy || undefined,
       avatar: c.avatar || undefined,
+      description: c.description || undefined,
       disappearingTimer: c.disappearingTimer || 0,
       notificationSound: c.notificationSound || undefined,
+      // killer-features-backlog 0.5 — Dead Man's Switch: когда пришёл
+      // последний heartbeat от этого контакта и при каком пороге (дней)
+      // его просили следить, плюс отметка уже показанного предупреждения.
+      lastHeartbeatAt: c.lastHeartbeatAt || undefined,
+      heartbeatThresholdDays: c.heartbeatThresholdDays || undefined,
+      heartbeatAlertedAt: c.heartbeatAlertedAt || undefined,
+      isSelf: c.id === SELF_CHAT_ID,
     });
   }
+  ensureSelfChatContact();
+  // Миграция для drag-to-reorder (раздел 4 роадмапа): раньше у закреплённых
+  // чатов не было собственного порядка — они сортировались как обычные
+  // чаты (онлайн → lastActivity). Чатам, уже закреплённым ДО этого
+  // релиза (pinOrder ещё не записан), присваиваем номер по их текущему
+  // видимому порядку — так обновление не дёргает уже привычную
+  // последовательность, а drag просто начинает работать поверх неё.
+  const legacyPinned = Array.from(state.contacts.values()).filter((c) => c.pinned && typeof c.pinOrder !== "number");
+  if (legacyPinned.length) {
+    legacyPinned.sort((a, b) => {
+      const aLive = a.online ? 1 : 0, bLive = b.online ? 1 : 0;
+      if (aLive !== bLive) return bLive - aLive;
+      return (b.lastActivity || 0) - (a.lastActivity || 0);
+    });
+    let next = nextPinOrder();
+    for (const c of legacyPinned) c.pinOrder = next++;
+  }
 }
-function persistContacts() {
-  const arr = Array.from(state.contacts.values()).filter((c) => c.managed).map((c) => ({
-    id: c.id, name: c.name, raw: c.raw, publicKey: c.publicKey,
-    messages: c.messages, lastActivity: c.lastActivity,
-    archived: c.archived, muted: c.muted, blocked: c.blocked,
-    pinned: c.pinned || undefined, pinnedMessageId: c.pinnedMessageId || undefined,
-    isGroup: c.isGroup || undefined,
-    members: c.isGroup ? c.members : undefined,
-    createdBy: c.isGroup ? c.createdBy : undefined,
-    avatar: c.isGroup ? c.avatar : undefined,
-    disappearingTimer: c.disappearingTimer || undefined,
-    notificationSound: c.notificationSound || undefined,
-  }));
+// Следующий свободный pinOrder — новый закреплённый чат всегда уходит в
+// конец списка закреплённых, а не в случайное место.
+function nextPinOrder() {
+  let max = -1;
+  for (const c of state.contacts.values()) {
+    if (c.pinned && typeof c.pinOrder === "number" && c.pinOrder > max) max = c.pinOrder;
+  }
+  return max + 1;
+}
+// «Заметки себе» — локальный pinned self-chat. Зарезервированный id не
+// пересекается с реальными контактами (idFor() всегда нормализует
+// телефон/email, а не возвращает "__self__" дословно). Никогда не
+// регистрируется на сигнальном сервере, не участвует в mesh/presence —
+// единственная точка, которая вообще знает про сеть для этого "контакта",
+// это trySendOrQueue(), и там для isSelf стоит ранний выход.
+const SELF_CHAT_ID = "__self__";
+function ensureSelfChatContact() {
+  let c = state.contacts.get(SELF_CHAT_ID);
+  if (c) { c.isSelf = true; c.managed = true; return c; }
+  c = {
+    id: SELF_CHAT_ID, name: T("chats.selfChat.name"), raw: "",
+    managed: true, publicKey: null,
+    online: false, status: "self",
+    messages: [], lastActivity: 0,
+    archived: false, muted: false, blocked: false,
+    pinned: true, pinnedMessageId: null,
+    isGroup: false, disappearingTimer: 0,
+    isSelf: true,
+  };
+  state.contacts.set(SELF_CHAT_ID, c);
+  return c;
+}
+// persistContacts() вызывается очень часто (на каждое отправленное/
+// полученное сообщение, реакцию, ack и т.д.) — сериализация ВСЕХ
+// контактов с историей в JSON и синхронная запись в localStorage на
+// каждый такой вызов ощутимо бьёт по главному потоку при пакетном
+// приёме сообщений. Дебаунсим запись на 200мс по тому же паттерну, что
+// уже применяется для черновиков (scheduleDraftPersist). state.contacts
+// в памяти обновляется вызывающим кодом сразу — риск потери данных
+// только в окне до 200мс при аварийном завершении процесса, поэтому
+// принудительно сбрасываем очередь перед unload/уходом в фон и перед
+// экспортом бэкапа (exportBackup читает localStorage напрямую).
+let __contactsPersistTimer = null;
+let __contactsPersistPending = null;
+function persistContactsNow() {
+  if (__contactsPersistTimer) { clearTimeout(__contactsPersistTimer); __contactsPersistTimer = null; }
+  if (__contactsPersistPending === null) return;
+  const arr = __contactsPersistPending;
+  __contactsPersistPending = null;
   try {
     Store.contactsJson = JSON.stringify(arr);
   } catch (e) {
@@ -2294,10 +2765,55 @@ function persistContacts() {
     handlePersistError(e, "contacts");
   }
 }
+function persistContacts() {
+  __contactsPersistPending = Array.from(state.contacts.values()).filter((c) => c.managed).map((c) => ({
+    id: c.id, name: c.name, raw: c.raw, publicKey: c.publicKey,
+    messages: c.messages, lastActivity: c.lastActivity,
+    archived: c.archived, muted: c.muted, muteUntil: c.muteUntil || undefined, blocked: c.blocked, vibrateOnly: c.vibrateOnly || undefined,
+    pinned: c.pinned || undefined, pinnedMessageId: c.pinnedMessageId || undefined,
+    pinOrder: typeof c.pinOrder === "number" ? c.pinOrder : undefined,
+    isGroup: c.isGroup || undefined,
+    members: c.isGroup ? c.members : undefined,
+    createdBy: c.isGroup ? c.createdBy : undefined,
+    // killer-features-backlog 0.7 — локальный аватар контакта: раньше
+    // persistContacts() сохранял avatar только для групп, т.к. у обычных
+    // контактов не было UI для его установки. Теперь c.avatar может быть
+    // задан и для 1:1 контакта (см. setContactAvatar) — сохраняем всегда.
+    avatar: c.avatar || undefined,
+    description: c.isGroup ? (c.description || undefined) : undefined,
+    disappearingTimer: c.disappearingTimer || undefined,
+    notificationSound: c.notificationSound || undefined,
+    lastHeartbeatAt: c.lastHeartbeatAt || undefined,
+    heartbeatThresholdDays: c.heartbeatThresholdDays || undefined,
+    heartbeatAlertedAt: c.heartbeatAlertedAt || undefined,
+  }));
+  if (__contactsPersistTimer) return;
+  __contactsPersistTimer = setTimeout(() => {
+    __contactsPersistTimer = null;
+    persistContactsNow();
+  }, 200);
+}
 function loadLastSeen() { try { state.lastSeen = JSON.parse(Store.lastSeenJson) || {}; } catch (e) { state.lastSeen = {}; } if (typeof state.lastSeen !== "object") state.lastSeen = {}; }
 function persistLastSeen() { try { Store.lastSeenJson = JSON.stringify(state.lastSeen); } catch (e) { handlePersistError(e, "lastSeen"); } }
 function loadDrafts() { try { state.drafts = JSON.parse(Store.draftsJson) || {}; } catch (e) { state.drafts = {}; } if (typeof state.drafts !== "object") state.drafts = {}; }
 function persistDrafts() { try { Store.draftsJson = JSON.stringify(state.drafts); } catch (e) { handlePersistError(e, "drafts"); } }
+// "Отправить позже" — каждая запись { id, contactId, isGroup, text, replyTo, sendAt }.
+// sendAt — абсолютный ms-timestamp, поэтому «приложение было закрыто
+// дольше таймера» не теряет сообщение: sweepScheduledMessages() при
+// следующем запуске увидит sendAt в прошлом и отправит немедленно,
+// а не ждёт, что таймер «досчитает» с момента планирования.
+function loadScheduledMessages() { try { state.scheduledMessages = JSON.parse(Store.scheduledMessagesJson) || []; } catch (e) { state.scheduledMessages = []; } if (!Array.isArray(state.scheduledMessages)) state.scheduledMessages = []; }
+function persistScheduledMessages() { try { Store.scheduledMessagesJson = JSON.stringify(state.scheduledMessages); } catch (e) { handlePersistError(e, "scheduledMessages"); } }
+function loadChatFolders() {
+  try { state.folders = JSON.parse(Store.chatFoldersJson) || []; } catch (e) { state.folders = []; }
+  if (!Array.isArray(state.folders)) state.folders = [];
+  // Защита от повреждённых/чужеродных записей — каждая папка обязана
+  // иметь строковые id/name и массив contactIds (иначе рендер чипов и
+  // фильтрация ниже упадут на мусорных данных из ручного редактирования
+  // localStorage или повреждённого бэкапа).
+  state.folders = state.folders.filter((f) => f && typeof f.id === "string" && typeof f.name === "string" && Array.isArray(f.contactIds));
+}
+function persistChatFolders() { try { Store.chatFoldersJson = JSON.stringify(state.folders); } catch (e) { handlePersistError(e, "chatFolders"); } }
 // При быстрой печати обработчик "input" дёргает persistDrafts() на
 // каждый символ — 5-10 localStorage.setItem в секунду. Дебаунс в
 // 250мс группирует их в одну запись за паузу в наборе текста.
@@ -2338,8 +2854,11 @@ function wireTabBar() {
   $$(".tab-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       if (state.callId) {
-        const cs = $("#call-screen"); if (cs) cs.classList.remove("hidden");
-        return;
+        // Раньше тап по любой вкладке во время звонка просто возвращал
+        // на #call-screen — уйти в чаты/контакты было нельзя иначе как
+        // завершив звонок. Теперь сворачиваем его в полоску и даём
+        // перейти на нужную вкладку, как и просил отчёт.
+        minimizeCallScreen();
       }
       state.tab = btn.dataset.tab;
       state.chatId = null;
@@ -2348,18 +2867,55 @@ function wireTabBar() {
       renderTab();
     });
   });
-  $$("#chats-segment button").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      state.chatsSegment = btn.dataset.segment;
-      if (state.chatsSegment === "calls") markMissedCallsSeen();
-      renderTab();
-    });
-  });
   document.addEventListener("click", (ev) => {
     const t = ev.target;
     if (!t || !t.closest) return;
     if (t.closest("#chat-back")) { ev.preventDefault(); closeChatSafely(); return; }
     if (t.closest("#contact-back")) { ev.preventDefault(); closeContactCardSafely(); return; }
+  });
+}
+// Свайп между Chats/Contacts/Settings — тот же жест, которым уже умеют
+// пользоваться строка чата (архив/mute) и пузырь (ответ), поэтому
+// намеренно НЕ навешан глобально на весь #content без разбора: старт
+// касания внутри .chat-row/.chat-filters/.emoji-tabs (у них у самих уже
+// есть горизонтальные жесты) полностью исключает элемент из кандидатов
+// на свайп табов, чтобы не конкурировать за один и тот же touchmove.
+// Debug-вкладка не входит в список — туда попадают секретными тапами по
+// заголовку, свайпом до неё добираться не предполагалось.
+function wireTabSwipe() {
+  const content = $("#content");
+  if (!content) return;
+  const TABS = ["chats", "connect", "settings"];
+  const SWIPE_TAB_THRESHOLD = 60;
+  let startX = 0, startY = 0, swiping = false, blocked = false;
+  content.addEventListener("touchstart", (e) => {
+    if (state.chatId || state.contactCardId || state.callId || e.touches.length !== 1) { blocked = true; return; }
+    const t = e.target;
+    if (t && t.closest && t.closest(".chat-row, .chat-filters, .emoji-tabs, input, textarea")) { blocked = true; return; }
+    blocked = false;
+    startX = e.touches[0].clientX; startY = e.touches[0].clientY;
+    swiping = false;
+  }, { passive: true });
+  content.addEventListener("touchmove", (e) => {
+    if (blocked) return;
+    const dx = e.touches[0].clientX - startX;
+    const dy = Math.abs(e.touches[0].clientY - startY);
+    if (!swiping && Math.abs(dx) > 24 && Math.abs(dx) > dy * 1.5) swiping = true;
+  }, { passive: true });
+  content.addEventListener("touchend", (e) => {
+    if (blocked || !swiping) { swiping = false; return; }
+    swiping = false;
+    const touch = e.changedTouches && e.changedTouches[0];
+    const dx = (touch ? touch.clientX : startX) - startX;
+    const isRtl = document.documentElement.dir === "rtl";
+    const dir = isRtl ? dx : -dx; // > 0 — "вперёд" по порядку вкладок (следующая), с учётом RTL
+    const idx = TABS.indexOf(state.tab);
+    if (idx === -1) return;
+    if (dir > SWIPE_TAB_THRESHOLD && idx < TABS.length - 1) state.tab = TABS[idx + 1];
+    else if (dir < -SWIPE_TAB_THRESHOLD && idx > 0) state.tab = TABS[idx - 1];
+    else return;
+    haptic("light");
+    renderTab();
   });
 }
 function closeChatSafely() {
@@ -2394,9 +2950,26 @@ function setNavMode(mode) {
   if (chat) chat.classList.toggle("hidden", mode !== "chat");
   if (contact) contact.classList.toggle("hidden", mode !== "contact");
 }
+function updateTabIndicator() {
+  const bar = $("#tab-bar"), ind = $("#tab-indicator");
+  if (!bar || !ind) return;
+  const active = bar.querySelector(".tab-btn.active:not(.hidden)");
+  if (!active) { ind.style.opacity = "0"; return; }
+  const barRect = bar.getBoundingClientRect();
+  const btnRect = active.getBoundingClientRect();
+  // Узкая полоска по центру иконки, а не на всю ширину кнопки —
+  // визуально ближе к "индикатору", а не к ещё одному фону кнопки.
+  const width = 24;
+  const left = (btnRect.left - barRect.left) + (btnRect.width - width) / 2;
+  ind.style.opacity = "1";
+  ind.style.width = width + "px";
+  ind.style.transform = `translateX(${left}px)`;
+}
 function renderTabInner() {
   $$(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === state.tab));
+  updateTabIndicator();
   $$(".screen").forEach((s) => s.classList.add("hidden"));
+  const cf0 = $("#chat-filters"); if (cf0) cf0.classList.add("hidden");
   const tb = $("#tab-bar");
   if (tb) {
     // Пользователь явно попросил обратное решение: таб-бар должен
@@ -2433,11 +3006,15 @@ function renderTabInner() {
   // сегменту, а не по вкладке напрямую.
   const effectiveScreenKey = state.tab === "chats" ? state.chatsSegment : state.tab;
   const el = $(map[effectiveScreenKey]); if (el) el.classList.remove("hidden");
-  const seg = $("#chats-segment");
-  if (seg) {
-    seg.classList.toggle("hidden", state.tab !== "chats");
-    $$("#chats-segment button").forEach((b) => b.classList.toggle("active", b.dataset.segment === state.chatsSegment));
-  }
+  if (state.tab === "chats" && cf0) cf0.classList.remove("hidden");
+  if (state.tab === "settings") updateFavoritesCount();
+  // Чип "Звонки" в #chat-filters синхронизируется с тем же state.chatsSegment,
+  // которым раньше управлял отдельный #chats-segment переключатель (теперь
+  // удалённый — см. комментарий в wireSearchHandlers()).
+  $$("#chat-filters .chat-filter-chip").forEach((b) => {
+    const f = b.dataset.filter;
+    b.classList.toggle("active", state.chatsSegment === "calls" ? f === "calls" : f === state.chatFilter);
+  });
   const titles = {
     // Раньше тут стоял T("nav.chats") ("Чаты") — но сама нижняя вкладка
     // была переименована в "Общение" (nav.hub) ещё раньше в этой сессии,
@@ -2456,8 +3033,17 @@ function renderTabInner() {
   if (state.tab === "connect") { renderContactsList(); renderOnlineRosterList(); }
 }
 
+// «Mute for 1h» (из раздела 10 роадмапа) — временный мьют поверх уже
+// существующего постоянного c.muted. c.muteUntil — абсолютный timestamp
+// (как и у «Отправить позже»): истекает сам по себе при следующей проверке,
+// отдельный таймер на снятие не нужен — isContactMuted() всегда считает
+// актуальное состояние на момент вызова.
+function isContactMuted(c) {
+  return !!(c && (c.muted || (c.muteUntil && c.muteUntil > Date.now())));
+}
 function contactStatusLabel(c) {
   if (c.isGroup) return T("group.memberCount", { n: c.members.length });
+  if (c.isSelf) return T("chats.selfChat.hint");
   if (c.status === "in-call") return T("status.inCall");
   if (c.status === "connected") return T("status.connected");
   if (c.status === "connecting" || c.status === "new" || c.status === "awaiting-answer") return T("status.connecting");
@@ -2529,6 +3115,10 @@ function renderChatsList() {
   if (state.chatFilter === "unread") visible = visible.filter((c) => unreadCount(c) > 0);
   else if (state.chatFilter === "groups") visible = visible.filter((c) => isGroup(c));
   else if (state.chatFilter === "direct") visible = visible.filter((c) => !isGroup(c));
+  else if (state.chatFilter.startsWith("folder:")) {
+    const folder = state.folders.find((f) => f.id === state.chatFilter.slice(7));
+    visible = folder ? visible.filter((c) => folder.contactIds.includes(c.id)) : [];
+  }
   const filtered = query
     ? visible.filter((c) => (c.name || "").toLowerCase().includes(query) || c.messages.some((m) => (m.text || "").toLowerCase().includes(query) || (m.file && m.file.name || "").toLowerCase().includes(query) || (m.contactCard && m.contactCard.name || "").toLowerCase().includes(query)))
     : visible;
@@ -2548,14 +3138,51 @@ function renderChatsList() {
     // выбирает направление "открыт/закрыт".
     ta.classList.toggle("is-open", state.showArchived);
   }
+  // Sticky секция "Непрочитанные": группируем непрочитанные чаты (кроме
+  // закреплённых — те и так всегда наверху) в отдельный блок с заголовком.
+  // Включаем только когда это реально что-то разделяет (есть и
+  // непрочитанные, и прочитанные среди незакреплённых) и только во вкладке
+  // "Все" без поиска — во вкладке "Unread" и так показаны только
+  // непрочитанные, а при поиске заголовок был бы лишним шумом.
+  const showUnreadSection = state.chatFilter === "all" && !query && (() => {
+    const rest = filtered.filter((c) => !c.pinned);
+    return rest.some((c) => unreadCount(c) > 0) && rest.some((c) => unreadCount(c) === 0);
+  })();
   const items = filtered.sort((a, b) => {
     const aPinned = a.pinned ? 1 : 0, bPinned = b.pinned ? 1 : 0;
     if (aPinned !== bPinned) return bPinned - aPinned;
+    // Среди закреплённых — явный ручной порядок (раздел 4 роадмапа,
+    // drag-to-reorder), а не online/lastActivity, как у обычных чатов:
+    // пользователь сам расставил их руками, пересортировка по активности
+    // на каждый новый входящий чат сделала бы drag бессмысленным.
+    if (a.pinned && b.pinned) return (a.pinOrder || 0) - (b.pinOrder || 0);
+    if (showUnreadSection && !a.pinned && !b.pinned) {
+      const aUnread = unreadCount(a) > 0 ? 1 : 0, bUnread = unreadCount(b) > 0 ? 1 : 0;
+      if (aUnread !== bUnread) return bUnread - aUnread;
+    }
     const aLive = isReachable(a) || a.online ? 1 : 0, bLive = isReachable(b) || b.online ? 1 : 0;
     if (aLive !== bLive) return bLive - aLive;
     return (b.lastActivity || 0) - (a.lastActivity || 0);
   });
+  // Drag-to-reorder закреплённых (раздел 4) доступен только там, где видимый
+  // порядок закреплённых чатов совпадает с их реальным pinOrder "начисто" —
+  // то есть во вкладке "Все" без поиска и без включённого "показать
+  // архивные" (архивный+закреплённый чат — редкий краевой случай, в этом
+  // релизе сознательно не усложняем). pinnedPairs заполняется по ходу
+  // рендера и используется один раз после цикла, чтобы навесить обработчики
+  // перетаскивания на уже готовые DOM-узлы.
+  const canReorderPins = state.chatFilter === "all" && !query && !state.showArchived;
+  const pinnedCountTotal = items.filter((c) => c.pinned).length;
+  const pinnedPairs = [];
+  let unreadHeaderShown = false;
   for (const c of items) {
+    if (showUnreadSection && !c.pinned && !unreadHeaderShown && unreadCount(c) > 0) {
+      const header = document.createElement("div");
+      header.className = "chats-section-header";
+      header.textContent = T("chats.section.unread");
+      list.appendChild(header);
+      unreadHeaderShown = true;
+    }
     const last = c.messages[c.messages.length - 1];
     const unread = unreadCount(c);
     const wrapper = document.createElement("div");
@@ -2568,7 +3195,8 @@ function renderChatsList() {
     // Раньше title у этих двух иконок был захардкожен на английском ("Mute"/
     // "Blocked") — единственное место в списке чатов, где подсказка не шла
     // через T(). При смене языка подсказка оставалась английской.
-    const muteIcon = c.muted ? `<span class="muted-icon" title="${escapeHtml(T("chat.contact.mute"))}"><svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M12 2a1 1 0 0 1 1 1v.6a6 6 0 0 1 5 5.9v4l1.6 2.4a1 1 0 0 1-.8 1.6H5.2a1 1 0 0 1-.8-1.6L6 13.5v-4a6 6 0 0 1 5-5.9V3a1 1 0 0 1 1-1zm-2 18a2 2 0 0 0 4 0h-4z"/><line x1="3.5" y1="20.5" x2="20.5" y2="3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>` : "";
+    const __rowMuted = isContactMuted(c);
+    const muteIcon = __rowMuted ? `<span class="muted-icon" title="${escapeHtml(c.muted ? T("chat.contact.mute") : T("chat.mute.until", { time: formatChatListTime(c.muteUntil) }))}"><svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M12 2a1 1 0 0 1 1 1v.6a6 6 0 0 1 5 5.9v4l1.6 2.4a1 1 0 0 1-.8 1.6H5.2a1 1 0 0 1-.8-1.6L6 13.5v-4a6 6 0 0 1 5-5.9V3a1 1 0 0 1 1-1zm-2 18a2 2 0 0 0 4 0h-4z"/><line x1="3.5" y1="20.5" x2="20.5" y2="3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>` : "";
     const blockIcon = c.blocked ? `<span class="muted-icon" title="${escapeHtml(T("chat.contact.block"))}"><svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><line x1="6" y1="18" x2="18" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>` : "";
     const pinIcon = c.pinned ? `<span class="muted-icon" title="${escapeHtml(T("chats.pin"))}"><svg viewBox="0 0 24 24" width="13" height="13"><path fill="currentColor" d="M14 2 22 10l-3 3-1-1-4 4 1 5-2 2-5-5-5 5-1-1 5-5-5-5 2-2 5 1 4-4-1-1z"/></svg></span>` : "";
     let preview = last
@@ -2599,9 +3227,18 @@ function renderChatsList() {
     // Статус онлайн теперь точкой прямо на аватаре (как Signal/WhatsApp),
     // а не текстовым символом ● справа от имени. У групп точку не
     // показываем — там статус не про presence одного человека.
-    const showDot = !isGroup(c) && c.managed;
+    const showDot = !isGroup(c) && c.managed && !c.isSelf; // self-chat не "онлайн"/"офлайн" — у него просто нет такого понятия
     const statusDot = showDot ? `<span class="avatar-status-dot ${contactStatusClass(c)}"></span>` : "";
     const timeLabel = last ? escapeHtml(formatChatListTime(last.ts)) : "";
+    // Ручка drag-to-reorder (раздел 4) — только у закреплённых чатов, и
+    // только когда их больше одного (тащить единственный закреплённый чат
+    // некуда) и видимый порядок надёжен (см. canReorderPins выше). Это
+    // <span>, а не <button>: row сам уже <button>, а вложенные кнопки в
+    // кнопке — невалидный HTML и в некоторых браузерах теряют pointer-события.
+    const showDragHandle = c.pinned && canReorderPins && pinnedCountTotal > 1;
+    const dragHandle = showDragHandle
+      ? `<span class="chat-row-drag-handle" aria-hidden="true"><svg viewBox="0 0 12 20" width="12" height="20"><circle cx="3" cy="3" r="1.4" fill="currentColor"/><circle cx="9" cy="3" r="1.4" fill="currentColor"/><circle cx="3" cy="10" r="1.4" fill="currentColor"/><circle cx="9" cy="10" r="1.4" fill="currentColor"/><circle cx="3" cy="17" r="1.4" fill="currentColor"/><circle cx="9" cy="17" r="1.4" fill="currentColor"/></svg></span>`
+      : "";
     row.innerHTML = `
       ${avatarCircleHtml(c, null, statusDot)}
       <div class="chat-row-body">
@@ -2609,7 +3246,7 @@ function renderChatsList() {
           <span class="chat-row-name${unread > 0 ? " unread" : ""}">${pinIcon}${escapeHtml(c.name || T("sys.someone"))} ${muteIcon}${blockIcon}</span>
           <span class="chat-row-time">${timeLabel}</span>
         </div>
-        <div class="chat-row-sub"><span class="chat-row-preview-text">${preview}</span>${failIcon}${mentionIcon}${badge}</div>
+        <div class="chat-row-sub"><span class="chat-row-preview-text">${preview}</span>${failIcon}${mentionIcon}${badge}${dragHandle}</div>
       </div>`;
     // Свайп открывает фоновые действия (pin/архив слева, удалить справа)
     // — сама кнопка строки едет поверх них через translateX. Структура:
@@ -2619,6 +3256,10 @@ function renderChatsList() {
         <button type="button" class="chat-row-action-btn chat-row-action-archive" data-action="archive">
           <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M20.5 4h-17A1.5 1.5 0 0 0 2 5.5v2A1.5 1.5 0 0 0 3.5 9H4v9.5A2.5 2.5 0 0 0 6.5 21h11a2.5 2.5 0 0 0 2.5-2.5V9h.5A1.5 1.5 0 0 0 22 7.5v-2A1.5 1.5 0 0 0 20.5 4zM18 18.5a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5V9h12v9.5zM20 7H4V6h16v1z"/><path fill="currentColor" d="M9.5 13h5a.5.5 0 0 0 0-1h-5a.5.5 0 0 0 0 1z"/></svg>
           <span>${escapeHtml(c.archived ? T("chats.action.unarchive") : T("chats.action.archive"))}</span>
+        </button>
+        <button type="button" class="chat-row-action-btn chat-row-action-mute" data-action="mute">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 2a1 1 0 0 1 1 1v.6a6 6 0 0 1 5 5.9v4l1.6 2.4a1 1 0 0 1-.8 1.6H5.2a1 1 0 0 1-.8-1.6L6 13.5v-4a6 6 0 0 1 5-5.9V3a1 1 0 0 1 1-1zm-2 18a2 2 0 0 0 4 0h-4z"/>${__rowMuted ? `<line x1="3.5" y1="20.5" x2="20.5" y2="3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>` : ""}</svg>
+          <span>${escapeHtml(__rowMuted ? T("chats.action.unmute") : T("chats.action.mute"))}</span>
         </button>
       </div>
       <div class="chat-row-actions chat-row-actions-end">
@@ -2634,8 +3275,71 @@ function renderChatsList() {
     wrapper.appendChild(row);
     row.addEventListener("click", () => { try { closeChatSearch(); } catch (e) {} cancelVoiceRecordingIfLeavingChat(c.id); state.multiSelect = null; state.chatId = c.id; renderTab(); });
     attachChatRowSwipe(wrapper, row, c);
+    if (showDragHandle) pinnedPairs.push({ wrapper, c });
     list.appendChild(wrapper);
   }
+  // Навешиваем обработчики перетаскивания одним проходом после того, как
+  // все строки закреплённых чатов уже в DOM — attachPinDragHandle нужны
+  // itemBoundingClientRect() соседних строк, а они известны только когда
+  // все уже отрендерены.
+  if (pinnedPairs.length > 1) {
+    pinnedPairs.forEach((pair, i) => {
+      const handle = pair.wrapper.querySelector(".chat-row-drag-handle");
+      if (handle) attachPinDragHandle(handle, pair.wrapper, pinnedPairs, i);
+    });
+  }
+}
+// Drag-to-reorder закреплённых чатов (раздел 4 роадмапа). Решение в пользу
+// простоты: во время перетаскивания строка просто едет за пальцем по
+// вертикали (translateY), соседние строки визуально НЕ "расступаются" —
+// итоговый порядок пересчитывается целиком только в момент отпускания, по
+// тому, какая из исходных позиций закреплённых строк (снятых ДО начала
+// жеста) оказалась ближе к пальцу. Дороже в UX, чем live-реордер соседей,
+// но сильно меньше кода и площади для регрессии — ничего в существующем
+// свайпе строки (attachChatRowSwipe) не трогается, обработчики полностью
+// изолированы на отдельном маленьком элементе-ручке.
+function attachPinDragHandle(handle, wrapper, pinnedPairs, startIndex) {
+  let dragging = false, startY = 0, rects = null;
+  handle.addEventListener("pointerdown", (e) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    e.preventDefault(); e.stopPropagation();
+    dragging = true;
+    startY = e.clientY;
+    rects = pinnedPairs.map((p) => p.wrapper.getBoundingClientRect());
+    wrapper.classList.add("pin-dragging");
+    haptic("light");
+    try { handle.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+  handle.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    wrapper.style.transform = `translateY(${e.clientY - startY}px)`;
+  });
+  const finish = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    wrapper.classList.remove("pin-dragging");
+    wrapper.style.transform = "";
+    let targetIndex = startIndex, bestDist = Infinity;
+    rects.forEach((r, i) => {
+      const d = Math.abs((r.top + r.height / 2) - e.clientY);
+      if (d < bestDist) { bestDist = d; targetIndex = i; }
+    });
+    if (targetIndex !== startIndex) {
+      const ids = pinnedPairs.map((p) => p.c.id);
+      const movedId = ids.splice(startIndex, 1)[0];
+      ids.splice(targetIndex, 0, movedId);
+      ids.forEach((id, i) => { const cc = state.contacts.get(id); if (cc) cc.pinOrder = i; });
+      persistContacts();
+      haptic("light");
+      renderChatsList();
+    }
+  };
+  handle.addEventListener("pointerup", finish);
+  handle.addEventListener("pointercancel", finish);
+  // Сам клик по ручке (без перетаскивания) не должен открывать чат — row
+  // это <button>, клик на вложенном <span> всплывёт на него, если не
+  // остановить.
+  handle.addEventListener("click", (e) => { e.stopPropagation(); });
 }
 
 // Кэш «сейчас светлая тема?» — matchMedia и чтение dataset дорогие
@@ -2697,15 +3401,29 @@ function avatarGradient(name) {
 function renderContactsList() {
   const wrap = $("#contacts-list");
   const empty = $("#contacts-empty");
+  const indexNav = $("#contacts-index");
   if (!wrap) return;
   wrap.innerHTML = "";
-  const contacts = Array.from(state.contacts.values()).filter((c) => c.managed && !isGroup(c));
+  if (indexNav) { indexNav.innerHTML = ""; indexNav.classList.add("hidden"); }
+  let contacts = Array.from(state.contacts.values()).filter((c) => c.managed && !isGroup(c) && !c.isSelf);
+  const q = (state.contactsSearchQuery || "").trim().toLowerCase();
+  if (q) contacts = contacts.filter((c) => (c.name || "").toLowerCase().includes(q));
   if (contacts.length === 0) { if (empty) empty.classList.remove("hidden"); return; }
   if (empty) empty.classList.add("hidden");
-  contacts.sort((a, b) => (b.lastActivity || 0) - (a.lastActivity || 0));
+  // A-Z вместо "по активности" — список контактов, в отличие от списка
+  // чатов, это адресная книга: там ищут по имени, не по тому, кто
+  // недавно писал (для этого есть отдельный экран чатов).
+  contacts.sort((a, b) => (a.name || "").localeCompare(b.name || "", I18N.current, { sensitivity: "base" }));
+  // Буквенный индекс показываем только при длинном списке и без активного
+  // поиска (во время поиска список и так короткий, а якоря "прыгали" бы
+  // следом за фильтром) — >20 контактов порог из отчёта.
+  const showIndex = contacts.length > 20 && !q;
+  const seenLetters = new Set();
   for (const c of contacts) {
     const row = document.createElement("div");
     row.className = "roster-row";
+    const letter = (c.name || "").trim().charAt(0).toUpperCase() || "#";
+    if (showIndex) row.dataset.letter = letter;
     row.innerHTML = `
       <div class="avatar avatar-sm" style="background:${avatarGradient(c.name)}">${escapeHtml(initials(c.name))}</div>
       <div class="roster-name-block" style="flex:1; min-width:0;">
@@ -2722,6 +3440,19 @@ function renderContactsList() {
       openContactCard(c.id);
     });
     wrap.appendChild(row);
+    seenLetters.add(letter);
+  }
+  if (showIndex && indexNav) {
+    indexNav.classList.remove("hidden");
+    for (const letter of seenLetters) {
+      const btn = document.createElement("button");
+      btn.type = "button"; btn.className = "contacts-index-btn"; btn.textContent = letter; btn.tabIndex = -1;
+      btn.addEventListener("click", () => {
+        const target = Array.from(wrap.children).find((el) => el.dataset.letter === letter);
+        if (target) target.scrollIntoView({ block: "start", behavior: "smooth" });
+      });
+      indexNav.appendChild(btn);
+    }
   }
 }
 
@@ -2744,6 +3475,7 @@ function openGroupInfo(groupId) {
     else { avatarBtn.style.backgroundImage = ""; avatarBtn.style.background = avatarGradient(g.name); avatarBtn.textContent = initials(g.name); }
   }
   const nameInput = $("#group-info-name"); if (nameInput) nameInput.value = g.name || "";
+  const descInput = $("#group-info-description"); if (descInput) descInput.value = g.description || "";
   const list = $("#group-info-members");
   const myIsAdmin = isGroupAdmin(g, Store.myId);
   if (list) {
@@ -2775,9 +3507,48 @@ function openGroupInfo(groupId) {
   }
   const renameBtnEl = $("#group-info-rename-btn"); if (renameBtnEl) renameBtnEl.classList.toggle("hidden", !myIsAdmin);
   const nameInputEl = $("#group-info-name"); if (nameInputEl) nameInputEl.disabled = !myIsAdmin;
+  const descBtnEl = $("#group-info-description-btn"); if (descBtnEl) descBtnEl.classList.toggle("hidden", !myIsAdmin);
+  const descInputEl = $("#group-info-description"); if (descInputEl) descInputEl.disabled = !myIsAdmin;
   const addBtnEl = $("#group-info-add-btn"); if (addBtnEl) addBtnEl.classList.toggle("hidden", !myIsAdmin);
   const avatarBtnEl = $("#group-info-avatar-btn"); if (avatarBtnEl) avatarBtnEl.disabled = !myIsAdmin;
+  const writeRestrictedEl = $("#group-info-write-restricted");
+  if (writeRestrictedEl) { writeRestrictedEl.checked = !!g.writeRestricted; writeRestrictedEl.disabled = !myIsAdmin; }
+  // Раздел 8/18 роадмапа — invite-ссылка в группу: создавать её может
+  // только админ (см. комментарий у buildGroupInviteCode выше по файлу) —
+  // участнику без прав added бы не смог обработать join-request, который
+  // придёт в ответ на его же ссылку.
+  const inviteLinkBtnEl = $("#group-info-invite-link-btn"); if (inviteLinkBtnEl) inviteLinkBtnEl.classList.toggle("hidden", !myIsAdmin);
   const sheet = $("#group-info-sheet"); if (sheet) sheet.classList.remove("hidden");
+}
+// Раздел 8 роадмапа — "права группы": единственное право, которое есть
+// смысл делать без сервера-арбитра — "писать могут только админы".
+// Полноценный "медленный режим" (таймер между сообщениями у каждого
+// участника) требует доверенного источника времени/состояния — в чистом
+// P2P без сервера это легко обойти, подделав локальные часы, так что
+// давать на это ложную гарантию хуже, чем не делать вовсе. Этот тумблер —
+// честная версия задачи, которую можно реально обеспечить.
+function isGroupWriteAllowed(g, userId) {
+  if (!g || !g.writeRestricted) return true;
+  return isGroupAdmin(g, userId);
+}
+function setGroupWriteRestricted(groupId, restricted) {
+  const g = state.contacts.get(groupId); if (!g || !g.isGroup) return;
+  if (!isGroupAdmin(g, Store.myId)) { toast(T("toast.groupAdminOnly")); return; }
+  g.writeRestricted = !!restricted;
+  g.messages.push({ id: crypto.randomUUID(), from: "system", text: T(restricted ? "group.systemWriteRestricted" : "group.systemWriteOpen"), textKey: restricted ? "group.systemWriteRestricted" : "group.systemWriteOpen", ts: Date.now() });
+  trimMessages(g);
+  g.lastActivity = Date.now();
+  persistContacts();
+  if (state.chatId === groupId) { renderChatThreadInner(); updateSendVsMic(); }
+  // Рассылаем новое состояние всем участникам — иначе их композер и
+  // (что важнее) приёмная проверка в applyIncomingPayload остались бы
+  // со старым значением writeRestricted, не зная о решении админа.
+  const payload = { kind: "group-settings", id: crypto.randomUUID(), groupId, writeRestricted: g.writeRestricted };
+  for (const m of g.members) {
+    if (m.id === Store.myId) continue;
+    const mc = ensureContactEntry(m.id, m.name);
+    trySendOrQueue(mc, crypto.randomUUID(), payload).catch(() => {});
+  }
 }
 function renderContactCard() {
   const c = state.contacts.get(state.contactCardId);
@@ -2797,15 +3568,27 @@ function renderContactCard() {
     aboutEl.classList.toggle("hidden", !about);
   }
   const idEl = $("#contact-info-id"); if (idEl) idEl.textContent = c.raw || T("chat.contact.identifier.unknown");
+  const contactIsMuted = isContactMuted(c);
   const mutedEl = $("#contact-info-muted");
   if (mutedEl) {
     const bellPath = '<path fill="currentColor" d="M12 2a1 1 0 0 1 1 1v.6a6 6 0 0 1 5 5.9v4l1.6 2.4a1 1 0 0 1-.8 1.6H5.2a1 1 0 0 1-.8-1.6L6 13.5v-4a6 6 0 0 1 5-5.9V3a1 1 0 0 1 1-1zm-2 18a2 2 0 0 0 4 0h-4z"/>';
     const slash = '<line x1="3.5" y1="20.5" x2="20.5" y2="3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>';
-    mutedEl.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16">${bellPath}${c.muted ? slash : ""}</svg>`;
+    mutedEl.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16">${bellPath}${contactIsMuted ? slash : ""}</svg>`;
+    mutedEl.title = contactIsMuted && !c.muted ? T("chat.mute.until", { time: formatChatListTime(c.muteUntil) }) : "";
   }
+  const vibrateOnlyEl = $("#contact-vibrate-only"); if (vibrateOnlyEl) vibrateOnlyEl.checked = !!c.vibrateOnly;
   const blockBtn = $("#contact-block-btn"); if (blockBtn) blockBtn.textContent = c.blocked ? T("chat.contact.unblock") : T("chat.contact.block");
   const archBtn = $("#contact-archive-btn"); if (archBtn) archBtn.textContent = T("chat.contact.archive");
-  const muteBtn = $("#contact-mute-btn"); if (muteBtn) muteBtn.textContent = T("chat.contact.mute");
+  // Раньше здесь было muteBtn.textContent = T(...), что стирало ВСЮ
+  // разметку кнопки (включая <span class="chevron"> со стрелкой) — textContent
+  // заменяет все дети одним текстовым узлом. Теперь трогаем только первый
+  // <span> (подпись), чеврон остаётся на месте; подпись дополнительно
+  // отражает реальный статус (постоянный/временный мьют), а не всегда "Mute".
+  const muteBtn = $("#contact-mute-btn");
+  if (muteBtn) {
+    const muteLabel = muteBtn.querySelector("span");
+    if (muteLabel) muteLabel.textContent = contactIsMuted ? T("chats.action.unmute") : T("chat.contact.mute");
+  }
   const pinBtnLbl = $("#contact-pin-btn span"); if (pinBtnLbl) pinBtnLbl.textContent = c.pinned ? T("chats.unpin") : T("chats.pin");
   const disSel = $("#contact-disappearing-select"); if (disSel) disSel.value = String(c.disappearingTimer || 0);
   const soundSel = $("#contact-sound-select"); if (soundSel) soundSel.value = c.notificationSound || "";
@@ -2870,6 +3653,22 @@ function wireContactCard() {
     const rs = $("#rename-sheet"); if (rs) rs.classList.remove("hidden");
     setTimeout(() => { const ri2 = $("#rename-input"); if (ri2) ri2.focus(); }, 50);
   });
+  // killer-features-backlog 0.7 — тап по аватару контакта открывает выбор
+  // локального фото (см. setContactAvatar — никогда не уходит пиру).
+  const avatarBtn = $("#contact-avatar");
+  const avatarInput = $("#contact-avatar-input");
+  if (avatarBtn && avatarInput) {
+    avatarBtn.addEventListener("click", () => avatarInput.click());
+    avatarInput.addEventListener("change", async () => {
+      const file = avatarInput.files && avatarInput.files[0];
+      avatarInput.value = "";
+      const id = state.contactCardId; if (!file || !id) return;
+      try {
+        const dataUrl = await readImageAsAvatarDataUrl(file);
+        setContactAvatar(id, dataUrl);
+      } catch (e) { toast(T("toast.avatarFailed")); }
+    });
+  }
   const disSel = $("#contact-disappearing-select");
   if (disSel) disSel.addEventListener("change", (e) => {
     const id = state.contactCardId; if (!id) return;
@@ -2885,13 +3684,30 @@ function wireContactCard() {
   const mute = $("#contact-mute-btn");
   if (mute) mute.addEventListener("click", () => {
     const c = state.contacts.get(state.contactCardId); if (!c) return;
-    c.muted = !c.muted; persistContacts(); renderContactCard();
-    toast(c.muted ? T("toast.muted") : T("toast.unmuted"));
+    if (isContactMuted(c)) {
+      // Уже заглушен (постоянно или временно) — тап просто снимает мьют,
+      // без шторки. Шторка с длительностью нужна только для ВКЛЮЧЕНИЯ мьюта.
+      c.muted = false; c.muteUntil = null; persistContacts(); renderContactCard();
+      toast(T("toast.unmuted"));
+    } else {
+      const sheet = $("#mute-sheet"); if (sheet) sheet.classList.remove("hidden");
+    }
+  });
+  const vibrateOnly = $("#contact-vibrate-only");
+  if (vibrateOnly) vibrateOnly.addEventListener("change", (e) => {
+    const c = state.contacts.get(state.contactCardId); if (!c) return;
+    c.vibrateOnly = e.target.checked; persistContacts();
   });
   const pinBtn = $("#contact-pin-btn");
   if (pinBtn) pinBtn.addEventListener("click", () => {
     const c = state.contacts.get(state.contactCardId); if (!c) return;
-    c.pinned = !c.pinned; persistContacts(); renderContactCard();
+    c.pinned = !c.pinned;
+    // Новый pinOrder — только когда чат ЗАКРЕПЛЯЕТСЯ (уходит в конец
+    // текущего списка закреплённых); при снятии закрепления обнуляем, чтобы
+    // повторное закрепление снова уходило в конец, а не возвращалось на
+    // старое место (раздел 4 роадмапа — drag-to-reorder).
+    if (c.pinned) c.pinOrder = nextPinOrder(); else c.pinOrder = null;
+    persistContacts(); renderContactCard();
     try { renderChatsList(); } catch (e) {}
   });
   const archive = $("#contact-archive-btn");
@@ -2929,17 +3745,17 @@ function wireContactCard() {
     }
   });
   const clear = $("#contact-clear-btn");
-  if (clear) clear.addEventListener("click", () => {
+  if (clear) clear.addEventListener("click", async () => {
     const c = state.contacts.get(state.contactCardId); if (!c) return;
-    if (!confirm(T("toast.confirmDeleteChat", { name: c.name }))) return;
+    if (!await confirmSheet(T("toast.confirmDeleteChat", { name: c.name }), { destructive: true })) return;
     cleanupExpiredFileBlobs(c.messages);
     c.messages = []; c.lastActivity = Date.now(); persistContacts();
     toast(T("toast.historyCleared"));
   });
   const del = $("#contact-delete-btn");
-  if (del) del.addEventListener("click", () => {
+  if (del) del.addEventListener("click", async () => {
     const c = state.contacts.get(state.contactCardId); if (!c) return;
-    if (!confirm(T("toast.confirmDeleteContact", { name: c.name }))) return;
+    if (!await confirmSheet(T("toast.confirmDeleteContact", { name: c.name }), { destructive: true })) return;
     deleteContact(state.contactCardId);
   });
 }
@@ -2985,10 +3801,13 @@ function renderChatThreadInner() {
     // Тот же баг, что и в closeChatSafely — переключение МЕЖДУ чатами
     // не останавливало играющее голосовое из предыдущего чата.
     pauseAllVoicePlayback();
+    closeQuickReactionFlyout(); // иначе плывущая панель реакций осталась бы висеть над уже другим чатом под ней
+
     // Свежий вход в чат — сбрасываем набор отрендеренных ранее id,
     // иначе новые сообщения в этом чате будут сравниваться с id из
     // ПРЕДЫДУЩЕГО чата и все получат "just-sent".
     __prevRenderedMsgIds = new Set();
+    renderScheduleBanner();
     // Свежий вход в чат (а не повторный рендер того же самого) — если
     // есть непрочитанные, запоминаем id первого из них один раз здесь.
     // Дальше, пока пользователь не долистает вниз, ни бейдж, ни
@@ -3011,6 +3830,7 @@ function renderChatThreadInner() {
     attemptConnectViaRelay(c.id).catch(() => {}); // на всякий случай — вдруг найдётся общий контакт, даже если сервер цель не видит
   }
   const nm = $("#chat-peer-name"); if (nm) nm.textContent = c.name || T("sys.someone");
+  const avEl = $("#chat-peer-avatar"); if (avEl) avEl.innerHTML = avatarCircleHtml(c, null, "");
   const statusEl = $("#chat-peer-status");
   const typing = !isGroup(c) && state.typingTimers.has(c.id);
   if (statusEl) {
@@ -3057,6 +3877,15 @@ function renderChatThreadInner() {
   // два независимых переключателя одного и того же .hidden конфликтовали бы).
   const attachBtn = $("#chat-attach-btn"); if (attachBtn) attachBtn.classList.toggle("hidden", isGroup(c));
   const cameraBtn = $("#chat-camera-btn"); if (cameraBtn) cameraBtn.classList.toggle("hidden", isGroup(c));
+  // Раздел 8 — "права группы": не-админ видит явно закрытый композер
+  // (с подсказкой), а не узнаёт о запрете только по тосту после попытки
+  // отправить — так понятнее сразу, не трогая поле вообще.
+  const writeBlocked = isGroup(c) && !isGroupWriteAllowed(c, Store.myId);
+  const chatInputEl = $("#chat-input");
+  if (chatInputEl) {
+    chatInputEl.disabled = writeBlocked;
+    chatInputEl.placeholder = writeBlocked ? T("chat.composerRestricted") : "";
+  }
 
   const badge = $("#chat-transport-badge");
   const link = (mesh && !isGroup(c)) ? mesh.get(c.id) : null;
@@ -3186,6 +4015,7 @@ function renderChatThreadInner() {
     const tick = m.from === "me" ? ackGlyph(m.ack) : "";
     const editedMark = m.edited ? `<span class="bubble-edited">${escapeHtml(T("chat.edit"))}</span>` : "";
     const ttlMark = m.ttl ? `<span class="bubble-ttl" title="${escapeHtml(disappearingTimerLabel(m.ttl))}"><svg viewBox="0 0 24 24" width="12" height="12"><path fill="currentColor" d="M6 2h12v2l-4.5 5L18 14v2H6v-2l4.5-5L6 4V2zm2.2 2L11 7.5h2L15.8 4H8.2zM11 13.5 8.2 17h7.6L13 13.5h-2z"/></svg></span>` : "";
+    const favMark = m.favorite ? `<span class="bubble-favorite" title="${escapeHtml(T("chat.favorite"))}"><svg viewBox="0 0 24 24" width="11" height="11"><path fill="currentColor" d="M12 2 9.2 8.6 2 9.2l5.5 4.7L5.8 21 12 17.3 18.2 21l-1.7-7.1L22 9.2l-7.2-.6z"/></svg></span>` : "";
     const inner = document.createElement("div");
     // Класс glass-content убран с чужих пузырей: новый дизайн — матовый
     // фон --bg-2 + тонкий border (см. styles.css). Стекло на десятках
@@ -3194,7 +4024,8 @@ function renderChatThreadInner() {
     inner.className = "bubble" + (m.mentionMe ? " bubble-mentioned" : "");
     inner.setAttribute("data-msg-id", m.id); // для прокрутки к оригиналу по тапу на цитате ответа
     const body = m.file ? fileBubbleHtml(m.id, m.file) : (m.contactCard ? contactCardBubbleHtml(m.contactCard) : linkifyAndHighlight(m.text, q));
-    const senderLabel = (isGroup(c) && m.from === "them" && m.fromId && (!prevMsg || prevMsg.fromId !== m.fromId || prevMsg.from !== "them"))
+    const isFirstOfGroupBlock = !prevMsg || prevMsg.fromId !== m.fromId || prevMsg.from !== "them";
+    const senderLabel = (isGroup(c) && m.from === "them" && m.fromId && isFirstOfGroupBlock)
       ? `<div class="bubble-sender">${escapeHtml(m.fromName || T("sys.someone"))}</div>` : "";
     let previewSlotHtml = "";
     let previewUrl = null;
@@ -3223,31 +4054,52 @@ if (m.replyTo) {
       const chips = Object.entries(m.reactions).filter(([, users]) => Array.isArray(users) && users.length > 0);
       if (chips.length > 0) reactionsHtml = `<div class="bubble-reactions">` + chips.map(([emoji, users]) => `<span class="bubble-reaction-chip">${escapeHtml(emoji)} ${users.length}</span>`).join("") + `</div>`;
     }
-    inner.innerHTML = `${senderLabel}${fwdMark}${replyHtml}${body}${previewSlotHtml}<span class="bubble-time">${ttlMark}${formatTime(m.ts)}${editedMark}${tick}</span>${reactionsHtml}`;
+    // Перевод (раздел 5 роадмапа) — показывается ПОД оригинальным текстом,
+    // не заменяет его: честно видно и то, что собеседник написал сам, и
+    // то, во что это превратил сторонний сервер перевода.
+    const translationHtml = (m.translation && m.translation.text)
+      ? `<div class="bubble-translation"><span class="bubble-translation-label">${escapeHtml(T("chat.translated"))}</span> ${linkifyAndHighlight(m.translation.text, q)}</div>` : "";
+    inner.innerHTML = `${senderLabel}${fwdMark}${replyHtml}${body}${translationHtml}${previewSlotHtml}<span class="bubble-time">${ttlMark}${favMark}${formatTime(m.ts)}${editedMark}${tick}</span>${reactionsHtml}`;
     // Долгое нажатие — открывает обычное меню действий (ответить/
     // переслать/удалить), для ЛЮБОГО типа сообщения, как в большинстве
     // мессенджеров. Обычный тап при этом делает контентно-зависимое
     // действие по умолчанию (см. ниже) вместо меню.
     let longPressFired = false;
     let longPressTimer = null;
+    let longPressLiftTimer = null;
     let longPressMoved = false;
     let lpStartX = 0, lpStartY = 0;
     function startLongPress(x, y) {
       longPressMoved = false;
       lpStartX = x; lpStartY = y;
       clearTimeout(longPressTimer);
+      clearTimeout(longPressLiftTimer);
+      // Раньше пузырь неподвижно стоял все 500мс до открытия меню — на
+      // ощупь это "залипание", а не нажатие. "Приподнимаем" его уже
+      // через 100мс как лёгкий отклик на палец, до того как решится,
+      // долгое это нажатие или нет.
+      longPressLiftTimer = setTimeout(() => { if (!longPressMoved) inner.classList.add("bubble-pressing"); }, 100);
       longPressTimer = setTimeout(() => {
         if (!longPressMoved && !state.multiSelect) {
           longPressFired = true;
           try { if (navigator.vibrate) navigator.vibrate(15); } catch (e) {}
-          openMessageSheet(m.id, c.id);
+          // Группы не поддерживают реакции (см. комментарий в
+          // openMessageSheet) — там долгое нажатие ведёт прямо в старую
+          // полную шторку действий, без промежуточной плывущей панели,
+          // которой для этого чата всё равно было бы нечего показывать.
+          if (isGroup(c)) openMessageSheet(m.id, c.id);
+          else openQuickReactionFlyout(inner, m.id, c.id);
         }
+        inner.classList.remove("bubble-pressing");
       }, 500);
     }
     function moveLongPress(x, y) {
-      if (Math.abs(x - lpStartX) > 10 || Math.abs(y - lpStartY) > 10) { longPressMoved = true; clearTimeout(longPressTimer); }
+      if (Math.abs(x - lpStartX) > 10 || Math.abs(y - lpStartY) > 10) {
+        longPressMoved = true; clearTimeout(longPressTimer); clearTimeout(longPressLiftTimer);
+        inner.classList.remove("bubble-pressing");
+      }
     }
-    function endLongPress() { clearTimeout(longPressTimer); }
+    function endLongPress() { clearTimeout(longPressTimer); clearTimeout(longPressLiftTimer); inner.classList.remove("bubble-pressing"); }
     inner.addEventListener("touchstart", (e) => { const t = e.touches[0]; startLongPress(t.clientX, t.clientY); }, { passive: true });
     inner.addEventListener("touchmove", (e) => { const t = e.touches[0]; moveLongPress(t.clientX, t.clientY); }, { passive: true });
     inner.addEventListener("touchend", endLongPress);
@@ -3328,6 +4180,7 @@ if (m.replyTo) {
           __bubbleTapState.delete(m.id);
           const quickEmoji = (Store.recentReactions[0]) || "❤️";
           toggleReaction(c.id, m.id, quickEmoji);
+          spawnReactionBurst(inner, quickEmoji);
           return;
         }
         const timer = setTimeout(() => { __bubbleTapState.delete(m.id); if (state.chatId === c.id) openMessageSheet(m.id, c.id); }, 220);
@@ -3337,11 +4190,36 @@ if (m.replyTo) {
       openMessageSheet(m.id, c.id);
     });
     attachSwipeReply(inner, m, c);
+    if (isGroup(c) && m.from === "them") {
+      // Аватар собеседника в групповом чате — иначе посреди блока
+      // одинаковых по стилю "чужих" пузырей непонятно, кто именно
+      // написал, не читая имя в самом верху блока.
+      const avatarSlot = document.createElement("div");
+      avatarSlot.className = "bubble-row-avatar" + (isFirstOfGroupBlock ? " avatar-visible" : "");
+      if (isFirstOfGroupBlock) {
+        const senderContact = state.contacts.get(m.fromId) || { name: m.fromName };
+        avatarSlot.innerHTML = avatarCircleHtml(senderContact, null, "");
+      }
+      bubble.appendChild(avatarSlot);
+    }
     bubble.appendChild(inner);
     frag.appendChild(bubble);
     prevMsg = m;
   }
   wrap.appendChild(frag);
+  // Пустой чат (ни одного сообщения) — вместо голой пустоты объясняем,
+  // что это E2E-переписка, и даём быстрый старт одним тапом.
+  if (c.messages.length === 0 && !isGroup(c)) {
+    const es = document.createElement("div");
+    es.className = "chat-thread-empty";
+    es.innerHTML = `
+      <div class="chat-thread-empty-icon"><svg viewBox="0 0 24 24" width="40" height="40"><path fill="currentColor" d="M12 2a9 9 0 0 0-9 9c0 1.6.42 3.1 1.15 4.4L3 21l5.75-1.1A9 9 0 1 0 12 2zm-4 8a1.2 1.2 0 1 1 0 2.4A1.2 1.2 0 0 1 8 10zm4 0a1.2 1.2 0 1 1 0 2.4A1.2 1.2 0 0 1 12 10zm4 0a1.2 1.2 0 1 1 0 2.4A1.2 1.2 0 0 1 16 10z"/></svg></div>
+      <p class="chat-thread-empty-title">${escapeHtml(T("chat.thread.empty.title"))}</p>
+      <button type="button" class="btn-secondary chat-thread-empty-wave" id="chat-thread-empty-wave-btn">${escapeHtml(T("chat.thread.empty.wave"))}</button>`;
+    wrap.appendChild(es);
+    const waveBtn = es.querySelector("#chat-thread-empty-wave-btn");
+    if (waveBtn) waveBtn.addEventListener("click", () => { sendChatMessage(c.id, T("chat.thread.empty.waveText")); });
+  }
   // Сохраняем набор отрендеренных id — при следующем рендере только
   // сообщения, которых тут не было, получат анимацию появления.
   __prevRenderedMsgIds = nextMsgIds;
@@ -3428,7 +4306,7 @@ function closeOpenChatRow() {
     __openChatRowWrapper = null;
   }
 }
-const CHAT_ROW_REVEAL_PX = 84; // одна кнопка (архив, слева)
+const CHAT_ROW_REVEAL_PX = 168; // две кнопки слева (mute + архив), см. комментарий у END_PX
 const CHAT_ROW_REVEAL_END_PX = 168; // две кнопки (pin + удалить, справа)
 function attachChatRowSwipe(wrapper, row, c) {
   let startX = 0, startY = 0, dragging = false, currentX = 0;
@@ -3497,22 +4375,36 @@ function attachChatRowSwipe(wrapper, row, c) {
     closeOpenChatRow();
     c.archived = !c.archived; persistContacts(); haptic("light"); renderChatsList();
   });
+  wrapper.querySelector(".chat-row-action-mute").addEventListener("click", () => {
+    closeOpenChatRow();
+    // Свайп-мьют из списка чатов — всегда постоянный (без шторки выбора
+    // длительности, см. #mute-sheet в карточке контакта): это
+    // быстрое действие на одну строку, а не отдельный флоу.
+    if (isContactMuted(c)) { c.muted = false; c.muteUntil = null; }
+    else { c.muted = true; }
+    persistContacts(); haptic("light");
+    toast(c.muted ? T("toast.muted") : T("toast.unmuted"));
+    renderChatsList();
+  });
   wrapper.querySelector(".chat-row-action-pin").addEventListener("click", () => {
     closeOpenChatRow();
-    c.pinned = !c.pinned; persistContacts(); haptic("light"); renderChatsList();
+    c.pinned = !c.pinned;
+    if (c.pinned) c.pinOrder = nextPinOrder(); else c.pinOrder = null;
+    persistContacts(); haptic("light"); renderChatsList();
   });
-  wrapper.querySelector(".chat-row-action-delete").addEventListener("click", () => {
-    if (!confirm(T("toast.confirmDeleteContact", { name: c.name }))) { closeOpenChatRow(); return; }
+  wrapper.querySelector(".chat-row-action-delete").addEventListener("click", async () => {
+    if (!await confirmSheet(T("toast.confirmDeleteContact", { name: c.name }), { destructive: true })) { closeOpenChatRow(); return; }
     closeOpenChatRow();
     deleteContact(c.id);
   });
 }
 function attachSwipeReply(el, m, c) {
-  let startX = 0, startY = 0, swiping = false;
+  let startX = 0, startY = 0, swiping = false, thresholdCrossed = false;
   const isRtl = document.documentElement.dir === "rtl";
+  const SWIPE_REPLY_THRESHOLD = 40; // в единицах уже отмасштабированного (dx*0.5) смещения — см. ниже
   el.addEventListener("touchstart", (e) => {
     const t = e.touches[0];
-    startX = t.clientX; startY = t.clientY; swiping = false;
+    startX = t.clientX; startY = t.clientY; swiping = false; thresholdCrossed = false;
     el.style.transition = "none";
   }, { passive: true });
   el.addEventListener("touchmove", (e) => {
@@ -3524,21 +4416,32 @@ function attachSwipeReply(el, m, c) {
     if (isRtl) dx = -dx;
     const dy = Math.abs(t.clientY - startY);
     if (!swiping && Math.abs(dx) > 12 && Math.abs(dx) > dy) swiping = true;
-    if (swiping && dx > 0) el.style.transform = `translateX(${(isRtl ? -1 : 1) * Math.min(dx * 0.5, 60)}px)`;
+    if (swiping && dx > 0) {
+      const scaled = Math.min(dx * 0.5, 60);
+      el.style.transform = `translateX(${(isRtl ? -1 : 1) * scaled}px)`;
+      // Раньше о пороге "достаточно для ответа" пользователь узнавал
+      // только ПОСЛЕ отпускания пальца (сработало/не сработало) — теперь
+      // лёгкий haptic-тик + визуальный отклик (подсветка пузыря) ровно в
+      // момент пересечения порога, один раз на жест, а не на каждый пиксель.
+      const ready = scaled >= SWIPE_REPLY_THRESHOLD;
+      if (ready && !thresholdCrossed) { thresholdCrossed = true; haptic("light"); el.classList.add("swipe-ready"); }
+      else if (!ready && thresholdCrossed) { thresholdCrossed = false; el.classList.remove("swipe-ready"); }
+    }
   }, { passive: true });
   el.addEventListener("touchend", () => {
     el.style.transition = "";
+    el.classList.remove("swipe-ready");
     const tr = el.style.transform;
     el.style.transform = "";
-    if (swiping) {
+    if (swiping && thresholdCrossed) {
       const m1 = tr && tr.match(/translateX\((-?\d+(?:\.\d+)?)px\)/);
-      if (m1 && Math.abs(parseFloat(m1[1])) > 40) {
+      if (m1 && Math.abs(parseFloat(m1[1])) > SWIPE_REPLY_THRESHOLD) {
         state.replyTo = { msgId: m.id, text: m.text, from: m.from, authorName: m.from === "me" ? (Store.name || "") : (m.fromName || c.name || "") };
         showReplyBanner();
         const inp = $("#chat-input"); if (inp) inp.focus();
       }
     }
-    swiping = false;
+    swiping = false; thresholdCrossed = false;
   });
 }
 function updateScrollBottomButton() {
@@ -3550,12 +4453,16 @@ function updateScrollBottomButton() {
   // заполнялся — просто пустой видимый кружок в углу кнопки. Теперь
   // показывает реальное число непрочитанных, если чат ещё не долистан.
   const countEl = $("#scroll-bottom-count");
+  const c = state.chatId ? state.contacts.get(state.chatId) : null;
+  const n = c ? unreadCount(c) : 0;
   if (countEl) {
-    const c = state.chatId ? state.contacts.get(state.chatId) : null;
-    const n = c ? unreadCount(c) : 0;
     if (n > 0) { countEl.textContent = n > 99 ? "99+" : String(n); countEl.classList.remove("hidden"); }
     else countEl.classList.add("hidden");
   }
+  // Акцентный "↓ к новым" только когда реально есть непрочитанные выше —
+  // просьба отличать от нейтрального "просто вернуться вниз".
+  btn.classList.toggle("has-unread", n > 0);
+  btn.setAttribute("aria-label", T(n > 0 ? "a11y.toNewMessages" : "a11y.toLast"));
 }
 function markThreadRead(c) {
   const toAck = [];
@@ -3652,6 +4559,141 @@ async function sendChatMessage(contactId, text, replyTo) {
   await trySendOrQueue(c, msgId, payload);
 }
 function trimMessages(c) { if (c.messages.length <= MAX_MESSAGES_PER_CHAT) return; c.messages = c.messages.slice(-MAX_MESSAGES_PER_CHAT); }
+// "Отправить позже" — реально отправляем через тот же sendChatMessage/
+// sendGroupMessage, которые использует обычная форма, а не отдельный
+// путь доставки: отложенное сообщение технически ничем не отличается от
+// обычного, просто момент вызова сдвинут.
+function sweepScheduledMessages() {
+  if (!state.scheduledMessages || state.scheduledMessages.length === 0) return;
+  const now = Date.now();
+  const due = state.scheduledMessages.filter((s) => s.sendAt <= now);
+  if (due.length === 0) return;
+  state.scheduledMessages = state.scheduledMessages.filter((s) => s.sendAt > now);
+  persistScheduledMessages();
+  for (const s of due) {
+    const c = state.contacts.get(s.contactId);
+    if (!c) continue; // контакт удалён за время ожидания — молча пропускаем, не ошибка
+    if (s.isGroup) sendGroupMessage(s.contactId, s.text, s.replyTo || null);
+    else sendChatMessage(s.contactId, s.text, s.replyTo || null);
+  }
+  renderScheduleBanner();
+}
+function scheduledCountFor(contactId) {
+  return state.scheduledMessages.filter((s) => s.contactId === contactId).length;
+}
+function renderScheduleBanner() {
+  const banner = $("#schedule-banner"); if (!banner) return;
+  const n = state.chatId ? scheduledCountFor(state.chatId) : 0;
+  banner.classList.toggle("hidden", n === 0);
+  const countEl = $("#schedule-banner-count"); if (countEl) countEl.textContent = String(n);
+}
+function openScheduleSheet() {
+  const sheet = $("#schedule-sheet"); if (!sheet) return;
+  const input = $("#schedule-custom-input");
+  if (input) { const d = new Date(Date.now() + 3600000); d.setSeconds(0, 0); input.value = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); }
+  sheet.classList.remove("hidden");
+}
+function queueScheduledMessage(sendAt) {
+  if (!state.chatId) return;
+  const c = state.contacts.get(state.chatId); if (!c) return;
+  const input = $("#chat-input"); if (!input) return;
+  const text = input.value.trim();
+  if (!text) return;
+  const rec = { id: crypto.randomUUID(), contactId: state.chatId, isGroup: isGroup(c), text, replyTo: state.replyTo || null, sendAt };
+  state.scheduledMessages.push(rec);
+  persistScheduledMessages();
+  input.value = "";
+  delete state.drafts[state.chatId]; persistDrafts();
+  cancelReply();
+  updateSendVsMic();
+  const sheet = $("#schedule-sheet"); if (sheet) sheet.classList.add("hidden");
+  toast(T("toast.scheduled"));
+  renderScheduleBanner();
+}
+function openScheduleListSheet() {
+  const list = $("#schedule-list"); if (!list) return;
+  list.innerHTML = "";
+  const rows = state.scheduledMessages.filter((s) => s.contactId === state.chatId).sort((a, b) => a.sendAt - b.sendAt);
+  for (const row of rows) {
+    const item = document.createElement("div");
+    item.className = "forward-row";
+    const snippet = truncate(row.text || "", 60);
+    item.innerHTML = `<span class="forward-name">${escapeHtml(snippet)}<br><span class="fine muted">${escapeHtml(formatChatListTime(row.sendAt))}</span></span>`;
+    const cancelBtn = document.createElement("button");
+    cancelBtn.type = "button"; cancelBtn.className = "icon-btn small schedule-row-cancel-btn"; cancelBtn.setAttribute("aria-label", T("sys.cancel"));
+    cancelBtn.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>`;
+    cancelBtn.addEventListener("click", () => {
+      state.scheduledMessages = state.scheduledMessages.filter((s) => s.id !== row.id);
+      persistScheduledMessages();
+      renderScheduleBanner();
+      openScheduleListSheet();
+    });
+    item.appendChild(cancelBtn);
+    list.appendChild(item);
+  }
+  const sheet = $("#schedule-list-sheet"); if (sheet) sheet.classList.remove("hidden");
+}
+// «Mute for Nh» (из раздела 10 роадмапа, реклассифицировано как опция
+// карточки контакта, не кнопка уведомления — нет места в лимите в 2 кнопки
+// вместе с «Ответить»/«Прочитано», см. V.38.0.0/V.40.0.0). Шторка открывается
+// из #contact-mute-btn только когда контакт ещё НЕ заглушен (см. wireContactCard).
+function wireMuteSheet() {
+  function apply(muteUntil, forever) {
+    const c = state.contacts.get(state.contactCardId); if (!c) return;
+    if (forever) { c.muted = true; c.muteUntil = null; }
+    else { c.muted = false; c.muteUntil = muteUntil; }
+    persistContacts();
+    const sheet = $("#mute-sheet"); if (sheet) sheet.classList.add("hidden");
+    renderContactCard();
+    toast(forever ? T("toast.muted") : T("chat.mute.until", { time: formatChatListTime(muteUntil) }));
+  }
+  const h1 = $("#mute-preset-1h"); if (h1) h1.addEventListener("click", () => apply(Date.now() + 3600000, false));
+  const h8 = $("#mute-preset-8h"); if (h8) h8.addEventListener("click", () => apply(Date.now() + 8 * 3600000, false));
+  const tmr = $("#mute-preset-tomorrow"); if (tmr) tmr.addEventListener("click", () => {
+    const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(9, 0, 0, 0);
+    apply(d.getTime(), false);
+  });
+  const forever = $("#mute-preset-forever"); if (forever) forever.addEventListener("click", () => apply(null, true));
+}
+function wireScheduleSend() {
+  const btn = document.querySelector('#chat-form button[type="submit"].send-btn');
+  if (!btn) return;
+  let timer = null, fired = false;
+  function start() {
+    fired = false;
+    clearTimeout(timer);
+    const input = $("#chat-input");
+    if (!input || !input.value.trim() || !state.chatId || state.editingMessageId) return;
+    timer = setTimeout(() => {
+      fired = true;
+      try { if (navigator.vibrate) navigator.vibrate(15); } catch (e) {}
+      openScheduleSheet();
+    }, 500);
+  }
+  function cancelTimer() { clearTimeout(timer); }
+  btn.addEventListener("touchstart", start, { passive: true });
+  btn.addEventListener("touchend", cancelTimer);
+  btn.addEventListener("touchmove", cancelTimer);
+  btn.addEventListener("touchcancel", cancelTimer);
+  btn.addEventListener("mousedown", start);
+  btn.addEventListener("mouseup", cancelTimer);
+  btn.addEventListener("mouseleave", cancelTimer);
+  // Долгое нажатие уже открыло шторку — гасим клик/submit, который иначе
+  // отправил бы сообщение немедленно сразу после отпускания.
+  btn.addEventListener("click", (e) => { if (fired) { e.preventDefault(); fired = false; } }, true);
+  const banner = $("#schedule-banner"); if (banner) banner.addEventListener("click", openScheduleListSheet);
+  const preset1h = $("#schedule-preset-1h"); if (preset1h) preset1h.addEventListener("click", () => queueScheduledMessage(Date.now() + 3600000));
+  const presetTomorrow = $("#schedule-preset-tomorrow"); if (presetTomorrow) presetTomorrow.addEventListener("click", () => {
+    const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(9, 0, 0, 0);
+    queueScheduledMessage(d.getTime());
+  });
+  const customBtn = $("#schedule-custom-confirm-btn"); if (customBtn) customBtn.addEventListener("click", () => {
+    const input = $("#schedule-custom-input"); if (!input || !input.value) return;
+    const ms = new Date(input.value).getTime();
+    if (!Number.isFinite(ms)) return;
+    queueScheduledMessage(Math.max(ms, Date.now() + 1000));
+  });
+}
 async function commitEdit(contactId, msgId, newText) {
   const c = state.contacts.get(contactId); if (!c) return;
   const m = c.messages.find((x) => x.id === msgId); if (!m) return;
@@ -4150,6 +5192,63 @@ function pickVoiceMimeType() {
 let voiceRecorder = null, voiceRecordStream = null, voiceRecordChunks = [], voiceRecordStartedAt = 0, voiceRecordTimerId = null;
 let voiceRecordStarting = false;
 let voiceRecordTargetChatId = null; // чат, в котором НАЧАЛАСЬ запись — используется при остановке, а не state.chatId в тот момент (пользователь мог переключиться в другой чат за время записи)
+// Реальный level meter поверх MediaRecorder (раздел 6 роадмапа) — раньше
+// 5 столбиков .voice-recording-wave просто бесконечно крутили одну и ту же
+// CSS @keyframes-анимацию (честно задокументировано как "декоративный
+// эффект" в комментарии в styles.css). Теперь, если Web Audio доступен,
+// AnalyserNode читает РЕАЛЬНУЮ громкость микрофона и двигает те же самые
+// столбики через requestAnimationFrame; если AudioContext недоступен (или
+// браузер запретил) — тихо остаёмся на старой декоративной CSS-анимации,
+// см. комментарий в startVoiceLevelMeter.
+let voiceAudioCtx = null, voiceAnalyser = null, voiceLevelRaf = null;
+let voiceLevelHistory = [0, 0, 0, 0, 0]; // 5 последних замеров громкости — по одному на столбик, "скользящее окно" примерно последних ~450мс
+function startVoiceLevelMeter(stream) {
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return; // progressive enhancement — без Web Audio столбики просто продолжают крутить старую CSS-анимацию
+    voiceAudioCtx = new AC();
+    const source = voiceAudioCtx.createMediaStreamSource(stream);
+    voiceAnalyser = voiceAudioCtx.createAnalyser();
+    voiceAnalyser.fftSize = 256;
+    // source подключается ТОЛЬКО к analyser, не к voiceAudioCtx.destination —
+    // иначе пользователь услышал бы собственный голос эхом через динамики
+    // прямо во время записи.
+    source.connect(voiceAnalyser);
+    const data = new Uint8Array(voiceAnalyser.fftSize);
+    const bars = document.querySelectorAll("#voice-recording-bar .voice-recording-wave span");
+    bars.forEach((b) => { b.style.animation = "none"; });
+    let lastSampleAt = 0;
+    const tick = (now) => {
+      voiceLevelRaf = requestAnimationFrame(tick);
+      if (!voiceAnalyser) return;
+      if (now - lastSampleAt < 90) return; // ~11 замеров/сек — глазу достаточно, не гоняем лишний раз getByteTimeDomainData+DOM на каждый rAF (обычно 60/сек)
+      lastSampleAt = now;
+      voiceAnalyser.getByteTimeDomainData(data);
+      let sumSq = 0;
+      for (let i = 0; i < data.length; i++) { const v = (data[i] - 128) / 128; sumSq += v * v; }
+      const rms = Math.sqrt(sumSq / data.length); // ~0..1, обычная речь даёт 0.05–0.2
+      voiceLevelHistory.push(rms);
+      voiceLevelHistory.shift();
+      bars.forEach((b, i) => {
+        const level = Math.min(1, voiceLevelHistory[i] * 3.5); // усиление — иначе столбики почти не двигались бы на тихой речи
+        b.style.transform = `scaleY(${(0.35 + level * 1.15).toFixed(2)})`;
+        b.style.opacity = (0.55 + level * 0.45).toFixed(2);
+      });
+    };
+    voiceLevelRaf = requestAnimationFrame(tick);
+  } catch (e) {
+    // AnalyserNode недоступен/запрещён политикой браузера — тихо остаёмся
+    // на декоративной CSS-анимации, это не критическая ошибка записи.
+  }
+}
+function stopVoiceLevelMeter() {
+  if (voiceLevelRaf) { cancelAnimationFrame(voiceLevelRaf); voiceLevelRaf = null; }
+  voiceAnalyser = null;
+  if (voiceAudioCtx) { try { voiceAudioCtx.close(); } catch (e) {} voiceAudioCtx = null; }
+  voiceLevelHistory = [0, 0, 0, 0, 0];
+  const bars = document.querySelectorAll("#voice-recording-bar .voice-recording-wave span");
+  bars.forEach((b) => { b.style.animation = ""; b.style.transform = ""; b.style.opacity = ""; });
+}
 async function startVoiceRecording() {
   if (!state.chatId) return;
   if (voiceRecorder || voiceRecordStarting) return; // защита и от повторного вызова, и от гонки — getUserMedia асинхронный, voiceRecorder присваивается только после него
@@ -4187,6 +5286,7 @@ async function startVoiceRecording() {
   voiceRecordTimerId = setInterval(() => {
     if (timeEl) timeEl.textContent = formatVoiceDuration((Date.now() - voiceRecordStartedAt) / 1000);
   }, 200);
+  startVoiceLevelMeter(voiceRecordStream);
 }
 // Запись привязана к конкретному чату (voiceRecordTargetChatId) — если
 // пользователь уходит из этого чата, не дожидаясь окончания записи,
@@ -4202,6 +5302,7 @@ function stopVoiceRecording(send) {
   const contactId = voiceRecordTargetChatId;
   const durationSec = (Date.now() - voiceRecordStartedAt) / 1000;
   if (voiceRecordTimerId) { clearInterval(voiceRecordTimerId); voiceRecordTimerId = null; }
+  stopVoiceLevelMeter();
   const form = $("#chat-form"); if (form) form.classList.remove("hidden");
   const bar = $("#voice-recording-bar"); if (bar) bar.classList.add("hidden");
   if (!voiceRecorder) return;
@@ -4319,7 +5420,7 @@ async function finishIncomingFile(msgId, buf, from) {
     else {
       const label = T("chat.file.preview." + rec.file.kind);
       toast(`${c.name}: ${label}`);
-      if (!c.muted) showNotification(c.name || T("app.name"), label, { tag: "ether-msg-" + c.id, contactId: c.id, kind: "message" });
+      if (!isContactMuted(c)) showNotification(c.name || T("app.name"), label, { tag: "ether-msg-" + c.id, contactId: c.id, kind: "message", forceSilent: c.vibrateOnly });
       playMessageSound(from);
       vibrate([80, 40, 80]);
     }
@@ -4444,8 +5545,16 @@ function fileBubbleHtml(msgId, fileInfo) {
   }
   if (fileInfo.kind === "audio") {
     const durLabel = fileInfo.duration ? formatVoiceDuration(fileInfo.duration) : "";
+    // .voice-live-wave — раздел 7 роадмапа, "real waveform ПРИ ПРОСЛУШИВАНИИ
+    // у всех участников" (не путать с V.45.0.0 — там же про запись). 5
+    // столбиков, без анимации в разметке — высота/прозрачность управляются
+    // инлайн-стилями из JS (см. startVoicePlaybackWaveLoop), ровно как у
+    // уже существующей волны записи (#voice-recording-bar), просто
+    // применительно к AnalyserNode на MediaElementSource воспроизводимого
+    // <audio>, а не на живом микрофонном MediaStream.
     return `<div class="voice-bubble" data-file-id="${escapeHtml(msgId)}" data-file-kind="audio" data-duration="${fileInfo.duration || 0}">
       <button type="button" class="voice-play-btn" disabled>${VOICE_PLAY_ICON_SVG}</button>
+      <span class="voice-live-wave" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></span>
       <div class="voice-progress"><div class="voice-progress-fill"></div></div>
       <span class="voice-duration">${escapeHtml(durLabel)}</span>
     </div>`;
@@ -4468,7 +5577,7 @@ function formatVoiceDuration(sec) {
 // везде в приложении (viewBox 24×24, currentColor).
 const VOICE_PLAY_ICON_SVG = '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>';
 const VOICE_PAUSE_ICON_SVG = '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>';
-const voiceAudioCache = new Map(); // msgId -> { audio, playing } — переиспользуем между рендерами
+const voiceAudioCache = new Map(); // msgId -> { audio, playing, analyser? } — переиспользуем между рендерами
 // Раньше при уходе из чата (в список чатов или в другой чат) голосовое,
 // если оно играло, продолжало звучать в фоне — кнопки для остановки
 // уже не было, а сам Audio() из кеша никто не ставил на паузу.
@@ -4477,6 +5586,79 @@ function pauseAllVoicePlayback() {
     if (entry.playing) { entry.audio.pause(); entry.playing = false; }
   }
   document.querySelectorAll(".voice-play-btn").forEach((b) => { b.innerHTML = VOICE_PLAY_ICON_SVG; });
+  stopVoicePlaybackWaveLoop();
+}
+// === Раздел 7 роадмапа — real waveform ПРИ ПРОСЛУШИВАНИИ голосовых (а не
+// только при их записи, см. V.45.0.0 startVoiceLevelMeter/AnalyserNode на
+// микрофонном MediaStream — здесь тот же приём, но источник — уже
+// ЗАПИСАННЫЙ и воспроизводимый <audio>, то есть работает у ЛЮБОГО
+// участника переписки, который слушает голосовое, не только у того, кто
+// его записывал). ===
+// Один общий AudioContext на все голосовые — отдельный контекст на каждое
+// сообщение был бы расточительным (и часть браузеров ограничивает их
+// количество на странице).
+let __voicePlaybackCtx = null;
+function getVoicePlaybackAudioCtx() {
+  if (__voicePlaybackCtx) return __voicePlaybackCtx;
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    __voicePlaybackCtx = new AC();
+  } catch (e) { return null; }
+  return __voicePlaybackCtx;
+}
+let __voiceWaveRaf = null;
+let __voiceWaveLastSampleAt = 0;
+let __voiceWaveHistory = [0, 0, 0, 0, 0];
+function resetVoiceWaveBars() {
+  document.querySelectorAll(".voice-live-wave span").forEach((b) => { b.style.transform = ""; b.style.opacity = ""; });
+}
+// Один rAF-цикл на всё приложение (а не по циклу на голосовое) — голосовые
+// и так проигрываются по одному за раз (см. "не играть несколько хором"
+// в hydrateFileSlots), так что достаточно на каждый тик найти ТО единственное
+// играющее сообщение и обновить именно его столбики. DOM-узлы бара ищутся
+// заново на каждый тик (не кешируются) — после ре-рендера чата старые
+// ссылки на .voice-live-wave были бы мёртвыми, а голосовое могло продолжать
+// играть через уже пересозданную разметку.
+function startVoicePlaybackWaveLoop() {
+  if (__voiceWaveRaf) return;
+  const tick = (now) => {
+    __voiceWaveRaf = requestAnimationFrame(tick);
+    let playingMsgId = null, playingEntry = null;
+    for (const [id, entry] of voiceAudioCache) {
+      if (entry.playing) { playingMsgId = id; playingEntry = entry; break; }
+    }
+    if (!playingEntry || !playingEntry.analyser) { resetVoiceWaveBars(); return; }
+    if (now - __voiceWaveLastSampleAt < 90) return; // ~11 замеров/сек, как и у волны записи — getByteTimeDomainData+DOM не нужно гонять на каждый из 60 кадров/сек
+    __voiceWaveLastSampleAt = now;
+    if (!playingEntry.waveformData) playingEntry.waveformData = new Uint8Array(playingEntry.analyser.fftSize);
+    playingEntry.analyser.getByteTimeDomainData(playingEntry.waveformData);
+    let sumSq = 0;
+    for (let i = 0; i < playingEntry.waveformData.length; i++) { const v = (playingEntry.waveformData[i] - 128) / 128; sumSq += v * v; }
+    const rms = Math.sqrt(sumSq / playingEntry.waveformData.length);
+    __voiceWaveHistory.push(rms);
+    __voiceWaveHistory.shift();
+    const bars = document.querySelectorAll(`.voice-bubble[data-file-id="${CSS.escape(playingMsgId)}"] .voice-live-wave span`);
+    bars.forEach((b, i) => {
+      const level = Math.min(1, __voiceWaveHistory[i] * 3.5);
+      b.style.transform = `scaleY(${(0.4 + level * 1.1).toFixed(2)})`;
+      b.style.opacity = (0.4 + level * 0.6).toFixed(2);
+    });
+  };
+  __voiceWaveRaf = requestAnimationFrame(tick);
+}
+function stopVoicePlaybackWaveLoop() {
+  if (__voiceWaveRaf) { cancelAnimationFrame(__voiceWaveRaf); __voiceWaveRaf = null; }
+  __voiceWaveHistory = [0, 0, 0, 0, 0];
+  resetVoiceWaveBars();
+}
+// Останавливает цикл ТОЛЬКО если вообще никто больше не играет — вызывается
+// после паузы/окончания одного голосового, когда в принципе мог начать
+// играть другое (хотя в этом приложении одновременно играет не больше
+// одного — проверка на всякий случай, дешевле, чем предполагать).
+function stopVoicePlaybackWaveLoopIfIdle() {
+  for (const entry of voiceAudioCache.values()) if (entry.playing) return;
+  stopVoicePlaybackWaveLoop();
 }
 function hydrateFileSlots(root) {
   root.querySelectorAll(".file-media-slot[data-file-id], .file-bubble-doc[data-file-id]").forEach((el) => {
@@ -4523,6 +5705,30 @@ function hydrateFileSlots(root) {
       if (!entry) {
         entry = { audio: new Audio(url), playing: false };
         voiceAudioCache.set(msgId, entry);
+        // AnalyserNode для живой волны при прослушивании (раздел 7 роадмапа) —
+        // создаётся один раз на весь жизненный цикл Audio() (createMediaElementSource
+        // бросает исключение при повторном вызове на одном и том же элементе,
+        // поэтому делаем это именно тут, а не при каждой перепривязке onclick ниже).
+        // source.connect(ctx.destination) ОБЯЗАТЕЛЕН: после createMediaElementSource
+        // звук больше не идёт через элемент напрямую — без этого соединения
+        // голосовое воспроизводилось бы полностью молча.
+        try {
+          const ctx = getVoicePlaybackAudioCtx();
+          if (ctx) {
+            const source = ctx.createMediaElementSource(entry.audio);
+            const analyser = ctx.createAnalyser();
+            analyser.fftSize = 256;
+            source.connect(analyser);
+            analyser.connect(ctx.destination);
+            entry.analyser = analyser;
+          }
+        } catch (e) {
+          // AnalyserNode/Web Audio недоступен или запрещён политикой браузера —
+          // тихо остаёмся без живой волны, обычное воспроизведение не страдает
+          // (entry.analyser остаётся undefined — startVoicePlaybackWaveLoop это
+          // уже учитывает).
+          etherLog("warn", "[voice] playback AnalyserNode unavailable:", String(e));
+        }
         // fileBlobUrlCache и linkPreviewCache уже ограничены по размеру,
         // а voiceAudioCache — нет: рос на каждый когда-либо проигранный
         // голосовой за сессию, чистился только при удалении сообщения.
@@ -4555,6 +5761,7 @@ function hydrateFileSlots(root) {
         entry.playing = false; playBtn.innerHTML = VOICE_PLAY_ICON_SVG;
         if (fill) fill.style.width = "0%";
         if (durEl) durEl.textContent = formatVoiceDuration(knownDuration || audio.duration || 0);
+        stopVoicePlaybackWaveLoopIfIdle();
       };
       playBtn.onclick = () => {
         // Не играть несколько голосовых хором — раньше это пытались делать
@@ -4565,8 +5772,18 @@ function hydrateFileSlots(root) {
         for (const [otherId, other] of voiceAudioCache) {
           if (otherId !== msgId && other.playing) { other.audio.pause(); other.playing = false; }
         }
-        if (entry.playing) { audio.pause(); entry.playing = false; playBtn.innerHTML = VOICE_PLAY_ICON_SVG; }
-        else { audio.play().catch(() => {}); entry.playing = true; playBtn.innerHTML = VOICE_PAUSE_ICON_SVG; }
+        if (entry.playing) {
+          audio.pause(); entry.playing = false; playBtn.innerHTML = VOICE_PLAY_ICON_SVG;
+          stopVoicePlaybackWaveLoopIfIdle();
+        } else {
+          // AudioContext стартует в состоянии "suspended" до явного
+          // пользовательского жеста — resume() на уже запущенном контексте
+          // безопасный no-op, так что вызываем его при каждом play() не
+          // проверяя текущее состояние.
+          if (entry.analyser) { try { entry.analyser.context.resume(); } catch (e) {} }
+          audio.play().catch(() => {}); entry.playing = true; playBtn.innerHTML = VOICE_PAUSE_ICON_SVG;
+          startVoicePlaybackWaveLoop();
+        }
       };
     });
   });
@@ -4589,10 +5806,12 @@ function updateSendVsMic() {
   const micBtn = $("#voice-record-btn");
   const c = state.chatId ? state.contacts.get(state.chatId) : null;
   const inGroup = !!(c && isGroup(c));
-  if (sendBtn) sendBtn.classList.toggle("hidden", !hasText);
+  const writeBlocked = inGroup && !isGroupWriteAllowed(c, Store.myId);
+  if (sendBtn) sendBtn.classList.toggle("hidden", !hasText || writeBlocked);
   // Голосовые сообщения не поддерживаются в группах — кнопка микрофона
-  // не должна становиться видимой даже при пустом поле ввода.
-  if (micBtn) micBtn.classList.toggle("hidden", hasText || inGroup);
+  // не должна становиться видимой даже при пустом поле ввода. Также
+  // скрыта, если писать в группу запрещено ("только админы").
+  if (micBtn) micBtn.classList.toggle("hidden", hasText || inGroup || writeBlocked);
 }
 function sweepExpiredMessages() {
   const now = Date.now();
@@ -4708,13 +5927,14 @@ function broadcastGroupRoster(g) {
 // НИЧЕГО не пересылало ему ростер заново, пока кто-то не совершит новое
 // действие в группе. Группа просто не появлялась у него снова.
 function sendGroupRosterTo(g, memberId) {
-  const payload = { kind: "group-invite", id: crypto.randomUUID(), groupId: g.id, groupName: g.name, members: g.members, groupAvatar: g.avatar || undefined };
+  const payload = { kind: "group-invite", id: crypto.randomUUID(), groupId: g.id, groupName: g.name, members: g.members, groupAvatar: g.avatar || undefined, groupDescription: g.description || undefined };
   etherLog("info", "[group] roster →", String(memberId).slice(0, 8) + "…", "groupId=" + String(g.id).slice(0, 8) + "…", "payload.id=" + String(payload.id).slice(0, 8) + "…");
   const mc = ensureContactEntry(memberId, (g.members.find((m) => m.id === memberId) || {}).name);
   trySendOrQueue(mc, crypto.randomUUID(), payload).catch(() => {});
 }
 async function sendGroupMessage(groupId, text, replyTo) {
   const g = state.contacts.get(groupId); if (!g || !g.isGroup) return;
+  if (!isGroupWriteAllowed(g, Store.myId)) { toast(T("toast.groupWriteRestricted")); return; }
   text = applyEmojiAutoReplace(text);
   // Симметрично sendChatMessage — иначе длинное сообщение, отправленное
   // программно (retry, вставка через JS), а не через <input maxlength>
@@ -4813,6 +6033,19 @@ function setGroupAvatar(groupId, dataUrl) {
   if (state.tab === "chats") renderChatsList();
   if (state.contactCardId === groupId) renderContactCard();
 }
+// killer-features-backlog 0.7 — локальный аватар 1:1 контакта. ПРИНЦИПИАЛЬНО
+// локальный: в отличие от группового аватара (который рассылается всем
+// участникам через group-invite/roster), этот dataURL никогда не уходит по
+// сети — ни пиру, ни на сигнальный сервер. Это просто то, как контакт
+// выглядит у МЕНЯ, независимо от того, что показывает он сам.
+function setContactAvatar(contactId, dataUrl) {
+  const c = state.contacts.get(contactId); if (!c || c.isGroup) return;
+  c.avatar = dataUrl || null;
+  persistContacts();
+  if (state.chatId === contactId) renderChatThreadInner();
+  if (state.tab === "chats") renderChatsList();
+  if (state.contactCardId === contactId) renderContactCard();
+}
 // Сжимаем выбранное фото до маленького квадратного аватара (как иконки
 // контактов) — иначе dataURL из телефона в несколько МБ разбухал бы
 // persistContacts() (localStorage) на каждую группу.
@@ -4846,6 +6079,16 @@ function renameGroup(groupId, name) {
   if (state.chatId === groupId) renderChatThread();
   if (state.tab === "chats") renderChatsList();
 }
+function setGroupDescription(groupId, description) {
+  const g = state.contacts.get(groupId); if (!g || !g.isGroup) return;
+  if (!isGroupAdmin(g, Store.myId)) { toast(T("toast.groupAdminOnly")); return; }
+  description = (description || "").trim().slice(0, 200);
+  if (description === (g.description || "")) return;
+  g.description = description || undefined;
+  g.lastActivity = Date.now();
+  persistContacts();
+  broadcastGroupRoster(g);
+}
 function ensureGroupConnections(g) {
   for (const m of g.members) {
     if (m.id === Store.myId) continue;
@@ -4855,6 +6098,65 @@ function ensureGroupConnections(g) {
       attemptConnectViaRelay(m.id).catch(() => {});
     }
   }
+}
+
+// =====================================================================
+// Invite-ссылка в группу (раздел 8/18 роадмапа)
+// =====================================================================
+// Новый участник изначально не контакт НИКОМУ в группе — "ether://add?"
+// тут не поможет (он добавляет только того, кто выдал код, себе в
+// контакты, но не добавляет получателя кода В ГРУППУ). Поэтому код
+// приглашения кодирует ещё и того, кто его выдал (referrer, уже
+// состоящий в группе) и сам groupId — трёхсторонний обмен:
+//   1. Я (приглашённый) parse-ю код → добавляю referrer-а в контакты
+//      (если его ещё нет) и пытаюсь к нему подключиться.
+//   2. Как только есть связь (или через очередь/relay, см.
+//      trySendOrQueue) — шлю referrer-у payload "group-join-request".
+//   3. Если referrer — админ группы, обычный addGroupMember() добавляет
+//      меня: это само рассылает новый ростер всем участникам и пытается
+//      подключиться ко мне, без дополнительного кода.
+// Генерировать ссылку может только админ (кнопка скрыта у остальных в
+// openGroupInfo) — иначе join-request пришёл бы участнику без прав его
+// обработать, и приглашённый молча не узнал бы, что приглашение зависло.
+function buildGroupInviteCode(groupId) {
+  const g = state.contacts.get(groupId); if (!g || !g.isGroup) return null;
+  const qs = new URLSearchParams();
+  qs.set("gid", groupId);
+  qs.set("ref", Store.myId);
+  qs.set("rn", Store.name || "");
+  qs.set("gn", g.name || "");
+  return "ether://group?" + qs.toString();
+}
+function parseGroupInviteCode(text) {
+  try {
+    if (!text || text.indexOf("ether://group?") !== 0) return null;
+    const qs = new URLSearchParams(text.slice(text.indexOf("?")));
+    const groupId = qs.get("gid"), refId = qs.get("ref");
+    if (!groupId || !refId) return null;
+    return { groupId, refId, refName: qs.get("rn") || "", groupName: qs.get("gn") || "" };
+  } catch (e) { return null; }
+}
+async function joinGroupViaInvite(text) {
+  const parsed = parseGroupInviteCode(text);
+  if (!parsed) { toast(T("toast.badInviteCode")); return; }
+  const { groupId, refId, refName, groupName } = parsed;
+  if (refId === Store.myId) { toast(T("toast.ownId")); return; }
+  const existing = state.contacts.get(groupId);
+  if (existing && existing.isGroup) { toast(T("toast.groupAlreadyJoined")); return; }
+  if (recentlyDeletedIds.delete(refId)) persistRecentlyDeleted(); // осознанное повторное добавление снимает блокировку из deleteContact
+  ensureContactEntry(refId, refName || null);
+  persistContacts();
+  if (onlineSet.has(refId)) scheduleAutoConnect(refId);
+  else attemptConnectViaRelay(refId).catch(() => {});
+  const refC = state.contacts.get(refId);
+  await trySendOrQueue(refC, crypto.randomUUID(), { kind: "group-join-request", groupId, groupName, requesterName: Store.name || "" });
+  toast(T("toast.groupJoinRequested", { name: groupName || T("group.defaultName") }));
+}
+function openGroupInviteSheet(groupId) {
+  const code = buildGroupInviteCode(groupId); if (!code) return;
+  const out = $("#group-invite-code-out"); if (out) out.textContent = code;
+  renderQrToCanvas($("#group-invite-qr-canvas"), code);
+  const sheet = $("#group-invite-sheet"); if (sheet) sheet.classList.remove("hidden");
 }
 
 async function forwardContact(fromContactId, toContactId) {
@@ -5007,6 +6309,16 @@ async function forwardMessage(msgId, fromContactId, toContactId) {
   await trySendOrQueue(to, msgId2, payload);
 }
 async function trySendOrQueue(contact, msgId, payloadObj) {
+  // «Заметки себе» — локальный self-chat без второй стороны: ему некуда
+  // отправлять, нет ни peer-соединения, ни смысла класть в outbox (там
+  // бы это зависло навсегда и зря дёргало flushOutboxItem). Любое
+  // действие над сообщением в нём (отправка/правка/удаление/пересылка)
+  // считается мгновенно доставленным и прочитанным.
+  if (contact.isSelf) {
+    const mSelf = contact.messages.find((x) => x.id === msgId);
+    if (mSelf) { mSelf.ack = "read"; mSelf.serverAcked = true; }
+    return;
+  }
   // Раньше ack сразу оптимистично выставлялся в "sent" при создании
   // записи — это была маленькая ложь: на плохой сети между "нажал
   // отправить" и реальной отправкой (P2P или через сервер) может пройти
@@ -5337,6 +6649,19 @@ function handleIncomingTyping(contactId, active) {
 }
 // Использованная реакция становится самой первой в "недавних" —
 // дедуп, кап на 6.
+// Визуальный отклик на быструю реакцию двойным тапом — раньше тап
+// просто молча ставил реакцию без какой-либо анимации на экране.
+function spawnReactionBurst(bubbleEl, emoji) {
+  try {
+    const burst = document.createElement("span");
+    burst.className = "reaction-burst";
+    burst.textContent = emoji;
+    bubbleEl.appendChild(burst);
+    const cleanup = () => { try { burst.remove(); } catch (e) {} };
+    burst.addEventListener("animationend", cleanup, { once: true });
+    setTimeout(cleanup, 600); // страховка, если animationend не пришёл (reduced-motion и т.п.)
+  } catch (e) {}
+}
 function recordRecentReaction(emoji) {
   const cur = Store.recentReactions.filter((e) => e !== emoji);
   cur.unshift(emoji);
@@ -5626,7 +6951,7 @@ function wireSignalingEvents(sig) {
       try { ensureAudioCtx(); } catch (e) {}
       playRingtone();
       const c = state.contacts.get(from);
-      if (c && !c.muted && Store.notificationsEnabled) {
+      if (c && !isContactMuted(c) && Store.notificationsEnabled) {
         // Раньше тут был force: true — уведомление показывалось, даже когда
         // приложение активно. В этом случае звонок уже отрисован на экране
         // (openCallScreen выше), рингтон и вибрация играют (playRingtone
@@ -5782,6 +7107,13 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     const groupId = payload.groupId;
     const c = groupId ? state.contacts.get(groupId) : ensureContactEntry(from, null);
     if (!c) return; // сообщение в группу, о которой нам ничего не известно (приглашение не дошло) — сопоставляем именно с группой (c = state.contacts.get(groupId)), а не с отправителем from; группы нет локально — некуда класть сообщение
+    // Защита на стороне получателя, а не только запрет в UI отправителя —
+    // иначе достаточно отправить сообщение программно (минуя композер),
+    // чтобы "только админы пишут" оказалось чисто декоративным. Без
+    // доверенного сервера это не защита от модифицированного клиента
+    // самого отправителя, но она гарантирует, что ЧЕСТНЫЕ клиенты всех
+    // остальных участников согласованно скрывают такое сообщение.
+    if (groupId && c.writeRestricted && !isGroupAdmin(c, from)) return;
     if (c.messages.some((m) => m.id === payload.id)) return;
     const routeId = groupId || from;
     const isOpen = state.chatId === routeId;
@@ -5806,7 +7138,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
       announceToScreenReader(T("sr.newMessage", { name: groupId ? rec.fromName : displayName, text: truncate(payload.text, 80) }));
     } else {
       toast(`${displayName}: ${previewPrefix}${truncate(payload.text, 40)}`);
-      if (!c.muted) showNotification(displayName || T("app.name"), previewPrefix + truncate(payload.text, 80), { tag: "ether-msg-" + c.id, contactId: c.id, kind: "message" });
+      if (!isContactMuted(c)) showNotification(displayName || T("app.name"), previewPrefix + truncate(payload.text, 80), { tag: "ether-msg-" + c.id, contactId: c.id, kind: "message", forceSilent: c.vibrateOnly });
       playMessageSound(routeId);
       vibrate([80, 40, 80]);
     }
@@ -5857,7 +7189,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
         else {
           const label = T("chat.file.preview." + rec.file.kind);
           toast(`${c.name}: ${label}`);
-          if (!c.muted) showNotification(c.name || T("app.name"), label, { tag: "ether-msg-" + c.id, contactId: c.id, kind: "message" });
+          if (!isContactMuted(c)) showNotification(c.name || T("app.name"), label, { tag: "ether-msg-" + c.id, contactId: c.id, kind: "message", forceSilent: c.vibrateOnly });
           playMessageSound(from);
           vibrate([80, 40, 80]);
         }
@@ -5925,6 +7257,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
       // avatarCircleHtml) просто не попадёт в localStorage вовсе, а не
       // будет каждый раз отфильтровываться только на рендере.
       if (payload.groupAvatar && AVATAR_DATAURL_RE.test(payload.groupAvatar)) g.avatar = payload.groupAvatar;
+      if (payload.groupDescription) g.description = String(payload.groupDescription).slice(0, 200);
       state.contacts.set(payload.groupId, g);
       g.messages.push({ id: crypto.randomUUID(), from: "system", text: T("group.systemCreated", { name: g.name }), textKey: "group.systemCreated", textParams: { name: g.name }, ts: Date.now() });
       trimMessages(g);
@@ -5932,12 +7265,26 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
       g.members = payload.members;
       if (payload.groupName) g.name = payload.groupName;
       if (payload.groupAvatar !== undefined) g.avatar = (payload.groupAvatar && AVATAR_DATAURL_RE.test(payload.groupAvatar)) ? payload.groupAvatar : null;
+      if (payload.groupDescription !== undefined) g.description = String(payload.groupDescription || "").slice(0, 200) || undefined;
     }
     g.lastActivity = Date.now();
     persistContacts();
     ensureGroupConnections(g);
     if (state.chatId === payload.groupId) renderChatThread();
     if (state.tab === "chats") renderChatsList();
+  } else if (kind === "group-settings") {
+    // Применяем новое состояние ("только админы пишут") только если его
+    // прислал реально действующий админ этой группы на момент получения
+    // — иначе разжалованный или выгнанный участник мог бы продолжать
+    // рассылать изменения настроек задним числом.
+    const g = state.contacts.get(payload.groupId);
+    if (!g || !g.isGroup || !isGroupAdmin(g, from)) return;
+    if (typeof payload.writeRestricted === "boolean" && g.writeRestricted !== payload.writeRestricted) {
+      g.writeRestricted = payload.writeRestricted;
+      persistContacts();
+      if (state.chatId === payload.groupId) { renderChatThread(); updateSendVsMic(); }
+      if (state.activeGroupContext === payload.groupId) openGroupInfo(payload.groupId);
+    }
   } else if (kind === "edit") {
     const c = ensureContactEntry(from, null);
     const m = c.messages.find((x) => x.id === payload.id);
@@ -5989,7 +7336,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     if (isOpen) { renderChatThread(); playMessageSound(from); vibrate([80, 40, 80]); }
     else {
       toast(`${c.name}: ${previewText}`);
-      if (!c.muted) showNotification(c.name || T("app.name"), previewText, { tag: "ether-msg-" + c.id, contactId: c.id, kind: "message" });
+      if (!isContactMuted(c)) showNotification(c.name || T("app.name"), previewText, { tag: "ether-msg-" + c.id, contactId: c.id, kind: "message", forceSilent: c.vibrateOnly });
       playMessageSound(from);
       vibrate([80, 40, 80]);
     }
@@ -6005,6 +7352,29 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     persistContacts();
     if (state.chatId === from) renderChatThread();
     if (state.tab === "chats") renderChatsList();
+  } else if (kind === "group-join-request") {
+    // Приглашённый по invite-ссылке (см. joinGroupViaInvite) просит
+    // добавить его в группу. Генерировать ссылку мог только админ (кнопка
+    // скрыта у остальных в openGroupInfo), но проверяем права здесь ещё
+    // раз — на случай старого клиента/модифицированного кода, а не
+    // доверяем одной лишь UI-видимости кнопки на другой стороне.
+    const g = state.contacts.get(payload.groupId);
+    if (!g || !g.isGroup || !isGroupAdmin(g, Store.myId)) return;
+    if (g.members.some((m) => m.id === from)) return; // уже участник — дублирующийся запрос
+    if (g.members.length >= MAX_GROUP_MEMBERS) return;
+    ensureContactEntry(from, payload.requesterName || null);
+    addGroupMember(payload.groupId, from);
+  } else if (kind === "heartbeat") {
+    // killer-features-backlog 0.5 — "мягкий" Dead Man's Switch: "я жив",
+    // отправляется из checkDeadManSwitch() при каждом запуске отправителя.
+    // Полностью тихо — ни сообщения в ленте, ни тоста, ни бейджа
+    // непрочитанного: получатель узнаёт об этом только если сам
+    // настроил наблюдение и у него сработает проверка в checkDeadManSwitch().
+    const c = state.contacts.get(from); if (!c) return;
+    c.lastHeartbeatAt = payload.ts || Date.now();
+    if (payload.thresholdDays) c.heartbeatThresholdDays = payload.thresholdDays;
+    delete c.heartbeatAlertedAt; // новый heartbeat пришёл — отправитель снова "на связи", сбрасываем отметку уже показанного предупреждения
+    persistContacts();
   }
 }
 function clearAutoConnectTimer(id) { const t = autoConnectTimers.get(id); if (t) clearTimeout(t); autoConnectTimers.delete(id); }
@@ -6233,10 +7603,15 @@ function renderOnlineRosterList() {
 // =====================================================================
 // QR-код для добавления контакта
 // =====================================================================
-function renderMyQrCode() {
-  const canvas = $("#my-qr-canvas");
+// Вынесено из renderMyQrCode() в V.52.0.0 — та же отрисовка нужна и на
+// слайде 4 онбординга (см. renderOnboardingReadySlide), не только в
+// шторке "My QR code". По умолчанию кодирует свой собственный add-код
+// (как и раньше); необязательный payload (V.55.0.0) позволяет рисовать
+// QR с произвольной полезной нагрузкой — используется для invite-ссылки
+// в группу (см. openGroupInviteSheet), которая кодирует не "свой" код.
+function renderQrToCanvas(canvas, payload) {
   if (!canvas || typeof qrcode !== "function") return;
-  const payload = "ether://add?id=" + encodeURIComponent(Store.myId) + "&name=" + encodeURIComponent(Store.name || "");
+  if (!payload) payload = "ether://add?id=" + encodeURIComponent(Store.myId) + "&name=" + encodeURIComponent(Store.name || "");
   const qr = qrcode(0, "M"); // typeNumber 0 = автоподбор размера под данные
   qr.addData(payload);
   qr.make();
@@ -6253,6 +7628,7 @@ function renderMyQrCode() {
     }
   }
 }
+function renderMyQrCode() { renderQrToCanvas($("#my-qr-canvas")); }
 function parseQrAddPayload(text) {
   try {
     if (!text || text.indexOf("ether://add?") !== 0) return null;
@@ -6299,6 +7675,14 @@ async function startQrScan() {
             stopQrScan();
             if (sheet) sheet.classList.add("hidden");
             addContactFromCard(parsed.id, parsed.name);
+            return;
+          }
+          // Invite-ссылка в группу (раздел 8/18) — та же камера сканирует
+          // и её, не только обычный add-код; см. parseGroupInviteCode.
+          if (parseGroupInviteCode(result.data)) {
+            stopQrScan();
+            if (sheet) sheet.classList.add("hidden");
+            joinGroupViaInvite(result.data);
             return;
           }
         }
@@ -6352,8 +7736,20 @@ function wireGroupInfo() {
     renameGroup(groupId, renameInput ? renameInput.value : "");
     toast(T("toast.saved"));
   });
+  const descInput = $("#group-info-description");
+  const descBtn = $("#group-info-description-btn");
+  if (descBtn) descBtn.addEventListener("click", () => {
+    const groupId = state.activeGroupContext; if (!groupId) return;
+    setGroupDescription(groupId, descInput ? descInput.value : "");
+    toast(T("toast.saved"));
+  });
   const callBtn = $("#group-info-call-btn");
   if (callBtn) callBtn.addEventListener("click", () => toast(T("toast.callGroupsUnsupported")));
+  const writeRestrictedEl = $("#group-info-write-restricted");
+  if (writeRestrictedEl) writeRestrictedEl.addEventListener("change", () => {
+    const groupId = state.activeGroupContext; if (!groupId) return;
+    setGroupWriteRestricted(groupId, writeRestrictedEl.checked);
+  });
   const addBtn = $("#group-info-add-btn");
   if (addBtn) addBtn.addEventListener("click", () => {
     const groupId = state.activeGroupContext; const g = state.contacts.get(groupId);
@@ -6362,7 +7758,7 @@ function wireGroupInfo() {
     const list = $("#forward-list"); if (!list) return;
     list.innerHTML = "";
     const memberIds = new Set(g.members.map((m) => m.id));
-    const candidates = Array.from(state.contacts.values()).filter((c) => c.managed && !isGroup(c) && !memberIds.has(c.id));
+    const candidates = Array.from(state.contacts.values()).filter((c) => c.managed && !isGroup(c) && !c.isSelf && !memberIds.has(c.id));
     for (const c of candidates) {
       const row = document.createElement("button");
       row.type = "button"; row.className = "forward-row";
@@ -6378,14 +7774,21 @@ function wireGroupInfo() {
     const fs = $("#forward-sheet"); if (fs) fs.classList.remove("hidden");
   });
   const leaveBtn = $("#group-info-leave-btn");
-  if (leaveBtn) leaveBtn.addEventListener("click", () => {
+  if (leaveBtn) leaveBtn.addEventListener("click", async () => {
     const groupId = state.activeGroupContext; const g = state.contacts.get(groupId);
     if (!g) return;
-    if (!confirm(T("group.confirmLeave", { name: g.name }))) return;
+    if (!await confirmSheet(T("group.confirmLeave", { name: g.name }))) return;
     removeGroupMember(groupId, Store.myId, true);
     const gis = $("#group-info-sheet"); if (gis) gis.classList.add("hidden");
     if (state.chatId === groupId) { state.chatId = null; state.multiSelect = null; renderTab(); }
   });
+  const inviteLinkBtn = $("#group-info-invite-link-btn");
+  if (inviteLinkBtn) inviteLinkBtn.addEventListener("click", () => {
+    const groupId = state.activeGroupContext; if (!groupId) return;
+    openGroupInviteSheet(groupId);
+  });
+  const giCopyCode = $("#group-invite-copy-btn");
+  if (giCopyCode) giCopyCode.addEventListener("click", () => { const el = $("#group-invite-code-out"); if (el) copyText(el.textContent, T("toast.codeCopied")); });
 }
 
 function wireConnectScreen() {
@@ -6405,6 +7808,32 @@ function wireConnectScreen() {
       } catch (e) { toast(T("toast.avatarFailed")); }
     });
   }
+  const contactsSearch = $("#contacts-search");
+  if (contactsSearch) contactsSearch.addEventListener("input", (e) => { state.contactsSearchQuery = e.target.value; renderContactsList(); });
+  // Импорт из адресной книги (раздел 8/18 роадмапа) — navigator.contacts
+  // (Contact Picker API) экспериментальный и доступен не везде (в основном
+  // Chrome/Edge на Android) — классический progressive enhancement: кнопка
+  // скрыта по умолчанию и появляется только там, где API реально есть, а
+  // не обещана как гарантированная. У «Эфира» нет справочника
+  // телефон↔публичный ключ (контакт добавляется только по его
+  // invite-коду/QR) — поэтому выбор из телефонной книги подставляет
+  // ТОЛЬКО имя, не сам id; это честно объясняется тостом сразу после
+  // выбора, а не выдаётся за полноценное "добавить одним тапом".
+  const importContactBtn = $("#import-contact-btn");
+  if (importContactBtn && navigator.contacts && navigator.contacts.select) {
+    importContactBtn.classList.remove("hidden");
+    importContactBtn.addEventListener("click", async () => {
+      let picked;
+      try { picked = await navigator.contacts.select(["name"], { multiple: false }); }
+      catch (e) { return; } // отмена выбора или отказ в доступе — ожидаемый путь, не ошибка
+      const contact = picked && picked[0];
+      const name = contact && Array.isArray(contact.name) && contact.name[0];
+      if (!name) return;
+      const nameInput = $("#add-contact-name"); if (nameInput) nameInput.value = name;
+      toast(T("toast.importContactNameOnly"));
+      const valueInput = $("#add-contact-value"); if (valueInput) valueInput.focus();
+    });
+  }
   const newGroupBtn = $("#new-group-btn");
   if (newGroupBtn) newGroupBtn.addEventListener("click", () => {
     state._newGroupAvatar = null;
@@ -6413,7 +7842,7 @@ function wireConnectScreen() {
     const list = $("#new-group-members");
     if (list) {
       list.innerHTML = "";
-      const candidates = Array.from(state.contacts.values()).filter((c) => c.managed && !isGroup(c));
+      const candidates = Array.from(state.contacts.values()).filter((c) => c.managed && !isGroup(c) && !c.isSelf);
       if (candidates.length === 0) {
         const p = document.createElement("p");
         p.className = "fine muted";
@@ -6446,6 +7875,11 @@ function wireConnectScreen() {
   if (addValEl) addValEl.addEventListener("input", () => {
     const v = addValEl.value.trim();
     if (!v) { addValEl.classList.remove("input-invalid"); return; }
+    // Invite-ссылка в группу (раздел 8/18) вставляется в то же самое
+    // поле, что и обычный id/email/телефон — она заведомо не пройдёт
+    // Identity.idFor (это не контактный идентификатор), так что проверяем
+    // её отдельно, иначе поле подсвечивалось бы красным на валидном коде.
+    if (v.indexOf("ether://group?") === 0) { addValEl.classList.remove("input-invalid"); return; }
     Identity.idFor(v).then(
       () => addValEl.classList.remove("input-invalid"),
       () => addValEl.classList.add("input-invalid")
@@ -6455,6 +7889,11 @@ function wireConnectScreen() {
     const nameVal = $("#add-contact-name").value.trim();
     const raw = $("#add-contact-value").value.trim();
     if (!raw) { toast(T("toast.emptyId")); return; }
+    if (raw.indexOf("ether://group?") === 0) {
+      await joinGroupViaInvite(raw);
+      $("#add-contact-name").value = ""; $("#add-contact-value").value = "";
+      return;
+    }
     let identity;
     try { identity = await Identity.idFor(raw); }
     catch (e) { toast(T(e.message)); if (addValEl) addValEl.classList.add("input-invalid"); return; }
@@ -6613,6 +8052,49 @@ function wireCameraButton() {
     cameraInput.click();
   });
 }
+// =====================================================================
+// Единое подтверждение необратимых действий (раздел 15 роадмапа, "мои
+// добавления" — "единообразный паттерн подтверждающего шторки, а не
+// confirm()"). native confirm() блокирует весь поток JS, выглядит
+// по-разному на каждой платформе и не поддаётся кастомному стилю — заменён
+// везде в этом релизе на один переиспользуемый #confirm-sheet. Промис-
+// обёртка — тот же приём, что уже был у openBackupPasswordSheet() (см.
+// ниже по файлу): MutationObserver перехватывает закрытие ЛЮБЫМ путём
+// (backdrop, Esc через общий wireEscCloseAnySheet, фокус-менеджмент), а
+// не только через свои кнопки — иначе промис мог бы повиснуть навечно,
+// если пользователь закрыл шторку мимо кнопок.
+let __confirmSheetResolve = null;
+function confirmSheet(message, opts) {
+  opts = opts || {};
+  return new Promise((resolve) => {
+    const sheet = $("#confirm-sheet");
+    if (!sheet) { resolve(false); return; } // шторки нет в DOM (не должно случаться) — не блокируем действие молча навсегда
+    __confirmSheetResolve = resolve;
+    const msgEl = $("#confirm-sheet-message"); if (msgEl) msgEl.textContent = message;
+    const okBtn = $("#confirm-sheet-ok"); if (okBtn) okBtn.classList.toggle("destructive", !!opts.destructive);
+    sheet.classList.remove("hidden");
+  });
+}
+let __confirmSheetWired = false;
+function wireConfirmSheet() {
+  if (__confirmSheetWired) return;
+  __confirmSheetWired = true;
+  const sheet = $("#confirm-sheet"); if (!sheet) return;
+  const okBtn = $("#confirm-sheet-ok");
+  const cancelBtn = $("#confirm-sheet-cancel");
+  const settle = (result) => {
+    const resolve = __confirmSheetResolve;
+    if (!resolve) return; // уже резолвлено
+    __confirmSheetResolve = null;
+    sheet.classList.add("hidden");
+    resolve(result);
+  };
+  if (okBtn) okBtn.addEventListener("click", () => settle(true));
+  if (cancelBtn) cancelBtn.addEventListener("click", () => settle(false));
+  new MutationObserver(() => {
+    if (sheet.classList.contains("hidden")) settle(false); // любое другое закрытие — считаем отменой, не подтверждением
+  }).observe(sheet, { attributes: true, attributeFilter: ["class"] });
+}
 function wireSheetBackdrops() {
   $$(".sheet-backdrop").forEach((el) => {
     el.addEventListener("click", () => { const s = el.closest(".sheet"); if (s) s.classList.add("hidden"); });
@@ -6649,6 +8131,64 @@ function wireSheetBackdrops() {
       if (dy > 60) { const s = handle.closest(".sheet"); if (s) s.classList.add("hidden"); }
     });
   });
+}
+let __quickReactionOutsideHandler = null;
+function closeQuickReactionFlyout() {
+  const el = $("#quick-reaction-flyout"); if (!el) return;
+  el.classList.remove("quick-reaction-flyout-show");
+  el.classList.add("hidden");
+  el.innerHTML = "";
+  if (__quickReactionOutsideHandler) { document.removeEventListener("pointerdown", __quickReactionOutsideHandler, true); __quickReactionOutsideHandler = null; }
+}
+// Лёгкая плывущая панель реакций над пузырём — см. комментарий у
+// #quick-reaction-flyout в index.html. Открывается ТОЛЬКО из long-press
+// в 1-к-1 чатах (группы по-прежнему идут прямо в openMessageSheet).
+function openQuickReactionFlyout(anchorEl, msgId, contactId) {
+  const el = $("#quick-reaction-flyout"); if (!el || !anchorEl) return;
+  closeQuickReactionFlyout();
+  const DEFAULT_QUICK_REACTIONS = ["❤️", "👍", "👎", "😂", "😮", "😢"];
+  const recent = Store.recentReactions;
+  const quickSet = (recent.length > 0 ? recent : DEFAULT_QUICK_REACTIONS).slice(0, 6);
+  quickSet.forEach((emoji) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "reaction-emoji"; b.textContent = emoji;
+    b.addEventListener("click", () => {
+      closeQuickReactionFlyout();
+      toggleReaction(contactId, msgId, emoji);
+      spawnReactionBurst(anchorEl, emoji);
+    });
+    el.appendChild(b);
+  });
+  const moreBtn = document.createElement("button");
+  moreBtn.type = "button"; moreBtn.className = "reaction-emoji reaction-more";
+  moreBtn.setAttribute("aria-label", T("chat.moreActions"));
+  moreBtn.textContent = "…";
+  moreBtn.addEventListener("click", () => { closeQuickReactionFlyout(); openMessageSheet(msgId, contactId); });
+  el.appendChild(moreBtn);
+
+  // Позиционирование: по умолчанию прямо над пузырём, по центру; если
+  // сверху не хватает места (сообщение у самого верха экрана) — под
+  // пузырём. Горизонтально зажато в границы #app-shell — на десктопной
+  // раскладке (см. @media min-width:640px выше) это не весь экран, а
+  // центрированная «рамка телефона».
+  el.classList.remove("hidden");
+  const shell = $("#app-shell");
+  const shellRect = shell ? shell.getBoundingClientRect() : { left: 0, right: window.innerWidth, top: 0, bottom: window.innerHeight };
+  const anchorRect = anchorEl.getBoundingClientRect();
+  const flyoutRect = el.getBoundingClientRect();
+  let top = anchorRect.top - flyoutRect.height - 10;
+  if (top < shellRect.top + 8) top = anchorRect.bottom + 10;
+  let left = anchorRect.left + anchorRect.width / 2 - flyoutRect.width / 2;
+  left = Math.max(shellRect.left + 8, Math.min(left, shellRect.right - flyoutRect.width - 8));
+  el.style.top = top + "px";
+  el.style.left = left + "px";
+  requestAnimationFrame(() => el.classList.add("quick-reaction-flyout-show"));
+
+  // capture + отдельный тик: иначе тот самый pointerdown, которым
+  // закончилось долгое нажатие, немедленно закрыл бы панель, которую он
+  // только что открыл.
+  __quickReactionOutsideHandler = (e) => { if (!el.contains(e.target)) closeQuickReactionFlyout(); };
+  setTimeout(() => { document.addEventListener("pointerdown", __quickReactionOutsideHandler, true); }, 0);
 }
 function openMessageSheet(msgId, contactId) {
   state.activeMessageContext = { msgId, contactId };
@@ -6696,6 +8236,12 @@ function openMessageSheet(msgId, contactId) {
   // всегда.
   if (!groupCtx) actions.push(`<button type="button" class="sheet-action" data-action="forward">${escapeHtml(T("chat.forward"))}</button>`);
   actions.push(`<button type="button" class="sheet-action" data-action="pin">${escapeHtml(c.pinnedMessageId === msgId ? T("chat.unpinMsg") : T("chat.pinMsg"))}</button>`);
+  actions.push(`<button type="button" class="sheet-action" data-action="favorite">${escapeHtml(m.favorite ? T("chat.unfavorite") : T("chat.favorite"))}</button>`);
+  // Перевод — чисто локальное действие (fetch на сервер, выбранный самим
+  // пользователем, никакого P2P-payload) — доступно и в группах, и для
+  // своих, и для чужих сообщений, было бы текста. Файлы/карточки контакта
+  // переводить нечего.
+  if (m.text && !m.file && !m.contactCard) actions.push(`<button type="button" class="sheet-action" data-action="translate">${escapeHtml(m.translation ? T("chat.translate.hide") : T("chat.translate"))}</button>`);
   actions.push(`<button type="button" class="sheet-action" data-action="copy">${escapeHtml(T("chat.copy"))}</button>`);
   actions.push(`<button type="button" class="sheet-action" data-action="select">${escapeHtml(T("chat.selectMsgs"))}</button>`);
   if (m.ack === "failed" && isOwn && !groupCtx) actions.push(`<button type="button" class="sheet-action" data-action="retry">${escapeHtml(T("chat.retry"))}</button>`);
@@ -6723,7 +8269,7 @@ async function handleMessageAction(action, msgId, contactId) {
   else if (action === "edit") startEditing(msgId);
   else if (action === "delete-local") deleteMessageLocal(contactId, msgId);
   else if (action === "delete-both") {
-    if (!confirm(T("chat.delete.both") + "?")) return;
+    if (!await confirmSheet(T("chat.delete.both") + "?", { destructive: true })) return;
     await deleteMessageForBoth(contactId, msgId);
   } else if (action === "reply") {
     state.replyTo = { msgId: m.id, text: m.text, from: m.from, authorName: m.from === "me" ? (Store.name || "") : (m.fromName || c.name || "") };
@@ -6733,6 +8279,113 @@ async function handleMessageAction(action, msgId, contactId) {
   else if (action === "retry") retryMessage(contactId, msgId);
   else if (action === "pin") togglePinnedMessage(contactId, msgId);
   else if (action === "select") enterMultiSelect(msgId);
+  else if (action === "favorite") toggleMessageFavorite(contactId, msgId);
+  else if (action === "translate") translateMessage(contactId, msgId);
+}
+function toggleMessageFavorite(contactId, msgId) {
+  const c = state.contacts.get(contactId); if (!c) return;
+  const m = c.messages.find((x) => x.id === msgId); if (!m) return;
+  m.favorite = !m.favorite;
+  persistContacts();
+  if (state.chatId === contactId) renderChatThreadInner();
+  updateFavoritesCount();
+  toast(m.favorite ? T("toast.favoriteAdded") : T("toast.favoriteRemoved"));
+}
+// =====================================================================
+// Перевод сообщений через сервер (раздел 5 роадмапа)
+// =====================================================================
+// On-device перевод (Chrome Translator API) — Chrome-only экспериментальный
+// API за флагом, недоступен в Safari/Firefox/большинстве мобильных
+// браузеров (см. раздел 14/16) — не годится как основной путь для
+// приложения на 72 языках. Поэтому основной путь — серверный, через любой
+// LibreTranslate-совместимый эндпоинт, который пользователь укажет сам в
+// Settings (пусто по умолчанию, см. Store.translateEndpoint) — текст
+// сообщения уходит именно на этот сервер в открытом виде, точно так же,
+// как ссылка уходит на сигнальный сервер для link-preview, и это явно
+// объясняется рядом с полем в Settings, а не скрывается.
+const _translateInFlight = new Set();
+async function translateMessage(contactId, msgId) {
+  const c = state.contacts.get(contactId); if (!c) return;
+  const m = c.messages.find((x) => x.id === msgId); if (!m || !m.text) return;
+  if (m.translation) { // повторный тап на уже переведённом — скрыть перевод, не перезапрашивать
+    delete m.translation;
+    if (state.chatId === contactId) renderChatThreadInner();
+    return;
+  }
+  const endpoint = Store.translateEndpoint;
+  if (!endpoint) { toast(T("toast.translateNoServer")); return; }
+  if (_translateInFlight.has(msgId)) return;
+  _translateInFlight.add(msgId);
+  try {
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ q: m.text, source: "auto", target: (I18N.current || "en").split("-")[0], format: "text" }),
+    });
+    if (!res.ok) throw new Error("http " + res.status);
+    const data = await res.json();
+    const translated = data && (data.translatedText || data.translated_text);
+    if (!translated || typeof translated !== "string") throw new Error("empty");
+    m.translation = { text: translated };
+    if (state.chatId === contactId) renderChatThreadInner();
+  } catch (e) {
+    toast(T("toast.translateFailed"));
+  } finally {
+    _translateInFlight.delete(msgId);
+  }
+}
+function updateFavoritesCount() {
+  const el = $("#settings-favorites-count"); if (!el) return;
+  let n = 0;
+  for (const c of state.contacts.values()) for (const m of c.messages) if (m.favorite) n++;
+  el.textContent = n > 0 ? String(n) : "";
+}
+// Шторка "Избранные сообщения" в Settings — собирает m.favorite из ВСЕХ
+// чатов (не только текущего), иначе звёздочка на пузыре была бы
+// фичей без единой точки, где эти сообщения реально можно найти позже.
+function openFavoritesSheet() {
+  const list = $("#favorites-list"); if (!list) return;
+  list.innerHTML = "";
+  const rows = [];
+  for (const c of state.contacts.values()) {
+    for (const m of c.messages) {
+      if (m.favorite) rows.push({ contactId: c.id, contactName: c.name || T("sys.someone"), msg: m });
+    }
+  }
+  rows.sort((a, b) => b.msg.ts - a.msg.ts);
+  if (rows.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "fine muted";
+    empty.textContent = T("settings.favorites.empty");
+    list.appendChild(empty);
+  }
+  for (const row of rows) {
+    const btn = document.createElement("button");
+    btn.type = "button"; btn.className = "forward-row";
+    const snippet = row.msg.file ? T("chat.file.preview." + row.msg.file.kind) : truncate(row.msg.text || "", 60);
+    btn.innerHTML = `<div class="avatar avatar-sm" style="background:${avatarGradient(row.contactName)}">${escapeHtml(initials(row.contactName))}</div><span class="forward-name">${escapeHtml(row.contactName)}<br><span class="fine muted">${escapeHtml(snippet)}</span></span>`;
+    btn.addEventListener("click", () => {
+      const fs = $("#favorites-sheet"); if (fs) fs.classList.add("hidden");
+      jumpToMessageInChat(row.contactId, row.msg.id);
+    });
+    list.appendChild(btn);
+  }
+  const fs = $("#favorites-sheet"); if (fs) fs.classList.remove("hidden");
+}
+function jumpToMessageInChat(contactId, msgId) {
+  state.chatId = contactId;
+  state.contactCardId = null;
+  state.tab = "chats";
+  renderTab();
+  requestAnimationFrame(() => {
+    const wrap = $("#chat-messages");
+    const targetEl = wrap && wrap.querySelector(`[data-msg-id="${CSS.escape(msgId)}"]`);
+    if (targetEl) {
+      targetEl.scrollIntoView({ block: "center", behavior: prefersReducedMotion() ? "auto" : "smooth" });
+      targetEl.classList.add("highlight-origin");
+      setTimeout(() => targetEl.classList.remove("highlight-origin"), 1500);
+    }
+  });
 }
 // P2 — мультивыбор сообщений: долгое нажатие → меню → "Выбрать" входит в
 // режим, дальнейшие тапы по пузырям переключают выбор вместо обычного
@@ -6855,7 +8508,7 @@ function showReplyBanner() {
   const t = b.querySelector(".reply-banner-text"); if (t) t.textContent = truncate(state.replyTo.text, 60);
 }
 function cancelReply() { state.replyTo = null; const b = $("#reply-banner"); if (b) b.classList.add("hidden"); }
-function openForwardSheet(onPick) {
+function openForwardSheet(onPick, titleKey) {
   const list = $("#forward-list"); if (!list) return;
   list.innerHTML = "";
   const contacts = Array.from(state.contacts.values()).filter((c) => c.managed && !isGroup(c));
@@ -6867,6 +8520,16 @@ function openForwardSheet(onPick) {
     list.appendChild(btn);
   }
   const fs = $("#forward-sheet"); if (fs) fs.classList.remove("hidden");
+  // killer-features-backlog 0.4 (Share Target) переиспользует этот же лист
+  // контактов с другим заголовком, вместо отдельной шторки — заголовок
+  // возвращаем обратно к "Forward" через data-i18n, поэтому следующий
+  // обычный вызов (без titleKey) снова покажет правильный текст сам.
+  const titleEl = fs ? fs.querySelector("h2") : null;
+  if (titleEl) {
+    const key = titleKey || "chat.forward";
+    titleEl.setAttribute("data-i18n", key);
+    titleEl.textContent = T(key);
+  }
 }
 // P1.14 — что именно сейчас застряло в очереди отправки и почему: две
 // разные причины, два разных источника данных. outbox — сообщение ушло
@@ -6921,16 +8584,131 @@ function openJumpToDateSheet(contactId) {
   if (input) { try { input.valueAsDate = new Date(); } catch (e) {} }
   sheet.classList.remove("hidden");
 }
+// Долгое нажатие (500мс, тот же тайминг, что и у long-press на пузыре
+// сообщения) с отменой при уходе пальца/курсора дальше 8px — сетка эмодзи
+// находится внутри скроллящейся шторки, так что наивный таймер без
+// отмены на движение ложно срабатывал бы при обычном скролле пальцем.
+// Pointer Events — тот же механизм, что уже используется для drag-to-
+// reorder закреплённых чатов (V.44.0.0), работает одинаково для мыши
+// и тач-экрана без дублирования обработчиков.
+function wireHandshakeLongPress(btn, onFire) {
+  let timer = null, startX = 0, startY = 0, moved = false;
+  const clear = () => { clearTimeout(timer); timer = null; };
+  btn.addEventListener("pointerdown", (e) => {
+    moved = false;
+    startX = e.clientX; startY = e.clientY;
+    clear();
+    timer = setTimeout(() => { if (!moved) onFire(); }, 500);
+  });
+  btn.addEventListener("pointermove", (e) => {
+    if (!timer) return;
+    if (Math.abs(e.clientX - startX) > 8 || Math.abs(e.clientY - startY) > 8) { moved = true; clear(); }
+  });
+  btn.addEventListener("pointerup", clear);
+  btn.addEventListener("pointercancel", clear);
+}
 let __emojiActiveCategory = 0;
 function renderEmojiGrid(emojis) {
   const grid = $("#emoji-grid"); if (!grid) return;
   grid.innerHTML = "";
   for (const e of emojis) {
+    // applySkinTone — применяется и к отображению, и к тому, что реально
+    // вставится в поле ввода, так что превью в сетке — это именно то, что
+    // получит собеседник, без сюрпризов (базовый "e" используется только
+    // как ключ для поиска по EMOJI_KEYWORDS — см. emojiSearchResults —
+    // модификатор тона туда не попадает).
+    const rendered = applySkinTone(e);
     const btn = document.createElement("button");
-    btn.type = "button"; btn.className = "emoji-grid-btn"; btn.textContent = e;
-    btn.addEventListener("click", () => insertEmojiAtCursor(e));
+    btn.type = "button"; btn.className = "emoji-grid-btn"; btn.textContent = rendered;
+    if (e === "🤝") {
+      // Обычный tap — как у всех остальных (единый текущий тон). Долгое
+      // нажатие — шторка выбора ДВУХ разных тонов (раздел 11 роадмапа),
+      // см. buildHandshakeEmoji()/openHandshakeToneSheet() выше/ниже.
+      let longPressFired = false;
+      wireHandshakeLongPress(btn, () => { longPressFired = true; openHandshakeToneSheet(); });
+      btn.addEventListener("click", () => {
+        if (longPressFired) { longPressFired = false; return; }
+        insertEmojiAtCursor(rendered);
+      });
+    } else {
+      btn.addEventListener("click", () => insertEmojiAtCursor(rendered));
+    }
     grid.appendChild(btn);
   }
+}
+// Раздел 6 роадмапа — выбор тона кожи. Рендерит 6 круглых свотчей,
+// подсвечивает текущий выбранный, по клику сохраняет выбор и перерисовывает
+// уже открытую сетку (активную категорию или, если идёт поиск, текущие
+// результаты поиска — поэтому колбэк передаётся снаружи, а не пересчитывается
+// здесь: на момент клика по свотчу неизвестно, в каком режиме сейчас пикер).
+function renderSkinToneRow(onChange) {
+  const row = $("#emoji-skin-tone-row"); if (!row) return;
+  row.innerHTML = "";
+  const current = Store.emojiSkinTone;
+  for (const tone of SKIN_TONE_MODIFIERS) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "skin-tone-swatch" + (tone.id === current ? " active" : "");
+    btn.style.background = tone.swatch;
+    btn.setAttribute("aria-label", T("chat.emoji.skinTone." + tone.id));
+    btn.addEventListener("click", () => {
+      Store.emojiSkinTone = tone.id;
+      renderSkinToneRow(onChange);
+      onChange();
+    });
+    row.appendChild(btn);
+  }
+}
+// Раздел 11 роадмапа — двусторонний skin-tone для 🤝. Общая функция для
+// обеих рук (параметр which: "a"/"b") — ровно тот же паттерн свотчей, что
+// и renderSkinToneRow(), только пишет в локальное состояние шторки
+// (__handshakeToneA/B), а не в Store, потому что это одноразовый выбор
+// для конкретной вставки эмодзи, а не постоянная глобальная настройка.
+let __handshakeToneA = "none";
+let __handshakeToneB = "none";
+function renderHandshakeToneRow(which) {
+  const row = $("#handshake-tone-row-" + which); if (!row) return;
+  row.innerHTML = "";
+  const current = which === "a" ? __handshakeToneA : __handshakeToneB;
+  for (const tone of SKIN_TONE_MODIFIERS) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "skin-tone-swatch" + (tone.id === current ? " active" : "");
+    btn.style.background = tone.swatch;
+    btn.setAttribute("aria-label", T("chat.emoji.skinTone." + tone.id));
+    btn.addEventListener("click", () => {
+      if (which === "a") __handshakeToneA = tone.id; else __handshakeToneB = tone.id;
+      renderHandshakeToneRow(which);
+      updateHandshakeTonePreview();
+    });
+    row.appendChild(btn);
+  }
+}
+function updateHandshakeTonePreview() {
+  const prev = $("#handshake-tone-preview"); if (prev) prev.textContent = buildHandshakeEmoji(__handshakeToneA, __handshakeToneB);
+}
+// Открывается долгим нажатием на 🤝 в сетке (см. renderEmojiGrid). Каждая
+// рука по умолчанию стартует с уже выбранного общего тона (Store.emojiSkinTone)
+// — большинству пользователей, скорее всего, нужен всего один "неодинаковый"
+// случай, а не обе руки с нуля на "none" при каждом открытии.
+function openHandshakeToneSheet() {
+  __handshakeToneA = Store.emojiSkinTone;
+  __handshakeToneB = Store.emojiSkinTone;
+  renderHandshakeToneRow("a");
+  renderHandshakeToneRow("b");
+  updateHandshakeTonePreview();
+  const sheet = $("#handshake-tone-sheet"); if (sheet) sheet.classList.remove("hidden");
+}
+let __handshakeToneSheetWired = false;
+function wireHandshakeToneSheet() {
+  if (__handshakeToneSheetWired) return;
+  __handshakeToneSheetWired = true;
+  const sheet = $("#handshake-tone-sheet"); if (!sheet) return;
+  const insertBtn = $("#handshake-tone-insert");
+  if (insertBtn) insertBtn.addEventListener("click", () => {
+    insertEmojiAtCursor(buildHandshakeEmoji(__handshakeToneA, __handshakeToneB));
+    sheet.classList.add("hidden");
+  });
 }
 function renderEmojiTabs() {
   const tabs = $("#emoji-tabs"); if (!tabs) return;
@@ -7014,24 +8792,100 @@ function insertEmojiAtCursor(emoji) {
   input.focus();
   input.dispatchEvent(new Event("input", { bubbles: true }));
 }
+// Общая точка для "что сейчас должно быть в сетке" — используется и
+// обработчиком поиска, и колбэком выбора тона кожи (renderSkinToneRow),
+// чтобы смена тона перерисовывала ТЕКУЩИЙ режим пикера (активная категория
+// или текущие результаты поиска), а не всегда сбрасывала на категорию.
+function currentEmojiGridSource() {
+  const search = $("#emoji-search-input");
+  const q = search ? search.value : "";
+  const results = emojiSearchResults(q);
+  return results === null ? EMOJI_CATEGORIES[__emojiActiveCategory].emojis : results;
+}
+// Высота композера зависит от того, какие баннеры сейчас видны (ответ,
+// редактирование, "отправить позже") и от safe-area-inset-bottom — её
+// нельзя захардкодить в CSS один раз, нужно измерять непосредственно
+// перед открытием. #app-shell — containing block для .sheet (см.
+// `contain: layout` на #app-shell), поэтому отступ считаем от его края,
+// а не от окна браузера: на десктопной раскладке (см. @media выше)
+// #app-shell — не весь экран, а центрированная «рамка телефона».
+function positionEmojiFlyout() {
+  const panel = $("#emoji-picker-sheet .sheet-panel");
+  const shell = $("#app-shell");
+  const form = $("#chat-form");
+  if (!panel || !shell || !form) return;
+  const shellRect = shell.getBoundingClientRect();
+  const formRect = form.getBoundingClientRect();
+  const gap = 8;
+  const bottomOffset = Math.max(gap, Math.round(shellRect.bottom - formRect.top + gap));
+  panel.style.marginBottom = bottomOffset + "px";
+}
 function openEmojiPicker() {
   const sheet = $("#emoji-picker-sheet"); if (!sheet) return;
   const search = $("#emoji-search-input"); if (search) search.value = "";
   renderEmojiTabs();
+  renderSkinToneRow(() => renderEmojiGrid(currentEmojiGridSource()));
   renderEmojiGrid(EMOJI_CATEGORIES[__emojiActiveCategory].emojis);
   sheet.classList.remove("hidden");
+  positionEmojiFlyout();
   setTimeout(() => { if (search) search.focus(); }, 50);
 }
 function wireEmojiPicker() {
   const btn = $("#chat-emoji-btn");
   if (btn) btn.addEventListener("click", () => { if (state.chatId) openEmojiPicker(); });
   const search = $("#emoji-search-input");
-  if (search) search.addEventListener("input", (e) => {
-    const q = e.target.value;
-    const results = emojiSearchResults(q);
-    if (results === null) { renderEmojiGrid(EMOJI_CATEGORIES[__emojiActiveCategory].emojis); return; }
-    renderEmojiGrid(results);
+  if (search) search.addEventListener("input", () => renderEmojiGrid(currentEmojiGridSource()));
+}
+// Раздел 6 роадмапа — кнопка "+" для композера. В самой формулировке
+// задачи был явно отмечен риск для мышечной памяти существующих
+// пользователей ("стоит сделать переключаемым экспериментом, а не тихой
+// заменой") — поэтому это Settings-тумблер (выкл. по умолчанию), а не
+// замена разметки по умолчанию. Включённый режим: attach/emoji/camera
+// скрыты, видна только "+"; тап разворачивает все три (повторный тап или
+// клик по любой из трёх — сворачивает обратно). Выключенный режим (по
+// умолчанию) — "+" скрыта, три кнопки видны как раньше, применяется ровно
+// как до этой версии.
+const COMPOSER_PLUS_BTN_IDS = ["#chat-attach-btn", "#chat-emoji-btn", "#chat-camera-btn"];
+function setComposerActionButtonsHidden(hidden) {
+  for (const id of COMPOSER_PLUS_BTN_IDS) {
+    const btn = $(id);
+    if (btn) btn.classList.toggle("hidden", hidden);
+  }
+}
+function collapseComposerPlus() {
+  const plusBtn = $("#chat-plus-btn");
+  if (plusBtn) plusBtn.classList.remove("composer-plus-expanded-icon");
+  if (!Store.composerPlusMode) return;
+  setComposerActionButtonsHidden(true);
+}
+function applyComposerPlusMode() {
+  const on = Store.composerPlusMode;
+  const plusBtn = $("#chat-plus-btn");
+  if (plusBtn) plusBtn.classList.toggle("hidden", !on);
+  if (on) collapseComposerPlus();
+  // Выключили эксперимент — все три кнопки должны стать видимыми
+  // безусловно (а не оставаться случайно свёрнутыми с прошлого раза).
+  else setComposerActionButtonsHidden(false);
+}
+function wireComposerPlusMode() {
+  applyComposerPlusMode();
+  const plusBtn = $("#chat-plus-btn");
+  if (plusBtn) plusBtn.addEventListener("click", () => {
+    const attachBtn = $("#chat-attach-btn");
+    const expanded = attachBtn && !attachBtn.classList.contains("hidden");
+    if (expanded) { collapseComposerPlus(); return; }
+    setComposerActionButtonsHidden(false);
+    plusBtn.classList.add("composer-plus-expanded-icon");
   });
+  // Выбор любого из трёх действий сворачивает панель обратно — так же,
+  // как «+» в WhatsApp/Telegram не остаётся открытым после выбора пункта.
+  // Слушатель — capture-фаза, ДО остальных click-хендлеров на тех же
+  // кнопках (открытие шторки вложения/эмодзи/камеры), чтобы сворачивание
+  // не зависело от того, что делают эти хендлеры дальше.
+  for (const id of COMPOSER_PLUS_BTN_IDS) {
+    const btn = $(id);
+    if (btn) btn.addEventListener("click", collapseComposerPlus, { capture: true });
+  }
 }
 function wireJumpToDateSheet() {
   const goBtn = $("#jump-date-go-btn");
@@ -7079,6 +8933,16 @@ function wireRenameSheet() {
     toast(T("toast.nameUpdated"));
   });
 }
+// Общая логика "снести всё и перезапуститься с чистого листа" — раньше
+// была только в debug-hard-reset-btn; вынесена сюда, чтобы «Удалить
+// аккаунт» в обычных настройках делала ровно то же самое, без
+// расхождения поведения между скрытой Debug-кнопкой и видимой.
+function performFullAccountWipe() {
+  localStorage.clear();
+  if ("caches" in window) caches.keys().then((names) => names.forEach((n) => caches.delete(n)));
+  if ("indexedDB" in window) try { indexedDB.deleteDatabase("ether-db"); } catch (e) {}
+  location.reload();
+}
 function deleteContact(id) {
   // Карточка контакта сегодня никогда не открывает эту функцию для
   // группы (openContactCard редиректит в openGroupInfo) — но функция
@@ -7091,6 +8955,7 @@ function deleteContact(id) {
   // оставшихся через broadcastGroupRoster ДО удаления.
   const cg = state.contacts.get(id);
   if (isGroup(cg)) { removeGroupMember(id, Store.myId, true); return; }
+  if (cg && cg.isSelf) { toast(T("toast.cantDeleteSelfChat")); return; }
   // Если удаляют контакт прямо во время звонка с ним — раньше это
   // полагалось на побочный эффект mesh.remove() ниже, а не на настоящий
   // closeCallScreen(). pendingRemoteStreams и другая очистка (audio-
@@ -7106,6 +8971,15 @@ function deleteContact(id) {
   persistOutbox();
   delete state.lastSeen[id]; persistLastSeen();
   delete state.drafts[id]; persistDrafts();
+  if (state.scheduledMessages.some((s) => s.contactId === id)) {
+    state.scheduledMessages = state.scheduledMessages.filter((s) => s.contactId !== id);
+    persistScheduledMessages();
+  }
+  if (state.folders.some((f) => f.contactIds.includes(id))) {
+    for (const f of state.folders) f.contactIds = f.contactIds.filter((cid) => cid !== id);
+    persistChatFolders();
+    renderChatFolderChips();
+  }
   unreadDividerFor.delete(id);
   dividerScrolledFor.delete(id);
   relayAttemptCooldown.delete(id);
@@ -7275,6 +9149,7 @@ async function beginCall(id, withVideo) {
   const c = state.contacts.get(id);
   if (!c) return;
   if (isGroup(c)) { toast(T("toast.callGroupsUnsupported")); return; }
+  if (c.isSelf) return; // звонить себе некуда — у "Заметок себе" нет peer-соединения
   if (c.blocked) { toast(T("toast.blocked")); return; }
   if (state.callId && state.callId !== id) { toast(T("toast.alreadyInCall")); return; }
   if (state.callId === id) { openCallScreen(id, state.callPhase || "calling"); return; }
@@ -7370,6 +9245,26 @@ async function beginCall(id, withVideo) {
   }, PENDING_CALL_TIMEOUT_MS);
 }
 
+// Сворачивание звонка в тонкую полоску над таб-баром — звонок (и его
+// таймер/WebRTC-соединение) продолжается, просто #call-screen больше не
+// занимает единолично #content, можно вернуться в чаты/контакты/настройки.
+// Разворот — тапом по самой полоске (restoreCallScreen).
+function minimizeCallScreen() {
+  if (!state.callId) return;
+  const cs = $("#call-screen"); if (cs) cs.classList.add("hidden");
+  const contentEl = $("#content"); if (contentEl) contentEl.classList.remove("hidden");
+  const c = state.contacts.get(state.callId);
+  const nameEl = $("#mini-call-name"); if (nameEl) nameEl.textContent = (c && c.name) || T("sys.someone");
+  const avEl = $("#mini-call-avatar"); if (avEl) avEl.innerHTML = avatarCircleHtml(c, null, "");
+  const miniBar = $("#mini-call-bar"); if (miniBar) miniBar.classList.remove("hidden");
+  renderTab();
+}
+function restoreCallScreen() {
+  if (!state.callId) return;
+  const miniBar = $("#mini-call-bar"); if (miniBar) miniBar.classList.add("hidden");
+  const contentEl = $("#content"); if (contentEl) contentEl.classList.add("hidden");
+  const cs = $("#call-screen"); if (cs) cs.classList.remove("hidden");
+}
 function openCallScreen(id, phase) {
   // media-viewer, будучи position:fixed поверх всего окна, всё равно
   // закрыл бы обзор звонка, даже когда #call-screen стал обычным
@@ -7382,6 +9277,7 @@ function openCallScreen(id, phase) {
   // звонок, список чатов/экраны должны быть скрыты явно, иначе оба
   // одновременно заняли бы по половине места.
   const contentEl = $("#content"); if (contentEl) contentEl.classList.add("hidden");
+  const miniBar = $("#mini-call-bar"); if (miniBar) miniBar.classList.add("hidden");
   if (state.callId !== id) {
     state._callUserAccepted = false;
     state._callAcceptInFlight = false;
@@ -7612,6 +9508,7 @@ function startCallTimer() {
     const mm = String(Math.floor(secs / 60)).padStart(2, "0");
     const ss = String(secs % 60).padStart(2, "0");
     const cp = $("#call-phase"); if (cp) cp.textContent = `${mm}:${ss}`;
+    const mct = $("#mini-call-timer"); if (mct) mct.textContent = `${mm}:${ss}`;
     const cid = state.callId;
     if (!cid) { state._callDeadSeconds = 0; return; }
     const link = mesh.get(cid);
@@ -7685,6 +9582,7 @@ function closeCallScreen(reason) {
   endCallRecord(reason);
   const cs = $("#call-screen"); if (cs) cs.classList.add("hidden");
   const contentEl = $("#content"); if (contentEl) contentEl.classList.remove("hidden");
+  const miniBar = $("#mini-call-bar"); if (miniBar) miniBar.classList.add("hidden");
   const cm = $("#call-mute-btn"); if (cm) cm.classList.remove("active");
   const spkBtn = $("#call-speaker-btn"); if (spkBtn) spkBtn.classList.remove("active");
   speakerOn = false;
@@ -7741,6 +9639,10 @@ function closeCallScreen(reason) {
   }
 }
 function wireCallScreen() {
+  const minimizeBtn = $("#call-minimize-btn");
+  if (minimizeBtn) minimizeBtn.addEventListener("click", () => minimizeCallScreen());
+  const miniBar = $("#mini-call-bar");
+  if (miniBar) miniBar.addEventListener("click", () => restoreCallScreen());
   const hangup = $("#call-hangup-btn");
   if (hangup) hangup.addEventListener("click", () => {
     const cid = state.callId;
@@ -7778,7 +9680,17 @@ function wireCallScreen() {
       if (ok) { state.callWantsVideo = true; showLocalVideoPreview(link); requestWakeLock(); }
       else toast(T("toast.videoNoCamera"));
     } else {
-      link.disableVideo();
+      // Если в этот момент шёл показ экрана — localVideoTrack сейчас это
+      // трек ЭКРАНА, не камеры; disableVideo() просто бы заморозил
+      // последний кадр показа (enabled=false), не остановив захват, и
+      // кнопка screen-share осталась бы залипшей в активном состоянии.
+      // Останавливаем показ целиком, а не просто гасим трек.
+      if (link._screenSharing) {
+        await link.stopScreenShare();
+        const ssBtn = $("#call-screenshare-btn"); if (ssBtn) ssBtn.classList.remove("active");
+      } else {
+        link.disableVideo();
+      }
       const lv = $("#call-local-video"); if (lv) { lv.classList.add("hidden"); lv.srcObject = null; }
       videoBtn.classList.remove("active");
       // Оверлей (flip+PiP) прячем только если и удалённого видео тоже
@@ -7796,6 +9708,33 @@ function wireCallScreen() {
       releaseWakeLock();
     }
   });
+  // Screen sharing (раздел 7 роадмапа) — кнопка показывается только если
+  // браузер реально поддерживает getDisplayMedia (не через CSS-медиа-
+  // запрос, который ничего не знает о реальном API; заметнее всего это
+  // отсутствие поддержки в iOS Safari — там кнопка остаётся скрытой).
+  const screenShareBtn = $("#call-screenshare-btn");
+  if (screenShareBtn) {
+    if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) screenShareBtn.classList.remove("hidden");
+    screenShareBtn.addEventListener("click", async () => {
+      const link = mesh.get(state.callId); if (!link) return;
+      if (screenShareBtn.classList.contains("active")) {
+        await link.stopScreenShare();
+        screenShareBtn.classList.remove("active");
+      } else {
+        const ok = await link.startScreenShare();
+        if (ok) {
+          screenShareBtn.classList.add("active");
+          // Видео теперь точно есть (экран) — показываем локальный превью/
+          // оверлеи и держим экран включённым, как и при обычном enableVideo().
+          showLocalVideoPreview(link);
+          requestWakeLock();
+          const videoBtn = $("#call-video-btn"); if (videoBtn) videoBtn.classList.add("active");
+        } else {
+          toast(T("toast.screenShareFailed"));
+        }
+      }
+    });
+  }
   // Оверлеи на своём видео: flip камеры + PiP. Раньше это были три
   // отдельные кнопки в основном ряду управления звонком вперемешку с
   // микрофоном/громкой связью/завершением (#call-switch-camera-btn,
@@ -7933,6 +9872,155 @@ async function acceptCall(withMute) {
 }
 
 // =====================================================================
+// Pull-to-refresh (список чатов)
+// =====================================================================
+// Тянем список чатов вниз от самого верха скролла → flushOutbox()
+// (досылает застрявшие исходящие) + initSignaling() (переподключение
+// к сигнальному серверу). Чисто ручной жест: сервис-воркер и так
+// держит соединение, это просто явный способ сказать "попробуй сейчас".
+function wirePullToRefresh() {
+  const scroller = $("#screen-chats");
+  const indicator = $("#chats-ptr");
+  if (!scroller || !indicator) return;
+  const PTR_TRIGGER_PX = 56;
+  const PTR_MAX_PX = 72;
+  let startY = 0, pulling = false, refreshing = false;
+  scroller.addEventListener("touchstart", (e) => {
+    if (refreshing || scroller.scrollTop > 0) { pulling = false; return; }
+    startY = e.touches[0].clientY;
+    pulling = true;
+  }, { passive: true });
+  scroller.addEventListener("touchmove", (e) => {
+    if (!pulling || refreshing) return;
+    const dy = e.touches[0].clientY - startY;
+    if (dy <= 0 || scroller.scrollTop > 0) { indicator.style.height = "0px"; return; }
+    indicator.style.height = Math.min(dy * 0.6, PTR_MAX_PX) + "px";
+  }, { passive: true });
+  scroller.addEventListener("touchend", () => {
+    if (!pulling || refreshing) return;
+    pulling = false;
+    const h = parseFloat(indicator.style.height) || 0;
+    if (h >= PTR_TRIGGER_PX) {
+      refreshing = true;
+      indicator.style.height = PTR_TRIGGER_PX + "px";
+      haptic("light");
+      try { flushOutbox(); } catch (e) {}
+      try { initSignaling(); } catch (e) {}
+      setTimeout(() => { indicator.style.height = "0px"; refreshing = false; }, 700);
+    } else {
+      indicator.style.height = "0px";
+    }
+  });
+}
+
+// =====================================================================
+// Кастомные папки чатов (раздел 4 роадмапа) — именованные наборы чатов
+// (прямых и групповых), доступные как дополнительные чипы в
+// #chat-filters рядом с All/Unread/Groups/Direct/Calls. Папка — это
+// именно НАБОР конкретных чатов, а не динамическое правило — ближе к
+// "альбомам" iOS Photos, чем к сложным Telegram-папкам с комбинацией
+// критериев; для первой версии этого достаточно и не требует нового
+// языка правил.
+let __folderEditingId = null; // null = создаём новую, иначе редактируем существующую
+function renderChatFolderChips() {
+  const host = $("#chat-filters-custom");
+  if (!host) return;
+  host.innerHTML = state.folders.map((f) => `
+    <button type="button" class="chat-filter-chip" data-filter="folder:${escapeHtml(f.id)}">${escapeHtml(truncate(f.name, 18))}</button>
+  `).join("");
+  // Клик вешаем здесь же (а не через делегирование на #chat-filters),
+  // потому что остальные статичные чипы уже вешают свой обработчик в
+  // wireSearchHandlers() при старте — для динамических он должен
+  // переустанавливаться при каждом перерендере списка чипов.
+  host.querySelectorAll(".chat-filter-chip").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      $$("#chat-filters .chat-filter-chip").forEach((b) => b.classList.toggle("active", b === chip));
+      state.chatsSegment = "chats";
+      state.chatFilter = chip.dataset.filter;
+      renderChatsList();
+    });
+  });
+}
+function openFolderManageSheet() {
+  const list = $("#folder-manage-list"), empty = $("#folder-manage-empty");
+  if (!list) return;
+  list.innerHTML = "";
+  if (empty) empty.classList.toggle("hidden", state.folders.length > 0);
+  for (const f of state.folders) {
+    const btn = document.createElement("button");
+    btn.type = "button"; btn.className = "forward-row";
+    btn.innerHTML = `<span class="global-search-row-text"><span class="global-search-row-title">${escapeHtml(f.name)}</span><span class="global-search-row-subtitle muted">${T("chats.folder.memberCount", { n: f.contactIds.length })}</span></span>`;
+    btn.addEventListener("click", () => { const s = $("#folder-manage-sheet"); if (s) s.classList.add("hidden"); openFolderEditSheet(f.id); });
+    list.appendChild(btn);
+  }
+  const sheet = $("#folder-manage-sheet"); if (sheet) sheet.classList.remove("hidden");
+}
+function openFolderEditSheet(folderId) {
+  __folderEditingId = folderId || null;
+  const folder = folderId ? state.folders.find((f) => f.id === folderId) : null;
+  const title = $("#folder-edit-title");
+  if (title) title.textContent = folder ? folder.name : T("chats.folder.new");
+  const nameInput = $("#folder-edit-name");
+  if (nameInput) nameInput.value = folder ? folder.name : "";
+  const delBtn = $("#folder-edit-delete-btn");
+  if (delBtn) delBtn.classList.toggle("hidden", !folder);
+  const memberIds = new Set(folder ? folder.contactIds : []);
+  const list = $("#folder-edit-member-list");
+  if (list) {
+    list.innerHTML = "";
+    const contacts = Array.from(state.contacts.values()).filter((c) => c.managed && !c.isSelf);
+    for (const c of contacts) {
+      const row = document.createElement("label");
+      row.className = "forward-row";
+      row.innerHTML = `${avatarCircleHtml(c, "avatar-sm")}<span class="forward-name">${escapeHtml(c.name || T("sys.someone"))}</span><input type="checkbox" class="switch folder-member-check" data-contact-id="${escapeHtml(c.id)}" ${memberIds.has(c.id) ? "checked" : ""}>`;
+      list.appendChild(row);
+    }
+  }
+  const sheet = $("#folder-edit-sheet"); if (sheet) sheet.classList.remove("hidden");
+}
+function saveFolderEdit() {
+  const nameInput = $("#folder-edit-name");
+  const name = (nameInput && nameInput.value || "").trim();
+  if (!name) { toast(T("chats.folder.nameRequired")); return; }
+  const contactIds = $$("#folder-edit-member-list .folder-member-check:checked").map((el) => el.dataset.contactId);
+  if (__folderEditingId) {
+    const folder = state.folders.find((f) => f.id === __folderEditingId);
+    if (folder) { folder.name = name; folder.contactIds = contactIds; }
+  } else {
+    state.folders.push({ id: crypto.randomUUID(), name, contactIds });
+  }
+  persistChatFolders();
+  renderChatFolderChips();
+  const sheet = $("#folder-edit-sheet"); if (sheet) sheet.classList.add("hidden");
+  renderTab();
+}
+function deleteFolderEdit() {
+  if (!__folderEditingId) return;
+  // Если удаляемая папка сейчас активна как фильтр — откатываемся на
+  // "Все", иначе список чатов тихо остался бы отфильтрован по id папки,
+  // которой больше не существует (state.folders.find вернёт undefined,
+  // и renderChatsList покажет пустой список без всякого объяснения).
+  if (state.chatFilter === "folder:" + __folderEditingId) state.chatFilter = "all";
+  state.folders = state.folders.filter((f) => f.id !== __folderEditingId);
+  persistChatFolders();
+  renderChatFolderChips();
+  __folderEditingId = null;
+  const sheet = $("#folder-edit-sheet"); if (sheet) sheet.classList.add("hidden");
+  renderTab();
+}
+function wireChatFolders() {
+  renderChatFolderChips();
+  const addBtn = $("#chat-folder-add-btn");
+  if (addBtn) addBtn.addEventListener("click", openFolderManageSheet);
+  const createBtn = $("#folder-create-btn");
+  if (createBtn) createBtn.addEventListener("click", () => { const s = $("#folder-manage-sheet"); if (s) s.classList.add("hidden"); openFolderEditSheet(null); });
+  const saveBtn = $("#folder-edit-save-btn");
+  if (saveBtn) saveBtn.addEventListener("click", saveFolderEdit);
+  const delBtn = $("#folder-edit-delete-btn");
+  if (delBtn) delBtn.addEventListener("click", deleteFolderEdit);
+}
+
+// =====================================================================
 // Поиск
 // =====================================================================
 function wireSearchHandlers() {
@@ -7942,9 +10030,21 @@ function wireSearchHandlers() {
   if (ta) ta.addEventListener("click", () => { state.showArchived = !state.showArchived; renderChatsList(); });
   $$("#chat-filters .chat-filter-chip").forEach((chip) => {
     chip.addEventListener("click", () => {
-      state.chatFilter = chip.dataset.filter || "all";
+      const f = chip.dataset.filter || "all";
       $$("#chat-filters .chat-filter-chip").forEach((b) => b.classList.toggle("active", b === chip));
-      renderChatsList();
+      if (f === "calls") {
+        // "Звонки" — не отдельный таб и не отдельный сегмент-переключатель
+        // над списком (было двойной навигацией), а такой же чип, как
+        // All/Unread/Groups/Direct. Внутреннее состояние chatsSegment
+        // оставлено как есть — его читает renderTab()/renderCallsList().
+        state.chatsSegment = "calls";
+        markMissedCallsSeen();
+        renderTab();
+      } else {
+        state.chatsSegment = "chats";
+        state.chatFilter = f;
+        renderChatsList();
+      }
     });
   });
   const csb = $("#chat-search-btn");
@@ -7982,7 +10082,73 @@ function updateSearchCounter() {
 // =====================================================================
 // Настройки
 // =====================================================================
+// Раздел 9 роадмапа — категории с back-навигацией. category-hidden — своя
+// отдельная от search-hidden CSS-подсветка (идентичное правило
+// `display:none`, но другой класс): существующий обработчик поиска ниже
+// снимает search-hidden с ВСЕХ групп, когда поле очищается (строка
+// `q.length > 0 && !anyVisible`) — если бы категории прятались тем же
+// классом, очистка поиска случайно показывала бы разом все категории.
+function renderSettingsCategories() {
+  const list = $("#settings-category-list"); if (!list) return;
+  list.innerHTML = SETTINGS_CATEGORIES.map((cat) => `
+    <button type="button" class="settings-category-row" data-category="${cat.id}">
+      <span class="settings-category-icon"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="${cat.iconPath}"/></svg></span>
+      <span class="settings-category-label">${escapeHtml(T(cat.labelKey))}</span>
+      <span class="chevron"><svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M8.59 16.59 13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg></span>
+    </button>`).join("");
+  list.querySelectorAll(".settings-category-row").forEach((btn) => {
+    btn.addEventListener("click", () => openSettingsCategory(btn.dataset.category));
+  });
+}
+function openSettingsCategory(id) {
+  state.settingsCategory = id;
+  updateSettingsCategoryView();
+}
+function closeSettingsCategory() {
+  state.settingsCategory = null;
+  updateSettingsCategoryView();
+}
+// Поиск (ниже) работает по-прежнему ПО ВСЕМУ экрану Settings, а не внутри
+// одной категории — это сознательно: при вводе запроса пользователь хочет
+// найти нужную настройку, а не сначала угадать, в какой категории она
+// живёт. Поэтому во время поиска категории временно не участвуют:
+// показываются все группы, фильтрация идёт только через search-hidden,
+// как и раньше. Категория, что была открыта до начала поиска, никуда не
+// теряется — просто не применяется, пока в поле есть текст, и
+// восстанавливается сама собой, как только поле очищается (state
+// category мы здесь не трогаем).
+function updateSettingsCategoryView() {
+  const searchEl = $("#settings-search");
+  const searching = !!(searchEl && searchEl.value.trim());
+  const list = $("#settings-category-list");
+  const header = $("#settings-category-header");
+  const groups = $$("#screen-settings .settings-group");
+  if (searching) {
+    if (list) list.classList.add("hidden");
+    if (header) header.classList.add("hidden");
+    groups.forEach((g) => g.classList.remove("category-hidden"));
+    return;
+  }
+  if (!state.settingsCategory) {
+    if (list) list.classList.remove("hidden");
+    if (header) header.classList.add("hidden");
+    groups.forEach((g) => g.classList.add("category-hidden"));
+    return;
+  }
+  if (list) list.classList.add("hidden");
+  if (header) {
+    header.classList.remove("hidden");
+    const cat = SETTINGS_CATEGORIES.find((c) => c.id === state.settingsCategory);
+    const titleEl = $("#settings-category-title");
+    if (titleEl) titleEl.textContent = cat ? T(cat.labelKey) : "";
+  }
+  groups.forEach((g) => g.classList.toggle("category-hidden", g.dataset.settingsCategory !== state.settingsCategory));
+}
 function wireSettingsScreen() {
+  renderSettingsCategories();
+  updateSettingsCategoryView();
+  const backBtn = $("#settings-back-btn");
+  if (backBtn) backBtn.addEventListener("click", closeSettingsCategory);
   const settingsSearch = $("#settings-search");
   if (settingsSearch) {
     // Нюанс (как и предупреждал ревьюер): .settings-row.column — это
@@ -8005,6 +10171,10 @@ function wireSettingsScreen() {
         const anyVisible = Array.from(group.querySelectorAll(".settings-row")).some((r) => !r.classList.contains("search-hidden") && !r.classList.contains("hidden"));
         group.classList.toggle("search-hidden", q.length > 0 && !anyVisible);
       });
+      // Поиск временно "снимает" категории (см. комментарий у
+      // updateSettingsCategoryView) — пересчитываем после своей логики
+      // выше, а не вместо неё.
+      updateSettingsCategoryView();
     });
   }
   const helpBtn = $("#help-btn");
@@ -8016,10 +10186,61 @@ function wireSettingsScreen() {
   // на виду, а не спрятана в скрытом экране, куда обычный пользователь
   // никогда не попадёт (5 тапов по заголовку). #import-backup-input —
   // один и тот же file input на двух кнопках (Debug и Settings).
+  const favBtn = $("#settings-favorites-btn");
+  if (favBtn) favBtn.addEventListener("click", openFavoritesSheet);
   const sExpBackup = $("#settings-export-backup-btn");
   if (sExpBackup) sExpBackup.addEventListener("click", exportBackup);
   const sImpBackup = $("#settings-import-backup-btn");
   if (sImpBackup) sImpBackup.addEventListener("click", () => { const el = $("#import-backup-input"); if (el) el.click(); });
+  // killer-features-backlog 0.2 — "свой сервер" как оформленная фича:
+  // просто объяснение + готовая команда, без реального провижининга
+  // (странице неоткуда развернуть чужой сервер) — честные рамки того,
+  // что клиент вообще может сделать.
+  const selfHostBtn = $("#self-host-info-btn");
+  if (selfHostBtn) selfHostBtn.addEventListener("click", () => {
+    const sheet = $("#self-host-sheet"); if (sheet) sheet.classList.remove("hidden");
+  });
+  // killer-features-backlog 0.5 — Dead Man's Switch настройки.
+  const dmEnabledEl = $("#settings-deadman-enabled");
+  if (dmEnabledEl) dmEnabledEl.addEventListener("change", (e) => {
+    if (e.target.checked && !Store.deadManContactId) {
+      e.target.checked = false;
+      toast(T("toast.deadManNeedsContact"));
+      return;
+    }
+    Store.deadManEnabled = e.target.checked;
+    if (e.target.checked) checkDeadManSwitch();
+  });
+  const dmThresholdEl = $("#settings-deadman-threshold");
+  if (dmThresholdEl) dmThresholdEl.addEventListener("change", (e) => { Store.deadManThresholdDays = parseInt(e.target.value, 10) || 7; });
+  const dmContactBtn = $("#settings-deadman-contact-btn");
+  if (dmContactBtn) dmContactBtn.addEventListener("click", () => {
+    openForwardSheet((contactId) => {
+      Store.deadManContactId = contactId;
+      const nameEl2 = $("#settings-deadman-contact-name");
+      const c = state.contacts.get(contactId);
+      if (nameEl2) nameEl2.textContent = c ? (c.name || T("sys.someone")) : "";
+    }, "settings.deadMan.contact.pick");
+  });
+  // killer-features-backlog 1.7 — Panic Clean (встряхнуть телефон).
+  const panicShakeEl = $("#settings-panic-shake");
+  if (panicShakeEl) {
+    if (typeof DeviceMotionEvent === "undefined") {
+      const row = $("#settings-panic-shake-row"); if (row) row.classList.add("hidden");
+    } else {
+      panicShakeEl.addEventListener("change", async (e) => {
+        if (e.target.checked) {
+          const granted = await requestMotionPermissionIfNeeded();
+          if (!granted) { e.target.checked = false; toast(T("toast.motionPermissionDenied")); return; }
+          Store.panicShakeEnabled = true;
+          wirePanicShake();
+        } else {
+          Store.panicShakeEnabled = false;
+          unwirePanicShake();
+        }
+      });
+    }
+  }
   const nameEl = $("#settings-name");
   if (nameEl) nameEl.addEventListener("change", (e) => {
     const v = e.target.value.trim();
@@ -8082,6 +10303,11 @@ function wireSettingsScreen() {
   if (autoEmoji) autoEmoji.addEventListener("change", (e) => {
     Store.autoEmoji = e.target.checked;
   });
+  const composerPlus = $("#settings-composer-plus");
+  if (composerPlus) composerPlus.addEventListener("change", (e) => {
+    Store.composerPlusMode = e.target.checked;
+    applyComposerPlusMode();
+  });
   const ringtoneSel = $("#settings-ringtone");
   if (ringtoneSel) {
     ringtoneSel.value = Store.ringtone;
@@ -8100,6 +10326,10 @@ function wireSettingsScreen() {
   const linkPreviews = $("#settings-link-previews");
   if (linkPreviews) linkPreviews.addEventListener("change", (e) => {
     Store.linkPreviewsEnabled = e.target.checked;
+  });
+  const translateEndpointEl = $("#settings-translate-endpoint");
+  if (translateEndpointEl) translateEndpointEl.addEventListener("change", (e) => {
+    Store.translateEndpoint = e.target.value;
   });
   let pinSheetMode = "new"; // "new" | "verify-old" | "enter-new" | "disable"
   function updateChangePinBtnVisibility() {
@@ -8184,11 +10414,275 @@ function wireSettingsScreen() {
       $$(".theme-seg button").forEach((b) => b.classList.toggle("active", b === btn));
     });
   });
+  const calmModeToggle = $("#settings-calm-mode");
+  if (calmModeToggle) { calmModeToggle.checked = Store.calmMode; calmModeToggle.addEventListener("change", () => { Store.calmMode = calmModeToggle.checked; applyCalmMode(); }); }
   const bubbleSizeSel = $("#settings-bubble-size");
   if (bubbleSizeSel) { bubbleSizeSel.value = Store.bubbleSize; bubbleSizeSel.addEventListener("change", () => { Store.bubbleSize = bubbleSizeSel.value; applyChatAppearancePrefs(); }); }
+  const fontSizeSel = $("#settings-font-size");
+  if (fontSizeSel) { fontSizeSel.value = Store.fontSize; fontSizeSel.addEventListener("change", () => { Store.fontSize = fontSizeSel.value; applyChatAppearancePrefs(); requestAnimationFrame(() => updateTabIndicator()); }); }
   const wallpaperSel = $("#settings-wallpaper");
   if (wallpaperSel) { wallpaperSel.value = Store.chatWallpaper; wallpaperSel.addEventListener("change", () => { Store.chatWallpaper = wallpaperSel.value; applyChatAppearancePrefs(); }); }
 }
+
+// =====================================================================
+// Глобальный поиск (раздел 1/11/13 роадмапа) — единая точка поиска по
+// чатам, тексту сообщений, контактам, истории звонков и настройкам.
+// Открывается кнопкой #global-search-btn в nav-bar (видна на всех
+// экранах-списках) или шорткатом Cmd/Ctrl+K на десктопе. Намеренно НЕ
+// реализован как pull-down-to-search на мобильном — список чатов уже
+// занят своим pull-to-refresh (см. V.37.0.0), конкурирующий жест на том
+// же экране добавил бы путаницу; кнопка в шапке работает одинаково
+// предсказуемо на обеих платформах.
+// =====================================================================
+function openGlobalSearch() {
+  const sheet = $("#global-search-sheet");
+  if (!sheet) return;
+  sheet.classList.remove("hidden");
+  const input = $("#global-search-input");
+  if (input) {
+    input.value = "";
+    renderGlobalSearchResults("");
+    setTimeout(() => input.focus(), 50);
+  }
+}
+function closeGlobalSearch() {
+  const sheet = $("#global-search-sheet");
+  if (sheet) sheet.classList.add("hidden");
+}
+// Переход в конкретную категорию настроек (используется и кликом по
+// результату поиска, и может переиспользоваться где угодно ещё, где
+// нужно программно открыть Settings на нужном разделе). Сбрасывает
+// активный чат/карточку контакта и любой незакрытый #settings-search,
+// чтобы категория точно стала видимой (см. updateSettingsCategoryView).
+function navigateToSettingsCategory(catId) {
+  state.chatId = null;
+  state.contactCardId = null;
+  state.tab = "settings";
+  state.settingsCategory = catId || null;
+  const ss = $("#settings-search");
+  if (ss && ss.value) {
+    ss.value = "";
+    $$("#screen-settings .settings-row").forEach((r) => r.classList.remove("search-hidden"));
+    $$("#screen-settings .settings-group").forEach((g) => g.classList.remove("search-hidden"));
+  }
+  renderTab();
+  updateSettingsCategoryView();
+}
+function renderGlobalSearchResults(rawQuery) {
+  const resultsEl = $("#global-search-results");
+  const emptyEl = $("#global-search-empty");
+  if (!resultsEl) return;
+  const q = String(rawQuery || "").trim();
+  const qLower = q.toLowerCase();
+  if (!qLower) { resultsEl.innerHTML = ""; if (emptyEl) emptyEl.classList.add("hidden"); return; }
+  const allContacts = Array.from(state.contacts.values());
+  const chatMatches = allContacts
+    .filter((c) => c.messages && c.messages.length > 0 && (c.name || "").toLowerCase().includes(qLower))
+    .slice(0, 6);
+  // По одному (самому недавнему) совпадению на чат — иначе один активно
+  // переписывающийся контакт с частым словом забил бы всю секцию.
+  const messageMatches = [];
+  for (const c of allContacts) {
+    if (!c.messages || !c.messages.length) continue;
+    for (let i = c.messages.length - 1; i >= 0; i--) {
+      const text = c.messages[i].text || "";
+      if (text.toLowerCase().includes(qLower)) { messageMatches.push({ contact: c, text }); break; }
+    }
+    if (messageMatches.length >= 6) break;
+  }
+  const contactMatches = allContacts
+    .filter((c) => (!c.messages || !c.messages.length) && (c.name || "").toLowerCase().includes(qLower))
+    .slice(0, 6);
+  const callMatches = [];
+  const seenCallContacts = new Set();
+  for (const r of state.callLog.slice().sort((a, b) => b.startedAt - a.startedAt)) {
+    if (seenCallContacts.has(r.contactId)) continue;
+    const c = state.contacts.get(r.contactId);
+    const name = (c && c.name) || "";
+    if (name && name.toLowerCase().includes(qLower)) {
+      callMatches.push({ contactId: r.contactId, name });
+      seenCallContacts.add(r.contactId);
+    }
+    if (callMatches.length >= 6) break;
+  }
+  const settingsCategoryMatches = SETTINGS_CATEGORIES
+    .filter((cat) => T(cat.labelKey).toLowerCase().includes(qLower))
+    .map((cat) => ({ type: "category", id: cat.id, label: T(cat.labelKey) }));
+  const settingsRowMatches = $$("#screen-settings .settings-row")
+    .map((row) => ({ row, text: (row.textContent || "").trim() }))
+    .filter((r) => r.text && r.text.toLowerCase().includes(qLower))
+    .slice(0, 5)
+    .map((r) => {
+      const group = r.row.closest(".settings-group");
+      return { type: "row", id: group && group.dataset.settingsCategory, label: truncate(r.text, 60) };
+    });
+  const settingsMatches = settingsCategoryMatches.concat(settingsRowMatches).slice(0, 6);
+
+  const sections = [
+    { key: "chats", titleKey: "search.global.sectionChats", rows: chatMatches.map((c) => globalSearchRowHtml("chat", c.id, avatarCircleHtml(c, "avatar-sm"), highlightRaw(escapeHtml(c.name || ""), q), "")) },
+    { key: "messages", titleKey: "search.global.sectionMessages", rows: messageMatches.map((m) => globalSearchRowHtml("message", m.contact.id, avatarCircleHtml(m.contact, "avatar-sm"), escapeHtml(m.contact.name || ""), highlightRaw(escapeHtml(truncate(m.text, 60)), q))) },
+    { key: "contacts", titleKey: "search.global.sectionContacts", rows: contactMatches.map((c) => globalSearchRowHtml("contact", c.id, avatarCircleHtml(c, "avatar-sm"), highlightRaw(escapeHtml(c.name || ""), q), "")) },
+    { key: "calls", titleKey: "search.global.sectionCalls", rows: callMatches.map((r) => globalSearchRowHtml("call", r.contactId, avatarCircleHtml(state.contacts.get(r.contactId), "avatar-sm"), highlightRaw(escapeHtml(r.name), q), "")) },
+    { key: "settings", titleKey: "search.global.sectionSettings", rows: settingsMatches.map((m) => globalSearchRowHtml(m.type === "category" ? "settings-category" : "settings-row", m.id, "", highlightRaw(escapeHtml(m.label), q), "")) },
+  ].filter((s) => s.rows.length > 0);
+
+  if (!sections.length) {
+    resultsEl.innerHTML = "";
+    if (emptyEl) emptyEl.classList.remove("hidden");
+    return;
+  }
+  if (emptyEl) emptyEl.classList.add("hidden");
+  resultsEl.innerHTML = sections.map((s) => `
+    <div class="global-search-section">
+      <div class="global-search-section-title">${escapeHtml(T(s.titleKey))}</div>
+      <div class="forward-list">${s.rows.join("")}</div>
+    </div>
+  `).join("");
+}
+function globalSearchRowHtml(kind, id, avatarHtml, title, subtitle) {
+  return `
+    <button type="button" class="forward-row global-search-row" data-kind="${kind}" data-id="${escapeHtml(id || "")}">
+      ${avatarHtml || ""}
+      <span class="global-search-row-text">
+        <span class="global-search-row-title">${title}</span>
+        ${subtitle ? `<span class="global-search-row-subtitle muted">${subtitle}</span>` : ""}
+      </span>
+    </button>
+  `;
+}
+function wireGlobalSearch() {
+  const btn = $("#global-search-btn");
+  if (btn) btn.addEventListener("click", openGlobalSearch);
+  const input = $("#global-search-input");
+  if (input) input.addEventListener("input", (e) => renderGlobalSearchResults(e.target.value));
+  const resultsEl = $("#global-search-results");
+  if (resultsEl) {
+    resultsEl.addEventListener("click", (e) => {
+      const row = e.target.closest(".global-search-row");
+      if (!row) return;
+      const kind = row.dataset.kind;
+      const id = row.dataset.id;
+      if (kind === "chat" || kind === "message" || kind === "call") {
+        if (!id || !state.contacts.has(id)) { closeGlobalSearch(); return; }
+        closeGlobalSearch();
+        try { cancelVoiceRecordingIfLeavingChat(id); } catch (e) {}
+        state.multiSelect = null;
+        state.chatId = id;
+        state.contactCardId = null;
+        renderTab();
+      } else if (kind === "contact") {
+        if (!id || !state.contacts.has(id)) { closeGlobalSearch(); return; }
+        closeGlobalSearch();
+        openContactCard(id);
+      } else if (kind === "settings-category" || kind === "settings-row") {
+        closeGlobalSearch();
+        navigateToSettingsCategory(id);
+      }
+    });
+  }
+  // Cmd/Ctrl+K — стандартный десктопный шорткат для "перейти куда угодно"
+  // (VS Code, Slack, Linear и т.п.), уже упомянут в разделах 1/11 роадмапа.
+  document.addEventListener("keydown", (e) => {
+    const mod = e.metaKey || e.ctrlKey;
+    if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      openGlobalSearch();
+    }
+  });
+  // Esc "на всех шторках" (раздел 11/13 роадмапа) теперь общий
+  // document-level хендлер — см. wireEscCloseAnySheet() ниже, подключается
+  // отдельно при старте, не только здесь.
+}
+// Esc закрывает самую верхнюю открытую .sheet, какая бы это ни была —
+// во всей кодовой базе ~20 разных шторок, и ВСЕ они без исключения
+// управляются одинаково: класс .hidden снимается при открытии и
+// добавляется при закрытии (см. wireSheetBackdrops выше, data-close-sheet,
+// свайп за .sheet-handle). Это значит, что закрытие — это всегда ровно
+// "добавить .hidden", без побочных эффектов, специфичных для конкретной
+// шторки (ни одна из них не хранит какое-то дополнительное состояние,
+// которое нужно было бы сбрасывать при закрытии именно через Esc, а не
+// через крестик/бэкдроп/свайп) — поэтому единый обработчик безопасен для
+// всех них сразу, без точечной доработки каждой по отдельности.
+// Если открыто несколько шторок одновременно (в норме не происходит, но
+// на случай незамеченного состояния) — закрываем последнюю в DOM-порядке,
+// т.к. шторки всегда дописываются в конец документа и визуально самая
+// "верхняя" по z-index оказывается последней.
+function wireEscCloseAnySheet() {
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    const flyout = $("#quick-reaction-flyout");
+    if (flyout && !flyout.classList.contains("hidden")) { closeQuickReactionFlyout(); return; }
+    const openSheets = $$(".sheet:not(.hidden)");
+    if (openSheets.length === 0) return;
+    openSheets[openSheets.length - 1].classList.add("hidden");
+  });
+}
+// Раздел 11 — фокус-менеджмент шторок (был в "Сознательно отложено").
+// Тот же аргумент об однородности, что выше у wireEscCloseAnySheet:
+// все ~20 шторок открываются/закрываются ровно одним и тем же способом
+// (снятие/добавление .sheet.hidden, без иных побочных эффектов) — значит
+// один MutationObserver на все .sheet сразу безопасно даёт: (1) фокус
+// внутрь шторки при открытии, если ничто более специфичное не
+// позаботилось об этом само (многие шторки уже фокусируют конкретное
+// поле — тот код просто выигрывает гонку, выполняясь позже в своём
+// setTimeout, и наш общий автофокус для них невидим); (2) возврат фокуса
+// на элемент-источник при закрытии — вместо того, чтобы он проваливался
+// в <body>, как было раньше у всех шторок без исключения; (3) Tab-ловушку
+// внутри самой верхней открытой шторки, вместо утечки фокуса под неё.
+const __sheetReturnFocus = new WeakMap();
+function focusableIn(container) {
+  if (!container) return [];
+  return Array.from(container.querySelectorAll('button, [href], input, select, textarea, [tabindex]'))
+    .filter((el) => !el.disabled && el.tabIndex !== -1 && el.offsetParent !== null && !el.classList.contains("sheet-backdrop"));
+}
+function wireSheetFocusManagement() {
+  const sheets = $$(".sheet");
+  if (sheets.length === 0) return;
+  const observer = new MutationObserver((mutations) => {
+    for (const mut of mutations) {
+      const el = mut.target;
+      if (!(el instanceof Element) || !el.classList.contains("sheet")) continue;
+      if (!el.classList.contains("hidden")) {
+        if (!__sheetReturnFocus.has(el)) __sheetReturnFocus.set(el, document.activeElement);
+        const panel = el.querySelector(".sheet-panel") || el;
+        const already = panel.contains(document.activeElement) && document.activeElement !== document.body;
+        if (!already) {
+          const focusables = focusableIn(panel);
+          if (focusables.length > 0) setTimeout(() => { if (!el.classList.contains("hidden") && document.activeElement === document.body) focusables[0].focus(); }, 0);
+        }
+      } else {
+        const src = __sheetReturnFocus.get(el);
+        __sheetReturnFocus.delete(el);
+        if (src && document.body.contains(src) && typeof src.focus === "function" && document.activeElement === document.body) src.focus();
+      }
+    }
+  });
+  sheets.forEach((el) => observer.observe(el, { attributes: true, attributeFilter: ["class"] }));
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Tab") return;
+    const openSheets = $$(".sheet:not(.hidden)");
+    if (openSheets.length === 0) return;
+    const top = openSheets[openSheets.length - 1];
+    const panel = top.querySelector(".sheet-panel") || top;
+    const focusables = focusableIn(panel);
+    if (focusables.length === 0) return;
+    const first = focusables[0], last = focusables[focusables.length - 1];
+    if (!panel.contains(document.activeElement)) { e.preventDefault(); first.focus(); return; }
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
+}
+// Cmd/Ctrl+N ("новый чат"/"добавить контакт") — ИССЛЕДОВАНО (раздел 11/13),
+// НЕ РЕАЛИЗУЕМО: Ctrl/Cmd+N относится к небольшому списку акселераторов,
+// захардкоженных самим браузером как "новое окно" (вместе с Ctrl+T/
+// Ctrl+W/Ctrl+Tab и т.п.) — событие keydown для него в принципе не
+// доходит до JS страницы ни в Chrome, ни в Firefox, ни в Safari, ни во
+// вкладке браузера, ни в установленном PWA-окне. Это не ограничение
+// текущей реализации — перехватить такой шорткат из веб-страницы
+// невозможно никаким кодом. Остаётся в бэктлоге как "признано
+// неприменимым", аналогично тому, как Cmd+Enter был признан
+// неприменимым в V.41.0.0 (композер однострочный), только по другой
+// причине.
 
 // =====================================================================
 // Отладка
@@ -8208,8 +10702,12 @@ function wireNavTitleTaps() {
     const now = Date.now();
     __navTitleTaps = __navTitleTaps.filter((t) => now - t < 2000);
     __navTitleTaps.push(now);
+    // Фидбек на подходе к разблокировке — иначе пользователь не понимает,
+    // что тапы вообще считаются, пока не откроется вкладка на 5-м.
+    if (__navTitleTaps.length === 3 || __navTitleTaps.length === 4) haptic("light");
     if (__navTitleTaps.length >= 5) {
       __navTitleTaps = [];
+      haptic("medium");
       Store.debugHidden = false;
       applyDebugTabVisibility();
     }
@@ -8223,22 +10721,83 @@ function wireNavTitleTaps() {
 // спрятан на 2 экрана глубже) — весь смысл паника-кнопки в том, чтобы
 // быть доступной за секунды в стрессовой ситуации, а не быть удобной
 // для случайного нажатия.
+// Общая необратимая очистка — раньше была только внутри wirePanicButton,
+// теперь переиспользуется и встряхиванием (killer-features-backlog 1.7).
+function performPanicWipe() {
+  try { localStorage.clear(); } catch (e) {}
+  if ("caches" in window) { try { caches.keys().then((names) => names.forEach((n) => caches.delete(n))); } catch (e) {} }
+  if ("indexedDB" in window) { try { indexedDB.deleteDatabase("ether-db"); } catch (e) {} }
+  location.reload();
+}
 function wirePanicButton() {
   const el = document.getElementById("about-app-logo");
   if (!el) return;
-  el.addEventListener("click", () => {
+  el.addEventListener("click", async () => {
     const now = Date.now();
     __panicTaps = __panicTaps.filter((t) => now - t < 2000);
     __panicTaps.push(now);
     if (__panicTaps.length >= 5) {
       __panicTaps = [];
-      if (!confirm(T("toast.confirmPanic"))) return;
-      try { localStorage.clear(); } catch (e) {}
-      if ("caches" in window) { try { caches.keys().then((names) => names.forEach((n) => caches.delete(n))); } catch (e) {} }
-      if ("indexedDB" in window) { try { indexedDB.deleteDatabase("ether-db"); } catch (e) {} }
-      location.reload();
+      if (!await confirmSheet(T("toast.confirmPanic"), { destructive: true })) return;
+      performPanicWipe();
     }
   });
+}
+// killer-features-backlog 1.7 — Panic Clean (встряхнуть телефон → очистка).
+// Честная оговорка (см. Store.panicShakeEnabled выше): DeviceMotion на iOS
+// 13+ требует permission-промпт по явному жесту пользователя (запрашиваем
+// при включении тумблера) и в принципе ненадёжен в фоне — это ПОЭТОМУ не
+// "silent background trigger", а быстрый, но ОТМЕНЯЕМЫЙ (4 секунды) wipe,
+// чтобы случайное резкое движение (выпал из рук, активная игра) не стёрло
+// данные без шанса передумать.
+const SHAKE_THRESHOLD = 35; // м/с² суммарно по 3 осям — эмпирический порог резкого рывка
+const SHAKE_DEBOUNCE_MS = 3000;
+const SHAKE_WIPE_DELAY_MS = 4000;
+let __shakeLastTrigger = 0;
+let __shakeWipeTimer = null;
+function handleShakeMotion(e) {
+  const a = e.accelerationIncludingGravity || e.acceleration;
+  if (!a) return;
+  const mag = Math.abs(a.x || 0) + Math.abs(a.y || 0) + Math.abs(a.z || 0);
+  if (mag < SHAKE_THRESHOLD) return;
+  const now = Date.now();
+  if (now - __shakeLastTrigger < SHAKE_DEBOUNCE_MS) return;
+  __shakeLastTrigger = now;
+  triggerPanicShakeWipe();
+}
+function triggerPanicShakeWipe() {
+  if (__shakeWipeTimer) return; // уже отсчитывается — повторный рывок не перезапускает таймер
+  const banner = $("#panic-shake-banner"); if (banner) banner.classList.remove("hidden");
+  __shakeWipeTimer = setTimeout(() => {
+    __shakeWipeTimer = null;
+    if (banner) banner.classList.add("hidden");
+    performPanicWipe();
+  }, SHAKE_WIPE_DELAY_MS);
+}
+function cancelPanicShakeWipe() {
+  if (__shakeWipeTimer) { clearTimeout(__shakeWipeTimer); __shakeWipeTimer = null; }
+  const banner = $("#panic-shake-banner"); if (banner) banner.classList.add("hidden");
+}
+async function requestMotionPermissionIfNeeded() {
+  // DeviceMotionEvent.requestPermission существует только на iOS 13+ —
+  // на Android и десктопе его просто нет, доступ не требует жеста.
+  if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
+    try { return (await DeviceMotionEvent.requestPermission()) === "granted"; } catch (e) { return false; }
+  }
+  return true;
+}
+function wirePanicShake() {
+  if (typeof DeviceMotionEvent === "undefined") return;
+  window.removeEventListener("devicemotion", handleShakeMotion); // идемпотентность — safeCall может дёрнуть дважды
+  window.addEventListener("devicemotion", handleShakeMotion);
+}
+function unwirePanicShake() {
+  window.removeEventListener("devicemotion", handleShakeMotion);
+  cancelPanicShakeWipe();
+}
+function wirePanicShakeBanner() {
+  const btn = $("#panic-shake-cancel-btn");
+  if (btn) btn.addEventListener("click", cancelPanicShakeWipe);
 }
 const HELP_SECTIONS = [
   "start", "contacts", "messaging", "media", "disappearing", "groups", "calls", "privacy", "settingsHelp",
@@ -8294,8 +10853,8 @@ function wireDebugScreen() {
   const storageClose = $("#storage-close");
   if (storageClose) storageClose.addEventListener("click", () => { const el = $("#storage-sheet"); if (el) el.classList.add("hidden"); });
   const clearOldMediaBtn = $("#storage-clear-old-media-btn");
-  if (clearOldMediaBtn) clearOldMediaBtn.addEventListener("click", () => {
-    if (!confirm(T("storage.clearOldMedia") + "?")) return;
+  if (clearOldMediaBtn) clearOldMediaBtn.addEventListener("click", async () => {
+    if (!await confirmSheet(T("storage.clearOldMedia") + "?", { destructive: true })) return;
     clearOldMedia(30);
   });
   const exportDiag = $("#export-diagnostics-btn");
@@ -8308,25 +10867,37 @@ function wireDebugScreen() {
   wireImportBackupInput();
 
   const reset = $("#reset-all-btn");
-  if (reset) reset.addEventListener("click", () => {
-    if (!confirm(T("toast.confirmDeleteContact", { name: "?" }))) return;
+  if (reset) reset.addEventListener("click", async () => {
+    if (!await confirmSheet(T("toast.confirmDeleteContact", { name: "?" }), { destructive: true })) return;
     for (const id of Array.from(state.contacts.keys())) mesh.remove(id);
     for (const t of autoConnectTimers.values()) clearTimeout(t);
     autoConnectTimers.clear();
     onlineSet.clear(); outbox.clear(); groupDeliveryMap.clear(); pendingNoKey.clear(); seenDeliverIds.clear(); recentlyDeletedIds.clear();
     state.contacts.clear(); state.callLog = []; state.currentCallRecord = null;
-    state.lastSeen = {}; state.drafts = {};
+    state.lastSeen = {}; state.drafts = {}; state.scheduledMessages = []; state.folders = [];
+    // Если в момент сброса был в полёте дебаунс-таймер persistContacts()
+    // (см. persistContactsNow выше) — он бы минут через 0.2с воскресил
+    // только что обнулённый список из устаревшего __contactsPersistPending.
+    if (__contactsPersistTimer) { clearTimeout(__contactsPersistTimer); __contactsPersistTimer = null; }
+    __contactsPersistPending = null;
     Store.contactsJson = "[]"; Store.outboxJson = "[]"; Store.groupDeliveryMapJson = "[]"; Store.pendingNoKeyJson = "{}";
-    Store.callLogJson = "[]"; Store.lastSeenJson = "{}"; Store.draftsJson = "{}"; Store.recentlyDeletedJson = "{}";
+    Store.callLogJson = "[]"; Store.lastSeenJson = "{}"; Store.draftsJson = "{}"; Store.recentlyDeletedJson = "{}"; Store.scheduledMessagesJson = "[]";
+    Store.chatFoldersJson = "[]"; renderChatFolderChips();
     resetConnectScreen(); renderTab();
   });
   const hard = $("#debug-hard-reset-btn");
-  if (hard) hard.addEventListener("click", () => {
-    if (!confirm(T("toast.confirmHardReset"))) return;
-    localStorage.clear();
-    if ("caches" in window) caches.keys().then((names) => names.forEach((n) => caches.delete(n)));
-    if ("indexedDB" in window) try { indexedDB.deleteDatabase("ether-db"); } catch (e) {}
-    location.reload();
+  if (hard) hard.addEventListener("click", async () => {
+    if (!await confirmSheet(T("toast.confirmHardReset"), { destructive: true })) return;
+    performFullAccountWipe();
+  });
+  // «Удалить аккаунт» в обычных настройках — та же необратимая операция,
+  // что и debug-hard-reset-btn (раньше была доступна только за 5 тапов
+  // в скрытом Debug-экране), но с явным подтверждением, которое называет
+  // вещи своими именами: нет серверной копии, отменить нельзя.
+  const delAcc = $("#settings-delete-account-btn");
+  if (delAcc) delAcc.addEventListener("click", async () => {
+    if (!await confirmSheet(T("toast.confirmDeleteAccount"), { destructive: true })) return;
+    performFullAccountWipe();
   });
   const hideToggle = $("#debug-hide-toggle");
   if (hideToggle) hideToggle.addEventListener("change", (e) => {
@@ -8469,13 +11040,176 @@ function exportFullDiagnostics() {
   downloadBlob(blob, `ether-diagnostics-${new Date().toISOString().slice(0, 10)}.txt`);
   toast(T("toast.diagnosticsSaved"));
 }
-function exportBackup() {
+// === Шифрование бэкапа паролем (раздел 2 роадмапа) ===
+// PBKDF2(пароль, случайная соль) → AES-GCM 256 ключ, тот же envelope-формат
+// {iv, ct, v}, что и CryptoHelper.encryptJson/decryptJson используют для
+// ECDH-ключей — AES-GCM не знает и не обязан знать, откуда взялся ключ.
+// Забытый пароль делает бэкап безвозвратно нечитаемым — это осознанное
+// свойство (без него "шифрование" было бы фикцией с чёрным ходом), а не
+// баг, но его необходимо явно объяснять на экране экспорта (см. i18n-ключ
+// backup.password.exportHint) — отдельная УХ-задача, помимо собственно
+// шифрования, которую сам отчёт выделял как главный риск этого пункта.
+const BACKUP_PBKDF2_ITERATIONS = 210000;
+const BACKUP_ENCRYPTED_MARKER = "etherEncryptedBackup"; // без точки после "ether" — не пересекается с ключами localStorage вида "ether.xxx"
+async function deriveBackupKey(password, saltBytes) {
+  const baseKey = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey(
+    { name: "PBKDF2", salt: saltBytes, iterations: BACKUP_PBKDF2_ITERATIONS, hash: "SHA-256" },
+    baseKey,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"]
+  );
+}
+// Промис-обёртка вокруг шторки #backup-password-sheet: resolve(password)
+// при подтверждении с непустым паролем, resolve(null) при "Без пароля"
+// (режим export) или любом способе закрыть шторку не дав пароль (backdrop,
+// Esc через общий wireEscCloseAnySheet — ни один из них не знает про этот
+// промис, поэтому settle() в wireBackupPasswordSheet подписан через
+// MutationObserver на сам факт появления класса .hidden, а не только на
+// свои кнопки — иначе промис мог бы повиснуть навечно).
+let __backupPasswordResolve = null;
+function openBackupPasswordSheet(mode) {
+  return new Promise((resolve) => {
+    const sheet = $("#backup-password-sheet");
+    if (!sheet) { resolve(null); return; }
+    __backupPasswordResolve = resolve;
+    const title = $("#backup-password-title");
+    const hint = $("#backup-password-hint");
+    const input = $("#backup-password-input");
+    const skipBtn = $("#backup-password-skip");
+    if (input) input.value = "";
+    const titleKey = mode === "import" ? "backup.password.importTitle" : "backup.password.exportTitle";
+    const hintKey = mode === "import" ? "backup.password.importHint" : "backup.password.exportHint";
+    if (title) { title.setAttribute("data-i18n", titleKey); title.textContent = T(titleKey); }
+    if (hint) { hint.setAttribute("data-i18n", hintKey); hint.textContent = T(hintKey); }
+    // При импорте пароль обязателен (иначе нечего расшифровывать) —
+    // кнопки "Без пароля" на этом шаге просто нет смысла показывать.
+    if (skipBtn) skipBtn.classList.toggle("hidden", mode === "import");
+    sheet.classList.remove("hidden");
+    if (input) setTimeout(() => input.focus(), 50);
+  });
+}
+let __backupPasswordSheetWired = false;
+function wireBackupPasswordSheet() {
+  if (__backupPasswordSheetWired) return;
+  __backupPasswordSheetWired = true;
+  const sheet = $("#backup-password-sheet"); if (!sheet) return;
+  const input = $("#backup-password-input");
+  const confirmBtn = $("#backup-password-confirm");
+  const skipBtn = $("#backup-password-skip");
+  const settle = (value) => {
+    const resolve = __backupPasswordResolve;
+    if (!resolve) return; // уже резолвлено (или шторка открылась не через openBackupPasswordSheet)
+    __backupPasswordResolve = null;
+    sheet.classList.add("hidden");
+    resolve(value);
+  };
+  if (confirmBtn) confirmBtn.addEventListener("click", () => settle((input && input.value) || null));
+  if (skipBtn) skipBtn.addEventListener("click", () => settle(null));
+  if (input) input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); if (confirmBtn) confirmBtn.click(); } });
+  // Закрытие шторки ЛЮБЫМ другим путём (backdrop-клик через общий
+  // wireSheetBackdrops, Esc через wireEscCloseAnySheet) — эти обработчики
+  // просто навешивают .hidden и ничего не знают про наш промис.
+  // MutationObserver перехватывает сам факт появления .hidden и
+  // резолвит оставшийся промис как "отмена" (null), не оставляя его
+  // висеть навечно, даже если settle() выше не был вызван напрямую.
+  new MutationObserver(() => {
+    if (sheet.classList.contains("hidden")) settle(null);
+  }).observe(sheet, { attributes: true, attributeFilter: ["class"] });
+}
+// Воркер — singleton, создаётся лениво при первом реальном экспорте/
+// импорте бэкапа (не на старте приложения, это не нужно почти никому
+// каждый сеанс). Если конструктор Worker бросил исключение (очень
+// старый браузер, ограничение окружения) — getCryptoWorker() вернёт
+// null один раз и дальше вызывающий код просто считает на основном
+// потоке, как было до этой версии; никакой деградации корректности.
+let __cryptoWorker = null;
+let __cryptoWorkerFailed = false;
+let __cryptoWorkerReqId = 0;
+const __cryptoWorkerPending = new Map();
+function getCryptoWorker() {
+  if (__cryptoWorkerFailed) return null;
+  if (__cryptoWorker) return __cryptoWorker;
+  try {
+    __cryptoWorker = new Worker("js/crypto-worker.js");
+    __cryptoWorker.onmessage = (ev) => {
+      const { reqId, ok, envelope, data, error } = ev.data || {};
+      const pending = __cryptoWorkerPending.get(reqId);
+      if (!pending) return;
+      __cryptoWorkerPending.delete(reqId);
+      if (ok) pending.resolve({ envelope, data }); else pending.reject(new Error(error || "crypto worker error"));
+    };
+    __cryptoWorker.onerror = () => {
+      // Воркер упал целиком (не отдельный запрос, а сам поток) —
+      // отклоняем всё, что всё ещё ждёт ответа, и больше не пытаемся
+      // создать новый: дальнейшие вызовы сразу идут на основной поток.
+      for (const [, pending] of __cryptoWorkerPending) pending.reject(new Error("crypto worker crashed"));
+      __cryptoWorkerPending.clear();
+      __cryptoWorkerFailed = true;
+      __cryptoWorker = null;
+    };
+  } catch (e) { __cryptoWorkerFailed = true; return null; }
+  return __cryptoWorker;
+}
+function runInCryptoWorker(action, msg) {
+  const worker = getCryptoWorker();
+  if (!worker) return Promise.reject(new Error("crypto worker unavailable"));
+  const reqId = ++__cryptoWorkerReqId;
+  return new Promise((resolve, reject) => {
+    __cryptoWorkerPending.set(reqId, { resolve, reject });
+    worker.postMessage(Object.assign({ reqId, action }, msg));
+  });
+}
+// encrypt у бэкапа не имеет понятия "неверный пароль" (пароль здесь
+// просто вход для KDF, не проверка) — поэтому любую ошибку воркера тут
+// безопасно считать поводом пересчитать на основном потоке, без риска
+// замаскировать настоящую семантическую ошибку.
+async function encryptBackupPayload(password, salt, data) {
+  try {
+    const res = await runInCryptoWorker("encrypt", { password, salt, data });
+    return res.envelope;
+  } catch (e) {
+    const key = await deriveBackupKey(password, salt);
+    return CryptoHelper.encryptJson(key, data);
+  }
+}
+// decrypt — наоборот, ошибка воркера МОЖЕТ означать "неверный пароль"
+// (AES-GCM не прошёл проверку подлинности). Пересчёт на основном потоке
+// в этом случае просто повторит ту же ошибку (цена — одна лишняя
+// PBKDF2 на 210000 итераций в редком случае опечатки в пароле, не в
+// горячем пути), но зато единообразен с encryptBackupPayload и не
+// пытается угадывать причину ошибки по тексту сообщения.
+async function decryptBackupPayload(password, salt, envelope) {
+  try {
+    const res = await runInCryptoWorker("decrypt", { password, salt, envelope });
+    return res.data;
+  } catch (e) {
+    const key = await deriveBackupKey(password, salt);
+    return CryptoHelper.decryptJson(key, envelope);
+  }
+}
+async function exportBackup() {
+  persistContactsNow(); // гарантируем, что дебаунс-таймер не "съест" последние изменения
   const data = {};
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
     if (k && k.startsWith("ether.")) data[k] = localStorage.getItem(k);
   }
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  let payload = data;
+  let password = null;
+  try { password = await openBackupPasswordSheet("export"); } catch (e) {}
+  if (password) {
+    try {
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      const envelope = await encryptBackupPayload(password, salt, data);
+      payload = { [BACKUP_ENCRYPTED_MARKER]: true, kdf: "PBKDF2", iterations: BACKUP_PBKDF2_ITERATIONS, salt: arrayBufferToBase64(salt), envelope };
+    } catch (e) {
+      etherLog("error", "[backup] encryption failed, falling back to plain export:", String(e));
+      payload = data; // шифрование не удалось (например, WebCrypto недоступен) — честнее отдать обычный бэкап, чем вообще ничего
+    }
+  }
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
   downloadBlob(blob, `ether-backup-${new Date().toISOString().slice(0, 10)}.json`);
   toast(T("toast.backupSaved"));
 }
@@ -8483,11 +11217,37 @@ async function importBackup(ev) {
   const file = ev.target.files && ev.target.files[0];
   ev.target.value = "";
   if (!file) return;
+  await importBackupFile(file);
+}
+// Вынесено из importBackup() отдельно: drag-and-drop файла бэкапа прямо
+// на карточку онбординга (см. wireOnboardingOnce) даёт File через
+// DataTransfer, а не через <input type="file">, так что общая логика
+// не может зависеть от ev.target.
+async function importBackupFile(file) {
   try {
     const text = await file.text();
-    const data = JSON.parse(text);
+    const parsed = JSON.parse(text);
+    if (!parsed || typeof parsed !== "object") throw new Error("bad");
+    let data = parsed;
+    if (parsed[BACKUP_ENCRYPTED_MARKER]) {
+      const password = await openBackupPasswordSheet("import");
+      if (!password) return; // пользователь закрыл шторку без пароля — тихо отменяем импорт, а не падаем с ошибкой
+      try {
+        const salt = base64ToUint8Array(parsed.salt);
+        data = await decryptBackupPayload(password, salt, parsed.envelope);
+      } catch (e) {
+        toast(T("toast.wrongBackupPassword"));
+        return;
+      }
+    }
     if (!data || typeof data !== "object") throw new Error("bad");
-    if (!confirm(T("toast.confirmHardReset"))) return;
+    if (!await confirmSheet(T("toast.confirmHardReset"), { destructive: true })) return;
+    // Отменяем (не сбрасываем!) любой "летящий" дебаунс-таймер
+    // persistContacts() — он держит СТАРЫЙ снимок контактов (ещё с ДО
+    // импорта) и, сработав в течение 800мс до reload ниже, переписал бы
+    // поверх только что импортированных данных это старьё.
+    if (__contactsPersistTimer) { clearTimeout(__contactsPersistTimer); __contactsPersistTimer = null; }
+    __contactsPersistPending = null;
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const k = localStorage.key(i);
       if (k && k.startsWith("ether.")) localStorage.removeItem(k);
@@ -8502,6 +11262,14 @@ async function importBackup(ev) {
 // Mesh события
 // =====================================================================
 function wireMeshEvents() {
+  // Показ экрана прервали через системный UI браузера, а не через нашу
+  // кнопку (см. PeerLink.startScreenShare/screenTrack.onended в webrtc.js)
+  // — синхронизируем кнопку обратно в неактивное состояние.
+  mesh.addEventListener("screen-share-ended", (ev) => {
+    if (ev.detail && ev.detail.id === state.callId) {
+      const btn = $("#call-screenshare-btn"); if (btn) btn.classList.remove("active");
+    }
+  });
   mesh.addEventListener("link-status", (ev) => {
     try {
       const { id, status } = ev.detail;
@@ -8807,9 +11575,9 @@ if (cameraInput) {
   const msCancel = $("#multiselect-cancel-btn");
   if (msCancel) msCancel.addEventListener("click", () => exitMultiSelect());
   const msDelete = $("#multiselect-delete-btn");
-  if (msDelete) msDelete.addEventListener("click", () => {
+  if (msDelete) msDelete.addEventListener("click", async () => {
     const id = state.chatId; if (!id || !state.multiSelect) return;
-    if (!confirm(T("chat.selectMsgs.deleteConfirm", { n: state.multiSelect.size }))) return;
+    if (!await confirmSheet(T("chat.selectMsgs.deleteConfirm", { n: state.multiSelect.size }), { destructive: true })) return;
     for (const msgId of state.multiSelect) deleteMessageLocal(id, msgId);
     exitMultiSelect();
   });
@@ -8975,8 +11743,18 @@ function shutdownCallIfActive() {
 }
 window.addEventListener("beforeunload", () => {
   try { saveCurrentDraft(); } catch (e) {}
+  try { persistContactsNow(); } catch (e) {}
   try { backupToIDB(); } catch (e) {}
   shutdownCallIfActive();
+});
+// Уход в фон (сворачивание, переключение вкладки) на мобильных — не менее
+// вероятная точка "внезапной смерти" процесса, чем beforeunload, который
+// на iOS Safari часто просто не успевает сработать. Сбрасываем дебаунс
+// persistContacts() и здесь же, не дожидаясь unload.
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") {
+    try { persistContactsNow(); } catch (e) {}
+  }
 });
 
 document.addEventListener("visibilitychange", () => {
