@@ -92,3 +92,25 @@ test("updateAppBadge не считает самочат", () => {
   assert.equal(a.document.querySelector("#tab-chats-badge").textContent, "2");
   a.close();
 });
+
+test("copyText: успех через clipboard, ошибка clipboard, и корректный тост при неудаче legacy-копирования", async () => {
+  const a = fresh();
+  const toast = () => a.document.querySelector("#toast").textContent;
+  Object.defineProperty(a.window.navigator, "clipboard", { value: { writeText: async () => {} }, configurable: true });
+  a.run(`copyText("x", "COPIED")`); await new Promise((r) => setTimeout(r, 20));
+  assert.equal(toast(), "COPIED");
+  Object.defineProperty(a.window.navigator, "clipboard", { value: { writeText: async () => { throw new Error("denied"); } }, configurable: true });
+  a.run(`copyText("x", "COPIED")`); await new Promise((r) => setTimeout(r, 20));
+  assert.notEqual(toast(), "COPIED");
+  Object.defineProperty(a.window.navigator, "clipboard", { value: { writeText: () => { throw new Error("sync"); } }, configurable: true });
+  a.run(`copyText("x", "COPIED2")`);
+  assert.notEqual(toast(), "COPIED2");
+  Object.defineProperty(a.window.navigator, "clipboard", { value: undefined, configurable: true });
+  a.document.execCommand = () => false; // legacy-копирование не удалось
+  a.run(`copyText("x", "COPIED3")`);
+  assert.notEqual(toast(), "COPIED3", "нельзя сообщать об успехе, если execCommand вернул false");
+  a.document.execCommand = () => true;
+  a.run(`copyText("x", "COPIED4")`);
+  assert.equal(toast(), "COPIED4");
+  a.close();
+});

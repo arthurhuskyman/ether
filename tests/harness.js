@@ -19,6 +19,51 @@ async function closeAll() {
   for (const pc of PCS.splice(0)) { try { pc.close(); } catch (e) {} }
   for (const d of APPS.splice(0)) { try { d.window.close(); } catch (e) {} }
 }
+// Профили платформ. Подменяются только то, чем реально различаются браузеры
+// (UA, наличие API); сам код приложения исполняется как есть.
+const UA = {
+  ios: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1",
+  android: "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
+  desktop: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+};
+function applyPlatform(w, platform, opts) {
+  const nav = w.navigator;
+  const def = (o, k, v) => Object.defineProperty(o, k, { value: v, configurable: true, writable: true });
+  def(nav, "userAgent", UA[platform] || UA.desktop);
+  const vib = [];
+  w.__vibrations = vib;
+  const badges = [];
+  w.__badges = badges;
+  const supportedMime = (list) => (t) => list.some((m) => t === m || t.startsWith(m + ";") || m.startsWith(t));
+  class FakeRecorder { constructor(stream, o) { this.stream = stream; this.mimeType = (o && o.mimeType) || ""; this.state = "inactive"; } start() { this.state = "recording"; } stop() { this.state = "inactive"; } addEventListener() {} }
+  if (platform === "ios") {
+    if (opts.standalone) def(nav, "standalone", true); else def(nav, "standalone", false);
+    // iOS Safari: нет vibrate, нет Contact Picker, нет getDisplayMedia, PiP — только webkit-API
+    def(nav, "vibrate", undefined);
+    if (opts.standalone) { def(nav, "setAppBadge", async (n) => { badges.push(n); }); def(nav, "clearAppBadge", async () => { badges.push(0); }); }
+    else { delete w.Notification; }
+    FakeRecorder.isTypeSupported = supportedMime(["audio/mp4", "video/mp4"]);
+    w.MediaRecorder = FakeRecorder;
+    w.HTMLVideoElement.prototype.webkitSetPresentationMode = function (mode) { this.webkitPresentationMode = mode; (w.__pipModes = w.__pipModes || []).push(mode); };
+    w.DeviceMotionEvent = class DeviceMotionEvent extends w.Event { static requestPermission() { return Promise.resolve(w.__motionPermission || "granted"); } };
+    def(nav, "mediaDevices", { getUserMedia: async () => { throw new Error("replaced per test"); } });
+  } else if (platform === "android") {
+    def(nav, "vibrate", (p) => { vib.push(p); return true; });
+    def(nav, "setAppBadge", async (n) => { badges.push(n); });
+    def(nav, "clearAppBadge", async () => { badges.push(0); });
+    def(nav, "contacts", { select: async () => [{ name: ["Zoe"], tel: ["+1 555 0100"] }] });
+    def(nav, "share", async () => {});
+    FakeRecorder.isTypeSupported = supportedMime(["audio/webm", "video/webm"]);
+    w.MediaRecorder = FakeRecorder;
+    w.HTMLVideoElement.prototype.requestPictureInPicture = async function () { w.document.pictureInPictureElement = this; };
+    def(w.document, "pictureInPictureEnabled", true);
+    w.document.exitPictureInPicture = async () => { w.document.pictureInPictureElement = null; };
+    w.DeviceMotionEvent = class DeviceMotionEvent extends w.Event {}; // без requestPermission
+    def(nav, "mediaDevices", { getUserMedia: async () => { throw new Error("replaced per test"); } }); // мобильный Chrome без getDisplayMedia
+  } else {
+    def(nav, "mediaDevices", { getUserMedia: async () => { throw new Error("replaced per test"); }, getDisplayMedia: async () => { throw new Error("replaced per test"); } });
+  }
+}
 function createApp(opts = {}) {
   let html = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
   const srcs = [];
@@ -26,7 +71,7 @@ function createApp(opts = {}) {
   srcs.unshift("js/lang/en.js", "js/lang/ru.js"); // словари подключаем сразу — динамическая подгрузка <script> в jsdom не выполняется
   const fetchLog = [];
   const dom = new JSDOM(html, {
-    url: "http://localhost/", runScripts: "outside-only", pretendToBeVisual: true,
+    url: opts.url || "http://localhost/", runScripts: "outside-only", pretendToBeVisual: true,
     beforeParse(w) {
       w.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {} });
       w.HTMLMediaElement.prototype.play = () => Promise.resolve();
@@ -50,9 +95,10 @@ function createApp(opts = {}) {
       w.HTMLCanvasElement.prototype.toDataURL = () => "data:image/png;base64,AAAA";
       Object.defineProperty(w.navigator, "serviceWorker", { value: undefined, configurable: true });
       w.confirm = () => true;
+      applyPlatform(w, opts.platform || "desktop", opts);
       if (opts.storage) for (const [k, v] of Object.entries(opts.storage)) w.localStorage.setItem(k, v);
       w.RTCPeerConnection = class extends wrtc.RTCPeerConnection { constructor(...args) { super(...args); PCS.push(this); } }; w.RTCSessionDescription = wrtc.RTCSessionDescription; w.RTCIceCandidate = wrtc.RTCIceCandidate;
-      w.MediaStream = class { constructor() { this.tracks = []; } getTracks() { return this.tracks; } getVideoTracks() { return this.tracks.filter((t) => t.kind === "video"); } getAudioTracks() { return this.tracks.filter((t) => t.kind === "audio"); } addTrack(t) { this.tracks.push(t); } removeTrack(t) { this.tracks = this.tracks.filter((x) => x !== t); } };
+      w.MediaStream = wrtc.MediaStream;
       if (!process.env.ETHER_TEST_VERBOSE) for (const k of ["log", "info", "warn", "debug", "error"]) w.console[k] = () => {};
     },
   });
@@ -70,4 +116,12 @@ function createApp(opts = {}) {
   APPS.push(dom);
   return app;
 }
-module.exports = { createApp, closeAll, ROOT };
+// Создаёт окно и дожидается, пока приложение реально стартует (startApp).
+async function bootApp(opts = {}) {
+  const storage = { "ether.name": "Tester", "ether.myId": "me-test-id", "ether.lang": "en", ...(opts.storage || {}) };
+  const a = createApp({ ...opts, storage });
+  await a.ready;
+  for (let i = 0; i < 60 && !a.run(`typeof __appStarted !== "undefined" && __appStarted`); i++) await new Promise((r) => setTimeout(r, 50));
+  return a;
+}
+module.exports = { createApp, bootApp, closeAll, ROOT };

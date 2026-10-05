@@ -3,8 +3,8 @@
   "private": true,
   "description": "Тесты клиентского кода (app.js, webrtc.js) в jsdom с замером покрытия через c8",
   "scripts": {
-    "test": "node --test --test-concurrency=1 *.test.js",
-    "coverage": "cd .. && ./tests/node_modules/.bin/c8 --reporter=text --reporter=json-summary --allowExternal --exclude='tests/**' --exclude='js/vendor/**' --exclude='js/lang/**' --exclude='signaling-server/**' node --test --test-concurrency=1 tests/*.test.js"
+    "test": "node --test --test-concurrency=1 --test-timeout=180000 *.test.js",
+    "coverage": "cd .. && ./tests/node_modules/.bin/c8 --reporter=text --reporter=json-summary --allowExternal --exclude='tests/**' --exclude='js/vendor/**' --exclude='js/lang/**' --exclude='signaling-server/**' node --test --test-concurrency=1 --test-timeout=180000 tests/*.test.js"
   },
   "devDependencies": {
     "@roamhq/wrtc": "^0.10.0",

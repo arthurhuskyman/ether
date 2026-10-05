@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.57.3.2";
+const APP_VERSION = "V.57.4.0";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 const MAX_MESSAGE_LENGTH = 4000;
@@ -8057,11 +8057,17 @@ async function handleIncomingCode(code) {
   }
 }
 function copyText(text, msg) {
-  if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => toast(msg)).catch(() => toast(T("toast.copyFailed")));
+  if (navigator.clipboard) {
+    try { navigator.clipboard.writeText(text).then(() => toast(msg)).catch(() => toast(T("toast.copyFailed"))); }
+    catch (e) { toast(T("toast.copyFailed")); }
+  }
   else {
     const ta = document.createElement("textarea");
     ta.value = text; document.body.appendChild(ta); ta.select();
-    try { document.execCommand("copy"); toast(msg); } catch (e) {}
+    let ok = false;
+    try { ok = !!(document.execCommand && document.execCommand("copy")); } catch (e) {}
+    // execCommand не бросает при неудаче, а возвращает false — раньше тут всегда показывалось «скопировано».
+    toast(ok ? msg : T("toast.copyFailed"));
     ta.remove();
   }
 }
@@ -9511,6 +9517,23 @@ function attachRemoteVideo(id, stream) {
   v.srcObject = stream;
   v.classList.remove("hidden");
   const cs = $("#call-screen"); if (cs) cs.classList.add("video-active");
+  // Собеседник убрал видео (остановил показ экрана без камеры, выключил камеру с удалением трека) —
+  // трек получает mute/ended, и без реакции на это остался бы замороженный последний кадр.
+  for (const t of videoTracks) {
+    if (t.__etherWatched || !t.addEventListener) continue;
+    t.__etherWatched = true;
+    const setVisible = (visible) => {
+      if (state.callId !== id) return;
+      const rv = $("#call-remote-video"); if (!rv || rv.srcObject !== stream) return;
+      rv.classList.toggle("hidden", !visible);
+      const c2 = $("#call-screen");
+      const localOn = !!$("#call-local-video") && !$("#call-local-video").classList.contains("hidden");
+      if (c2) c2.classList.toggle("video-active", visible || localOn);
+    };
+    t.addEventListener("mute", () => setVisible(false));
+    t.addEventListener("unmute", () => setVisible(true));
+    t.addEventListener("ended", () => setVisible(false));
+  }
   const p = v.play(); if (p && p.catch) p.catch(() => {});
   // Раньше здесь была отдельная кнопка PiP (#call-pip-btn), показываемая
   // независимо от showLocalVideoPreview — именно для случая "смотрю
@@ -11442,7 +11465,8 @@ if (payload && payload.kind === "call-state") {
   // звонок в этот момент уже давно отбит — рингтон играть не надо.
   const isStale = payload.ts && (Date.now() - payload.ts > 20000);
 
-  if (payload.state === "ringing" && state.callId !== id && state.callPhase !== "ringing") {
+  // Второй входящий от ДРУГОГО контакта, пока первый ещё звонит, тоже должен получить «занято» (раньше молча игнорировался).
+  if (payload.state === "ringing" && state.callId !== id && (state.callId || state.callPhase !== "ringing")) {
     if (isStale) {
       etherLog("info", "[call] игнорирую устаревший call-state:ringing от " + String(id).slice(0, 10) + "… (" + Math.round((Date.now() - payload.ts) / 1000) + "с назад)");
       return;

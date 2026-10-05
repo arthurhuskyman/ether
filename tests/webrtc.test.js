@@ -91,6 +91,7 @@ test("startScreenShare (камеры нет): трек добавляется, s
   const l = link(a);
   const screen = fakeTrack("video");
   const sender = { track: screen };
+  a.window.MediaStream = class { constructor() { this.tracks = []; } getVideoTracks() { return this.tracks.filter((t) => t.kind === "video"); } addTrack(t) { this.tracks.push(t); } removeTrack(t) { this.tracks = this.tracks.filter((x) => x !== t); } };
   let removed = 0;
   l.pc = { getSenders: () => [sender], addTrack: () => sender, removeTrack: () => { removed++; } };
   l.localStream = null; l._videoAdded = false;
