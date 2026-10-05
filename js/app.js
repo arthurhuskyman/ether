@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.57.0.0";
+const APP_VERSION = "V.57.1.0";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 const MAX_MESSAGE_LENGTH = 4000;
@@ -2057,6 +2057,7 @@ function startApp() {
   // отложенное сообщение, время которого уже прошло пока приложение было
   // закрыто, уходит немедленно при следующем запуске, а не теряется.
   try { setInterval(sweepScheduledMessages, 30000); sweepScheduledMessages(); } catch (e) {}
+  try { setInterval(sweepIncomingFileBuffers, 60000); } catch (e) {}
   try { document.addEventListener("visibilitychange", () => { if (!document.hidden) sweepScheduledMessages(); }); } catch (e) {}
   try { updateNotifBanner(); } catch (e) {}
   try { resumeUnsentMessages(); } catch (e) {}
@@ -5191,6 +5192,7 @@ function pickVoiceMimeType() {
 }
 let voiceRecorder = null, voiceRecordStream = null, voiceRecordChunks = [], voiceRecordStartedAt = 0, voiceRecordTimerId = null;
 let voiceRecordStarting = false;
+let voiceRecordCancelPending = false; // чат покинули, пока висел getUserMedia
 let voiceRecordTargetChatId = null; // чат, в котором НАЧАЛАСЬ запись — используется при остановке, а не state.chatId в тот момент (пользователь мог переключиться в другой чат за время записи)
 // Реальный level meter поверх MediaRecorder (раздел 6 роадмапа) — раньше
 // 5 столбиков .voice-recording-wave просто бесконечно крутили одну и ту же
@@ -5253,6 +5255,7 @@ async function startVoiceRecording() {
   if (!state.chatId) return;
   if (voiceRecorder || voiceRecordStarting) return; // защита и от повторного вызова, и от гонки — getUserMedia асинхронный, voiceRecorder присваивается только после него
   voiceRecordStarting = true;
+  voiceRecordCancelPending = false;
   voiceRecordTargetChatId = state.chatId;
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) {
     toast(T("toast.voiceUnsupported")); voiceRecordStarting = false; return;
@@ -5261,6 +5264,11 @@ async function startVoiceRecording() {
     voiceRecordStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   } catch (e) {
     toast(T("toast.voiceNoMic")); voiceRecordStarting = false; return;
+  }
+  if (voiceRecordCancelPending) {
+    voiceRecordCancelPending = false; voiceRecordStarting = false;
+    voiceRecordStream.getTracks().forEach((t) => t.stop()); voiceRecordStream = null;
+    return;
   }
   const mimeType = pickVoiceMimeType();
   try {
@@ -5294,8 +5302,9 @@ async function startVoiceRecording() {
 // поверх экрана другого чата, создавая путаницу насчёт того, куда
 // голосовое реально уйдёт.
 function cancelVoiceRecordingIfLeavingChat(newChatId) {
-  if (voiceRecorder && voiceRecordTargetChatId && newChatId !== voiceRecordTargetChatId) {
-    stopVoiceRecording(false);
+  if (voiceRecordTargetChatId && newChatId !== voiceRecordTargetChatId) {
+    if (voiceRecorder) stopVoiceRecording(false);
+    else if (voiceRecordStarting) voiceRecordCancelPending = true;
   }
 }
 function stopVoiceRecording(send) {
@@ -5357,7 +5366,14 @@ function handleFilePayload(from, payload) {
     // MAX_INCOMING_FILE_TRANSFERS=20 одновременных — до ~10ГБ.
     if (!EtherFileLimits.isValidFileMetaSize(payload.size)) return;
     sweepIncomingFileBuffers();
-    if (incomingFileBuffers.size >= MAX_INCOMING_FILE_TRANSFERS && !incomingFileBuffers.has(payload.id)) return;
+    // Повторный file-meta (ретрай через сервер, fallback после P2P) —
+    // не пересоздаём буфер и не дублируем сообщение.
+    if (incomingFileBuffers.has(payload.id)) return;
+    if (incomingFileBuffers.size >= MAX_INCOMING_FILE_TRANSFERS) return;
+    {
+      const existing = state.contacts.get(from);
+      if (existing && existing.messages.some((m) => m.id === payload.id)) return;
+    }
     incomingFileBuffers.set(payload.id, { name: payload.name, mime: payload.mime, size: payload.size, totalChunks, chunks: new Array(totalChunks).fill(null), from, receivedAt: Date.now() });
     const c = ensureContactEntry(from, null);
     const isOpen = state.chatId === from;
@@ -8321,6 +8337,7 @@ async function translateMessage(contactId, msgId) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ q: m.text, source: "auto", target: (I18N.current || "en").split("-")[0], format: "text" }),
+      signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) throw new Error("http " + res.status);
     const data = await res.json();
@@ -9529,6 +9546,7 @@ async function updateCallQualityIcon(pc) {
   const icon = $("#call-quality-icon"); if (!icon) return;
   try {
     const stats = await pc.getStats();
+    if (!state.callId) return; // звонок завершился, пока ждали статистику
     let rttMs = null, lossRatio = 0;
     stats.forEach((s) => {
       if (s.type === "candidate-pair" && s.state === "succeeded" && typeof s.currentRoundTripTime === "number") {

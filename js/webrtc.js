@@ -405,9 +405,12 @@ class PeerLink extends EventTarget {
     if (meta.forwarded) metaPayload.forwarded = true;
     if (meta.caption) metaPayload.caption = meta.caption;
     if (!this.send(metaPayload)) return false;
+    const BACKPRESSURE_TIMEOUT_MS = 30000; // залипший SCTP-буфер не должен вешать отправку вечно
     const BUFFER_THRESHOLD = 262144; // 256KB — не даём буферу канала расти бесконтрольно
     for (let i = 0; i < base64Chunks.length; i++) {
+      const waitStart = Date.now();
       while (this.dc && this.dc.readyState === "open" && this.dc.bufferedAmount > BUFFER_THRESHOLD) {
+        if (Date.now() - waitStart > BACKPRESSURE_TIMEOUT_MS) return false;
         await new Promise((r) => setTimeout(r, 50));
       }
       if (!this.dc || this.dc.readyState !== "open") return false;
@@ -757,6 +760,10 @@ async startScreenShare() {
       // stopScreenShare() без повторного getUserMedia (который заново
       // спросил бы разрешение/мигнул индикатором камеры).
       this._preScreenShareTrack = this.localVideoTrack;
+      if (this.localStream) {
+        this.localStream.getVideoTracks().forEach((t) => this.localStream.removeTrack(t));
+        this.localStream.addTrack(screenTrack);
+      }
     } else {
       if (!this.localStream) this.localStream = new MediaStream();
       this.localStream.addTrack(screenTrack);
