@@ -227,6 +227,7 @@ body {
      возврат из фона) и оставляет полосу под футером. */
   margin: 0; overscroll-behavior: none;
   position: fixed; inset: 0; overflow: hidden;
+  height: var(--app-h, auto); /* --app-h задаёт JS на iOS-PWA, если окно короче экрана (syncIosStandaloneHeight) */
   font-family: "Inter", -apple-system, "SF Pro Text", "SF Pro Display", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
   font-size: var(--fs-base);
   line-height: var(--lh-normal);

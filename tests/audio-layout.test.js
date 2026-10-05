@@ -206,3 +206,38 @@ test("[iPhone] ширина: контент не шире экрана (overflow
   assert.doesNotMatch(css, /width:\s*100vw/, "100vw на iOS включает системные поля и вызывает горизонтальное переполнение");
   assert.match(html.match(/<meta name="viewport" content="([^"]+)"/)[1], /width=device-width/);
 });
+
+// ---------- iPhone PWA: футер и пустая полоса под ним ----------
+async function iosHeight({ platform = "ios", standalone = true, sw = 393, sh = 852, bodyH = 818, iw = 393, ih = 818 } = {}) {
+  const a = await bootApp({ platform, standalone });
+  Object.defineProperty(a.window.screen, "width", { value: sw, configurable: true });
+  Object.defineProperty(a.window.screen, "height", { value: sh, configurable: true });
+  Object.defineProperty(a.window, "innerWidth", { value: iw, configurable: true });
+  Object.defineProperty(a.window, "innerHeight", { value: ih, configurable: true });
+  a.document.body.getBoundingClientRect = () => ({ height: bodyH, width: iw, top: 0, left: 0, bottom: bodyH, right: iw });
+  a.run(`syncIosStandaloneHeight()`);
+  const v = a.document.documentElement.style.getPropertyValue("--app-h");
+  a.close();
+  return v;
+}
+
+test("[iPhone PWA] окно короче экрана на safe-area → высота body задаётся явно (нет пустой полосы под футером)", async () => {
+  assert.equal(await iosHeight({}), "852px");
+});
+test("[iPhone PWA] окно уже на весь экран → ничего не переопределяем", async () => {
+  assert.equal(await iosHeight({ bodyH: 852 }), "");
+});
+test("[iPhone PWA] ландшафт: берём короткую сторону экрана", async () => {
+  assert.equal(await iosHeight({ iw: 852, ih: 360, bodyH: 359 }), "393px");
+});
+test("не iOS-PWA (Safari-вкладка, Android, iPad) высоту не трогаем", async () => {
+  assert.equal(await iosHeight({ standalone: false }), "");
+  assert.equal(await iosHeight({ platform: "android" }), "");
+  assert.equal(await iosHeight({ sw: 820, sh: 1180, bodyH: 1100, iw: 820, ih: 1100 }), "");
+});
+test("слишком большая разница (не safe-area, например split view) не 'лечим'", async () => {
+  assert.equal(await iosHeight({ bodyH: 500 }), "");
+});
+test("body использует --app-h", () => {
+  assert.match(rule("body"), /height:\s*var\(--app-h,\s*auto\)/);
+});

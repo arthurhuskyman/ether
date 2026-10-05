@@ -1,4 +1,4 @@
-const CACHE_VERSION = "ether-shell-v180";
+const CACHE_VERSION = "ether-shell-v181";
 const SHELL_FILES = [
   "./",
   "./index.html",

@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.57.5.0";
+const APP_VERSION = "V.57.6.0";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 const MAX_MESSAGE_LENGTH = 4000;
@@ -2197,10 +2197,32 @@ function forceViewportRecalc() {
     if (wrap && savedScroll !== null) wrap.scrollTop = savedScroll;
   } catch (e) {}
 }
+// iOS (PWA, standalone): окно приложения иногда оказывается КОРОЧЕ экрана на высоту нижней safe-area
+// (~34pt) — под таб-баром остаётся чёрная/пустая полоса, футер "отрывается" от края. Причина —
+// расхождение 100dvh / fixed-inset с реальным экраном в standalone-режиме WebKit. Не гадаем, а
+// измеряем: если высота body меньше полной высоты экрана, задаём её явно (--app-h).
+function syncIosStandaloneHeight() {
+  try {
+    const root = document.documentElement;
+    if (!isIOS() || !isStandalone()) { root.style.removeProperty("--app-h"); return; }
+    const sw = window.screen && window.screen.width, sh = window.screen && window.screen.height;
+    if (!sw || !sh) return;
+    const landscape = window.innerWidth > window.innerHeight;
+    const full = landscape ? Math.min(sw, sh) : Math.max(sw, sh);
+    // Только телефоны: на iPad/в split view реальная высота окна может быть меньше экрана законно.
+    if (Math.min(sw, sh) > 500) { root.style.removeProperty("--app-h"); return; }
+    root.style.removeProperty("--app-h"); // измеряем без нашего переопределения
+    const h = document.body.getBoundingClientRect().height;
+    if (full - h > 2 && full - h < 120) root.style.setProperty("--app-h", full + "px");
+  } catch (e) {}
+}
 function wireViewportRecalc() {
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) forceViewportRecalc(); });
-  window.addEventListener("pageshow", () => forceViewportRecalc());
-  window.addEventListener("focus", () => forceViewportRecalc());
+  syncIosStandaloneHeight();
+  window.addEventListener("resize", syncIosStandaloneHeight);
+  window.addEventListener("orientationchange", () => setTimeout(syncIosStandaloneHeight, 150));
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) { forceViewportRecalc(); syncIosStandaloneHeight(); } });
+  window.addEventListener("pageshow", () => { forceViewportRecalc(); syncIosStandaloneHeight(); });
+  window.addEventListener("focus", () => { forceViewportRecalc(); syncIosStandaloneHeight(); });
 }
 function wireNetworkListeners() {
   window.addEventListener("online", () => etherLog("info", "[net] online"));
