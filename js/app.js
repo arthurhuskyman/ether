@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.57.3.0";
+const APP_VERSION = "V.57.3.1";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 const MAX_MESSAGE_LENGTH = 4000;
@@ -2609,7 +2609,7 @@ function updateNotifBanner() {
 }
 function updateAppBadge() {
   let total = 0;
-  for (const c of state.contacts.values()) total += unreadCount(c);
+  for (const c of state.contacts.values()) { if (c.isSelf) continue; total += unreadCount(c); }
   const tabBadge = $("#tab-chats-badge");
   if (tabBadge) {
     if (total > 0) { tabBadge.textContent = total > 99 ? "99+" : String(total); tabBadge.classList.remove("hidden"); }
@@ -4513,6 +4513,8 @@ function saveCurrentDraft() {
   if (__draftPersistTimer) { clearTimeout(__draftPersistTimer); __draftPersistTimer = null; }
   persistDrafts();
 }
+// Внимание: .chat-input-bar двигается через transform — position: sticky у баннеров
+// внутри/рядом с ним работать не будет; учитывайте это при добавлении sticky-элементов.
 function wireKeyboardFix() {
   if (!window.visualViewport) return;
   const vv = window.visualViewport;
