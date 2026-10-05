@@ -1,4 +1,4 @@
-const CACHE_VERSION = "ether-shell-v149";
+const CACHE_VERSION = "ether-shell-v173";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -14,6 +14,7 @@ const SHELL_FILES = [
   "./js/signaling-codec.js",
   "./js/signaling-client.js",
   "./js/crypto-helper.js",
+  "./js/crypto-worker.js",
   "./js/vendor/qrcode-generator.js",
   "./js/vendor/qrcode-generator-utf8.js",
   "./js/vendor/jsQR.js",
@@ -213,6 +214,20 @@ self.addEventListener("notificationclick", (event) => {
   // открытия чата — настоящего инлайн-ответа без открытия приложения
   // в Web Notification API нет, см. комментарий у showNotification().
   const focusInput = event.action === "reply";
+  // "Прочитано" — не открывает чат и не ворует фокус у текущего окна
+  // (пользователь мог и не собирался открывать приложение, просто
+  // разгрузить список непрочитанных). Работает только если приложение
+  // уже где-то открыто, хотя бы в фоне — помечать прочитанным без живой
+  // страницы, которая держит state.contacts, негде (честно, не "почти
+  // то же самое, но тихо не работает" — см. P2.37 выше по тому же duху).
+  if (event.action === "mark-read") {
+    event.waitUntil(
+      self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+        for (const c of list) c.postMessage({ type: "mark-read", contactId });
+      })
+    );
+    return;
+  }
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
       for (const c of list) {

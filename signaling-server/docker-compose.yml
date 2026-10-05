@@ -1,0 +1,11 @@
+# killer-features-backlog 0.2 — "свой сервер" как оформленная фича.
+# Запуск: cp .env.example .env (заполнить значения) && docker compose up -d
+services:
+  ether-signaling:
+    build: .
+    container_name: ether-signaling
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8787}:8787"
+    env_file:
+      - .env

@@ -18,7 +18,10 @@
   --ink-0: #ffffff;
   --ink-1: rgba(255, 255, 255, 0.80);
   --ink-2: rgba(255, 255, 255, 0.55);
-  --ink-3: rgba(255, 255, 255, 0.32);
+  /* 0.38 давал контраст ~3.48:1 к --bg-0 — ниже WCAG AA (нужно ≥4.5:1 для
+     мелкого текста, а ink-3 используется в т.ч. для подписей неактивных
+     вкладок таб-бара). 0.48 даёт ~4.97:1 — посчитано, не на глаз. */
+  --ink-3: rgba(255, 255, 255, 0.48);
 
   /* --- Акцент — редкая искра --- */
   --accent: #8a6dff;
@@ -37,7 +40,11 @@
   /* --- Стекло — 3 градации от одной базовой alpha --- */
   --glass-tint: 22, 22, 28;
   --glass-alpha: 0.55;                   /* управляется ползунком в настройках */
-  --glass-blur: 32px;
+  /* Раньше было 32px везде — дорогой backdrop-filter на каждой карточке,
+     пузыре и шторке одновременно ощутимо грузит композитинг на слабых
+     устройствах. Снижаем базовый блюр, а нав-бар и таб-бар (единственные
+     постоянно видимые панели) держат полный блюр отдельным правилом ниже. */
+  --glass-blur: 20px;
   --glass-border: rgba(255, 255, 255, 0.10);
   --glass-thin: rgba(var(--glass-tint), calc(var(--glass-alpha) * 0.7));
   --glass-regular: rgba(var(--glass-tint), var(--glass-alpha));
@@ -51,6 +58,21 @@
   --fs-lg: 22px;
   --fs-xl: 28px;
   --fs-2xl: 34px;
+}
+/* Глобальный размер шрифта (Settings → Appearance) — в отличие от
+   bubble-size (который трогает только размер/паддинг пузырей сообщений),
+   это масштабирует ВЕСЬ текст приложения через переопределение базовых
+   --fs-* токенов, т.к. они заданы как обычные px-значения, а не
+   calc()-выражения, которые можно было бы домножить одним множителем. */
+html[data-font-size="compact"] {
+  --fs-xs: 10px; --fs-sm: 12px; --fs-base: 14px; --fs-md: 15px;
+  --fs-lg: 20px; --fs-xl: 25px; --fs-2xl: 30px;
+}
+html[data-font-size="large"] {
+  --fs-xs: 12px; --fs-sm: 15px; --fs-base: 17px; --fs-md: 19px;
+  --fs-lg: 25px; --fs-xl: 32px; --fs-2xl: 39px;
+}
+:root {
   --tr-tight: -0.025em;
   --tr-normal: 0;
   --tr-loose: 0.01em;
@@ -63,11 +85,13 @@
   --spring-smooth: cubic-bezier(0.4, 0, 0.2, 1);
   --spring-bouncy: cubic-bezier(0.34, 1.56, 0.64, 1);
 
-  /* --- Радиусы --- */
-  --radius-xl: 30px;
-  --radius-l: 22px;
-  --radius-m: 16px;
-  --radius-s: 12px;
+  /* --- Радиусы (раздел 3 роадмапа: шкала пересмотрена V.53.0.0 —
+     30/22/16/12 была великовата по сравнению с iOS-эталонами типа
+     UIAlertController (14px), новая шкала ближе к ним) --- */
+  --radius-xl: 26px;
+  --radius-l: 20px;
+  --radius-m: 14px;
+  --radius-s: 10px;
 
   /* --- Legacy-алиасы: сохранены для существующих селекторов --- */
   --bg: var(--bg-0);
@@ -106,7 +130,7 @@ html[data-theme="light"] {
   --ink-0: #0a0a0f;
   --ink-1: rgba(10, 10, 15, 0.82);
   --ink-2: rgba(10, 10, 15, 0.55);
-  --ink-3: rgba(10, 10, 15, 0.32);
+  --ink-3: rgba(10, 10, 15, 0.58); /* светлая тема: 0.38 давал ~2.54:1, нужно 4.5:1 — посчитано выше для --bg-0 #fafafc */
 
   --accent: #6446c9;
   --accent-hi: #7355d6;
@@ -154,7 +178,7 @@ html[data-theme="aurora"] {
     --ink-0: #0a0a0f;
     --ink-1: rgba(10, 10, 15, 0.82);
     --ink-2: rgba(10, 10, 15, 0.55);
-    --ink-3: rgba(10, 10, 15, 0.32);
+    --ink-3: rgba(10, 10, 15, 0.58); /* светлая тема: 0.38 давал ~2.54:1, нужно 4.5:1 — посчитано выше для --bg-0 #fafafc */
     --accent: #6446c9;
     --accent-hi: #7355d6;
     --accent-lo: #4f34ab;
@@ -193,6 +217,10 @@ body {
   color: var(--ink-0);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  /* cv11/ss01 — более открытые строчные a/g/l в Inter Variable,
+     на -apple-system/системных шрифтах эти фичи просто отсутствуют. */
+  font-feature-settings: "cv11", "ss01";
+  font-variant-ligatures: common-ligatures;
 }
 
 @font-face {
@@ -238,9 +266,28 @@ body::before {
 @media (prefers-reduced-motion: reduce) {
   body::before { animation: none; }
 }
+/* «Спокойный режим» — настройка в Settings → Appearance. Глушит
+   анимацию фона, снижает блюр ещё сильнее базового и отключает
+   декоративные анимации на пузырях сообщений, не трогая сами цвета
+   темы — тема остаётся выбором пользователя, калм-мод ортогонален ей. */
+html[data-calm-mode="1"] body::before {
+  animation: none;
+  opacity: 0.55;
+}
+html[data-calm-mode="1"] {
+  --glass-blur: 8px;
+}
+html[data-calm-mode="1"] .bubble-row.just-received .bubble {
+  animation: none;
+}
 
 /* ============================================================
-   Стекло — три уровня
+   Стекло — было заявлено как "три уровня" (thin/regular/thick), но
+   .glass-thin и .glass-thick ни разу не используются в разметке (только
+   .glass и .glass-content реально применяются к элементам) — значит,
+   фактически работающих уровней всегда было два. Убрали мёртвые
+   правила ниже, переменные --glass-thin/--glass-thick в :root оставлены
+   — они нужны .glass-content как цветовые токены, не как классы.
    ============================================================ */
 .glass,
 .glass-regular {
@@ -248,30 +295,21 @@ body::before {
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
   backdrop-filter: blur(var(--glass-blur)) saturate(180%);
   border: 1px solid var(--glass-border);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 8px 30px rgba(0, 0, 0, 0.28);
+  /* Было: двойная тень (inset + внешняя) на каждом .glass-элементе —
+     два слоя тени на 20+ элементах списка заметно дороже по paint, чем
+     один. Визуально почти неотличимо, цена рендера вдвое меньше. */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
-.glass-thin {
-  background: var(--glass-thin);
-  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.6)) saturate(160%);
-  backdrop-filter: blur(calc(var(--glass-blur) * 0.6)) saturate(160%);
-  border: 1px solid var(--glass-border);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 8px 30px rgba(0, 0, 0, 0.22);
-}
-.glass-thick {
-  background: var(--glass-thick);
-  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 1.5)) saturate(200%);
-  backdrop-filter: blur(calc(var(--glass-blur) * 1.5)) saturate(200%);
-  border: 1px solid var(--glass-border);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.26), 0 12px 40px rgba(0, 0, 0, 0.35);
+/* Нав-бар и таб-бар — единственные панели, видимые постоянно на любом
+   экране, поэтому только у них оставляем полный 32px блюр. */
+#nav-bar.glass, #tab-bar.glass {
+  -webkit-backdrop-filter: blur(32px) saturate(180%);
+  backdrop-filter: blur(32px) saturate(180%);
 }
 .glass, .glass *,
-.glass-regular, .glass-regular *,
-.glass-thin, .glass-thin *,
-.glass-thick, .glass-thick * { text-shadow: var(--text-shadow-on-glass); }
+.glass-regular, .glass-regular * { text-shadow: var(--text-shadow-on-glass); }
 .glass svg, .glass svg *,
-.glass-regular svg, .glass-regular svg *,
-.glass-thin svg, .glass-thin svg *,
-.glass-thick svg, .glass-thick svg * { text-shadow: none; }
+.glass-regular svg, .glass-regular svg * { text-shadow: none; }
 
 .glass-content {
   background: var(--glass-thin);
@@ -300,8 +338,7 @@ html[data-theme="light"] .glass-content {
   .glass, .glass *, .glass-content, .glass-content * { text-shadow: none; }
 }
 @media (forced-colors: active) {
-  .glass, .glass-content,
-  .glass-thin, .glass-regular, .glass-thick {
+  .glass, .glass-content, .glass-regular {
     backdrop-filter: none; -webkit-backdrop-filter: none;
     forced-color-adjust: none; background: Canvas; border-color: CanvasText;
   }
@@ -353,7 +390,19 @@ html[data-theme="light"] .glass-content {
   animation: drift 18s ease-in-out infinite alternate;
 }
 @keyframes drift { from { transform: scale(1) rotate(0deg); } to { transform: scale(1.15) rotate(8deg); } }
-.onboarding-card { position: relative; width: min(380px, 100%); padding: 40px 28px 32px; border-radius: var(--radius-xl); text-align: center; }
+.onboarding-card { position: relative; width: min(380px, 100%); padding: 40px 28px 32px; border-radius: var(--radius-xl); text-align: center; transition: outline-color 0.15s, background-color 0.15s; outline: 2px dashed transparent; outline-offset: -2px; }
+.onboarding-card.drag-over { outline-color: var(--accent); background-color: rgba(138, 109, 255, 0.08); }
+
+/* Pull-to-refresh над списком чатов: высота растёт с пулл-дистанцией,
+   спиннер виден только когда есть реальное место его показать. */
+.ptr-indicator { display: flex; align-items: center; justify-content: center; height: 0; overflow: hidden; flex-shrink: 0; transition: height 0.2s var(--spring-snappy); }
+.ptr-spinner {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 2px solid var(--line-2); border-top-color: var(--accent);
+  animation: ptr-spin 0.7s linear infinite;
+}
+@keyframes ptr-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ptr-spinner { animation-duration: 1.4s; } }
 .app-glyph { position: relative; width: 84px; height: 60px; margin: 0 auto 20px; }
 .glyph-bubble {
   position: absolute;
@@ -382,6 +431,23 @@ html[data-theme="light"] .glass-content {
 .input-invalid { border-color: var(--danger) !important; }
 .onboarding-fine { font-size: var(--fs-xs); line-height: var(--lh-relaxed); color: var(--ink-2); margin: 18px 0 0; }
 
+/* V.52.0.0: раздел 2 роадмапа — флоу онбординга из 4 слайдов. */
+.onboarding-dots { display: flex; justify-content: center; gap: 6px; margin-bottom: 20px; }
+.onboarding-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--line-2); transition: background-color 0.15s, transform 0.15s; }
+.onboarding-dot.active { background: var(--accent); transform: scale(1.3); }
+.onboarding-slide h2 { font-size: var(--fs-lg); font-weight: 700; margin: 0 0 18px; }
+.onboarding-nav { display: flex; gap: 10px; margin-top: 18px; }
+.onboarding-nav .btn-tertiary, .onboarding-nav .btn-primary { width: auto; flex: 1 1 0; }
+.onboarding-lang-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 14px; }
+.onboarding-lang-btn { border: 1px solid var(--input-border); border-radius: var(--radius-m); padding: 12px 10px; background: var(--input-bg); color: var(--ink-0); font-size: var(--fs-sm); cursor: pointer; }
+.onboarding-lang-btn.active { border-color: var(--accent); background: rgba(138, 109, 255, 0.12); color: var(--accent); font-weight: 600; }
+#onboarding-lang-select { margin-bottom: 4px; }
+.onboarding-id-wrap { position: relative; }
+.onboarding-id-wrap input { padding-right: 38px; }
+.onboarding-id-check { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--success); }
+.avatar-xl { width: 96px; height: 96px; border-radius: 50%; font-size: 32px; margin: 0 auto 14px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; }
+.onboarding-invite-code { font-family: var(--font-mono, monospace); font-size: var(--fs-md); font-weight: 600; letter-spacing: 0.02em; word-break: break-all; margin: 4px 0 18px; }
+
 .btn-primary, .btn-secondary, .btn-tertiary {
   border: none; border-radius: var(--radius-m);
   padding: 14px 18px; font-size: var(--fs-base); font-weight: 600;
@@ -398,6 +464,14 @@ html[data-theme="light"] .glass-content {
 }
 .btn-secondary { background: var(--input-bg); color: var(--accent); flex: 1; }
 .btn-tertiary { background: transparent; color: var(--ink-1); font-weight: 500; }
+/* Единое подтверждение (раздел 15 роадмапа) — .destructive на обычной
+   .sheet-action (плоская строка-кнопка) просто красит текст, но на
+   .btn-primary (сплошной залитый фон) этого было бы не видно — здесь
+   перекрашиваем сам фон в --danger для необратимых действий. */
+.btn-primary.destructive {
+  background: var(--danger);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 8px 22px rgba(217, 58, 48, 0.32);
+}
 
 #app-shell {
   height: 100dvh; min-height: 100dvh; display: flex; flex-direction: column; position: relative;
@@ -439,8 +513,8 @@ html[data-theme="light"] .glass-content {
 }
 .nav-mode-chat { display: flex; align-items: center; gap: 4px; }
 .nav-contact-title { flex: 1; text-align: center; font-size: var(--fs-md); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#content { flex: 1; min-height: 0; overflow: hidden; position: relative; order: 0; }
-.screen { height: 100%; overflow-y: auto; padding: 16px 16px calc(clamp(0px, env(safe-area-inset-bottom, 0px), 40px) + 100px); }
+#content { flex: 1; min-height: 0; overflow: hidden; position: relative; order: 0; display: flex; flex-direction: column; }
+.screen { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 16px calc(clamp(0px, env(safe-area-inset-bottom, 0px), 40px) + 100px); }
 
 .notif-banner { display: flex; align-items: center; gap: 10px; margin: 8px 12px 0; padding: 10px 12px; border-radius: var(--radius-m); font-size: var(--fs-sm); }
 #lang-offer { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 12px); inset-inline: 12px; z-index: 500; margin: 0; }
@@ -471,6 +545,10 @@ html[data-theme="light"] .glass-content {
 
 /* --- Пустые состояния: заголовок получает лёгкий градиент текста --- */
 .empty-state { text-align: center; padding: 80px 24px 0; color: var(--ink-1); }
+/* P2 — компактный вариант для пустых состояний внутри карточки (не на весь
+   экран), напр. #contacts-empty в .connect-card — полный 80px верхний отступ
+   там выглядел бы как дыра в середине карточки. */
+.empty-state.small { padding: 16px 12px 4px; }
 .empty-icon { margin-bottom: 12px; color: var(--ink-3); display: flex; justify-content: center; }
 .empty-state h2 {
   font-size: var(--fs-lg);
@@ -484,7 +562,17 @@ html[data-theme="light"] .glass-content {
 }
 .empty-state p { font-size: var(--fs-sm); line-height: var(--lh-relaxed); margin: 0; }
 
+.chat-thread-empty { text-align: center; padding: 60px 24px 0; color: var(--ink-1); margin: auto 0; }
+.chat-thread-empty-icon { color: var(--ink-3); display: flex; justify-content: center; margin-bottom: 10px; }
+.chat-thread-empty-title { font-size: var(--fs-sm); line-height: var(--lh-relaxed); margin: 0 0 16px; max-width: 280px; margin-inline: auto; }
+.chat-thread-empty-wave { margin: 0 auto; }
+
 .chats-list { display: flex; flex-direction: column; gap: 10px; }
+.chats-section-header {
+  position: sticky; top: 0; z-index: 2; margin: 0 -16px; padding: 6px 16px;
+  font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--ink-1); background: var(--bg);
+}
 .chat-row-wrapper { position: relative; border-radius: var(--radius-l); overflow: hidden; }
 .chat-row {
   display: flex; align-items: center; gap: 12px;
@@ -500,7 +588,10 @@ html[data-theme="light"] .glass-content {
   display: flex; align-items: stretch;
   width: 84px;
 }
-.chat-row-actions-start { inset-inline-start: 0; justify-content: flex-start; }
+/* Теперь слева два действия (Mute + Archive), не одно — ширина панели
+   растёт симметрично тому, как уже было сделано для правой (end) панели
+   с pin+delete. */
+.chat-row-actions-start { inset-inline-start: 0; justify-content: flex-start; width: 168px; }
 .chat-row-actions-end { inset-inline-end: 0; justify-content: flex-end; width: 168px; }
 .chat-row-action-btn {
   width: 84px; flex-shrink: 0; border: none; cursor: pointer;
@@ -508,6 +599,7 @@ html[data-theme="light"] .glass-content {
   color: #fff; font-size: var(--fs-xs); font-weight: 600;
 }
 .chat-row-action-archive { background: var(--accent); border-start-start-radius: var(--radius-l); border-end-start-radius: var(--radius-l); }
+.chat-row-action-mute { background: #64748b; }
 .chat-row-action-pin { background: var(--warning); }
 .chat-row-action-delete { background: var(--danger); border-start-end-radius: var(--radius-l); border-end-end-radius: var(--radius-l); }
 @media (prefers-reduced-motion: reduce) {
@@ -575,18 +667,24 @@ html[data-theme="light"] .glass-content {
   border-radius: 50%;
   box-shadow: 0 0 0 2px var(--bg-0);
   background: var(--ink-3);
-  transition: background 0.2s var(--spring-snappy);
+  transition: background 0.2s var(--spring-snappy), transform 0.2s var(--spring-snappy), border-color 0.2s var(--spring-snappy);
 }
 .avatar-status-dot.status-connected {
   background: var(--success);
   box-shadow: 0 0 0 2px var(--bg-0), 0 0 6px rgba(76, 217, 100, 0.55);
+  transform: scale(1.05);
 }
 .avatar-status-dot.status-connecting {
   background: var(--warning);
   animation: avatar-dot-pulse 1.4s ease-in-out infinite;
 }
 .avatar-status-dot.status-disconnected {
-  background: var(--ink-3);
+  /* Серая точка на сером --bg-0 почти не видна — плохой сигнал "офлайн".
+     Прозрачный фон + заметная рамка контрастнее на любой теме. */
+  background: transparent;
+  border: 2px solid var(--ink-3);
+  width: 9px; height: 9px;
+  transform: translate(2px, 2px);
 }
 @keyframes avatar-dot-pulse {
   0%, 100% { opacity: 1; }
@@ -604,6 +702,14 @@ html[data-theme="light"] .glass-content {
 .chat-row-typing { color: var(--success); font-style: normal; display: inline-flex; align-items: center; }
 .chat-row-draft { color: var(--danger); font-weight: 500; }
 .chat-row-fail-icon { color: var(--danger); flex-shrink: 0; }
+/* Drag-to-reorder закреплённых чатов (раздел 4 роадмапа, V.44.0.0).
+   margin-inline-start: auto прижимает ручку к противоположному краю строки,
+   как и .chat-row-time выше — та же техника, другая строка. touch-action:
+   none отключает нативный скролл/zoom при захвате пальцем именно за ручку,
+   остальная строка (включая сам свайп архив/мьют) не трогается. */
+.chat-row-drag-handle { display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; flex-shrink: 0; margin-inline-start: auto; color: var(--ink-2); touch-action: none; cursor: grab; }
+.chat-row-wrapper.pin-dragging { position: relative; z-index: 3; }
+.chat-row-wrapper.pin-dragging .chat-row { box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25); cursor: grabbing; }
 .typing-dots { display: inline-flex; gap: 3px; align-items: center; vertical-align: middle; }
 .typing-dots span { display: block; width: 5px; height: 5px; border-radius: 50%; background: var(--success); animation: typing-bounce 1.2s ease-in-out infinite; }
 .typing-dots span:nth-child(2) { animation-delay: 0.15s; }
@@ -618,16 +724,27 @@ html[data-theme="light"] .glass-content {
 .skeleton-avatar, .skeleton-line { background: linear-gradient(90deg, var(--bg-2), var(--bg-3), var(--bg-2)); background-size: 200% 100%; animation: skeleton-shimmer 1.4s ease-in-out infinite; }
 @keyframes skeleton-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { .skeleton-avatar, .skeleton-line { animation: none; } }
-.chat-filters { display: flex; gap: 8px; padding: 2px 14px 10px; overflow-x: auto; scrollbar-width: none; }
+.chat-filters { display: flex; flex-shrink: 0; gap: 8px; padding: 2px 14px 10px; overflow-x: auto; scrollbar-width: none; }
 .chat-filters::-webkit-scrollbar { display: none; }
 .chat-filter-chip {
   flex-shrink: 0; border: none; cursor: pointer;
   padding: 7px 14px; border-radius: 999px;
   background: var(--bg-2); color: var(--ink-1);
   font-size: var(--fs-sm); font-weight: 600;
+  display: inline-flex; align-items: center; gap: 6px;
   transition: background 0.15s, color 0.15s;
 }
 .chat-filter-chip.active { background: var(--accent); color: #fff; }
+/* Бейдж непрочитанных звонков внутри чипа "Звонки" — обычный .tab-badge
+   позиционируется absolute (нужно для таб-бара), здесь он просто элемент
+   инлайн-ряда чипа. */
+.chat-filter-chip .tab-badge { position: static; margin-inline-start: 0; top: auto; inset-inline-start: auto; }
+/* V.48.0.0: кастомные папки чатов — span-обёртка для динамических чипов
+   участвует в flex-раскладке родителя напрямую (display: contents),
+   иначе gap/overflow-scroll .chat-filters считали бы обёртку одним
+   элементом вместо набора чипов внутри неё. */
+.chat-filters-custom { display: contents; }
+.chat-filter-chip-add { background: transparent; border: 1px dashed var(--line-2); color: var(--ink-2); }
 .search-hidden { display: none !important; }
 .call-phase-row { display: flex; align-items: center; justify-content: center; gap: 6px; }
 .call-quality-icon { display: inline-flex; color: var(--ink-2); }
@@ -728,6 +845,19 @@ html[dir="rtl"] #toggle-archived::after { display: inline-block; transform: scal
 .link-toggle-wrap { padding: 12px 4px 0; text-align: center; }
 
 .roster-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; }
+
+/* Буквенный скролл-индекс (>20 контактов) — простая реализация без
+   fixed-позиционирования: индекс — flex-соседкa списка внутри общей
+   обёртки, растягивается на ту же высоту (justify-content: space-between
+   расставляет буквы равномерно по всей высоте списка). Чисто кликовая
+   навигация (scrollIntoView), поэтому помечен aria-hidden и вне
+   табуляции — тот же контент всегда доступен обычным скроллом/поиском. */
+.contacts-list-wrap { display: flex; align-items: stretch; gap: 2px; }
+.contacts-list-wrap .roster-list { flex: 1; min-width: 0; }
+.contacts-index { display: flex; flex-direction: column; justify-content: space-between; flex-shrink: 0; width: 18px; padding: 2px 0; }
+.contacts-index.hidden { display: none; }
+.contacts-index-btn { font-size: 10px; line-height: 1; padding: 2px 0; border: none; background: none; color: var(--ink-3); cursor: pointer; text-align: center; border-radius: 4px; }
+.contacts-index-btn:hover, .contacts-index-btn:active { color: var(--accent); background: var(--line-2); }
 .roster-row { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: var(--radius-m); background: var(--input-bg); border: 1px solid var(--input-border); cursor: pointer; }
 .roster-row:active { opacity: 0.7; }
 .avatar-sm { width: 34px; height: 34px; border-radius: 11px; font-size: var(--fs-xs); flex-shrink: 0; }
@@ -792,6 +922,32 @@ input.switch:checked::before { transform: translateX(18px); }
 .settings-group .settings-row:last-child { border-bottom: none; }
 .settings-row.column { flex-direction: column; align-items: stretch; gap: 10px; }
 .settings-group-title { font-size: var(--fs-sm); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-1); }
+
+/* V.46.0.0: категории настроек с back-навигацией */
+.category-hidden { display: none !important; }
+.settings-category-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+.settings-category-row {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  background: var(--bg-2); border: 1px solid var(--line-1); border-radius: var(--radius-l);
+  padding: 14px 16px; font-size: var(--fs-base); color: var(--ink-0); cursor: pointer; text-align: start;
+}
+.settings-category-row .chevron { margin-inline-start: auto; color: var(--ink-2); display: flex; }
+.settings-category-icon { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; flex-shrink: 0; color: var(--accent); }
+.settings-category-label { font-weight: 600; flex: 1; }
+.settings-category-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.settings-category-header.hidden { display: none; }
+.settings-category-header-title { font-size: var(--fs-md); font-weight: 700; }
+
+/* V.47.0.0: глобальный поиск (Cmd/Ctrl+K) */
+.nav-global-search-btn { flex: 0 0 auto; }
+.global-search-input-wrap { padding-top: 2px; }
+.global-search-section { margin-bottom: 14px; }
+.global-search-section:last-child { margin-bottom: 0; }
+.global-search-section-title { font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-2); margin-bottom: 8px; }
+.global-search-row-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; overflow: hidden; }
+.global-search-row-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.global-search-row-subtitle { font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.global-search-empty { text-align: center; padding: 24px 0; }
 .about-app-name { font-size: var(--fs-md); font-weight: 700; }
 .about-designed-by { max-width: 320px; line-height: var(--lh-normal); }
 .settings-row input[type="text"] { border: none; background: transparent; text-align: end; font-size: var(--fs-base); color: var(--accent); outline: none; max-width: 60%; }
@@ -801,6 +957,23 @@ input.switch:checked::before { transform: translateX(18px); }
 #settings-signaling-url { width: 100%; text-align: start; max-width: 100%; background: var(--input-bg); border: 1px solid var(--input-border); border-radius: var(--radius-s); padding: 10px 12px; font-size: var(--fs-base); color: var(--ink-0); }
 .settings-btn-full { width: 100%; margin-top: 2px; }
 .link-row { color: var(--accent); font-weight: 500; }
+
+/* Карточка контакта — секции как <details>/<summary> вместо одного
+   длинного скролла (Media / Chat settings / Danger zone). summary
+   переиспользует .settings-row, только убираем нативный маркер и
+   добавляем свой шеврон, поворачивающийся при открытии. */
+.contact-accordion { border: none; }
+.contact-accordion > summary { list-style: none; }
+.contact-accordion > summary::-webkit-details-marker { display: none; }
+.contact-accordion > summary::after {
+  content: "\203A"; margin-inline-start: 8px; color: var(--ink-3);
+  transition: transform 0.2s var(--spring-snappy); display: inline-block; transform: rotate(90deg);
+}
+.contact-accordion[open] > summary::after { transform: rotate(-90deg); }
+html[dir="rtl"] .contact-accordion > summary::after { transform: rotate(-90deg); }
+html[dir="rtl"] .contact-accordion[open] > summary::after { transform: rotate(90deg); }
+.contact-accordion > summary { cursor: pointer; }
+.contact-accordion > summary .fine { margin-inline-end: 4px; }
 .chevron { color: var(--ink-3); display: inline-flex; flex-shrink: 0; }
 .chevron > svg { display: block; }
 .destructive { color: var(--danger); font-weight: 500; justify-content: flex-start; }
@@ -820,44 +993,13 @@ input.switch:checked::before { transform: translateX(18px); }
 .theme-seg button { flex: 1; border: none; background: transparent; padding: 8px 0; border-radius: 8px; font-size: var(--fs-sm); font-weight: 600; color: var(--ink-1); cursor: pointer; transition: background 0.15s var(--spring-snappy); }
 .theme-seg button.active { background: var(--accent); color: #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25); }
 
-.chats-segment {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  background: var(--input-bg);
-  border: 1px solid var(--input-border);
-  border-radius: 10px;
-  padding: 3px;
-  gap: 3px;
-  flex: 0 1 auto;
-  min-width: 0;
-}
-.chats-segment button {
-  position: relative;
-  border: none;
-  background: transparent;
-  padding: 6px 12px;
-  border-radius: 8px;
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  color: var(--ink-1);
-  cursor: pointer;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.chats-segment button > span {
-  display: block;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.chats-segment button.active { background: var(--accent); color: #fff; }
-.chats-segment .tab-badge { top: -6px; inset-inline-start: auto; inset-inline-end: 2px; margin-inline-start: 0; position: absolute; }
+/* chats-segment (отдельный переключатель Chats/Calls над шапкой) удалён —
+   "Звонки" теперь обычный чип в .chat-filters, см. правило ниже. */
 
 #screen-contact.screen { padding: 16px 16px calc(clamp(0px, env(safe-area-inset-bottom, 0px), 40px) + 100px); }
 .contact-profile { border-radius: var(--radius-xl); padding: 30px 22px 24px; text-align: center; margin-bottom: 16px; }
 .contact-avatar { width: 96px; height: 96px; border-radius: 28px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; font-size: 34px; font-weight: 700; color: #fff; box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.4), 0 8px 24px rgba(0, 0, 0, 0.3); }
+.contact-avatar-btn { border: none; cursor: pointer; background-size: cover; background-position: center; }
 .contact-profile h2 { font-size: var(--fs-lg); letter-spacing: var(--tr-tight); margin: 0 0 6px; }
 .contact-status { font-size: var(--fs-sm); margin: 0 0 20px; }
 .contact-actions { display: flex; gap: 12px; justify-content: center; }
@@ -878,7 +1020,18 @@ input.switch:checked::before { transform: translateX(18px); }
 }
 button.call-unavailable.btn-secondary { opacity: 0.6; text-decoration: line-through; text-decoration-color: var(--danger); text-decoration-thickness: 2px; }
 button.call-unavailable.btn-secondary::after { content: none; }
-.icon-btn.small { width: 32px; height: 32px; }
+.icon-btn.small {
+  width: 32px; height: 32px;
+  /* HIG/WCAG просят минимум 44×44 для тап-таргета. Расширяем зону тапа
+     прозрачным ::before, не трогая видимый размер иконки и не сдвигая
+     соседние элементы в строке (position: relative + абсолютный инсет). */
+  position: relative;
+}
+.icon-btn.small::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+}
 
 html[dir="rtl"] .back-btn { transform: scaleX(-1); }
 html[dir="rtl"] .chevron { display: inline-block; transform: scaleX(-1); }
@@ -890,8 +1043,11 @@ html[dir="rtl"] .chevron { display: inline-block; transform: scaleX(-1); }
 .tab-btn > span,
 .edit-banner > span { line-height: 1; }
 
-.chat-header-info { flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 0; background: none; border: none; padding: 0; cursor: pointer; }
+.chat-header-info { flex: 1; display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 8px; text-align: left; min-width: 0; background: none; border: none; padding: 0; cursor: pointer; }
 .chat-header-tappable:active { opacity: 0.7; }
+.chat-peer-avatar { width: 28px; height: 28px; flex-shrink: 0; }
+.chat-peer-avatar .avatar { width: 28px; height: 28px; font-size: 12px; }
+.chat-peer-info-col { display: flex; flex-direction: column; min-width: 0; align-items: flex-start; }
 .chat-header-info #chat-peer-name { font-size: var(--fs-md); font-weight: 600; letter-spacing: var(--tr-tight); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .chat-header-info .muted { font-size: var(--fs-xs); color: var(--ink-1); }
 .chat-header-info .muted.typing { color: var(--success); font-style: italic; }
@@ -918,8 +1074,18 @@ html[dir="rtl"] .chevron { display: inline-block; transform: scaleX(-1); }
 .search-input-inline { flex: 1; border: none; background: transparent; color: var(--ink-0); padding: 6px 4px; font-size: var(--fs-base); outline: none; }
 .search-counter { font-size: var(--fs-xs); color: var(--ink-1); }
 .search-hit { background: rgba(255, 214, 10, 0.4); border-radius: 3px; padding: 0 1px; }
+.mention { color: var(--accent); font-weight: 600; }
+.bubble-row.mine .mention { color: inherit; text-decoration: underline; text-decoration-color: rgba(255, 255, 255, 0.55); text-decoration-thickness: 1.5px; }
 
-.chat-messages { flex: 1; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; position: relative; }
+.chat-messages {
+  flex: 1; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; position: relative;
+  /* На desktop торчал стандартный широкий скроллбар поверх ленты. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-2) transparent;
+}
+.chat-messages::-webkit-scrollbar { width: 6px; }
+.chat-messages::-webkit-scrollbar-track { background: transparent; }
+.chat-messages::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 3px; }
 .help-panel { max-height: 86vh; }
 .help-content { text-align: start; max-height: 60vh; overflow-y: auto; padding-right: 4px; }
 .help-content h3 { font-size: var(--fs-base); font-weight: 700; letter-spacing: var(--tr-tight); margin: 18px 0 6px; }
@@ -936,6 +1102,28 @@ html[dir="rtl"] .chevron { display: inline-block; transform: scaleX(-1); }
 .date-sep-clickable { cursor: pointer; }
 .bubble code { background: rgba(127,127,127,0.18); border-radius: 4px; padding: 1px 4px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.92em; }
 .emoji-picker-panel { max-height: 60vh; display: flex; flex-direction: column; }
+/* Раздел 6 роадмапа — "inline-выезд эмодзи-пикера (вместо bottom-sheet)",
+   было в "Сознательно отложено". Вместо модального bottom-sheet во весь
+   экран с затемнением — узкая карточка, всплывающая прямо над композером
+   (как в большинстве мессенджеров), без затемнения остального экрана.
+   Точное расстояние до композера (margin-bottom) ставится инлайн-стилем
+   из renderEmojiPickerAnchor() в js/app.js — высота композера меняется
+   (баннер ответа/редактирования/расписания, safe-area), так что фиксной
+   CSS-константы тут быть не может; это переопределяет только карточку
+   #emoji-picker-sheet, остальные ~20 шторок делят общий .sheet как раньше. */
+#emoji-picker-sheet .sheet-backdrop { background: transparent; }
+#emoji-picker-sheet .sheet-panel {
+  width: calc(100% - 24px); margin-left: 12px; margin-right: 12px;
+  border-radius: 20px; max-height: 48vh;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35), 0 0 0 1px var(--line-1);
+}
+/* V.50.0.0: skin-tone selector — 6 круглых свотчей, активный получает
+   кольцо через box-shadow (не border, чтобы не сдвигать layout соседних
+   свотчей при смене выбора). */
+.skin-tone-row { display: flex; gap: 8px; margin: 8px 0 2px; }
+.skin-tone-swatch { width: 26px; height: 26px; border-radius: 50%; border: none; cursor: pointer; padding: 0; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.15); }
+.skin-tone-swatch.active { box-shadow: 0 0 0 2px var(--bg-0), 0 0 0 4px var(--accent); }
+.handshake-tone-preview { font-size: 48px; text-align: center; margin: 4px 0 10px; }
 .emoji-tabs { display: flex; gap: 4px; margin: 10px 0 6px; overflow-x: auto; scrollbar-width: none; }
 .emoji-tabs::-webkit-scrollbar { display: none; }
 .emoji-tab-btn { flex-shrink: 0; border: none; cursor: pointer; background: transparent; border-radius: 10px; padding: 6px 10px; font-size: 20px; opacity: 0.5; }
@@ -979,11 +1167,53 @@ html[dir="rtl"] .chevron { display: inline-block; transform: scaleX(-1); }
    Пузыри сообщений
    ============================================================ */
 .bubble-row { display: flex; }
-.bubble-row.grouped { margin-top: -3px; }
+.bubble-row.grouped { margin-top: -6px; }
 .bubble-row.mine { justify-content: flex-end; }
-.bubble-row.theirs { justify-content: flex-start; }
+.bubble-row.theirs { justify-content: flex-start; align-items: flex-start; }
+/* Аватар отправителя в групповых чатах — только у "чужих" сообщений.
+   Рендерится на КАЖДОМ сообщении группы ради простоты разметки (не нужно
+   знать "последнее ли это сообщение в блоке" на момент рендера), но
+   видим только на ПЕРВОМ сообщении блока — там же, где уже показывается
+   имя отправителя (.bubble-sender), т.е. место ожидаемо совпадает со
+   взглядом читателя. На остальных сообщениях блока аватар занимает то
+   же место невидимым (visibility, не display), чтобы бабблы не сдвигались
+   по горизонтали при переходе между сгруппированными/несгруппированными
+   сообщениями. */
+.bubble-row-avatar { width: 24px; height: 24px; flex-shrink: 0; margin: 0 6px 2px 0; visibility: hidden; }
+.bubble-row-avatar.avatar-visible { visibility: visible; }
+.bubble-row-avatar .avatar { width: 24px; height: 24px; font-size: 11px; }
+.reaction-burst {
+  position: absolute;
+  bottom: 50%;
+  inset-inline-end: 10px;
+  font-size: 28px;
+  pointer-events: none;
+  z-index: 5;
+  animation: reaction-burst-fly 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+@keyframes reaction-burst-fly {
+  0%   { opacity: 0; transform: translate(0, 0) scale(0.4); }
+  30%  { opacity: 1; transform: translate(6px, -22px) scale(1.25); }
+  100% { opacity: 0; transform: translate(14px, -46px) scale(0.9); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reaction-burst { animation: none; opacity: 0; }
+}
+.bubble.bubble-pressing {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+}
+@media (prefers-reduced-motion: reduce) {
+  .bubble.bubble-pressing { transform: none; }
+}
+/* Визуальный отклик при пересечении порога свайпа-ответа (см.
+   attachSwipeReply) — раньше "сработает или нет" было видно только
+   ПОСЛЕ отпускания пальца. */
+.bubble.swipe-ready { box-shadow: 0 0 0 2px var(--accent) inset; }
 .bubble {
-  max-width: 78%;
+  /* На широких экранах (desktop shell ~620px) 78% давало пузырь до
+     ~480px даже для короткого текста — неестественно широко. */
+  max-width: min(78%, 480px);
   padding: 10px 14px 8px;
   border-radius: 20px;
   font-size: var(--fs-base);
@@ -1046,8 +1276,13 @@ html[data-theme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); }
   100% { transform: scale(0.96); opacity: 0.88; }
 }
 @keyframes bubble-receive-in {
-  0%   { transform: translateY(8px) scale(0.94); opacity: 0; filter: blur(3px); }
-  100% { transform: translateY(0) scale(1); opacity: 1; filter: blur(0); }
+  /* filter: blur() раньше был частью этой анимации — дорогой для
+     композитинга на слабых устройствах (каждый blur-слой считается
+     отдельно GPU). Чисто opacity+transform даёт тот же "мягкий
+     заезд", но гарантированные 60fps на любом устройстве, а не только
+     на топовых телефонах. */
+  0%   { transform: translateY(8px) scale(0.94); opacity: 0; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
 }
 .bubble-row.just-sent .bubble {
   animation: bubble-send-out 280ms var(--spring-snappy) forwards;
@@ -1064,11 +1299,16 @@ html[data-theme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); }
 .bubble-row.theirs .bubble-time { color: var(--ink-2); opacity: 1; }
 .bubble-edited { font-size: 10px; opacity: 0.7; margin-inline-start: 4px; }
 .bubble-ttl { font-size: 10px; opacity: 0.75; margin-inline-end: 2px; }
+.bubble-favorite { color: #ffcc33; display: inline-flex; margin-inline-end: 2px; vertical-align: middle; }
 .bubble-sender { font-size: var(--fs-xs); font-weight: 700; color: var(--accent); margin-bottom: 2px; }
 .bubble-reply { padding: 6px 10px; margin: -2px 0 6px; border-inline-start: 3px solid currentColor; border-radius: 6px; background: rgba(255, 255, 255, 0.08); font-size: var(--fs-xs); opacity: 0.85; }
 .bubble-reply-author { font-weight: 600; font-size: 11px; }
 .bubble-reply-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .bubble-forwarded { font-size: 10px; opacity: 0.75; font-style: italic; margin-bottom: 3px; }
+/* Перевод сообщения (раздел 5 роадмапа) — под оригиналом, визуально
+   отделён тонкой чертой, не подменяет исходный текст. */
+.bubble-translation { margin-top: 5px; padding-top: 5px; border-top: 1px dashed var(--line-1); font-style: italic; opacity: 0.88; }
+.bubble-translation-label { font-size: 10px; font-style: normal; opacity: 0.65; margin-right: 4px; }
 .bubble-reactions { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; margin-bottom: -2px; }
 .bubble-reaction-chip { background: rgba(255, 255, 255, 0.18); border-radius: 10px; padding: 2px 6px; font-size: var(--fs-xs); }
 .bubble-row.theirs .bubble-reaction-chip { background: var(--input-bg); }
@@ -1232,12 +1472,28 @@ html[data-theme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); }
 .bubble-row.mine .voice-progress { background: rgba(255,255,255,0.3); }
 .bubble-row.mine .voice-progress-fill { background: #fff; }
 .voice-duration { font-size: 11px; opacity: 0.75; min-width: 34px; text-align: end; }
+/* Раздел 7 роадмапа — живая волна ПРИ ПРОСЛУШИВАНИИ (не при записи, та
+   уже была — см. .voice-recording-wave выше). Разметка статична (5 пустых
+   span), высота/прозрачность каждого — инлайн-стили из JS
+   (startVoicePlaybackWaveLoop в app.js), нет смысла в CSS-анимации, как у
+   волны записи, раз значения реальные, а не декоративный цикл. */
+.voice-live-wave { display: inline-flex; align-items: center; gap: 2px; height: 16px; flex-shrink: 0; }
+.voice-live-wave span { display: block; width: 2px; border-radius: 1px; background: var(--accent); opacity: 0.35; transform: scaleY(0.4); transition: transform 0.1s linear, opacity 0.1s linear; }
+.voice-live-wave span:nth-child(1) { height: 6px; }
+.voice-live-wave span:nth-child(2) { height: 11px; }
+.voice-live-wave span:nth-child(3) { height: 15px; }
+.voice-live-wave span:nth-child(4) { height: 9px; }
+.voice-live-wave span:nth-child(5) { height: 5px; }
+.bubble-row.mine .voice-live-wave span { background: #fff; }
 
-/* Индикатор записи голосового: пульсирующая точка + новая мини-волна
-   из 5 столбиков рядом (Группа 7). Столбики двигаются асинхронно,
-   создавая ощущение живого уровня — хотя это чисто декоративный
-   эффект, не реальный level meter. Реальный level meter отложен на
-   будущее (требует AnalyserNode поверх MediaRecorder). */
+/* Индикатор записи голосового: пульсирующая точка + мини-волна из 5
+   столбиков (Группа 7). С V.45.0.0 столбики двигаются по РЕАЛЬНОЙ
+   громкости микрофона — startVoiceLevelMeter() в app.js читает
+   AnalyserNode поверх MediaRecorder и двигает их через JS (transform/
+   opacity инлайном, см. код). @keyframes ниже — только резервный
+   декоративный фолбэк на случай, если Web Audio недоступен/запрещён
+   (тогда JS не трогает animation, и это правило просто продолжает
+   крутиться само). */
 #voice-recording-bar { display: flex; align-items: center; gap: 10px; }
 .voice-recording-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--danger); animation: voice-pulse 1s ease-in-out infinite; flex-shrink: 0; }
 @keyframes voice-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
@@ -1303,6 +1559,14 @@ html[data-theme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); }
   flex-shrink: 0;
   border-radius: var(--radius-l) var(--radius-l) 0 0;
 }
+/* V.51.0.0: раздел 6 роадмапа — переключаемый эксперимент "+" для
+   композера (Settings → Appearance, выкл. по умолчанию). Видимость
+   attach/emoji/camera/"+" в этом режиме управляется из JS через тот же
+   класс .hidden, что и везде в приложении (см. wireComposerPlusMode() в
+   js/app.js) — здесь только чисто визуальный поворот иконки "+" в "×"
+   при раскрытой панели. */
+#chat-plus-btn { transition: transform 0.15s ease; }
+#chat-plus-btn.composer-plus-expanded-icon { transform: rotate(45deg); }
 #chat-input {
   flex: 1 1 auto;
   min-width: 0;
@@ -1335,6 +1599,24 @@ html[data-theme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); }
     inset 0 1px 0 rgba(255, 255, 255, 0.2),
     0 2px 6px rgba(138, 109, 255, 0.2);
 }
+/* Анимированный переход mic↔send: раньше это был мгновенный toggle
+   .hidden (display:none) без transition. Слот фиксированного размера с
+   обеими кнопками абсолютно друг над другом — кроссфейд+поворот вместо
+   жёсткого щелчка. */
+.send-mic-slot { position: relative; width: 40px; height: 40px; flex-shrink: 0; }
+.send-mic-slot .send-btn {
+  position: absolute; inset: 0;
+  transition: transform 0.18s var(--spring-snappy), opacity 0.18s var(--spring-snappy), box-shadow 0.15s var(--spring-snappy);
+}
+.send-mic-slot .send-btn.hidden {
+  display: flex !important;
+  opacity: 0;
+  transform: scale(0.4) rotate(-45deg);
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .send-mic-slot .send-btn.hidden { transform: scale(0.4); }
+}
 
 .scroll-bottom-btn {
   position: absolute;
@@ -1352,6 +1634,14 @@ html[data-theme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); }
   backdrop-filter: blur(20px);
 }
 .scroll-bottom-btn.hidden { display: none !important; }
+/* Акцентный вид "вниз к новым" — только когда выше по скроллу есть
+   непрочитанные; просто "вернуться вниз" (без непрочитанных) остаётся
+   нейтральной кнопкой, чтобы не создавать ложное чувство срочности. */
+.scroll-bottom-btn.has-unread {
+  background: linear-gradient(160deg, var(--accent), var(--accent-lo));
+  border-color: transparent;
+  color: #fff;
+}
 .scroll-bottom-count {
   position: absolute; top: -6px; inset-inline-end: -6px;
   background: linear-gradient(160deg, var(--accent), var(--accent-lo));
@@ -1368,6 +1658,7 @@ html[data-theme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); }
 #tab-bar {
   display: flex;
   align-items: center;
+  position: relative;
   height: 50px;
   padding: 0 4px calc(env(safe-area-inset-bottom, 0px) + 3px);
   box-sizing: content-box;
@@ -1404,6 +1695,25 @@ html[data-theme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); }
   box-shadow: 0 0 0 2px var(--bg-0);
 }
 .tab-btn.active { color: var(--accent); }
+/* Spring-индикатор активной вкладки — раньше смена вкладки была видна
+   только по цвету иконки/текста, без общего "движения" между позициями.
+   Позиция/ширина считаются в JS (updateTabIndicator) от реального
+   offsetLeft/width активной кнопки — так индикатор не рассыпается при
+   смене языка (разная ширина подписи) или при скрытии/показе Debug-таба. */
+.tab-indicator {
+  position: absolute;
+  bottom: 2px;
+  height: 3px;
+  width: 24px;
+  border-radius: 2px;
+  background: var(--accent);
+  transform: translateX(0);
+  transition: transform 0.3s var(--spring-snappy), width 0.3s var(--spring-snappy), opacity 0.15s linear;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tab-indicator { transition: opacity 0.15s linear; }
+}
 .tab-btn.hidden { display: none !important; }
 
 /* Экран звонка (Группа 2): аватар пульсирует двумя расходящимися
@@ -1544,6 +1854,11 @@ html[data-theme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); }
 .sheet-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.45); }
 .sheet-panel { position: relative; width: 100%; max-height: 82vh; overflow-y: auto; border-radius: 26px 26px 0 0; padding: 10px 22px calc(clamp(0px, env(safe-area-inset-bottom, 0px), 40px) + 24px); }
 .sheet-handle { width: 36px; height: 5px; border-radius: 3px; background: var(--ink-3); margin: 6px auto 16px; touch-action: none; position: relative; }
+/* #confirm-sheet (раздел 15 роадмапа) — одна переиспользуемая шторка
+   вместо нативного confirm() на ~15 разных местах; короче остальных
+   шторок (одна строка текста + 2 кнопки), центрируем текст. */
+.confirm-panel .confirm-message { text-align: center; font-size: 15px; line-height: 1.4; margin: 4px 0 18px; }
+.confirm-panel .row-actions { margin-bottom: 0; }
 .sheet-handle::before { content: ""; position: absolute; inset: -16px -22px; }
 .sheet-panel h2 { font-size: var(--fs-lg); letter-spacing: var(--tr-tight); margin: 0 0 12px; }
 .sheet-panel p { font-size: var(--fs-base); line-height: var(--lh-relaxed); color: var(--ink-1); margin: 0 0 14px; }
@@ -1560,11 +1875,34 @@ html[data-theme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); }
 .reaction-emoji { border: none; background: var(--input-bg); width: 44px; height: 44px; border-radius: 50%; font-size: 22px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .reaction-emoji.reaction-expand { font-size: 20px; font-weight: 700; color: var(--ink-1); }
 .reaction-emoji:active { transform: scale(0.92); }
+/* Плывущая панель быстрых реакций на долгое нажатие (см. комментарий у
+   #quick-reaction-flyout в index.html) — позиционируется инлайн-стилем
+   (top/left) из js/app.js прямо над/под нажатым пузырём, поэтому здесь
+   только внешний вид и переходный класс .quick-reaction-flyout-show
+   (анимация появления из точки нажатия, а не статичное появление). */
+.quick-reaction-flyout {
+  position: fixed; z-index: 75; display: flex; gap: 6px; align-items: center;
+  padding: 7px 8px; border-radius: 28px;
+  background: var(--sheet-bg, var(--bg-1)); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), 0 0 0 1px var(--line-1);
+  opacity: 0; transform: scale(0.85); transition: opacity 0.14s ease, transform 0.14s ease;
+}
+.quick-reaction-flyout.quick-reaction-flyout-show { opacity: 1; transform: scale(1); }
+.quick-reaction-flyout .reaction-emoji { width: 38px; height: 38px; font-size: 19px; }
+.quick-reaction-flyout .reaction-emoji.reaction-more { font-size: 18px; }
+@media (prefers-reduced-motion: reduce) { .quick-reaction-flyout { transition: none; } }
 
 .forward-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; max-height: 60vh; overflow-y: auto; }
 .forward-row { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: var(--radius-m); background: var(--input-bg); border: none; cursor: pointer; width: 100%; text-align: start; }
 .forward-row:active { opacity: 0.7; }
 .forward-name { flex: 1; font-size: var(--fs-base); font-weight: 500; }
+
+/* "Отправить позже" — баннер над композером, сам <button>, поэтому
+   сбрасываем нативные border/font у кнопки, которые .edit-banner (писался
+   для <div>) не трогает. */
+#schedule-banner { font: inherit; width: 100%; text-align: start; cursor: pointer; }
+#schedule-banner:active { opacity: 0.7; }
+#schedule-custom-input { border: none; background: transparent; text-align: end; font-size: var(--fs-base); color: var(--accent); outline: none; }
+.schedule-row-cancel-btn { flex-shrink: 0; }
 
 .diag-summary { background: var(--input-bg); border: 1px solid var(--input-border); border-radius: var(--radius-m); padding: 12px 14px; font-size: var(--fs-sm); line-height: 1.7; margin-bottom: 12px; }
 .diag-log { background: var(--input-bg); border: 1px solid var(--input-border); border-radius: var(--radius-m); padding: 12px 14px; max-height: 320px; overflow-y: auto; font-family: ui-monospace, "SF Mono", monospace; font-size: 11px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; color: var(--ink-1); margin: 0 0 12px; }
@@ -1607,6 +1945,22 @@ html[data-theme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); }
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* killer-features-backlog 1.7 — Panic Clean (встряхнуть телефон).
+   Намеренно НЕ сливается с #toast: должен быть виден поверх ВСЕГО,
+   с собственной кнопкой отмены, и не исчезать по таймеру toast'а. */
+.panic-shake-banner {
+  position: fixed; top: calc(env(safe-area-inset-top, 0px) + 10px); left: 12px; right: 12px; z-index: 1000;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  background: var(--danger); color: #fff; padding: 12px 14px; border-radius: 14px;
+  font-size: var(--fs-sm); font-weight: 600;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.panic-shake-banner.hidden { display: none; }
+.panic-shake-banner button {
+  background: rgba(255, 255, 255, 0.2); color: #fff; border: none; border-radius: 10px;
+  padding: 6px 12px; font-size: var(--fs-sm); font-weight: 600; flex: none; cursor: pointer;
+}
 
 #boot-recovery { position: fixed; inset: 0; z-index: 999; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--bg-0); }
 #boot-recovery .onboarding-card { width: min(380px, 100%); padding: 32px 24px; }
@@ -1689,3 +2043,34 @@ html[data-theme="light"] body::before {
   padding: 0;
 }
 .call-overlay-btn:active { transform: scale(0.94); }
+.call-minimize-btn {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 14px);
+  inset-inline-start: 14px;
+  z-index: 6;
+}
+
+/* ============================================================
+   Floating mini-call-bar — тонкая полоска НАД таб-баром, когда звонок
+   свёрнут (кнопкой выше или тапом по другой вкладке). Раньше #call-screen
+   занимал всю центральную область безальтернативно — свайпнуть в чаты
+   во время звонка было физически невозможно, кроме как его завершив.
+   ============================================================ */
+#mini-call-bar {
+  position: fixed;
+  left: 0; right: 0;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 53px); /* высота #tab-bar: 50px + 3px его нижнего паддинга */
+  height: 40px;
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 14px;
+  border: none; cursor: pointer;
+  background: linear-gradient(160deg, var(--accent), var(--accent-lo));
+  color: #fff;
+  z-index: 50;
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.25);
+}
+#mini-call-bar.hidden { display: none !important; }
+.mini-call-avatar { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; }
+.mini-call-avatar .avatar { width: 24px; height: 24px; font-size: 11px; }
+.mini-call-name { font-size: var(--fs-sm); font-weight: 600; flex: 1; text-align: start; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mini-call-timer { font-size: var(--fs-sm); font-variant-numeric: tabular-nums; opacity: 0.9; }
