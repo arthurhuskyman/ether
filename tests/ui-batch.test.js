@@ -94,3 +94,21 @@ test("логотип: иконки из файла логотипа нужных
   assert.ok(logo.compareDocumentPosition(name) & a.window.Node.DOCUMENT_POSITION_FOLLOWING, "логотип расположен над названием");
   a.close();
 });
+
+test("Настройки: отдельного поля поиска нет, остаётся лупа в хедере (глобальный поиск, ведёт в категорию)", async () => {
+  const a = await bootApp({});
+  assert.equal(a.document.querySelector("#settings-search"), null);
+  assert.equal(a.document.querySelector("#screen-settings input.search-input"), null);
+  assert.ok(a.document.querySelector("#global-search-btn"), "лупа в хедере на месте");
+  // категории работают без поля поиска
+  a.document.querySelector('.tab-btn[data-tab="settings"]').click();
+  a.document.querySelector('.settings-category-row[data-category="help"]').click();
+  assert.ok(!a.document.querySelector('[data-settings-category="help"]').classList.contains("category-hidden"));
+  a.document.querySelector("#settings-back-btn").click();
+  assert.ok(!a.document.querySelector("#settings-category-list").classList.contains("hidden"));
+  // глобальный поиск по настройкам открывает нужную категорию
+  a.run(`navigateToSettingsCategory("help")`);
+  assert.equal(a.run(`state.settingsCategory`), "help");
+  assert.ok(!a.document.querySelector('[data-settings-category="help"]').classList.contains("category-hidden"));
+  a.close();
+});

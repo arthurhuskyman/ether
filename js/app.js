@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.57.9.0";
+const APP_VERSION = "V.57.9.1";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 // Сервер перевода по умолчанию (LibreTranslate-совместимый). Официальный публичный инстанс обычно
@@ -10270,27 +10270,12 @@ function closeSettingsCategory() {
   state.settingsCategory = null;
   updateSettingsCategoryView();
 }
-// Поиск (ниже) работает по-прежнему ПО ВСЕМУ экрану Settings, а не внутри
-// одной категории — это сознательно: при вводе запроса пользователь хочет
-// найти нужную настройку, а не сначала угадать, в какой категории она
-// живёт. Поэтому во время поиска категории временно не участвуют:
-// показываются все группы, фильтрация идёт только через search-hidden,
-// как и раньше. Категория, что была открыта до начала поиска, никуда не
-// теряется — просто не применяется, пока в поле есть текст, и
-// восстанавливается сама собой, как только поле очищается (state
-// category мы здесь не трогаем).
+// Отдельного поля поиска на экране Настроек больше нет: искать настройки можно через лупу в хедере
+// (глобальный поиск, см. renderGlobalSearchResults) — результат ведёт сразу в нужную категорию.
 function updateSettingsCategoryView() {
-  const searchEl = $("#settings-search");
-  const searching = !!(searchEl && searchEl.value.trim());
   const list = $("#settings-category-list");
   const header = $("#settings-category-header");
   const groups = $$("#screen-settings .settings-group");
-  if (searching) {
-    if (list) list.classList.add("hidden");
-    if (header) header.classList.add("hidden");
-    groups.forEach((g) => g.classList.remove("category-hidden"));
-    return;
-  }
   if (!state.settingsCategory) {
     if (list) list.classList.remove("hidden");
     if (header) header.classList.add("hidden");
@@ -10311,34 +10296,6 @@ function wireSettingsScreen() {
   updateSettingsCategoryView();
   const backBtn = $("#settings-back-btn");
   if (backBtn) backBtn.addEventListener("click", closeSettingsCategory);
-  const settingsSearch = $("#settings-search");
-  if (settingsSearch) {
-    // Нюанс (как и предупреждал ревьюер): .settings-row.column — это
-    // контейнер с несколькими подэлементами (например, Privacy), а не
-    // одна строка с одним текстом — простая фильтрация по textContent
-    // всё равно работает приемлемо (ищет по всему тексту внутри), не
-    // идеально для таких составных блоков, но этого достаточно для
-    // первой версии.
-    settingsSearch.addEventListener("input", (e) => {
-      // Отдельный класс search-hidden, а не общий "hidden" — часть строк
-      // (например #change-pin-btn) уже скрыта своей собственной логикой
-      // независимо от поиска; трогать их общий "hidden" напрямую стёрло
-      // бы это состояние при очистке поля поиска.
-      const q = e.target.value.trim().toLowerCase();
-      $$("#screen-settings .settings-row").forEach((row) => {
-        const text = (row.textContent || "").toLowerCase();
-        row.classList.toggle("search-hidden", q.length > 0 && !text.includes(q));
-      });
-      $$("#screen-settings .settings-group").forEach((group) => {
-        const anyVisible = Array.from(group.querySelectorAll(".settings-row")).some((r) => !r.classList.contains("search-hidden") && !r.classList.contains("hidden"));
-        group.classList.toggle("search-hidden", q.length > 0 && !anyVisible);
-      });
-      // Поиск временно "снимает" категории (см. комментарий у
-      // updateSettingsCategoryView) — пересчитываем после своей логики
-      // выше, а не вместо неё.
-      updateSettingsCategoryView();
-    });
-  }
   const helpBtn = $("#help-btn");
   if (helpBtn) helpBtn.addEventListener("click", () => {
     renderHelp();
@@ -10617,19 +10574,13 @@ function closeGlobalSearch() {
 // Переход в конкретную категорию настроек (используется и кликом по
 // результату поиска, и может переиспользоваться где угодно ещё, где
 // нужно программно открыть Settings на нужном разделе). Сбрасывает
-// активный чат/карточку контакта и любой незакрытый #settings-search,
+// активный чат/карточку контакта,
 // чтобы категория точно стала видимой (см. updateSettingsCategoryView).
 function navigateToSettingsCategory(catId) {
   state.chatId = null;
   state.contactCardId = null;
   state.tab = "settings";
   state.settingsCategory = catId || null;
-  const ss = $("#settings-search");
-  if (ss && ss.value) {
-    ss.value = "";
-    $$("#screen-settings .settings-row").forEach((r) => r.classList.remove("search-hidden"));
-    $$("#screen-settings .settings-group").forEach((g) => g.classList.remove("search-hidden"));
-  }
   renderTab();
   updateSettingsCategoryView();
 }
