@@ -466,6 +466,7 @@ window.__LANG_DICTS["ne"] = {
     "chat.translated": "अनुवाद गरिएको:",
     "toast.translateNoServer": "पहिले सेटिङ → सूचनाहरूमा अनुवाद सर्भर सेट गर्नुहोस्",
     "toast.translateFailed": "अनुवाद सर्भरमा पुग्न सकिएन",
+    "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
     "settings.blocked": "ब्लक गरिएका सम्पर्कहरू",
     "settings.blocked.empty": "कुनै ब्लक गरिएको सम्पर्क छैन।",
     "chat.pinMsg": "म्यासेज पिन गर्नुहोस्",

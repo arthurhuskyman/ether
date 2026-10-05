@@ -466,6 +466,7 @@ window.__LANG_DICTS["lo"] = {
     "chat.translated": "ແປແລ້ວ:",
     "toast.translateNoServer": "ກ່ອນອື່ນໃຫ້ຕັ້ງເຊີບເວີແປພາສາໃນ ການຕັ້ງຄ່າ → ການແຈ້ງເຕືອນ",
     "toast.translateFailed": "ບໍ່ສາມາດເຊື່ອມຕໍ່ເຊີບເວີແປພາສາໄດ້",
+    "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
     "settings.blocked": "ລາຍຊື່ຜູ້ຕິດຕໍ່ທີ່ບລັອກ",
     "settings.blocked.empty": "ບໍ່ມີຜູ້ຕິດຕໍ່ທີ່ຖືກບລັອກ.",
     "chat.pinMsg": "ປິ່ນຂໍ້ຄວາມ",

@@ -466,6 +466,7 @@ window.__LANG_DICTS["et"] = {
     "chat.translated": "Tõlgitud:",
     "toast.translateNoServer": "Määra esmalt tõlkeserver Seaded → Teavitused alt",
     "toast.translateFailed": "Tõlkeserveriga ei saanud ühendust",
+    "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
     "settings.blocked": "Blokeeritud kontaktid",
     "settings.blocked.empty": "Blokeeritud kontakte ei ole.",
     "chat.pinMsg": "Kinnita sõnum",

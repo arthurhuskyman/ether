@@ -466,6 +466,7 @@ window.__LANG_DICTS["ur"] = {
     "chat.translated": "ترجمہ شدہ:",
     "toast.translateNoServer": "پہلے ترتیبات ← اطلاعات میں ترجمہ سرور سیٹ کریں",
     "toast.translateFailed": "ترجمہ سرور تک رسائی ممکن نہیں ہوئی",
+    "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
     "settings.blocked": "بلاک شدہ رابطے",
     "settings.blocked.empty": "کوئی بلاک شدہ رابطہ موجود نہیں۔",
     "chat.pinMsg": "پیغام پن کریں",

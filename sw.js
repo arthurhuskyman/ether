@@ -1,4 +1,4 @@
-const CACHE_VERSION = "ether-shell-v173";
+const CACHE_VERSION = "ether-shell-v180";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -38,7 +38,7 @@ const SHELL_FILES = [
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_VERSION).then((cache) =>
-      Promise.all(SHELL_FILES.map((url) => fetch(url, { cache: "reload" }).then((res) => cache.put(url, res))))
+      Promise.all(SHELL_FILES.map((url) => fetch(url, { cache: "reload" }).then((res) => { if (!res.ok) throw new Error("shell fetch failed: " + url + " " + res.status); return cache.put(url, res); })))
     )
   );
   // ВАЖНО: skipWaiting() убран. Новый SW ждёт в состоянии "waiting",

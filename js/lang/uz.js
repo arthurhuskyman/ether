@@ -466,6 +466,7 @@ window.__LANG_DICTS["uz"] = {
     "chat.translated": "Tarjima qilindi:",
     "toast.translateNoServer": "Avval Sozlamalar → Bildirishnomalarda tarjima serverini sozlang",
     "toast.translateFailed": "Tarjima serveriga ulanib bo'lmadi",
+    "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
     "settings.blocked": "Bloklangan kontaktlar",
     "settings.blocked.empty": "Bloklangan kontaktlar yo'q.",
     "chat.pinMsg": "Xabarni mahkamlash",

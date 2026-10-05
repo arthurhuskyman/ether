@@ -466,6 +466,7 @@ window.__LANG_DICTS["de"] = {
     "chat.translated": "Übersetzt:",
     "toast.translateNoServer": "Lege zuerst einen Übersetzungsserver unter Einstellungen → Benachrichtigungen fest",
     "toast.translateFailed": "Übersetzungsserver konnte nicht erreicht werden",
+    "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
     "settings.blocked": "Blockierte Kontakte",
     "settings.blocked.empty": "Keine blockierten Kontakte.",
     "chat.pinMsg": "Nachricht anheften",

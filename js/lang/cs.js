@@ -466,6 +466,7 @@ window.__LANG_DICTS["cs"] = {
     "chat.translated": "Přeloženo:",
     "toast.translateNoServer": "Nejprve nastavte server pro překlad v Nastavení → Oznámení",
     "toast.translateFailed": "Nepodařilo se spojit se serverem pro překlad",
+    "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
     "settings.blocked": "Blokované kontakty",
     "settings.blocked.empty": "Žádné blokované kontakty.",
     "chat.pinMsg": "Připnout zprávu",

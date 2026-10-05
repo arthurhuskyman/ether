@@ -405,9 +405,12 @@ class PeerLink extends EventTarget {
     if (meta.forwarded) metaPayload.forwarded = true;
     if (meta.caption) metaPayload.caption = meta.caption;
     if (!this.send(metaPayload)) return false;
+    const BACKPRESSURE_TIMEOUT_MS = 30000; // залипший SCTP-буфер не должен вешать отправку вечно
     const BUFFER_THRESHOLD = 262144; // 256KB — не даём буферу канала расти бесконтрольно
     for (let i = 0; i < base64Chunks.length; i++) {
+      const waitStart = Date.now();
       while (this.dc && this.dc.readyState === "open" && this.dc.bufferedAmount > BUFFER_THRESHOLD) {
+        if (Date.now() - waitStart > BACKPRESSURE_TIMEOUT_MS) return false;
         await new Promise((r) => setTimeout(r, 50));
       }
       if (!this.dc || this.dc.readyState !== "open") return false;
@@ -513,8 +516,15 @@ class PeerLink extends EventTarget {
     this._pendingNegotiation = true;
     this._makingOffer = true;
     try {
-      const offer = await this.pc.createOffer(iceRestart ? { iceRestart: true } : undefined);
-      await this.pc.setLocalDescription(offer);
+      // Критическая секция «createOffer → setLocalDescription» помечается промисом: если
+      // за это время придёт встречный offer, _handleRemoteSdp дождётся её окончания, а не
+      // вызовет setRemoteDescription посреди нашего setLocalDescription (иначе обе стороны
+      // зависали в have-local-offer — реальный дедлок при одновременном добавлении треков).
+      this._offerSetup = (async () => {
+        const offer = await this.pc.createOffer(iceRestart ? { iceRestart: true } : undefined);
+        await this.pc.setLocalDescription(offer);
+      })();
+      try { await this._offerSetup; } finally { this._offerSetup = null; }
       // Раньше SDP читался из this.pc.localDescription.sdp ПОСЛЕ этого
       // await — между setLocalDescription(offer) и отправкой есть
       // await waitForIceGathering (до нескольких секунд при iceRestart).
@@ -587,6 +597,7 @@ class PeerLink extends EventTarget {
       // принимает чужой, "невежливая" — молча игнорирует чужой и ждёт,
       // что её собственный offer в итоге примут. Без этого одна из сторон
       // почти гарантированно получает InvalidStateError и рвёт согласование.
+      if (this._offerSetup) { try { await this._offerSetup; } catch (e) {} if (this._closed) return; }
       const collision = this._makingOffer || this.pc.signalingState !== "stable";
       if (collision && !this._polite) {
         this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "glare: невежливая сторона игнорирует встречный offer");
@@ -608,6 +619,12 @@ class PeerLink extends EventTarget {
         // собеседника), PeerLink мог тихо зависнуть в промежуточном
         // состоянии, ничем не сигнализируя, что согласование сорвалось.
         this._log("warn", "[webrtc]", this.id.slice(0, 10) + "…", "не удалось применить встречный offer:", String(e));
+        // Возвращаемся в stable и пробуем договориться заново, иначе pc может навсегда остаться
+        // в промежуточном состоянии (have-local-offer/have-remote-offer) без единого пакета в сети.
+        try { await this.pc.setLocalDescription({ type: "rollback" }); } catch (e2) {}
+        if (!this._closed && !this._renegotiationRetryTimer) {
+          this._renegotiationRetryTimer = setTimeout(() => { this._renegotiationRetryTimer = null; this._negotiate(false); }, 500);
+        }
         if (!this._closed) this._setStatus("disconnected");
         return;
       }
@@ -651,6 +668,7 @@ class PeerLink extends EventTarget {
     if (this.localVideoTrack) return;
     const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facingMode || "user" } });
     this.localVideoTrack = stream.getVideoTracks()[0];
+    this._facingMode = facingMode || "user";
     if (!this.localStream) this.localStream = new MediaStream();
     this.localStream.addTrack(this.localVideoTrack);
   }
@@ -698,9 +716,17 @@ class PeerLink extends EventTarget {
 
 async switchCamera() {
   if (!this.localVideoTrack) return;
+  // Во время показа экрана localVideoTrack — это трек ЭКРАНА: подмена его камерой
+  // оборвала бы показ (трек экрана останавливается), а stopScreenShare потом
+  // вернул бы уже неактуальное состояние. Переключать камеру можно только вне показа.
+  if (this._screenSharing) return;
   let stream = null;
   try {
-    const cur = this.localVideoTrack.getSettings ? this.localVideoTrack.getSettings().facingMode : null;
+    // Не все браузеры (например, Firefox на Android) отдают facingMode в getSettings(),
+    // поэтому запоминаем последний запрошенный режим — иначе кнопка всегда просила бы
+    // "environment" и вернуться на фронтальную камеру было бы нельзя.
+    const settingsMode = this.localVideoTrack.getSettings ? this.localVideoTrack.getSettings().facingMode : null;
+    const cur = settingsMode || this._facingMode || "user";
     const next = cur === "environment" ? "user" : "environment";
     stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: next } });
     const newTrack = stream.getVideoTracks()[0];
@@ -716,6 +742,7 @@ async switchCamera() {
     await sender.replaceTrack(newTrack);
     try { this.localVideoTrack.stop(); } catch (e) {}
     this.localVideoTrack = newTrack;
+    this._facingMode = next;
     stream = null;                              // ← успешно, стрим больше не «наш»
     if (this.localStream) {
       this.localStream.getVideoTracks().forEach((t) => this.localStream.removeTrack(t));
@@ -757,6 +784,10 @@ async startScreenShare() {
       // stopScreenShare() без повторного getUserMedia (который заново
       // спросил бы разрешение/мигнул индикатором камеры).
       this._preScreenShareTrack = this.localVideoTrack;
+      if (this.localStream) {
+        this.localStream.getVideoTracks().forEach((t) => this.localStream.removeTrack(t));
+        this.localStream.addTrack(screenTrack);
+      }
     } else {
       if (!this.localStream) this.localStream = new MediaStream();
       this.localStream.addTrack(screenTrack);
@@ -855,7 +886,7 @@ async startCall(withVideo) {
   setRemoteVolume(v) {
     const vol = Math.max(0, Math.min(1, Number(v) || 0));
     const el = document.getElementById("remote-audio-" + this.id);
-    if (el) el.volume = vol;
+    if (el) { if (el._relayGain) el._relayGain.gain.value = vol; else el.volume = vol; }
   }
 
   async reInvite() {

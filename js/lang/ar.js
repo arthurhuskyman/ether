@@ -466,6 +466,7 @@ window.__LANG_DICTS["ar"] = {
     "chat.translated": "مُترجم:",
     "toast.translateNoServer": "حدد خادم ترجمة في الإعدادات ← الإشعارات أولاً",
     "toast.translateFailed": "تعذر الوصول إلى خادم الترجمة",
+    "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
     "settings.blocked": "جهات الاتصال المحظورة",
     "settings.blocked.empty": "لا توجد جهات اتصال محظورة.",
     "chat.pinMsg": "تثبيت الرسالة",

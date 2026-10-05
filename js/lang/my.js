@@ -466,6 +466,7 @@ window.__LANG_DICTS["my"] = {
     "chat.translated": "ဘာသာပြန်ထားသည်:",
     "toast.translateNoServer": "ဦးစွာ ဆက်တင်များ → အကြောင်းကြားချက်များတွင် ဘာသာပြန် ဆာဗာကို သတ်မှတ်ပါ",
     "toast.translateFailed": "ဘာသာပြန် ဆာဗာသို့ မရောက်နိုင်ပါ",
+    "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
     "settings.blocked": "ပိတ်ထားသော အဆက်အသွယ်များ",
     "settings.blocked.empty": "ပိတ်ထားသော အဆက်အသွယ် မရှိပါ။",
     "chat.pinMsg": "မက်ဆေ့ချ်ကို ပင်ထိုးရန်",

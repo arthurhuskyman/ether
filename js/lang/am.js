@@ -466,6 +466,7 @@ window.__LANG_DICTS["am"] = {
     "chat.translated": "ተተርጉሟል፦",
     "toast.translateNoServer": "መጀመሪያ በቅንብሮች → ማሳወቂያዎች ውስጥ የትርጉም አገልጋይ ያዘጋጁ",
     "toast.translateFailed": "የትርጉም አገልጋይ ላይ መድረስ አልተቻለም",
+    "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
     "settings.blocked": "የታገዱ እውቂያዎች",
     "settings.blocked.empty": "የታገዱ እውቂያዎች የሉም።",
     "chat.pinMsg": "መልእክት ፒን አድርግ",

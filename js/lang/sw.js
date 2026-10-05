@@ -466,6 +466,7 @@ window.__LANG_DICTS["sw"] = {
     "chat.translated": "Imetafsiriwa:",
     "toast.translateNoServer": "Weka seva ya tafsiri kwenye Mipangilio → Arifa kwanza",
     "toast.translateFailed": "Imeshindwa kufikia seva ya tafsiri",
+    "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
     "settings.blocked": "Watu uliozuia",
     "settings.blocked.empty": "Hakuna watu uliowazuia.",
     "chat.pinMsg": "Bandika ujumbe",

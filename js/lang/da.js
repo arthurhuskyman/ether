@@ -466,6 +466,7 @@ window.__LANG_DICTS["da"] = {
     "chat.translated": "Oversat:",
     "toast.translateNoServer": "Angiv en oversættelsesserver under Indstillinger → Notifikationer først",
     "toast.translateFailed": "Kunne ikke nå oversættelsesserveren",
+    "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
     "settings.blocked": "Blokerede kontakter",
     "settings.blocked.empty": "Ingen blokerede kontakter.",
     "chat.pinMsg": "Fastgør besked",

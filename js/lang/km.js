@@ -466,6 +466,7 @@ window.__LANG_DICTS["km"] = {
     "chat.translated": "បានបកប្រែ៖",
     "toast.translateNoServer": "កំណត់ម៉ាស៊ីនបម្រើបកប្រែនៅក្នុងការកំណត់ → ការជូនដំណឹងជាមុនសិន",
     "toast.translateFailed": "មិនអាចទាក់ទងម៉ាស៊ីនបម្រើបកប្រែបានទេ",
+    "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
     "settings.blocked": "ទំនាក់ទំនងដែលបានទប់ស្កាត់",
     "settings.blocked.empty": "មិនមានទំនាក់ទំនងដែលបានទប់ស្កាត់ទេ។",
     "chat.pinMsg": "ខ្ទាស់សារ",

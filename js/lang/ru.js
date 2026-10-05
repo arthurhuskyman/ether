@@ -84,6 +84,7 @@ window.__LANG_DICTS["ru"] = {
     "chat.translated": "Переведено:",
     "toast.translateNoServer": "Сначала задайте сервер перевода в Настройки → Уведомления",
     "toast.translateFailed": "Не удалось связаться с сервером перевода",
+    "toast.contactsLoadFailed": "Не удалось прочитать сохранённые контакты — данные могут быть повреждены",
     "settings.blocked": "Заблокированные",
     "settings.blocked.empty": "Нет заблокированных контактов.",
     "chat.pinMsg": "Закрепить сообщение",

@@ -466,6 +466,7 @@ window.__LANG_DICTS["az"] = {
     "chat.translated": "Tərcümə edildi:",
     "toast.translateNoServer": "Əvvəlcə Ayarlar → Bildirişlər bölməsində tərcümə serveri təyin edin",
     "toast.translateFailed": "Tərcümə serverinə qoşulmaq mümkün olmadı",
+    "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
     "settings.blocked": "Bloklanmış kontaktlar",
     "settings.blocked.empty": "Bloklanmış kontakt yoxdur.",
     "chat.pinMsg": "Mesajı sabitlə",

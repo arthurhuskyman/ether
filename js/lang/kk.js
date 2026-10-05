@@ -466,6 +466,7 @@ window.__LANG_DICTS["kk"] = {
     "chat.translated": "Аударылды:",
     "toast.translateNoServer": "Алдымен Параметрлер → Хабарландырулар бөлімінде аударма серверін орнатыңыз",
     "toast.translateFailed": "Аударма серверіне қосылу мүмкін болмады",
+    "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
     "settings.blocked": "Бұғатталған контактілер",
     "settings.blocked.empty": "Бұғатталған контактілер жоқ.",
     "chat.pinMsg": "Хабарламаны бекіту",

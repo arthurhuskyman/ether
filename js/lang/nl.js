@@ -466,6 +466,7 @@ window.__LANG_DICTS["nl"] = {
     "chat.translated": "Vertaald:",
     "toast.translateNoServer": "Stel eerst een vertaalserver in bij Instellingen → Meldingen",
     "toast.translateFailed": "Kon geen verbinding maken met de vertaalserver",
+    "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
     "settings.blocked": "Geblokkeerde contacten",
     "settings.blocked.empty": "Geen geblokkeerde contacten.",
     "chat.pinMsg": "Bericht vastzetten",

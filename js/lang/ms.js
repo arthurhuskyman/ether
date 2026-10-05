@@ -466,6 +466,7 @@ window.__LANG_DICTS["ms"] = {
     "chat.translated": "Diterjemah:",
     "toast.translateNoServer": "Tetapkan pelayan terjemahan dalam Tetapan → Pemberitahuan dahulu",
     "toast.translateFailed": "Tidak dapat menghubungi pelayan terjemahan",
+    "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
     "settings.blocked": "Kenalan disekat",
     "settings.blocked.empty": "Tiada kenalan disekat.",
     "chat.pinMsg": "Sematkan mesej",

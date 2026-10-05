@@ -466,6 +466,7 @@ window.__LANG_DICTS["ja"] = {
     "chat.translated": "翻訳:",
     "toast.translateNoServer": "まず設定 → 通知で翻訳サーバーを設定してください",
     "toast.translateFailed": "翻訳サーバーに接続できませんでした",
+    "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
     "settings.blocked": "ブロックした連絡先",
     "settings.blocked.empty": "ブロックした連絡先はありません。",
     "chat.pinMsg": "メッセージをピン留め",

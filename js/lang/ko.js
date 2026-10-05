@@ -466,6 +466,7 @@ window.__LANG_DICTS["ko"] = {
     "chat.translated": "번역됨:",
     "toast.translateNoServer": "먼저 설정 → 알림에서 번역 서버를 설정하세요",
     "toast.translateFailed": "번역 서버에 연결할 수 없습니다",
+    "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
     "settings.blocked": "차단된 연락처",
     "settings.blocked.empty": "차단된 연락처가 없습니다.",
     "chat.pinMsg": "메시지 고정",
