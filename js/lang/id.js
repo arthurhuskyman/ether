@@ -467,6 +467,7 @@ window.__LANG_DICTS["id"] = {
     "toast.translateNoServer": "Atur server terjemahan di Pengaturan → Notifikasi terlebih dahulu",
     "toast.translateFailed": "Tidak dapat menjangkau server terjemahan",
     "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
+    "rotate.lock": "Rotate your phone to portrait",
     "settings.blocked": "Kontak yang diblokir",
     "settings.blocked.empty": "Tidak ada kontak yang diblokir.",
     "chat.pinMsg": "Sematkan pesan",

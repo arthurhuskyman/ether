@@ -467,6 +467,7 @@ window.__LANG_DICTS["ceb"] = {
     "toast.translateNoServer": "I-set usa ka translation server sa Settings → Notifications una",
     "toast.translateFailed": "Dili ma-reach ang translation server",
     "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
+    "rotate.lock": "Rotate your phone to portrait",
     "settings.blocked": "Gi-block nga mga kontak",
     "settings.blocked.empty": "Walay gi-block nga kontak.",
     "chat.pinMsg": "I-pin ang mensahe",

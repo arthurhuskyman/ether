@@ -467,6 +467,7 @@ window.__LANG_DICTS["zh"] = {
     "toast.translateNoServer": "请先在设置 → 通知中设置翻译服务器",
     "toast.translateFailed": "无法连接到翻译服务器",
     "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
+    "rotate.lock": "Rotate your phone to portrait",
     "settings.blocked": "已屏蔽的联系人",
     "settings.blocked.empty": "暂无已屏蔽的联系人。",
     "chat.pinMsg": "置顶消息",

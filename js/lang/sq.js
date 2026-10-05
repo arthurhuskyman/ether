@@ -467,6 +467,7 @@ window.__LANG_DICTS["sq"] = {
     "toast.translateNoServer": "Vendos fillimisht një server përkthimi te Cilësimet → Njoftimet",
     "toast.translateFailed": "Nuk mund të lidhej me serverin e përkthimit",
     "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
+    "rotate.lock": "Rotate your phone to portrait",
     "settings.blocked": "Kontakte të bllokuara",
     "settings.blocked.empty": "Nuk ka kontakte të bllokuara.",
     "chat.pinMsg": "Fiksoje mesazhin",

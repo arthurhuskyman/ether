@@ -467,6 +467,7 @@ window.__LANG_DICTS["jv"] = {
     "toast.translateNoServer": "Setel server terjemahan ing Setelan → Pemberitahuan dhisik",
     "toast.translateFailed": "Ora bisa nggayuh server terjemahan",
     "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
+    "rotate.lock": "Rotate your phone to portrait",
     "settings.blocked": "Kontak sing diblokir",
     "settings.blocked.empty": "Ora ana kontak sing diblokir.",
     "chat.pinMsg": "Pin pesen",

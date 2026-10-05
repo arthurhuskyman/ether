@@ -467,6 +467,7 @@ window.__LANG_DICTS["mr"] = {
     "toast.translateNoServer": "प्रथम सेटिंग्ज → सूचनांमध्ये भाषांतर सर्व्हर सेट करा",
     "toast.translateFailed": "भाषांतर सर्व्हरशी संपर्क होऊ शकला नाही",
     "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
+    "rotate.lock": "Rotate your phone to portrait",
     "settings.blocked": "ब्लॉक केलेले संपर्क",
     "settings.blocked.empty": "कोणतेही ब्लॉक केलेले संपर्क नाहीत.",
     "chat.pinMsg": "मेसेज पिन करा",

@@ -467,6 +467,7 @@ window.__LANG_DICTS["tg"] = {
     "toast.translateNoServer": "Аввал дар Танзимот → Огоҳиномаҳо сервери тарҷумаро танзим кунед",
     "toast.translateFailed": "Пайваст шудан бо сервери тарҷума имконнопазир буд",
     "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
+    "rotate.lock": "Rotate your phone to portrait",
     "settings.blocked": "Шахсони блок шуда",
     "settings.blocked.empty": "Шахси блокшуда нест.",
     "chat.pinMsg": "Паёмро пин кардан",

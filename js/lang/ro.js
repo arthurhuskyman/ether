@@ -467,6 +467,7 @@ window.__LANG_DICTS["ro"] = {
     "toast.translateNoServer": "Setează mai întâi un server de traducere în Setări → Notificări",
     "toast.translateFailed": "Nu s-a putut contacta serverul de traducere",
     "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
+    "rotate.lock": "Rotate your phone to portrait",
     "settings.blocked": "Contacte blocate",
     "settings.blocked.empty": "Niciun contact blocat.",
     "chat.pinMsg": "Fixează mesajul",

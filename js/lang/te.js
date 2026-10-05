@@ -467,6 +467,7 @@ window.__LANG_DICTS["te"] = {
     "toast.translateNoServer": "మొదట సెట్టింగ్‌లు → నోటిఫికేషన్‌లలో అనువాద సర్వర్‌ను సెట్ చేయండి",
     "toast.translateFailed": "అనువాద సర్వర్‌ను చేరుకోలేకపోయింది",
     "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
+    "rotate.lock": "Rotate your phone to portrait",
     "settings.blocked": "బ్లాక్ చేసిన కాంటాక్ట్‌లు",
     "settings.blocked.empty": "బ్లాక్ చేసిన కాంటాక్ట్‌లు లేవు.",
     "chat.pinMsg": "మెసేజ్‌ను పిన్ చేయి",

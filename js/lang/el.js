@@ -467,6 +467,7 @@ window.__LANG_DICTS["el"] = {
     "toast.translateNoServer": "Ορίστε πρώτα διακομιστή μετάφρασης στις Ρυθμίσεις → Ειδοποιήσεις",
     "toast.translateFailed": "Δεν ήταν δυνατή η πρόσβαση στον διακομιστή μετάφρασης",
     "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
+    "rotate.lock": "Rotate your phone to portrait",
     "settings.blocked": "Αποκλεισμένες επαφές",
     "settings.blocked.empty": "Δεν υπάρχουν αποκλεισμένες επαφές.",
     "chat.pinMsg": "Καρφίτσωμα μηνύματος",

@@ -467,6 +467,7 @@ window.__LANG_DICTS["pt"] = {
     "toast.translateNoServer": "Defina primeiro um servidor de tradução em Configurações → Notificações",
     "toast.translateFailed": "Não foi possível contatar o servidor de tradução",
     "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
+    "rotate.lock": "Rotate your phone to portrait",
     "settings.blocked": "Contatos bloqueados",
     "settings.blocked.empty": "Nenhum contato bloqueado.",
     "chat.pinMsg": "Fixar mensagem",

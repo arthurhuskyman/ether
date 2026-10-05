@@ -467,6 +467,7 @@ window.__LANG_DICTS["ta"] = {
     "toast.translateNoServer": "முதலில் அமைப்புகள் → அறிவிப்புகளில் மொழிபெயர்ப்பு சேவையகத்தை அமைக்கவும்",
     "toast.translateFailed": "மொழிபெயர்ப்பு சேவையகத்தை அடைய முடியவில்லை",
     "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
+    "rotate.lock": "Rotate your phone to portrait",
     "settings.blocked": "தடுக்கப்பட்ட தொடர்புகள்",
     "settings.blocked.empty": "தடுக்கப்பட்ட தொடர்புகள் இல்லை.",
     "chat.pinMsg": "செய்தியை பின் செய்",

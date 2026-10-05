@@ -467,6 +467,7 @@ window.__LANG_DICTS["bn"] = {
     "toast.translateNoServer": "প্রথমে সেটিংস → নোটিফিকেশনে একটি অনুবাদ সার্ভার সেট করুন",
     "toast.translateFailed": "অনুবাদ সার্ভারে পৌঁছানো যায়নি",
     "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
+    "rotate.lock": "Rotate your phone to portrait",
     "settings.blocked": "ব্লক করা পরিচিতি",
     "settings.blocked.empty": "কোনো ব্লক করা পরিচিতি নেই।",
     "chat.pinMsg": "বার্তা পিন করুন",

@@ -467,6 +467,7 @@ window.__LANG_DICTS["ha"] = {
     "toast.translateNoServer": "Da farko saita sabar fassara a Saituna → Sanarwa",
     "toast.translateFailed": "Ba a iya haɗawa da sabar fassara ba",
     "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
+    "rotate.lock": "Rotate your phone to portrait",
     "settings.blocked": "Lambobin da aka toshe",
     "settings.blocked.empty": "Babu lambobin da aka toshe.",
     "chat.pinMsg": "Dinke saƙo",

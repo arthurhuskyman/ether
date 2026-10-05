@@ -467,6 +467,7 @@ window.__LANG_DICTS["kn"] = {
     "toast.translateNoServer": "ಮೊದಲು ಸೆಟ್ಟಿಂಗ್‌ಗಳು → ಅಧಿಸೂಚನೆಗಳಲ್ಲಿ ಅನುವಾದ ಸರ್ವರ್ ಹೊಂದಿಸಿ",
     "toast.translateFailed": "ಅನುವಾದ ಸರ್ವರ್ ತಲುಪಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ",
     "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
+    "rotate.lock": "Rotate your phone to portrait",
     "settings.blocked": "ನಿರ್ಬಂಧಿಸಿದ ಸಂಪರ್ಕಗಳು",
     "settings.blocked.empty": "ನಿರ್ಬಂಧಿಸಿದ ಸಂಪರ್ಕಗಳು ಇಲ್ಲ.",
     "chat.pinMsg": "ಸಂದೇಶವನ್ನು ಪಿನ್ ಮಾಡಿ",

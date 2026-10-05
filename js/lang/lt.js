@@ -467,6 +467,7 @@ window.__LANG_DICTS["lt"] = {
     "toast.translateNoServer": "Pirmiausia nustatykite vertimo serverį Nustatymai → Pranešimai",
     "toast.translateFailed": "Nepavyko pasiekti vertimo serverio",
     "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
+    "rotate.lock": "Rotate your phone to portrait",
     "settings.blocked": "Užblokuoti kontaktai",
     "settings.blocked.empty": "Užblokuotų kontaktų nėra.",
     "chat.pinMsg": "Prisegti žinutę",

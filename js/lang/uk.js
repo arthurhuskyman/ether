@@ -467,6 +467,7 @@ window.__LANG_DICTS["uk"] = {
     "toast.translateNoServer": "Спочатку встановіть сервер перекладу в Налаштування → Сповіщення",
     "toast.translateFailed": "Не вдалося з'єднатися із сервером перекладу",
     "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
+    "rotate.lock": "Rotate your phone to portrait",
     "settings.blocked": "Заблоковані контакти",
     "settings.blocked.empty": "Немає заблокованих контактів.",
     "chat.pinMsg": "Закріпити повідомлення",

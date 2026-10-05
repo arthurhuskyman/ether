@@ -467,6 +467,7 @@ window.__LANG_DICTS["mk"] = {
     "toast.translateNoServer": "Прво поставете сервер за превод во Поставки → Известувања",
     "toast.translateFailed": "Не можеше да се поврзе со серверот за превод",
     "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
+    "rotate.lock": "Rotate your phone to portrait",
     "settings.blocked": "Блокирани контакти",
     "settings.blocked.empty": "Нема блокирани контакти.",
     "chat.pinMsg": "Закачи ја пораката",

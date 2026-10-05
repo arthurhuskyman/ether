@@ -467,6 +467,7 @@ window.__LANG_DICTS["he"] = {
     "toast.translateNoServer": "הגדר שרת תרגום בהגדרות ← התראות קודם",
     "toast.translateFailed": "לא ניתן להתחבר לשרת התרגום",
     "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
+    "rotate.lock": "Rotate your phone to portrait",
     "settings.blocked": "אנשי קשר חסומים",
     "settings.blocked.empty": "אין אנשי קשר חסומים.",
     "chat.pinMsg": "נעץ הודעה",

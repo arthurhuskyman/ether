@@ -467,6 +467,7 @@ window.__LANG_DICTS["yo"] = {
     "toast.translateNoServer": "Kọ́kọ́ ṣètò sẹ́vọ̀ ìtumọ̀ nínú Ìsètò → Ìkìlọ̀",
     "toast.translateFailed": "A kò lè dé sẹ́vọ̀ ìtumọ̀",
     "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
+    "rotate.lock": "Rotate your phone to portrait",
     "settings.blocked": "Àwọn olùbásọ̀rọ̀ tí a dí",
     "settings.blocked.empty": "Kò sí olùbásọ̀rọ̀ tí a dí.",
     "chat.pinMsg": "Pín ìránṣẹ́ sí orí",

@@ -467,6 +467,7 @@ window.__LANG_DICTS["tr"] = {
     "toast.translateNoServer": "Önce Ayarlar → Bildirimler'den bir çeviri sunucusu ayarla",
     "toast.translateFailed": "Çeviri sunucusuna erişilemedi",
     "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
+    "rotate.lock": "Rotate your phone to portrait",
     "settings.blocked": "Engellenen kişiler",
     "settings.blocked.empty": "Engellenen kişi yok.",
     "chat.pinMsg": "Mesajı sabitle",

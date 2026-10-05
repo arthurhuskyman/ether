@@ -467,6 +467,7 @@ window.__LANG_DICTS["ar"] = {
     "toast.translateNoServer": "حدد خادم ترجمة في الإعدادات ← الإشعارات أولاً",
     "toast.translateFailed": "تعذر الوصول إلى خادم الترجمة",
     "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
+    "rotate.lock": "Rotate your phone to portrait",
     "settings.blocked": "جهات الاتصال المحظورة",
     "settings.blocked.empty": "لا توجد جهات اتصال محظورة.",
     "chat.pinMsg": "تثبيت الرسالة",

@@ -467,6 +467,7 @@ window.__LANG_DICTS["si"] = {
     "toast.translateNoServer": "පළමුව සැකසීම් → දැනුම්දීම් තුළ පරිවර්තන සේවාදායකයක් සකසන්න",
     "toast.translateFailed": "පරිවර්තන සේවාදායකයට ළඟා විය නොහැකි විය",
     "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
+    "rotate.lock": "Rotate your phone to portrait",
     "settings.blocked": "අවහිර කළ සම්බන්ධතා",
     "settings.blocked.empty": "අවහිර කළ සම්බන්ධතා නැත.",
     "chat.pinMsg": "පණිවිඩය පින් කරන්න",

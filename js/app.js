@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.57.6.1";
+const APP_VERSION = "V.57.7.0";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 const MAX_MESSAGE_LENGTH = 4000;
@@ -2094,7 +2094,6 @@ function applyStaticTranslations() {
   document.title = T("app.title");
   // Смена языка меняет ширину подписей вкладок (а значит и центр
   // иконки) — индикатор нужно пересчитать уже после реального реflow.
-  requestAnimationFrame(() => { try { updateTabIndicator(); } catch (e) {} });
   const metaDesc = document.querySelector('meta[name="description"]');
   if (metaDesc) metaDesc.setAttribute("content", T("app.description"));
 }
@@ -2197,7 +2196,22 @@ function forceViewportRecalc() {
     if (wrap && savedScroll !== null) wrap.scrollTop = savedScroll;
   } catch (e) {}
 }
+// Запрет масштабирования и поворота. iOS Safari игнорирует user-scalable=no для щипка, поэтому
+// блокируем жесты явно; ориентацию пытаемся зафиксировать API (iOS его не поддерживает — там
+// портретный режим держит оверлей #rotate-lock, см. CSS).
+function lockViewportGestures() {
+  ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
+  document.addEventListener("touchmove", (e) => { if (e.touches && e.touches.length > 1) e.preventDefault(); }, { passive: false });
+  let lastTouchEnd = 0;
+  document.addEventListener("touchend", (e) => {
+    const now = Date.now();
+    if (now - lastTouchEnd < 300 && e.cancelable) e.preventDefault(); // двойной тап = зум
+    lastTouchEnd = now;
+  }, { passive: false });
+  try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock("portrait").catch(() => {}); } catch (e) {}
+}
 function wireViewportRecalc() {
+  lockViewportGestures();
   document.addEventListener("visibilitychange", () => { if (!document.hidden) { forceViewportRecalc(); } });
   window.addEventListener("pageshow", () => { forceViewportRecalc(); });
   window.addEventListener("focus", () => { forceViewportRecalc(); });
@@ -2208,7 +2222,6 @@ function wireNetworkListeners() {
   // Поворот экрана/ресайз окна сдвигает позиции кнопок таб-бара —
   // индикатор иначе остался бы на старых координатах до следующего
   // переключения вкладки.
-  window.addEventListener("resize", () => updateTabIndicator());
   const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
   if (conn) {
     conn.addEventListener("change", () => {
@@ -2954,24 +2967,8 @@ function setNavMode(mode) {
   if (chat) chat.classList.toggle("hidden", mode !== "chat");
   if (contact) contact.classList.toggle("hidden", mode !== "contact");
 }
-function updateTabIndicator() {
-  const bar = $("#tab-bar"), ind = $("#tab-indicator");
-  if (!bar || !ind) return;
-  const active = bar.querySelector(".tab-btn.active:not(.hidden)");
-  if (!active) { ind.style.opacity = "0"; return; }
-  const barRect = bar.getBoundingClientRect();
-  const btnRect = active.getBoundingClientRect();
-  // Узкая полоска по центру иконки, а не на всю ширину кнопки —
-  // визуально ближе к "индикатору", а не к ещё одному фону кнопки.
-  const width = 24;
-  const left = (btnRect.left - barRect.left) + (btnRect.width - width) / 2;
-  ind.style.opacity = "1";
-  ind.style.width = width + "px";
-  ind.style.transform = `translateX(${left}px)`;
-}
 function renderTabInner() {
   $$(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === state.tab));
-  updateTabIndicator();
   $$(".screen").forEach((s) => s.classList.add("hidden"));
   const cf0 = $("#chat-filters"); if (cf0) cf0.classList.add("hidden");
   const tb = $("#tab-bar");
@@ -10549,7 +10546,7 @@ function wireSettingsScreen() {
   const bubbleSizeSel = $("#settings-bubble-size");
   if (bubbleSizeSel) { bubbleSizeSel.value = Store.bubbleSize; bubbleSizeSel.addEventListener("change", () => { Store.bubbleSize = bubbleSizeSel.value; applyChatAppearancePrefs(); }); }
   const fontSizeSel = $("#settings-font-size");
-  if (fontSizeSel) { fontSizeSel.value = Store.fontSize; fontSizeSel.addEventListener("change", () => { Store.fontSize = fontSizeSel.value; applyChatAppearancePrefs(); requestAnimationFrame(() => updateTabIndicator()); }); }
+  if (fontSizeSel) { fontSizeSel.value = Store.fontSize; fontSizeSel.addEventListener("change", () => { Store.fontSize = fontSizeSel.value; applyChatAppearancePrefs(); }); }
   const wallpaperSel = $("#settings-wallpaper");
   if (wallpaperSel) { wallpaperSel.value = Store.chatWallpaper; wallpaperSel.addEventListener("change", () => { Store.chatWallpaper = wallpaperSel.value; applyChatAppearancePrefs(); }); }
 }

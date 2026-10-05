@@ -467,6 +467,7 @@ window.__LANG_DICTS["fa"] = {
     "toast.translateNoServer": "ابتدا یک سرور ترجمه در تنظیمات ← اعلان‌ها تعیین کنید",
     "toast.translateFailed": "امکان ارتباط با سرور ترجمه نبود",
     "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
+    "rotate.lock": "Rotate your phone to portrait",
     "settings.blocked": "مخاطبان مسدودشده",
     "settings.blocked.empty": "هیچ مخاطب مسدودی وجود ندارد.",
     "chat.pinMsg": "پین کردن پیام",

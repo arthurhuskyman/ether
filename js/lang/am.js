@@ -467,6 +467,7 @@ window.__LANG_DICTS["am"] = {
     "toast.translateNoServer": "መጀመሪያ በቅንብሮች → ማሳወቂያዎች ውስጥ የትርጉም አገልጋይ ያዘጋጁ",
     "toast.translateFailed": "የትርጉም አገልጋይ ላይ መድረስ አልተቻለም",
     "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
+    "rotate.lock": "Rotate your phone to portrait",
     "settings.blocked": "የታገዱ እውቂያዎች",
     "settings.blocked.empty": "የታገዱ እውቂያዎች የሉም።",
     "chat.pinMsg": "መልእክት ፒን አድርግ",

@@ -467,6 +467,7 @@ window.__LANG_DICTS["hu"] = {
     "toast.translateNoServer": "Először állíts be egy fordítószervert a Beállítások → Értesítések menüben",
     "toast.translateFailed": "Nem sikerült elérni a fordítószervert",
     "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
+    "rotate.lock": "Rotate your phone to portrait",
     "settings.blocked": "Letiltott partnerek",
     "settings.blocked.empty": "Nincs letiltott partnered.",
     "chat.pinMsg": "Üzenet kitűzése",

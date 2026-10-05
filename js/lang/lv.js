@@ -467,6 +467,7 @@ window.__LANG_DICTS["lv"] = {
     "toast.translateNoServer": "Vispirms iestatiet tulkošanas serveri Iestatījumi → Paziņojumi",
     "toast.translateFailed": "Nevarēja sasniegt tulkošanas serveri",
     "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
+    "rotate.lock": "Rotate your phone to portrait",
     "settings.blocked": "Bloķētie kontakti",
     "settings.blocked.empty": "Nav bloķētu kontaktu.",
     "chat.pinMsg": "Piespraust ziņu",

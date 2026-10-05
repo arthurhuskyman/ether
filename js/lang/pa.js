@@ -467,6 +467,7 @@ window.__LANG_DICTS["pa"] = {
     "toast.translateNoServer": "ਪਹਿਲਾਂ ਸੈਟਿੰਗਾਂ → ਸੂਚਨਾਵਾਂ ਵਿੱਚ ਅਨੁਵਾਦ ਸਰਵਰ ਸੈੱਟ ਕਰੋ",
     "toast.translateFailed": "ਅਨੁਵਾਦ ਸਰਵਰ ਤੱਕ ਨਹੀਂ ਪਹੁੰਚਿਆ ਜਾ ਸਕਿਆ",
     "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
+    "rotate.lock": "Rotate your phone to portrait",
     "settings.blocked": "ਬਲਾਕ ਕੀਤੇ ਸੰਪਰਕ",
     "settings.blocked.empty": "ਕੋਈ ਬਲਾਕ ਕੀਤਾ ਸੰਪਰਕ ਨਹੀਂ।",
     "chat.pinMsg": "ਮੈਸੇਜ ਪਿੰਨ ਕਰੋ",

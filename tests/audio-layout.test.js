@@ -208,12 +208,78 @@ test("[iPhone] ширина: контент не шире экрана (overflow
 });
 
 // ---------- iPhone PWA: пустая полоса под футером красится в цвет футера ----------
-test("[iPhone] фон html (виден под body) — цвет стекла футера, а не чёрный", () => {
-  const bg = rule("html").match(/background:\s*([^;]+);/g).pop();
-  assert.match(bg, /var\(--glass-regular\)/);
-  assert.match(bg, /var\(--bg-0\)/);
+test("[iPhone] фон html (виден под body) — цвет футера, не чёрный; body без --app-h", () => {
+  assert.match(rule("html").match(/background:\s*([^;]+);/g).pop(), /var\(--footer-bg\)/);
   assert.doesNotMatch(rule("body"), /--app-h/);
 });
 test("[iPhone] футер использует тот же токен --glass-regular", () => {
   assert.match(rule(".glass,\n.glass-regular"), /background:\s*var\(--glass-regular\)/);
+});
+
+// ---------- Футер, safe area, запрет зума и поворота ----------
+const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, "manifest.webmanifest"), "utf8"));
+const appJs = fs.readFileSync(path.join(ROOT, "js/app.js"), "utf8");
+
+test("футер: подчёркивание активной вкладки удалено (разметка, стили, скрипт)", async () => {
+  assert.doesNotMatch(html, /tab-indicator/);
+  assert.doesNotMatch(css, /tab-indicator/);
+  assert.doesNotMatch(appJs, /updateTabIndicator|tab-indicator/);
+  const a = await bootApp({ platform: "ios", standalone: true });
+  assert.equal(a.document.querySelector("#tab-indicator"), null);
+  a.document.querySelector('.tab-btn[data-tab="settings"]').click();
+  assert.ok(a.document.querySelector('.tab-btn[data-tab="settings"]').classList.contains("active"));
+  a.close();
+});
+
+test("футер: по 10px сверху и снизу вокруг содержимого кнопок, фиксированной высоты нет", () => {
+  assert.match(rule(".tab-btn"), /padding:\s*10px 0/);
+  assert.doesNotMatch(rule("#tab-bar"), /(^|[;\s])height:\s*\d+px/);
+  assert.match(rule("#tab-bar"), /padding:\s*0 4px env\(safe-area-inset-bottom, 0px\)/);
+  assert.doesNotMatch(rule("#tab-bar"), /safe-area-inset-bottom, 0px\) \+/);
+});
+
+test("safe area под футером окрашена в цвет футера: один токен у #tab-bar и у html", () => {
+  assert.match(rule("#tab-bar"), /background:\s*var\(--footer-bg\)/);
+  const htmlBgs = rule("html").match(/background:\s*([^;]+);/g).pop();
+  assert.match(htmlBgs, /var\(--footer-bg\)/);
+  assert.match(css, /--footer-bg:\s*linear-gradient\(var\(--glass-regular\), var\(--glass-regular\)\), var\(--bg-1\)/);
+});
+
+test("запрет масштабирования: viewport, touch-action, блокировка жестов и двойного тапа", async () => {
+  assert.match(html.match(/<meta name="viewport" content="([^"]+)"/)[1], /maximum-scale=1, user-scalable=no/);
+  assert.match(rule("html, body"), /touch-action:\s*pan-x pan-y/);
+  const a = await bootApp({ platform: "ios", standalone: true });
+  for (const type of ["gesturestart", "gesturechange", "gestureend"]) {
+    const ev = new a.window.Event(type, { cancelable: true, bubbles: true });
+    a.document.dispatchEvent(ev);
+    assert.equal(ev.defaultPrevented, true, type + " должен блокироваться (щипок)");
+  }
+  const mv = new a.window.Event("touchmove", { cancelable: true, bubbles: true }); mv.touches = [{}, {}];
+  a.document.dispatchEvent(mv);
+  assert.equal(mv.defaultPrevented, true, "двухпальцевое движение блокируется");
+  const one = new a.window.Event("touchmove", { cancelable: true, bubbles: true }); one.touches = [{}];
+  a.document.dispatchEvent(one);
+  assert.equal(one.defaultPrevented, false, "обычный скролл одним пальцем не трогаем");
+  const t1 = new a.window.Event("touchend", { cancelable: true, bubbles: true });
+  a.document.dispatchEvent(t1);
+  const t2 = new a.window.Event("touchend", { cancelable: true, bubbles: true });
+  a.document.dispatchEvent(t2);
+  assert.equal(t2.defaultPrevented, true, "второй тап подряд (зум двойным тапом) блокируется");
+  a.close();
+});
+
+test("запрет поворота: manifest portrait, screen.orientation.lock('portrait'), оверлей в альбомной ориентации", async () => {
+  assert.equal(manifest.orientation, "portrait");
+  assert.match(css, /@media \(orientation: landscape\) and \(max-height: 500px\) and \(pointer: coarse\)\s*\{\s*#rotate-lock\s*\{[^}]*position: fixed; inset: 0/);
+  assert.match(css, /#rotate-lock \{ display: none; \}/);
+  const calls = [];
+  const a = await bootApp({ platform: "android", beforeBoot: null });
+  a.window.screen.orientation = { lock: (m) => { calls.push(m); return Promise.resolve(); } };
+  a.run(`lockViewportGestures()`);
+  assert.deepEqual(calls, ["portrait"]);
+  a.window.screen.orientation = { lock: () => Promise.reject(new Error("unsupported")) };
+  a.run(`lockViewportGestures()`); // отказ iOS не должен ломать приложение
+  assert.ok(a.document.querySelector("#rotate-lock"));
+  assert.ok(a.window.__LANG_DICTS.en["rotate.lock"] && a.window.__LANG_DICTS.ru["rotate.lock"]);
+  a.close();
 });

@@ -48,6 +48,7 @@
   --glass-border: rgba(255, 255, 255, 0.10);
   --glass-thin: rgba(var(--glass-tint), calc(var(--glass-alpha) * 0.7));
   --glass-regular: rgba(var(--glass-tint), var(--glass-alpha));
+  --footer-bg: linear-gradient(var(--glass-regular), var(--glass-regular)), var(--bg-1); /* сплошной цвет футера и safe area под ним */
   --glass-thick: rgba(var(--glass-tint), calc(var(--glass-alpha) + 0.2));
 
   /* --- Типографика — модульная шкала 1.25 --- */
@@ -203,7 +204,7 @@ html[data-theme="aurora"] {
 /* Ширина на iPhone: контент никогда не должен быть шире экрана. Safari при любом переполнении по
    горизонтали "ужимает" страницу и она вываливается за края. Жёстко ограничиваем ширину и режем
    переполнение, а длинные слова/ссылки/медиа переносим и сжимаем. */
-html, body { width: 100%; max-width: 100%; overflow-x: hidden; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+html, body { touch-action: pan-x pan-y; width: 100%; max-width: 100%; overflow-x: hidden; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 #app-shell, .screen, #content { width: 100%; max-width: 100%; min-width: 0; overflow-x: hidden; }
 img, video, canvas, svg, iframe { max-width: 100%; }
 .bubble, .bubble-row, .chat-row, .settings-row, .contact-row { min-width: 0; overflow-wrap: anywhere; }
@@ -217,7 +218,7 @@ html {
   /* Всё, что видно НИЖЕ body (полоса под футером на iPhone, где окно PWA бывает короче экрана),
      красим в цвет футера: полупрозрачное стекло таб-бара поверх канваса. Так полоса сливается
      с футером, а не выглядит чёрной дырой. */
-  background: linear-gradient(var(--glass-regular), var(--glass-regular)), var(--bg-0);
+  background: var(--footer-bg);
   font-size: 16px;
 }
 @supports (font: -apple-system-body) {
@@ -1679,9 +1680,11 @@ html[data-theme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); }
   display: flex;
   align-items: center;
   position: relative;
-  height: 50px;
-  padding: 0 4px calc(env(safe-area-inset-bottom, 0px) + 3px);
+  /* Высота футера = содержимое кнопок; у каждой кнопки по 10px сверху и снизу (см. .tab-btn). */
+  padding: 0 4px env(safe-area-inset-bottom, 0px);
   box-sizing: content-box;
+  /* Сплошной цвет футера — тот же, что красит html под ним (safe area / полоса ниже окна). */
+  background: var(--footer-bg);
   border-radius: 0;
   border-bottom: none;
   z-index: 20;
@@ -1696,7 +1699,7 @@ html[data-theme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); }
      приложения, как и задумывалось. */
   border-top: 1px solid var(--line-1);
 }
-.tab-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 1px 0; border: none; background: none; color: var(--ink-3); cursor: pointer; font-size: var(--fs-xs); font-weight: 500; min-width: 0; position: relative; transition: color 0.15s var(--spring-snappy); }
+.tab-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 10px 0; border: none; background: none; color: var(--ink-3); cursor: pointer; font-size: var(--fs-xs); font-weight: 500; min-width: 0; position: relative; transition: color 0.15s var(--spring-snappy); }
 .tab-badge {
   position: absolute; top: 1px; inset-inline-start: 50%; margin-inline-start: 4px;
   background: linear-gradient(160deg, var(--accent), var(--accent-lo));
@@ -1715,25 +1718,6 @@ html[data-theme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); }
   box-shadow: 0 0 0 2px var(--bg-0);
 }
 .tab-btn.active { color: var(--accent); }
-/* Spring-индикатор активной вкладки — раньше смена вкладки была видна
-   только по цвету иконки/текста, без общего "движения" между позициями.
-   Позиция/ширина считаются в JS (updateTabIndicator) от реального
-   offsetLeft/width активной кнопки — так индикатор не рассыпается при
-   смене языка (разная ширина подписи) или при скрытии/показе Debug-таба. */
-.tab-indicator {
-  position: absolute;
-  bottom: 2px;
-  height: 3px;
-  width: 24px;
-  border-radius: 2px;
-  background: var(--accent);
-  transform: translateX(0);
-  transition: transform 0.3s var(--spring-snappy), width 0.3s var(--spring-snappy), opacity 0.15s linear;
-  pointer-events: none;
-}
-@media (prefers-reduced-motion: reduce) {
-  .tab-indicator { transition: opacity 0.15s linear; }
-}
 .tab-btn.hidden { display: none !important; }
 
 /* Экран звонка (Группа 2): аватар пульсирует двумя расходящимися
@@ -2094,3 +2078,12 @@ html[data-theme="light"] body::before {
 .mini-call-avatar .avatar { width: 24px; height: 24px; font-size: 11px; }
 .mini-call-name { font-size: var(--fs-sm); font-weight: 600; flex: 1; text-align: start; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mini-call-timer { font-size: var(--fs-sm); font-variant-numeric: tabular-nums; opacity: 0.9; }
+/* Портретная ориентация: на телефонах в альбомной ориентации показываем оверлей-подсказку
+   (iOS не даёт зафиксировать поворот программно, manifest.orientation он игнорирует). */
+#rotate-lock { display: none; }
+@media (orientation: landscape) and (max-height: 500px) and (pointer: coarse) {
+  #rotate-lock {
+    position: fixed; inset: 0; z-index: 100000; display: flex; align-items: center; justify-content: center;
+    background: var(--bg-0); color: var(--ink-0); font-size: var(--fs-md); font-weight: 600; text-align: center; padding: 24px;
+  }
+}

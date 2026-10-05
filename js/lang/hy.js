@@ -467,6 +467,7 @@ window.__LANG_DICTS["hy"] = {
     "toast.translateNoServer": "Նախ սահմանեք թարգմանության սերվեր Կարգավորումներ → Ծանուցումներ բաժնում",
     "toast.translateFailed": "Հնարավոր չէ կապվել թարգմանության սերվերի հետ",
     "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
+    "rotate.lock": "Rotate your phone to portrait",
     "settings.blocked": "Արգելափակված կոնտակտներ",
     "settings.blocked.empty": "Արգելափակված կոնտակտներ չկան։",
     "chat.pinMsg": "Ամրակցել հաղորդագրությունը",

@@ -467,6 +467,7 @@ window.__LANG_DICTS["sw"] = {
     "toast.translateNoServer": "Weka seva ya tafsiri kwenye Mipangilio → Arifa kwanza",
     "toast.translateFailed": "Imeshindwa kufikia seva ya tafsiri",
     "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
+    "rotate.lock": "Rotate your phone to portrait",
     "settings.blocked": "Watu uliozuia",
     "settings.blocked.empty": "Hakuna watu uliowazuia.",
     "chat.pinMsg": "Bandika ujumbe",

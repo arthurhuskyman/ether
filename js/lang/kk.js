@@ -467,6 +467,7 @@ window.__LANG_DICTS["kk"] = {
     "toast.translateNoServer": "Алдымен Параметрлер → Хабарландырулар бөлімінде аударма серверін орнатыңыз",
     "toast.translateFailed": "Аударма серверіне қосылу мүмкін болмады",
     "toast.contactsLoadFailed": "Couldn't read saved contacts — data may be corrupted",
+    "rotate.lock": "Rotate your phone to portrait",
     "settings.blocked": "Бұғатталған контактілер",
     "settings.blocked.empty": "Бұғатталған контактілер жоқ.",
     "chat.pinMsg": "Хабарламаны бекіту",
