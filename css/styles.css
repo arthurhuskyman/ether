@@ -214,7 +214,9 @@ img, video, canvas, svg, iframe { max-width: 100%; }
 html {
   height: 100%;
   margin: 0; overflow: hidden;
-  clip-path: inset(0);
+  /* clip-path: inset(0) здесь убран: на iOS-PWA корневой элемент короче экрана (innerHeight 797 при
+     screen 844 — на высоту верхнего инсета), и clip-path обрезал отрисовку по этой высоте, оставляя
+     чёрную полосу под футером. */
   /* Всё, что видно НИЖЕ body (полоса под футером на iPhone, где окно PWA бывает короче экрана),
      красим в цвет футера: полупрозрачное стекло таб-бара поверх канваса. Так полоса сливается
      с футером, а не выглядит чёрной дырой. */
@@ -2086,4 +2088,23 @@ html[data-theme="light"] body::before {
     position: fixed; inset: 0; z-index: 100000; display: flex; align-items: center; justify-content: center;
     background: var(--bg-0); color: var(--ink-0); font-size: var(--fs-md); font-weight: 600; text-align: center; padding: 24px;
   }
+}
+
+/* iOS-PWA (standalone): layout-viewport (100%/100dvh) КОРОЧЕ экрана на высоту верхней safe-area
+   (iPhone 13: inner 390x797 при screen 390x844; 100lvh = 844). Без этого под футером остаётся
+   полоса, которую нечем закрасить. В standalone нижней панели браузера нет, поэтому 100lvh — это
+   ровно экран, и корень/оболочку тянем до него. В обычной вкладке Safari НЕ применяем: там 100lvh
+   больше видимой области и таб-бар уехал бы под панель браузера. */
+@media (display-mode: standalone) {
+  @supports (height: 100lvh) {
+    html, body { height: 100lvh; }
+    body::before { bottom: auto; height: 100lvh; }
+    .sheet { bottom: auto; height: 100lvh; }
+  }
+}
+/* То же правило по классу (JS ставит is-standalone по navigator.standalone), если display-mode не сработал. */
+@supports (height: 100lvh) {
+  html.is-standalone, html.is-standalone body { height: 100lvh; }
+  html.is-standalone body::before { bottom: auto; height: 100lvh; }
+  html.is-standalone .sheet { bottom: auto; height: 100lvh; }
 }

@@ -294,3 +294,28 @@ test("диагностика: метрики вьюпорта для разбо�
   assert.equal(a.document.body.querySelectorAll("div[aria-hidden=true][style*='visibility:hidden']").length, 0, "пробные элементы удаляются");
   a.close();
 });
+
+// ---------- iPhone 13 / iOS: layout viewport короче экрана (inner 797 при screen 844) ----------
+test("[iPhone PWA] корень не обрезается clip-path (он оставлял чёрную полосу под футером)", () => {
+  assert.doesNotMatch(rule("html"), /clip-path/);
+});
+test("[iPhone PWA] в standalone html/body/оболочка тянутся до 100lvh (полный экран), в обычной вкладке — нет", () => {
+  assert.match(css, /@media \(display-mode: standalone\)\s*\{\s*@supports \(height: 100lvh\)\s*\{\s*html, body \{ height: 100lvh; \}/);
+  assert.match(css, /html\.is-standalone, html\.is-standalone body \{ height: 100lvh; \}/);
+  // базовые правила (вкладка Safari) остаются на 100%
+  assert.match(rule("html"), /height:\s*100%/);
+  assert.doesNotMatch(rule("body"), /lvh/);
+});
+test("[iPhone PWA] JS помечает html классом is-standalone только в режиме PWA", async () => {
+  const pwa = await bootApp({ platform: "ios", standalone: true });
+  assert.ok(pwa.document.documentElement.classList.contains("is-standalone"));
+  pwa.close();
+  const tab = await bootApp({ platform: "ios", standalone: false });
+  assert.ok(!tab.document.documentElement.classList.contains("is-standalone"));
+  tab.close();
+});
+test("[iPhone PWA] диагностика содержит lvh и safe-area (данные iPhone 13 использованы для вывода)", async () => {
+  const a = await bootApp({ platform: "ios", standalone: true });
+  assert.match(a.run(`buildDiagnosticsText()`), /100lvh:/);
+  a.close();
+});
