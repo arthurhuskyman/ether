@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.58.0.0";
+const APP_VERSION = "V.59.0.0";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 // Сервер перевода по умолчанию (LibreTranslate-совместимый). Официальный публичный инстанс обычно
@@ -253,7 +253,7 @@ const CRITICAL_LS_KEYS = [
   "ether.chatFolders", "ether.emojiSkinTone", "ether.composerPlusMode",
   "ether.translateEndpoint", "ether.translateApiKey",
   "ether.deadManEnabled", "ether.deadManThresholdDays", "ether.deadManContactId", "ether.deadManLastSentAt",
-  "ether.panicShakeEnabled", "ether.fx", "ether.sigKey",
+  "ether.panicShakeEnabled", "ether.fx", "ether.sigKey", "ether.fx.aurora",
 ];
 
 async function backupToIDB() {
@@ -2102,6 +2102,9 @@ function applyStaticTranslations() {
   // иконки) — индикатор нужно пересчитать уже после реального реflow.
   const metaDesc = document.querySelector('meta[name="description"]');
   if (metaDesc) metaDesc.setAttribute("content", T("app.description"));
+  // Список категорий Настроек строится из JS (не из data-i18n) — без перерисовки после смены языка
+  // подписи оставались на языке, действовавшем в момент старта приложения.
+  try { renderSettingsCategories(); updateSettingsCategoryView(); } catch (e) {}
 }
 
 function setupLanguageSelector() {
@@ -3880,9 +3883,9 @@ function renderChatThreadInner() {
   }
   const canCall = !isGroup(c) && (isReachable(c) || (c.managed && c.online));
   const ccb = $("#chat-call-btn");
-  if (ccb) { ccb.disabled = isGroup(c) ? false : !canCall; ccb.classList.toggle("call-unavailable", isGroup(c)); }
+  if (ccb) { ccb.disabled = isGroup(c) ? false : !canCall; ccb.classList.remove("call-unavailable"); }
   const vcb = $("#chat-video-call-btn");
-  if (vcb) { vcb.disabled = isGroup(c) ? false : !canCall; vcb.classList.toggle("call-unavailable", isGroup(c)); }
+  if (vcb) { vcb.disabled = isGroup(c) ? false : !canCall; vcb.classList.remove("call-unavailable"); }
   // Файлы в группах не поддерживаются — раньше это выяснялось только
   // ПОСЛЕ выбора файла, когда sendFileMessage сам отказывал. Честнее не
   // показывать кнопку как рабочую вовсе. Кнопка микрофона решается в
@@ -4065,7 +4068,7 @@ if (m.replyTo) {
     let reactionsHtml = "";
     if (m.reactions && typeof m.reactions === "object") {
       const chips = Object.entries(m.reactions).filter(([, users]) => Array.isArray(users) && users.length > 0);
-      if (chips.length > 0) reactionsHtml = `<div class="bubble-reactions">` + chips.map(([emoji, users]) => `<span class="bubble-reaction-chip">${escapeHtml(emoji)} ${typeof fxReactionStack === "function" ? fxReactionStack(users) : ""}${users.length}</span>`).join("") + `</div>`;
+      if (chips.length > 0) reactionsHtml = `<div class="bubble-reactions">` + chips.map(([emoji, users]) => `<span class="bubble-reaction-chip" data-emoji="${escapeHtml(emoji)}">${escapeHtml(emoji)} ${typeof fxReactionStack === "function" ? fxReactionStack(users) : ""}${users.length}</span>`).join("") + `</div>`;
     }
     // Перевод (раздел 5 роадмапа) — показывается ПОД оригинальным текстом,
     // не заменяет его: честно видно и то, что собеседник написал сам, и
@@ -7438,6 +7441,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     if (g.members.length >= MAX_GROUP_MEMBERS) return;
     ensureContactEntry(from, payload.requesterName || null);
     addGroupMember(payload.groupId, from);
+    try { if (typeof fxReferralInviterHit === "function") fxReferralInviterHit(from); } catch (e) {}
   } else if (kind === "heartbeat") {
     // killer-features-backlog 0.5 — "мягкий" Dead Man's Switch: "я жив",
     // отправляется из checkDeadManSwitch() при каждом запуске отправителя.
@@ -9249,7 +9253,8 @@ function clearPendingCall() { if (pendingCall.timer) clearTimeout(pendingCall.ti
 async function beginCall(id, withVideo) {
   const c = state.contacts.get(id);
   if (!c) return;
-  if (isGroup(c)) { toast(T("toast.callGroupsUnsupported")); return; }
+  if (isGroup(c)) { if (typeof startGroupCall === "function") startGroupCall(id, !!withVideo); else toast(T("toast.callGroupsUnsupported")); return; }
+  if (typeof gcallBusy === "function" && gcallBusy()) { toast(T("toast.alreadyInCall")); return; }
   if (c.isSelf) return; // звонить себе некуда — у "Заметок себе" нет peer-соединения
   if (c.blocked) { toast(T("toast.blocked")); return; }
   if (state.callId && state.callId !== id) { toast(T("toast.alreadyInCall")); return; }
@@ -11469,6 +11474,7 @@ async function importBackupFile(file) {
 // Mesh события
 // =====================================================================
 function wireMeshEvents() {
+  if (typeof gcallWire === "function") gcallWire();
   // Показ экрана прервали через системный UI браузера, а не через нашу
   // кнопку (см. PeerLink.startScreenShare/screenTrack.onended в webrtc.js)
   // — синхронизируем кнопку обратно в неактивное состояние.
@@ -11573,7 +11579,14 @@ function wireMeshEvents() {
       const { id, payload } = ev.detail;
       const c = state.contacts.get(id); if (!c) return;
       if (c.blocked) return;
+if (payload && typeof payload.kind === "string" && payload.kind.indexOf("fx") === 0) { if (typeof handleFxPayload === "function") handleFxPayload(id, payload); return; }
+if (payload && payload.kind === "gcall") { if (typeof handleGroupCallPayload === "function") handleGroupCallPayload(id, payload); return; }
 if (payload && payload.kind === "call-state") {
+  // Групповой звонок идёт — входящий 1:1 получает «занято»
+  if (payload.state === "ringing" && typeof gcallBusy === "function" && gcallBusy()) {
+    const lb = mesh.get(id); if (lb) { try { lb.declineCall("busy"); } catch (e) {} }
+    return;
+  }
   // Свежесть пакета. Если сообщение старше 20 секунд — оно пришло из
   // буфера iOS (приложение спало, а собеседник звонил). Реальный
   // звонок в этот момент уже давно отбит — рингтон играть не надо.
@@ -11936,6 +11949,7 @@ if (brReset) brReset.addEventListener("click", () => {
 });
 
 function shutdownCallIfActive() {
+  try { if (typeof leaveGroupCall === "function") leaveGroupCall({ silent: true }); } catch (e) {}
   try {
     const cid = state.callId;
     if (!cid) return;

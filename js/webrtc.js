@@ -904,6 +904,27 @@ async startCall(withVideo) {
     return this._negotiate(true);
   }
 
+  // ---- Групповой звонок (mesh): медиа поверх уже живого соединения, БЕЗ 1:1-семантики ----
+  // Не трогаем status ("in-call") и не шлём call-state — у группового звонка свой сигналинг
+  // (kind:"gcall", см. js/group-call.js). Один и тот же локальный MediaStream кладётся во все линки.
+  addGroupTracks(stream) {
+    if (this._closed || !stream) return false;
+    if (!this._gSenders) this._gSenders = new Map();
+    for (const t of stream.getTracks()) {
+      if (this._gSenders.has(t.id)) continue;
+      try { this._gSenders.set(t.id, this.pc.addTrack(t, stream)); } catch (e) { this._log("warn", "[webrtc] addGroupTracks:", String(e)); }
+    }
+    return true;
+  }
+  removeGroupTracks(kind) {
+    if (!this._gSenders) return;
+    for (const [tid, sender] of Array.from(this._gSenders)) {
+      if (kind && sender.track && sender.track.kind !== kind) continue;
+      try { this.pc.removeTrack(sender); } catch (e) {}
+      this._gSenders.delete(tid);
+    }
+  }
+
   endCall() {
     try {
       // Раньше фильтр брал только audio — video-сендер оставался

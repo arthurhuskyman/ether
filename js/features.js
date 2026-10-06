@@ -547,14 +547,14 @@ function fxInjectSettings() {
   if (!anchor) return;
   const grp = document.createElement("div"); grp.className = "settings-group flat-content"; grp.id = "fx-settings-group"; grp.setAttribute("data-settings-category", "appearance");
   const toggles = [["sonic", "fx.sonic"], ["dance", "fx.dance"], ["vault", "fx.vault"], ["patina", "fx.patina"], ["easter", "fx.easter"], ["farewell", "fx.farewell"], ["silence", "fx.silence"], ["ritual", "fx.ritual"], ["breathing", "fx.breathing"], ["season", "fx.season"], ["skin", "fx.skin"], ["sigil", "fx.sigilToggle"]];
-  const sel = (key, label, opts) => `<label class="settings-row"><span>${escapeHtml(T(label))}</span><select id="fxs-${key}" class="settings-select">${opts.map(([v, l]) => `<option value="${v}">${escapeHtml(T(l))}</option>`).join("")}</select></label>`;
-  grp.innerHTML = `<div class="settings-row column"><span class="settings-group-title">${escapeHtml(T("fx.group"))}</span><p class="fine muted" style="margin:0;">${escapeHtml(T("fx.group.note"))}</p></div>`
-    + toggles.map(([k, l]) => `<label class="settings-row"><span>${escapeHtml(T(l))}</span><input id="fxs-${k}" type="checkbox" class="switch" /></label>`).join("")
+  const sel = (key, label, opts) => `<label class="settings-row"><span data-i18n="${label}">${escapeHtml(T(label))}</span><select id="fxs-${key}" class="settings-select">${opts.map(([v, l]) => `<option value="${v}" data-i18n="${l}">${escapeHtml(T(l))}</option>`).join("")}</select></label>`;
+  grp.innerHTML = `<div class="settings-row column"><span class="settings-group-title" data-i18n="fx.group">${escapeHtml(T("fx.group"))}</span><p class="fine muted" style="margin:0;" data-i18n="fx.group.note">${escapeHtml(T("fx.group.note"))}</p></div>`
+    + toggles.map(([k, l]) => `<label class="settings-row"><span data-i18n="${l}">${escapeHtml(T(l))}</span><input id="fxs-${k}" type="checkbox" class="switch" /></label>`).join("")
     + sel("voiceStyle", "fx.voiceStyle", [["default", "fx.voice.default"], ["cassette", "fx.voice.cassette"], ["vinyl", "fx.voice.vinyl"]])
     + sel("burn", "fx.burn", [["off", "fx.burn.off"], ["fade", "fx.burn.fade"], ["ash", "fx.burn.ash"]])
-    + `<div class="settings-row"><span>${escapeHtml(T("fx.mySigil"))}</span><span id="fx-my-sigil" class="fx-sigil" title="${escapeHtml(T("fx.sigil.hint"))}"></span></div>`
-    + `<button type="button" id="fx-wrapped-btn" class="settings-row link-row"><span>${escapeHtml(T("fx.wrapped.open"))}</span></button>`
-    + `<button type="button" id="fx-verify-btn" class="settings-row link-row"><span>${escapeHtml(T("fx.verify"))}</span></button>`
+    + `<div class="settings-row"><span data-i18n="fx.mySigil">${escapeHtml(T("fx.mySigil"))}</span><span id="fx-my-sigil" class="fx-sigil" title="${escapeHtml(T("fx.sigil.hint"))}"></span></div>`
+    + `<button type="button" id="fx-wrapped-btn" class="settings-row link-row"><span data-i18n="fx.wrapped.open">${escapeHtml(T("fx.wrapped.open"))}</span></button>`
+    + `<button type="button" id="fx-verify-btn" class="settings-row link-row"><span data-i18n="fx.verify">${escapeHtml(T("fx.verify"))}</span></button>`
     + `<input id="fx-verify-input" type="file" accept="application/json,.json" style="display:none;" />`;
   anchor.insertAdjacentElement("afterend", grp);
   for (const [k] of toggles) {

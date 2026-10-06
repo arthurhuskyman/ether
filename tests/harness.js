@@ -107,7 +107,11 @@ function createApp(opts = {}) {
           resume() { this.resumed++; this.state = "running"; return Promise.resolve(); }
           createMediaStreamSource(stream) { const n = mkNode("source"); n.stream = stream; return n; }
           createMediaStreamDestination() { const n = mkNode("dest"); n.stream = { id: "dest-stream", getTracks: () => [], getAudioTracks: () => [] }; return n; }
-          createGain() { const n = mkNode("gain"); n.gain = { value: 1, setValueAtTime() {}, exponentialRampToValueAtTime() {}, linearRampToValueAtTime() {} }; return n; }
+          createGain() { const n = mkNode("gain"); n.gain = { value: 1, setValueAtTime() {}, exponentialRampToValueAtTime() {}, linearRampToValueAtTime() {}, cancelScheduledValues() {} }; return n; }
+          createBuffer(ch, len) { const d = new Float32Array(len); return { getChannelData: () => d, length: len }; }
+          createBufferSource() { const n = mkNode("bufsrc"); n.start = () => {}; n.stop = () => {}; return n; }
+          createBiquadFilter() { const n = mkNode("biquad"); n.frequency = { value: 0 }; n.Q = { value: 0 }; return n; }
+          get sampleRate() { return 44100; }
           createOscillator() { const n = mkNode("osc"); n.frequency = { value: 0, setValueAtTime() {} }; n.start = () => {}; n.stop = () => {}; return n; }
           createAnalyser() { const n = mkNode("analyser"); n.fftSize = 0; n.getByteFrequencyData = () => {}; return n; }
           get currentTime() { return 0; } };
