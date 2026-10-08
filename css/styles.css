@@ -668,8 +668,8 @@ html[data-theme="light"] .glass-content {
 }
 .pinned-msg-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-1); font-size: var(--fs-sm); }
 .group-role-badge {
-  font-size: var(--fs-xs); font-weight: 600; color: var(--accent);
-  background: var(--accent-lo); border-radius: 8px; padding: 2px 7px; margin-inline-start: 6px;
+  font-size: var(--fs-xs); font-weight: 700; color: #fff; text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+  background: var(--accent); border-radius: 8px; padding: 2px 8px; margin-inline-start: 6px;
 }
 .group-avatar-picker { display: flex; justify-content: center; padding: 6px 0 10px; }
 .group-avatar-btn {
@@ -743,21 +743,24 @@ html[data-theme="light"] .glass-content {
 .skeleton-avatar, .skeleton-line { background: linear-gradient(90deg, var(--bg-2), var(--bg-3), var(--bg-2)); background-size: 200% 100%; animation: skeleton-shimmer 1.4s ease-in-out infinite; }
 @keyframes skeleton-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { .skeleton-avatar, .skeleton-line { animation: none; } }
-.chat-filters { display: flex; flex-shrink: 0; gap: 8px; padding: 2px 14px 10px; overflow-x: auto; scrollbar-width: none; }
+.chat-filters { display: flex; flex-shrink: 0; gap: 4px; padding: 2px 10px 10px; overflow-x: auto; scrollbar-width: none; }
 .chat-filters::-webkit-scrollbar { display: none; }
+/* Стандартные чипы (Все, Непрочитанные, Группы, Личные, Звонки) всегда помещаются в строку на любом языке: они
+   сжимаются (с многоточием в самом крайнем случае), а прокручивается только хвост из пользовательских папок. */
 .chat-filter-chip {
-  flex-shrink: 0; border: none; cursor: pointer;
-  padding: 7px 14px; border-radius: 999px;
+  flex: 0 1 auto; min-width: 3.2em; border: none; cursor: pointer;
+  padding: 7px 9px; border-radius: 999px;
   background: var(--bg-2); color: var(--ink-1);
-  font-size: var(--fs-sm); font-weight: 600;
-  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12.5px; font-weight: 600;
+  display: inline-block; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   transition: background 0.15s, color 0.15s;
 }
+.chat-filter-chip[data-filter^="folder:"], .chat-filter-chip-add { flex-shrink: 0; }
 .chat-filter-chip.active { background: var(--accent); color: #fff; }
 /* Бейдж непрочитанных звонков внутри чипа "Звонки" — обычный .tab-badge
    позиционируется absolute (нужно для таб-бара), здесь он просто элемент
    инлайн-ряда чипа. */
-.chat-filter-chip .tab-badge { position: static; margin-inline-start: 0; top: auto; inset-inline-start: auto; }
+.chat-filter-chip .tab-badge { position: static; display: inline-block; vertical-align: middle; margin-inline-start: 5px; top: auto; inset-inline-start: auto; }
 /* V.48.0.0: кастомные папки чатов — span-обёртка для динамических чипов
    участвует в flex-раскладке родителя напрямую (display: contents),
    иначе gap/overflow-scroll .chat-filters считали бы обёртку одним
@@ -1121,7 +1124,7 @@ html[dir="rtl"] .chevron { display: inline-block; transform: scaleX(-1); }
 }
 .date-sep-clickable { cursor: pointer; }
 .bubble code { background: rgba(127,127,127,0.18); border-radius: 4px; padding: 1px 4px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.92em; }
-.emoji-picker-panel { max-height: 60vh; display: flex; flex-direction: column; }
+.emoji-picker-panel { max-height: 62vh; display: flex; flex-direction: column; }
 /* Раздел 6 роадмапа — "inline-выезд эмодзи-пикера (вместо bottom-sheet)",
    было в "Сознательно отложено". Вместо модального bottom-sheet во весь
    экран с затемнением — узкая карточка, всплывающая прямо над композером
@@ -1579,14 +1582,25 @@ html[data-theme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); }
   flex-shrink: 0;
   border-radius: var(--radius-l) var(--radius-l) 0 0;
 }
-/* V.51.0.0: раздел 6 роадмапа — переключаемый эксперимент "+" для
-   композера (Settings → Appearance, выкл. по умолчанию). Видимость
-   attach/emoji/camera/"+" в этом режиме управляется из JS через тот же
-   класс .hidden, что и везде в приложении (см. wireComposerPlusMode() в
-   js/app.js) — здесь только чисто визуальный поворот иконки "+" в "×"
-   при раскрытой панели. */
-#chat-plus-btn { transition: transform 0.15s ease; }
-#chat-plus-btn.composer-plus-expanded-icon { transform: rotate(45deg); }
+/* Кнопка «+» композера и «веер» из трёх кружков. Веер выезжает вверх из «+»; «+» поворачивается в «×». */
+.chat-input-bar { position: relative; }
+.composer-plus-btn svg { transition: transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.2); }
+#chat-form.fan-open .composer-plus-btn svg { transform: rotate(135deg); }
+.composer-fan { position: absolute; inset-inline-start: 8px; bottom: calc(100% + 8px); display: flex; flex-direction: column-reverse; gap: 10px; pointer-events: none; z-index: 8; }
+.fan-btn {
+  width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--glass-border); cursor: pointer;
+  display: flex; align-items: center; justify-content: center; color: #fff; background: var(--accent);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+  opacity: 0; transform: translateY(26px) scale(0.4); pointer-events: none;
+  transition: transform 0.24s cubic-bezier(0.2, 0.9, 0.3, 1.25), opacity 0.16s ease;
+}
+.fan-btn:nth-child(2) { background: #e8588d; }
+.fan-btn:nth-child(3) { background: #3b9bf5; }
+#chat-form.fan-open .fan-btn { opacity: 1; transform: none; pointer-events: auto; }
+#chat-form.fan-open .fan-btn:nth-child(2) { transition-delay: 0.04s; }
+#chat-form.fan-open .fan-btn:nth-child(3) { transition-delay: 0.08s; }
+.fan-btn.hidden { display: none; }
+@media (prefers-reduced-motion: reduce) { .fan-btn, .composer-plus-btn svg { transition: none; } }
 #chat-input {
   flex: 1 1 auto;
   min-width: 0;
@@ -2012,7 +2026,7 @@ html[data-theme="light"] body::before {
     radial-gradient(ellipse 130% 90% at 50% -15%,
       rgba(120, 88, 247, 0.42), transparent 78%),
     radial-gradient(ellipse 120% 85% at 50% 115%,
-      rgba(90, 184, 255, 0.28), transparent 78%),
+      rgba(70, 168, 255, 0.50), transparent 80%),
     var(--bg-0);
 }
 @media (prefers-color-scheme: light) {
@@ -2021,7 +2035,7 @@ html[data-theme="light"] body::before {
       radial-gradient(ellipse 130% 90% at 50% -15%,
         rgba(120, 88, 247, 0.42), transparent 78%),
       radial-gradient(ellipse 120% 85% at 50% 115%,
-        rgba(90, 184, 255, 0.28), transparent 78%),
+        rgba(70, 168, 255, 0.50), transparent 80%),
       var(--bg-0);
   }
 }
@@ -2159,9 +2173,6 @@ html.fx-season body::before { filter: hue-rotate(var(--fx-season-hue, 0deg)); }
 /* Мягкий скин контакта (только цвет, структура не меняется) */
 html.fx-skin.fx-chat-open .bubble-row.mine .bubble, html.fx-skin.fx-chat-open .send-btn { filter: hue-rotate(var(--fx-skin-hue, 0deg)); transition: filter .16s ease; }
 /* Голосовые: кассета / пластинка */
-html[data-voice-style="cassette"] .voice-bubble .voice-play-btn { border-radius: 7px; background: linear-gradient(135deg, #3a3350, #1b1730); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .18); }
-html[data-voice-style="vinyl"] .voice-bubble .voice-play-btn { border-radius: 50%; background: radial-gradient(circle, #8a6dff 0 14%, #111 15% 38%, #222 39% 41%, #111 42% 100%); }
-html[data-voice-style="vinyl"] .voice-bubble.fx-playing .voice-play-btn, html[data-voice-style="cassette"] .voice-bubble.fx-playing .voice-play-btn { animation: fxSpin 2.4s linear infinite; }
 @keyframes fxSpin { to { transform: rotate(360deg); } }
 /* Сгорание: приватный fade и театральный пепел (без дымного следа) */
 .bubble-row.fx-burn-fade { animation: fxBurnFade .8s ease forwards; }
@@ -2289,3 +2300,74 @@ html[data-sky="fog"]::before { background: linear-gradient(180deg, #c8ccd2, tran
 /* Аврора (бонус за приглашение) */
 html.fx-aurora { --accent: #2fd4b8; }
 @media (prefers-reduced-motion: reduce) { .fx-wave, .fx-pulse, .fx-look-dot { animation: none; } #screen-chat.fx-veil { animation: none; } }
+
+/* Выпадающие списки: у <option> непрозрачный фон и читаемый текст в любой теме (в тёмных темах на десктопе список был
+   белым с белым текстом, поэтому варианты не читались). */
+:root { --select-popup-bg: #1c1c22; --select-popup-ink: #f2f2f7; }
+html[data-theme="oled"] { --select-popup-bg: #0e0e10; }
+html[data-theme="light"] { --select-popup-bg: #ffffff; --select-popup-ink: #1c1c1e; }
+@media (prefers-color-scheme: light) { html[data-theme="auto"] { --select-popup-bg: #ffffff; --select-popup-ink: #1c1c1e; } }
+select, .settings-select { color-scheme: inherit; }
+select option, select optgroup, .settings-select option { background-color: var(--select-popup-bg); color: var(--select-popup-ink); }
+select option:checked { background-color: var(--accent); color: #fff; }
+
+
+/* Голосовые «кассета» и «пластинка»: кнопка воспроизведения остаётся обычной (круг со значком play/pause) — рисунок живёт
+   отдельным декоративным элементом рядом, не ловит нажатия (pointer-events: none) и вращается только во время воспроизведения. */
+.fx-voice-deco { display: none; flex-shrink: 0; align-items: center; justify-content: center; pointer-events: none; }
+html[data-voice-style="cassette"] .fx-voice-deco.cassette, html[data-voice-style="vinyl"] .fx-voice-deco.vinyl { display: inline-flex; }
+.fx-voice-deco svg { display: block; }
+.fx-voice-deco .fx-disc, .fx-voice-deco .fx-reel { transform-box: fill-box; transform-origin: center; }
+.voice-bubble.fx-playing .fx-disc { animation: fxSpin 1.8s linear infinite; }
+.voice-bubble.fx-playing .fx-reel { animation: fxSpin 1.2s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .voice-bubble.fx-playing .fx-disc, .voice-bubble.fx-playing .fx-reel { animation: none; } }
+
+/* Шапка чата: одна точка входа в карточку контакта/группы — нажатие на аватар и имя (кнопка «⋯» убрана как дубль). */
+#chat-peer-name::after { content: "›"; margin-inline-start: 5px; opacity: 0.45; font-weight: 400; }
+
+/* «Искать везде» — мост от поля поиска вкладки к общему поиску */
+.search-everywhere { display: block; width: 100%; text-align: start; border: none; background: transparent; color: var(--accent); font-weight: 600; font-size: var(--fs-sm); padding: 2px 4px 10px; cursor: pointer; }
+.search-everywhere::after { content: " →"; }
+
+/* Меню «ещё» в звонке: четыре основные кнопки (микрофон, динамик, видео, завершить) + «⋯» с редкими действиями */
+#call-controls-active { position: relative; }
+.call-more-menu {
+  position: absolute; bottom: calc(100% + 10px); inset-inline-end: 8px; min-width: 210px; z-index: 6;
+  display: flex; flex-direction: column; padding: 6px; border-radius: 16px;
+  background: rgba(24, 24, 36, 0.96); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+.call-more-menu.hidden { display: none; }
+.call-menu-item { display: flex; align-items: center; gap: 12px; border: 0; background: transparent; color: #fff; padding: 11px 12px; border-radius: 12px; font-size: 15px; cursor: pointer; text-align: start; }
+.call-menu-item.hidden { display: none; }
+.call-menu-item:active, .call-menu-item.fx-on { background: rgba(255, 255, 255, 0.12); }
+.call-menu-item svg { width: 22px; height: 22px; flex-shrink: 0; }
+
+/* Пикер эмодзи: поиск + кнопка тона кожи в одной строке, полоса категорий с подчёркиванием, заголовок категории, сетка */
+.emoji-search-row { display: flex; align-items: center; gap: 8px; }
+.emoji-search-row .search-input { flex: 1; min-width: 0; }
+.emoji-tone-btn { flex-shrink: 0; width: 42px; height: 42px; border-radius: 12px; border: 1px solid var(--input-border); background: var(--input-bg); font-size: 22px; cursor: pointer; line-height: 1; }
+.emoji-tone-btn[aria-expanded="true"] { background: var(--bg-2); border-color: var(--accent); }
+.skin-tone-row { justify-content: space-between; padding: 6px 4px; }
+.skin-tone-row.hidden { display: none; }
+.emoji-tabs { gap: 2px; margin: 8px 0 0; padding-bottom: 4px; border-bottom: 1px solid var(--hairline, rgba(127,127,127,.25)); }
+.emoji-tab-btn { position: relative; background: transparent !important; padding: 6px 9px; font-size: 20px; opacity: 0.55; }
+.emoji-tab-btn.active { opacity: 1; }
+.emoji-tab-btn.active::after { content: ""; position: absolute; left: 20%; right: 20%; bottom: -5px; height: 3px; border-radius: 2px; background: var(--accent); }
+.emoji-section-title { font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-2); padding: 10px 4px 4px; }
+.emoji-empty { grid-column: 1 / -1; text-align: center; padding: 18px 0; }
+
+/* Профиль: своё фото */
+.profile-avatar-row { display: flex; align-items: center; gap: 14px; }
+.profile-avatar { width: 64px; height: 64px; border-radius: 50%; border: none; cursor: pointer; font-size: 22px; font-weight: 700; color: #fff; background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.profile-avatar-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.link-inline { border: none; background: transparent; color: var(--accent); font-weight: 600; font-size: var(--fs-base); padding: 2px 0; cursor: pointer; }
+.link-inline.destructive { color: var(--danger); }
+
+/* Шторка руны */
+#fx-sigil-sheet { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: flex-end; }
+#fx-sigil-sheet .sheet-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.45); }
+#fx-sigil-sheet .sheet-panel { position: relative; width: 100%; border-radius: 20px 20px 0 0; padding: 14px 18px calc(16px + env(safe-area-inset-bottom)); text-align: center; }
+.fx-sigil-big { display: flex; justify-content: center; padding: 8px 0; }
+.fx-sigil-fp { font-family: ui-monospace, monospace; letter-spacing: 0.08em; font-size: 16px; padding: 4px 0 8px; }
+.fx-sigil-how { margin: 0 0 12px; }
+#fx-sigil[role="button"], #fx-profile-sigil { cursor: pointer; }

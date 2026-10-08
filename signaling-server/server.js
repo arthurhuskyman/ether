@@ -748,7 +748,9 @@ function buildDeclarativePush(payload, lang) {
   // корректен (.../ether/?call=abc), но конструкция хрупкая: если
   // APP_BASE_URL когда-нибудь будет задан с собственным query-параметром,
   // жёстко вшитый "/" перед "?" всё сломает. Строим без промежуточного "/".
-  const navigate = APP_ORIGIN + (isCall ? "?call=" : "?chat=") + encodeURIComponent(payload.contactId || "");
+  const now = Date.now();
+  // ts для звонка: клиент по нему понимает, свежий ли это звонок (push старше минуты — звонящий уже сдался).
+  const navigate = APP_ORIGIN + (isCall ? "?call=" : "?chat=") + encodeURIComponent(payload.contactId || "") + (isCall ? "&ts=" + now : "");
   const notification = {
     title: payload.title || "Эфир",
     body: payload.body || "",
@@ -759,7 +761,7 @@ function buildDeclarativePush(payload, lang) {
     vibrate: isCall ? [300, 150, 300, 150, 300] : [100, 50, 100],
     requireInteraction: isCall,
     renotify: isCall,
-    data: { contactId: payload.contactId || null, kind: payload.kind || "message", navigate },
+    data: { contactId: payload.contactId || null, kind: payload.kind || "message", navigate, ts: now },
   };
   return { web_push: 8030, notification, mutable: false };
 }

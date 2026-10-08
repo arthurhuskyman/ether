@@ -332,6 +332,97 @@ function fxWireVoiceStyle() {
   wrap.__fxVoiceObs = obs;
 }
 
+
+const FX_VINYL_SVG = '<svg viewBox="0 0 40 40" width="38" height="38" aria-hidden="true"><g class="fx-disc"><circle cx="20" cy="20" r="19" fill="#15151a"/><circle cx="20" cy="20" r="16.5" fill="none" stroke="#33333c" stroke-width=".7"/><circle cx="20" cy="20" r="14" fill="none" stroke="#33333c" stroke-width=".7"/><circle cx="20" cy="20" r="11.5" fill="none" stroke="#33333c" stroke-width=".7"/><path d="M20 4.5a15.5 15.5 0 0 1 11 4.6" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width="1.5" stroke-linecap="round"/><circle cx="20" cy="20" r="7" fill="#8a6dff"/><circle cx="20" cy="20" r="7" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width=".6"/><circle cx="20" cy="20" r="1.6" fill="#15151a"/></g></svg>';
+const FX_CASSETTE_SVG = '<svg viewBox="0 0 48 32" width="46" height="31" aria-hidden="true"><rect x="1" y="1" width="46" height="30" rx="4" fill="#2f2b45" stroke="#14121f"/><rect x="5" y="4" width="38" height="13" rx="2" fill="#efe6cf"/><rect x="8" y="6.5" width="32" height="2" rx="1" fill="#c9bb92"/><rect x="8" y="10.5" width="20" height="1.4" rx=".7" fill="#c9bb92"/><rect x="14" y="19" width="20" height="9" rx="4.5" fill="#14121f"/><g class="fx-reel"><circle cx="19" cy="23.5" r="3.4" fill="#efe6cf"/><path d="M19 20.3v6.4M15.8 23.5h6.4M16.7 21.2l4.6 4.6M21.3 21.2l-4.6 4.6" stroke="#14121f" stroke-width=".8"/></g><g class="fx-reel"><circle cx="29" cy="23.5" r="3.4" fill="#efe6cf"/><path d="M29 20.3v6.4M25.8 23.5h6.4M26.7 21.2l4.6 4.6M31.3 21.2l-4.6 4.6" stroke="#14121f" stroke-width=".8"/></g><path d="M9 31l3.2-4.2h23.6L39 31" fill="none" stroke="#14121f"/><circle cx="6" cy="27.5" r="1" fill="#14121f"/><circle cx="42" cy="27.5" r="1" fill="#14121f"/></svg>';
+// Рисунок кассеты/пластинки добавляется к каждому голосовому пузырю один раз; показывается по data-voice-style (см. CSS)
+function fxDecorateVoice() {
+  const wrap = document.getElementById("chat-messages"); if (!wrap) return;
+  for (const b of wrap.querySelectorAll(".voice-bubble")) {
+    if (b.querySelector(".fx-voice-deco")) continue;
+    const btn = b.querySelector(".voice-play-btn"); if (!btn) continue;
+    for (const [cls, svg] of [["cassette", FX_CASSETTE_SVG], ["vinyl", FX_VINYL_SVG]]) {
+      const d = document.createElement("span"); d.className = "fx-voice-deco " + cls; d.innerHTML = svg; btn.insertAdjacentElement("afterend", d);
+    }
+  }
+}
+
+
+// ---------- Sigil: крупный показ, сверка и «поделиться» ----------
+async function fxSigilFingerprint(str) {
+  const hex = await fxSha256Hex("sigil-fp|" + str);
+  return hex.slice(0, 16).toUpperCase().replace(/(.{4})/g, "$1 ").trim();
+}
+// PNG-картинка руны с подписью — для «поделиться» и «сохранить»
+function fxSigilPng(keyStr, name, fp) {
+  return new Promise((resolve) => {
+    try {
+      const W = 720, H = 880, cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+      const g = cv.getContext("2d"); if (!g) { resolve(null); return; }
+      g.fillStyle = "#0e0c1c"; g.fillRect(0, 0, W, H);
+      const img = new Image();
+      img.onload = () => {
+        g.drawImage(img, 110, 80, 500, 500);
+        g.fillStyle = "#fff"; g.textAlign = "center";
+        g.font = "600 44px system-ui, sans-serif"; g.fillText(String(name || "").slice(0, 28), W / 2, 670);
+        g.font = "500 30px ui-monospace, monospace"; g.fillStyle = "#b9b1e8"; g.fillText(fp || "", W / 2, 730);
+        g.font = "400 26px system-ui, sans-serif"; g.fillStyle = "#7f78a8"; g.fillText("Ether · " + T("fx.sigil.title"), W / 2, 820);
+        try { cv.toBlob((b) => resolve(b), "image/png"); } catch (e) { resolve(null); }
+      };
+      img.onerror = () => resolve(null);
+      img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(sigilSvg(keyStr, 500).replace("<svg ", '<svg xmlns="http://www.w3.org/2000/svg" '));
+    } catch (e) { resolve(null); }
+  });
+}
+function fxOpenSigilSheet(opts) {
+  const old = document.getElementById("fx-sigil-sheet"); if (old) old.remove();
+  const mine = !!opts.mine, keyStr = opts.keyStr || "", name = opts.name || "";
+  const sh = document.createElement("div"); sh.id = "fx-sigil-sheet"; sh.className = "sheet"; sh.setAttribute("role", "dialog");
+  sh.innerHTML = `<div class="sheet-backdrop"></div><div class="sheet-panel glass-content fx-sigil-panel"><div class="sheet-handle"></div>
+    <h3>${escapeHtml(mine ? T("fx.mySigil") : T("fx.sigil.of", { name }))}</h3>
+    <div class="fx-sigil-big">${sigilSvg(keyStr, 220)}</div>
+    <div class="fx-sigil-fp" id="fx-sigil-fp">…</div>
+    <p class="fine muted fx-sigil-how">${escapeHtml(T("fx.sigil.verifyHow"))}</p>
+    <div class="row-actions"><button type="button" class="btn-tertiary fx-sigil-close">${escapeHtml(T("sys.close"))}</button><button type="button" class="btn-primary fx-sigil-share">${escapeHtml(T("fx.sigil.share"))}</button></div></div>`;
+  document.body.appendChild(sh);
+  const close = () => sh.remove();
+  sh.querySelector(".sheet-backdrop").addEventListener("click", close);
+  sh.querySelector(".fx-sigil-close").addEventListener("click", close);
+  let fp = "";
+  fxSigilFingerprint(keyStr).then((v) => { fp = v; const el = sh.querySelector("#fx-sigil-fp"); if (el) el.textContent = v; });
+  sh.querySelector(".fx-sigil-share").addEventListener("click", async () => {
+    const title = mine ? (Store.name || "") : name;
+    const blob = await fxSigilPng(keyStr, title, fp);
+    const fileName = "ether-sigil.png";
+    const text = T("fx.sigil.shareText", { name: title }) + (fp ? "\n" + fp : "");
+    try {
+      if (blob && navigator.canShare && navigator.share) {
+        const file = new File([blob], fileName, { type: "image/png" });
+        if (navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], text }); return; }
+      }
+      if (navigator.share) { await navigator.share({ text }); return; }
+    } catch (e) { if (e && e.name === "AbortError") return; }
+    if (blob) { downloadBlob(blob, fileName); toast(T("fx.sigil.saved")); }
+    else { copyText(text, T("toast.msgCopied")); }
+  });
+  return sh;
+}
+// Своя руна — в Настройки → Профиль (раньше её можно было лишь мельком увидеть в «Эффектах», поделиться было нельзя)
+function fxInjectProfileSigil() {
+  const grp = document.querySelector('.settings-group[data-settings-category="profile"]');
+  if (!grp) return;
+  let row = document.getElementById("fx-profile-sigil-row");
+  if (!row) {
+    row = document.createElement("button"); row.type = "button"; row.id = "fx-profile-sigil-row"; row.className = "settings-row link-row";
+    row.innerHTML = `<span data-i18n="fx.mySigil">${escapeHtml(T("fx.mySigil"))}</span><span id="fx-profile-sigil" class="fx-sigil"></span>`;
+    row.addEventListener("click", () => fxOpenSigilSheet({ mine: true, keyStr: fxMyKeyString(), name: Store.name || "" }));
+    grp.appendChild(row);
+  }
+  const holder = row.querySelector("#fx-profile-sigil");
+  const ks = fxMyKeyString();
+  if (holder && holder.getAttribute("data-k") !== ks) { holder.innerHTML = sigilSvg(ks, 40); holder.setAttribute("data-k", ks); }
+}
+
 // ---------- Сгорание self-destruct-сообщений: приватный fade / театральный пепел ----------
 let fxBurning = false;
 const _fxOrigSweepExpired = sweepExpiredMessages;
@@ -501,6 +592,8 @@ function fxAfterRender() {
   fxScanRockets();
   fxSilenceScene();
   fxWireVoiceStyle();
+  fxDecorateVoice();
+  fxInjectProfileSigil();
   fxDecorateContactCard();
   fxBirthdayDecor();
 }
@@ -517,6 +610,8 @@ function fxDecorateContactCard() {
   if (FX.get("sigil") && prof) {
     if (!sg) { sg = document.createElement("div"); sg.id = "fx-sigil"; sg.className = "fx-sigil"; const nameEl = document.getElementById("contact-name"); if (nameEl) nameEl.insertAdjacentElement("afterend", sg); }
     sg.innerHTML = sigilSvg(fxKeyString(c), 44); sg.title = T("fx.sigil.hint");
+    sg.setAttribute("role", "button"); sg.tabIndex = 0;
+    sg.onclick = () => { const cc = state.contactCardId ? state.contacts.get(state.contactCardId) : null; if (cc) fxOpenSigilSheet({ title: cc.name || "", keyStr: fxKeyString(cc), name: cc.name || "" }); };
   } else if (sg) sg.remove();
   const grp = document.getElementById("contact-settings-group"); if (!grp) return;
   if (!document.getElementById("fx-birthday-row")) {
@@ -552,7 +647,6 @@ function fxInjectSettings() {
     + toggles.map(([k, l]) => `<label class="settings-row"><span data-i18n="${l}">${escapeHtml(T(l))}</span><input id="fxs-${k}" type="checkbox" class="switch" /></label>`).join("")
     + sel("voiceStyle", "fx.voiceStyle", [["default", "fx.voice.default"], ["cassette", "fx.voice.cassette"], ["vinyl", "fx.voice.vinyl"]])
     + sel("burn", "fx.burn", [["off", "fx.burn.off"], ["fade", "fx.burn.fade"], ["ash", "fx.burn.ash"]])
-    + `<div class="settings-row"><span data-i18n="fx.mySigil">${escapeHtml(T("fx.mySigil"))}</span><span id="fx-my-sigil" class="fx-sigil" title="${escapeHtml(T("fx.sigil.hint"))}"></span></div>`
     + `<button type="button" id="fx-wrapped-btn" class="settings-row link-row"><span data-i18n="fx.wrapped.open">${escapeHtml(T("fx.wrapped.open"))}</span></button>`
     + `<button type="button" id="fx-verify-btn" class="settings-row link-row"><span data-i18n="fx.verify">${escapeHtml(T("fx.verify"))}</span></button>`
     + `<input id="fx-verify-input" type="file" accept="application/json,.json" style="display:none;" />`;
@@ -562,7 +656,6 @@ function fxInjectSettings() {
     el.addEventListener("change", () => FX.set(k, el.checked));
   }
   for (const k of ["voiceStyle", "burn"]) { const el = grp.querySelector("#fxs-" + k); el.value = FX.get(k); el.addEventListener("change", () => FX.set(k, el.value)); }
-  grp.querySelector("#fx-my-sigil").innerHTML = sigilSvg(fxMyKeyString(), 40);
   grp.querySelector("#fx-wrapped-btn").addEventListener("click", () => openYearlyWrapped());
   const vf = grp.querySelector("#fx-verify-input");
   grp.querySelector("#fx-verify-btn").addEventListener("click", () => vf.click());

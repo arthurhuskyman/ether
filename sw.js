@@ -8,6 +8,7 @@ const SHELL_FILES = [
   "./js/languages-meta.js",
   "./js/lang/en.js",
   "./js/i18n.js",
+  "./js/emoji-data.js",
   "./js/app.js",
   "./js/features.js",
   "./js/features2.js",
@@ -236,7 +237,7 @@ self.addEventListener("notificationclick", (event) => {
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
       for (const c of list) {
         if ("focus" in c) {
-          c.postMessage({ type: "open-contact", contactId, kind, focusInput });
+          c.postMessage({ type: "open-contact", contactId, kind, focusInput, ts: data.ts || null });
           return c.focus();
         }
       }

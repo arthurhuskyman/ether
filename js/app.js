@@ -25,7 +25,13 @@ const FILE_CHUNK_SIZE = 48 * 1024; // кратно 3 — ровные base64-к�
 const OUTBOX_LIMIT = 500;
 const GROUP_DELIVERY_MAP_LIMIT = 2000;
 const SEEN_DELIVER_LIMIT = 500;
-const PENDING_CALL_TIMEOUT_MS = 20000;
+const PENDING_CALL_TIMEOUT_MS = 25000;
+// Контакт не в сети: ему уходит push, а приложение на телефоне ещё нужно запустить и подключить к серверу
+// (холодный старт «спящего» сервера — десятки секунд), поэтому звоним заметно дольше.
+const CALL_PUSH_TIMEOUT_MS = 55000;
+const CALL_ACCEPT_CONNECT_MS = 25000; // сколько ждём P2P после нажатия «Принять»
+const CALL_INVITE_RESEND_MS = 4000;   // пока звоним без P2P, повторяем call-invite: получатель мог ещё не подключиться к серверу
+const CALL_SERVER_WAIT_MS = 10000;    // сколько ждём подключения к серверу перед тем как сдаться
 const OUTBOX_RETRY_INTERVAL_MS = 15000;
 const OUTBOX_MAX_AGE_MS = 7 * 24 * 3600 * 1000;
 const RECEIPT_MAX_AGE_MS = 24 * 3600 * 1000;
@@ -34,32 +40,8 @@ const MAX_CALL_LOG = 500;
 const MAX_MESSAGES_PER_CHAT = 5000;
 const TYPING_DEBOUNCE_MS = 1200;
 const TYPING_AUTO_CLEAR_MS = 4000;
-// 110 эмодзи для реакций.
-const REACTION_EMOJIS = [
-  "👍","👎","❤️","🔥","😂","🤣","😊","😍","🥰","😘","😗","😙","😚","🙂","🤗","🤩",
-  "😎","🥳","😏","😌","😔","😞","😟","😢","😭","😤","😠","😡","🤬","😱","😨","😰",
-  "😥","😓","🤔","🤨","😐","😑","😶","🙄","😯","😦","😧","😮","😲","🥺","🤯","🤪",
-  "😜","😝","😛","🤤","🤢","🤮","🤧","😷","🤒","🤕","🥵","🥶","😴","🤫","🤭","🧐",
-  "🙏","👏","👌","✌️","🤞","🤟","🤘","👊","✊","💪","🤝","👋","🖐️","☝️","💯","✨",
-  "⭐","🌟","⚡","💥","💫","🎉","🎊","🎁","🎈","🍀","🌸","🌹","🌺","🌻","☀️","🌙",
-  "⛅","🌈","❄️","💧","🌊","🍕","🍔","🍟","🍩","🍪","☕","🍺","🍷","🍎"
-];
-
-// P2 — inline-эмодзи-пикер для поля ввода (отдельно от REACTION_EMOJIS
-// выше, который используется для быстрых реакций на сообщение — та же
-// палитра эмодзи, но здесь сгруппирована по категориям для вкладок и
-// снабжена ключевыми словами для поиска по названию). Не претендует на
-// исчерпывающий охват всех ~3000+ эмодзи Unicode — несколько десятков
-// самых частых на категорию вполне покрывают реальное использование в
-// переписке, а полный набор утяжелил бы пикер без ощутимой пользы.
-const EMOJI_CATEGORIES = [
-  { id: "smileys", icon: "😀", emojis: ["😀","😁","😂","🤣","😊","😍","🥰","😘","🙂","🤗","😎","🥳","😏","😢","😭","😡","🤔","😮","🥺","😴","🤤","🤭","🙄","😅","😇","🤩","😋","🤪","😬","🫡"] },
-  { id: "gestures", icon: "👍", emojis: ["👍","👎","👌","✌️","🤞","🤟","🤘","👊","✊","💪","🤝","👋","🖐️","☝️","🙏","👏","🫶","🤌","👉","👈","🤙"] },
-  { id: "hearts", icon: "❤️", emojis: ["❤️","🧡","💛","💚","💙","💜","🖤","🤍","🤎","💯","✨","💥","💫","⭐","🔥","💔","💕","💞"] },
-  { id: "nature", icon: "🌸", emojis: ["🌸","🌹","🌺","🌻","🌼","☀️","🌙","⛅","🌈","❄️","💧","🌊","🐶","🐱","🦊","🐻","🐼","🦁","🐸","🌳"] },
-  { id: "food", icon: "🍕", emojis: ["🍕","🍔","🍟","🌭","🍩","🍪","🎂","🍰","☕","🍵","🍺","🍷","🍎","🍌","🍇","🍓","🥑","🍉"] },
-  { id: "objects", icon: "🎉", emojis: ["🎉","🎊","🎁","🎈","🎵","🎮","📱","💻","📷","🚗","✈️","⚽","🏆","💰","🔑","💡","📌","✅","❌","⚠️"] },
-];
+// Один набор эмодзи (js/emoji-data.js) и для ввода сообщений, и для реакций: EMOJI_GROUPS — категории, EMOJI_NAMES / EMOJI_RU — для поиска.
+const EMOJI_CATEGORIES = EMOJI_GROUPS.map((g) => ({ id: g.id, icon: g.icon, emojis: g.list.split(" ") }));
 
 // Раздел 9 роадмапа — категории Settings с back-навигацией вместо
 // плоского списка ~13 секций. Каждая категория — это ПОДМНОЖЕСТВО уже
@@ -93,25 +75,11 @@ const SKIN_TONE_MODIFIERS = [
   { id: "mediumDark", mod: "\u{1F3FE}", swatch: "#9b643d" },
   { id: "dark", mod: "\u{1F3FF}", swatch: "#594539" },
 ];
-// Эмодзи, у которых есть одиночный skin-tone вариант (жест/рука одной
-// "руки"). 🤝 и 🫶 добавлены в V.53.0.0 (раздел 11 роадмапа — "двусторонний
-// skin-tone для 🤝/🫶"): быстрый тап по-прежнему вставляет вариант с ЕДИНЫМ
-// текущим тоном (как и любой другой эмодзи из этого набора — обычный tap
-// должен вести себя предсказуемо одинаково для всех), а полноценный выбор
-// ДВУХ РАЗНЫХ тонов для 🤝 (долгое нажатие → #handshake-tone-sheet, две
-// независимые свотч-строки) реализован отдельно ниже через официальную
-// RGI ZWJ-последовательность Unicode 🫱<тон>‍🫲<тон> (U+1FAF1/U+1FAF2) — это
-// единственная из двух эмодзи, для которой Unicode вообще определяет
-// двутональную комбинацию. У 🫶 (U+1FAF6, Heart Hands) такой RGI-последовательности
-// с ДВУМЯ РАЗНЫМИ тонами не существует в принципе — Unicode описывает для
-// неё только одиночный модификатор (оба "крыла" сердца одним тоном), так
-// что для 🫶 единственно корректное поведение — именно одиночный тон,
-// который она и получает здесь наравне с остальными; это не недоделанная
-// версия задачи, а полный охват того, что Unicode реально поддерживает.
-const SKIN_TONE_MODIFIABLE = new Set([
-  "👍", "👎", "👌", "✌️", "🤞", "🤟", "🤘", "👊", "✊", "💪",
-  "👋", "🖐️", "☝️", "🙏", "👏", "🤌", "👉", "👈", "🤙", "🤝", "🫶",
-]);
+// Тон кожи применяется ко ВСЕМ эмодзи, которые его допускают (свойство Unicode Emoji_Modifier_Base: руки, жесты, люди и т.д.) —
+// определяем по самому символу, а не по ручному списку; в каждой категории, где такие эмодзи есть. Для 🤝 дополнительно есть
+// выбор двух разных тонов (долгое нажатие, см. buildHandshakeEmoji ниже).
+const SKIN_TONE_BASE_RE = /^\p{Emoji_Modifier_Base}\uFE0F?$/u;
+function emojiSupportsSkinTone(emoji) { try { return SKIN_TONE_BASE_RE.test(emoji); } catch (e) { return false; } }
 // Официальная RGI-последовательность Unicode для рукопожатия с ДВУМЯ
 // разными тонами кожи (см. комментарий к SKIN_TONE_MODIFIABLE выше):
 // U+1FAF1 (rightwards hand) + модификатор + ZWJ + U+1FAF2 (leftwards hand)
@@ -128,37 +96,22 @@ function buildHandshakeEmoji(toneAId, toneBId) {
   return HANDSHAKE_RIGHTWARDS_HAND + a.mod + "‍" + HANDSHAKE_LEFTWARDS_HAND + b.mod;
 }
 function applySkinTone(emoji) {
-  if (!SKIN_TONE_MODIFIABLE.has(emoji)) return emoji;
+  if (!emojiSupportsSkinTone(emoji)) return emoji;
   const tone = Store.emojiSkinTone;
   if (tone === "none") return emoji;
   const entry = SKIN_TONE_MODIFIERS.find((t) => t.id === tone);
-  return entry ? emoji + entry.mod : emoji;
+  return entry ? emoji.replace(/\uFE0F/g, "") + entry.mod : emoji;
 }
-const EMOJI_KEYWORDS = {
-  // EN + RU ключевые слова в одной строке — emojiSearchResults() ищет
-  // простым includes() по нижнему регистру, так что добавление русских
-  // синонимов рядом с английскими не требует отдельной логики или
-  // i18n-ключей (это не UI-строки, а внутренние данные для поиска).
-  "😀":"smile happy улыбка счастье","😂":"laugh joy tears lol смех ржу слёзы","🤣":"rofl laugh ржу смех","😊":"smile blush happy улыбка смущение",
-  "😍":"love heart eyes любовь обожаю влюблён","🥰":"love hearts любовь сердечки",
-  "😘":"kiss love поцелуй","🙂":"smile slight улыбка","🤗":"hug объятия","😎":"cool sunglasses круто очки","🥳":"party celebrate праздник вечеринка",
-  "😏":"smirk ухмылка","😢":"sad cry грусть плачу",
-  "😭":"cry sob sad рыдаю плачу грусть","😡":"angry mad злой бешусь","🤔":"think думаю","😮":"surprised wow удивлён ого",
-  "🥺":"pleading cute умоляю мило","😴":"sleep tired сплю устал","🙏":"please thanks pray спасибо пожалуйста молитва",
-  "👍":"thumbs up good yes like палец вверх хорошо да лайк","👎":"thumbs down no bad dislike палец вниз плохо нет",
-  "👌":"ok perfect окей отлично","✌️":"peace victory мир победа","👏":"clap applause аплодисменты хлопаю",
-  "💪":"strong muscle сила мышцы","👋":"wave hi hello bye привет пока машу","❤️":"heart love red сердце любовь",
-  "🔥":"fire hot lit огонь жара круто","💯":"hundred perfect сто процентов идеально","✨":"sparkle shine блеск сияние",
-  "🎉":"party celebrate confetti праздник конфетти","🎂":"cake birthday торт день рождения","☕":"coffee кофе","🍕":"pizza food пицца еда",
-  "🤝":"handshake deal договор рукопожатие",
-  "🙌":"praise hands up руки вверх ура","😅":"sweat smile relief неловко облегчение","🤩":"starstruck excited восторг звёзды",
-  "😋":"yum tasty вкусно ням","🫶":"heart hands love сердце руками любовь",
-};
+// Поиск по английскому названию символа Unicode и по русским ключевым словам — по всему набору, а не только по текущей категории.
 function emojiSearchResults(query) {
   const q = query.trim().toLowerCase();
   if (!q) return null;
-  const all = EMOJI_CATEGORIES.flatMap((c) => c.emojis);
-  return all.filter((e) => (EMOJI_KEYWORDS[e] || "").includes(q));
+  const seen = new Set(), out = [];
+  for (const cat of EMOJI_CATEGORIES) for (const e of cat.emojis) {
+    if (seen.has(e)) continue;
+    if (((EMOJI_NAMES[e] || "") + " " + (EMOJI_RU[e] || "")).includes(q)) { seen.add(e); out.push(e); }
+  }
+  return out;
 }
 
 const UNLOCK_ATTEMPTS_LIMIT = 5;
@@ -170,7 +123,8 @@ const CONNECT_STUCK_MS = 30000;
 const WATCH_CONNECT_TIMEOUT_MS = 10000;  // было 20000
 const ACK_DEDUP_WINDOW_MS = 5000;
 const CALL_DEAD_LINK_TIMEOUT_MS = 30000;
-const INCOMING_CALL_TIMEOUT_MS = PENDING_CALL_TIMEOUT_MS - 2000; // должен истекать НЕ ПОЗЖЕ, чем звонящий сдастся — иначе у принимающего экран "входящий" висит, когда звонящий уже положил трубку
+const INCOMING_CALL_TIMEOUT_MS = PENDING_CALL_TIMEOUT_MS - 2000;
+const INCOMING_PUSH_CALL_TIMEOUT_MS = CALL_PUSH_TIMEOUT_MS - 5000; // экран «входящий», открытый по нажатию на push // должен истекать НЕ ПОЗЖЕ, чем звонящий сдастся — иначе у принимающего экран "входящий" висит, когда звонящий уже положил трубку
 // Громкость удалённого потока по умолчанию — 33,33%.
 const DEFAULT_CALL_VOLUME = 0.3333;
 
@@ -250,7 +204,7 @@ const CRITICAL_LS_KEYS = [
   "ether.vapidPublicKey", "ether.pushSubscription",
   "ether.callLog", "ether.lastSeen", "ether.drafts",
   "ether.callVolume", "ether.lang", "ether.recentReactions",
-  "ether.chatFolders", "ether.emojiSkinTone", "ether.composerPlusMode",
+  "ether.chatFolders", "ether.emojiSkinTone", "ether.recentEmoji", "ether.myAvatar",
   "ether.translateEndpoint", "ether.translateApiKey",
   "ether.deadManEnabled", "ether.deadManThresholdDays", "ether.deadManContactId", "ether.deadManLastSentAt",
   "ether.panicShakeEnabled", "ether.fx", "ether.sigKey", "ether.fx.aurora",
@@ -389,12 +343,12 @@ const Store = {
   // не завязываться на конкретные кодпойнты при чтении из хранилища.
   get emojiSkinTone() { return localStorage.getItem("ether.emojiSkinTone") || "none"; },
   set emojiSkinTone(v) { localStorage.setItem("ether.emojiSkinTone", v); scheduleIDBBackup(); },
+  get recentEmojiJson() { return localStorage.getItem("ether.recentEmoji") || "[]"; },
+  set recentEmojiJson(v) { localStorage.setItem("ether.recentEmoji", v); scheduleIDBBackup(); },
   // Раздел 6 роадмапа — "кнопка «+» для композера" прямо в формулировке
   // задачи помечена риском для мышечной памяти существующих пользователей,
   // поэтому реализована как переключаемый эксперимент (выключен по
   // умолчанию), а не тихая замена трёх кнопок — см. wireComposerPlusMode().
-  get composerPlusMode() { return localStorage.getItem("ether.composerPlusMode") === "1"; },
-  set composerPlusMode(v) { localStorage.setItem("ether.composerPlusMode", v ? "1" : "0"); scheduleIDBBackup(); },
   // Быстрые реакции — раньше меню реакций всегда показывало ВСЕ 110
   // эмодзи целиком, самая частая жалоба на перегруженность. Теперь
   // показываем недавно использованные, полная сетка — по кнопке "+".
@@ -447,6 +401,8 @@ const Store = {
   set fontSize(v) { localStorage.setItem("ether.fontSize", v); scheduleIDBBackup(); },
   get calmMode() { return localStorage.getItem("ether.calmMode") === "1"; },
   set calmMode(v) { localStorage.setItem("ether.calmMode", v ? "1" : "0"); scheduleIDBBackup(); },
+  get myAvatar() { return localStorage.getItem("ether.myAvatar") || ""; },
+  set myAvatar(v) { if (v) localStorage.setItem("ether.myAvatar", v); else localStorage.removeItem("ether.myAvatar"); scheduleIDBBackup(); broadcastPrivacyPrefs(); },
   get myStatus() { return localStorage.getItem("ether.myStatus") || ""; },
   set myStatus(v) { localStorage.setItem("ether.myStatus", v || ""); scheduleIDBBackup(); broadcastPrivacyPrefs(); },
 };
@@ -1045,7 +1001,14 @@ function highlightRaw(escapedText, query) {
   return result + escapedText.slice(i);
 }
 function truncate(s, n) { s = String(s == null ? "" : s); return s.length > n ? s.slice(0, n - 1) + "…" : s; }
-function initials(name) { return String(name || "?").trim().slice(0, 2).toUpperCase() || "?"; }
+// Инициалы: у имени из нескольких слов — первые буквы слов (до трёх: «Иван Петров» → ИП), у одного слова — первые две буквы
+function initials(name) {
+  const s = String(name || "").trim();
+  if (!s) return "?";
+  const words = s.split(/[\s\u00A0]+/).filter((w) => /^[\p{L}\p{N}\p{Extended_Pictographic}]/u.test(w));
+  if (words.length > 1) return words.slice(0, 3).map((w) => Array.from(w)[0]).join("").toUpperCase();
+  return Array.from(s).slice(0, 2).join("").toUpperCase() || "?";
+}
 // Аватар-кружок для контакта/группы: если у группы загружена картинка
 // (g.avatar, dataURL) — показываем её, иначе как раньше — градиент по
 // имени с инициалами. sizeClass — доп. класс ("avatar-sm" и т.п.).
@@ -1071,8 +1034,9 @@ const AVATAR_DATAURL_RE = /^data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]+$/i;
 function avatarCircleHtml(c, sizeClass, extraInner) {
   const cls = "avatar" + (sizeClass ? " " + sizeClass : "");
   const extra = extraInner || "";
-  if (c && c.avatar && AVATAR_DATAURL_RE.test(c.avatar)) {
-    return `<div class="${cls}" style="background-image:url('${c.avatar}')">${extra}</div>`;
+  const shownAvatar = c && (c.avatar || c.peerAvatar); // своё фото контакта важнее присланного им самим
+  if (shownAvatar && AVATAR_DATAURL_RE.test(shownAvatar)) {
+    return `<div class="${cls}" style="background-image:url('${shownAvatar}')">${extra}</div>`;
   }
   return `<div class="${cls}" style="background:${avatarGradient(c && c.name)}">${escapeHtml(initials(c && c.name))}${extra}</div>`;
 }
@@ -1979,6 +1943,7 @@ function startApp() {
   safeCall(wirePanicButton, "wirePanicButton");
   safeCall(wirePanicShakeBanner, "wirePanicShakeBanner");
   safeCall(() => { if (Store.panicShakeEnabled) wirePanicShake(); }, "wirePanicShakeAutostart");
+  safeCall(wireShakeUndoGuard, "wireShakeUndoGuard");
   safeCall(wireKeyboardFix, "wireKeyboardFix");
   safeCall(wireNetworkListeners, "wireNetworkListeners");
   safeCall(wireViewportRecalc, "wireViewportRecalc");
@@ -2014,7 +1979,6 @@ function startApp() {
     const srt = $("#settings-ringtone"); if (srt) srt.value = Store.ringtone;
     const spl = $("#settings-pinlock"); if (spl) spl.checked = Store.pinEnabled;
     const sae = $("#settings-auto-emoji"); if (sae) sae.checked = Store.autoEmoji;
-    const scp = $("#settings-composer-plus"); if (scp) scp.checked = Store.composerPlusMode;
     const dme = $("#settings-deadman-enabled"); if (dme) dme.checked = Store.deadManEnabled;
     const dmt = $("#settings-deadman-threshold"); if (dmt) dmt.value = String(Store.deadManThresholdDays);
     const psEl = $("#settings-panic-shake"); if (psEl) psEl.checked = Store.panicShakeEnabled;
@@ -2227,7 +2191,11 @@ function wireViewportRecalc() {
   window.addEventListener("focus", () => { forceViewportRecalc(); });
 }
 function wireNetworkListeners() {
-  window.addEventListener("online", () => etherLog("info", "[net] online"));
+  const resumeSignaling = () => { try { if (signaling && typeof signaling.resume === "function") signaling.resume(); } catch (e) {} };
+  window.addEventListener("online", () => { etherLog("info", "[net] online"); resumeSignaling(); });
+  window.addEventListener("pageshow", resumeSignaling);
+  window.addEventListener("focus", resumeSignaling);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) resumeSignaling(); });
   window.addEventListener("offline", () => etherLog("warn", "[net] offline"));
   // Поворот экрана/ресайз окна сдвигает позиции кнопок таб-бара —
   // индикатор иначе остался бы на старых координатах до следующего
@@ -2265,7 +2233,12 @@ function maybeShowOnboardingHint() {
   setTimeout(() => { try { toast(T("onboarding.gestureHint")); } catch (e) {} }, 1500);
 }
 
-function openFromNotification(contactId, kind, focusInput) {
+// Push о входящем звонке «живёт» недолго: если нажали на него позже минуты, звонящий уже сдался.
+function isCallPushFresh(ts) {
+  const t = Number(ts);
+  return !t || (Date.now() - t >= 0 && Date.now() - t < 60000);
+}
+function openFromNotification(contactId, kind, focusInput, meta) {
   try { closeChatSearch(); } catch (e) {}
   if (!contactId) return;
   window.focus();
@@ -2278,6 +2251,15 @@ function openFromNotification(contactId, kind, focusInput) {
     if (state.callId === contactId && state.callPhase === "ringing") {
       openCallScreen(contactId, "ringing");
       if (!ringtoneAudioEl || ringtoneAudioEl.paused) { try { ensureAudioCtx(); } catch (e) {} playRingtone(); }
+    } else if (!state.callId && isCallPushFresh(meta && meta.ts)) {
+      // Приложение запустили (или развернули) нажатием на push о звонке, а серверное приглашение к нам ещё не дошло:
+      // сервер/соединение только поднимаются. Раньше здесь показывалось «пропущенный звонок», а звонящий продолжал
+      // звонить. Теперь сразу открываем экран «входящий» и подключаемся к звонящему; принять можно уже сейчас.
+      state.callWantsVideo = false;
+      openCallScreen(contactId, "ringing", { timeoutMs: INCOMING_PUSH_CALL_TIMEOUT_MS });
+      try { ensureAudioCtx(); } catch (e) {}
+      playRingtone();
+      if (signaling && signaling.connected) scheduleAutoConnect(contactId);
     } else {
       toast(T("toast.missedCall"));
     }
@@ -2300,7 +2282,7 @@ function handleNotificationNavigateParams() {
     const params = new URLSearchParams(window.location.search);
     const callId = params.get("call");
     const chatId = params.get("chat");
-    if (callId) openFromNotification(callId, "call");
+    if (callId) openFromNotification(callId, "call", false, { ts: params.get("ts") });
     else if (chatId) openFromNotification(chatId, "message");
     if (callId || chatId) {
       const url = new URL(window.location.href);
@@ -2403,7 +2385,7 @@ function wireServiceWorker() {
   navigator.serviceWorker.addEventListener("message", (ev) => {
     const data = ev.data || {};
     if (data.type === "open-contact" && data.contactId) {
-      openFromNotification(data.contactId, data.kind, data.focusInput);
+      openFromNotification(data.contactId, data.kind, data.focusInput, { ts: data.ts });
     }
     if (data.type === "mark-read" && data.contactId) {
       const c = state.contacts.get(data.contactId);
@@ -2706,6 +2688,7 @@ function loadContacts() {
       members: Array.isArray(c.members) ? c.members : undefined,
       createdBy: c.createdBy || undefined,
       avatar: c.avatar || undefined,
+      peerAvatar: typeof c.peerAvatar === "string" && AVATAR_DATAURL_RE.test(c.peerAvatar) ? c.peerAvatar : undefined,
       description: c.description || undefined,
       disappearingTimer: c.disappearingTimer || 0,
       notificationSound: c.notificationSound || undefined,
@@ -2808,6 +2791,7 @@ function persistContacts() {
     // контактов не было UI для его установки. Теперь c.avatar может быть
     // задан и для 1:1 контакта (см. setContactAvatar) — сохраняем всегда.
     avatar: c.avatar || undefined,
+    peerAvatar: c.peerAvatar || undefined,
     description: c.isGroup ? (c.description || undefined) : undefined,
     disappearingTimer: c.disappearingTimer || undefined,
     notificationSound: c.notificationSound || undefined,
@@ -3571,8 +3555,11 @@ function renderContactCard() {
   if (!c) { state.contactCardId = null; renderTab(); return; }
   const av = $("#contact-avatar");
   if (av) {
-    if (c.avatar) { av.style.backgroundImage = `url('${c.avatar}')`; av.style.background = ""; av.textContent = ""; }
-    else { av.style.backgroundImage = ""; av.style.background = avatarGradient(c.name); av.textContent = initials(c.name); }
+    // Раньше после backgroundImage шло присваивание av.style.background = "" — сокращённое свойство сбрасывало и картинку,
+    // поэтому выбранное фото никогда не показывалось. Теперь сначала фон-заготовка, затем (если есть фото) только backgroundImage.
+    const shown = c.avatar || c.peerAvatar;
+    if (shown && AVATAR_DATAURL_RE.test(shown)) { av.style.background = ""; av.style.backgroundImage = `url('${shown}')`; av.style.backgroundSize = "cover"; av.style.backgroundPosition = "center"; av.textContent = ""; }
+    else { av.style.backgroundImage = ""; av.style.backgroundSize = ""; av.style.background = avatarGradient(c.name); av.textContent = initials(c.name); }
   }
   const n = $("#contact-name"); if (n) n.textContent = c.name || T("sys.someone");
   const navT = $("#nav-contact-title"); if (navT) navT.textContent = c.name || T("sys.someone");
@@ -3594,7 +3581,14 @@ function renderContactCard() {
   }
   const vibrateOnlyEl = $("#contact-vibrate-only"); if (vibrateOnlyEl) vibrateOnlyEl.checked = !!c.vibrateOnly;
   const blockBtn = $("#contact-block-btn"); if (blockBtn) blockBtn.textContent = c.blocked ? T("chat.contact.unblock") : T("chat.contact.block");
-  const archBtn = $("#contact-archive-btn"); if (archBtn) archBtn.textContent = T("chat.contact.archive");
+  const archBtn = $("#contact-archive-btn");
+  if (archBtn) {
+    // Подпись переключается «В архив» ↔ «Из архива»; меняем только первый <span> (стрелка-шеврон остаётся) и его data-i18n,
+    // иначе applyStaticTranslations() вернёт старую подпись.
+    const key = c.archived ? "chat.contact.unarchive" : "chat.contact.archive";
+    const lb = archBtn.querySelector("span");
+    if (lb) { lb.textContent = T(key); lb.setAttribute("data-i18n", key); } else archBtn.textContent = T(key);
+  }
   // Раньше здесь было muteBtn.textContent = T(...), что стирало ВСЮ
   // разметку кнопки (включая <span class="chevron"> со стрелкой) — textContent
   // заменяет все дети одним текстовым узлом. Теперь трогаем только первый
@@ -3881,7 +3875,8 @@ function renderChatThreadInner() {
       persistContacts();
     }
   }
-  const canCall = !isGroup(c) && (isReachable(c) || (c.managed && c.online));
+  // Звонить можно и контакту не в сети: ему уйдёт push с приглашением (нужен только идентификатор, т.е. managed).
+  const canCall = !isGroup(c) && !c.isSelf && (isReachable(c) || !!c.managed);
   const ccb = $("#chat-call-btn");
   if (ccb) { ccb.disabled = isGroup(c) ? false : !canCall; ccb.classList.remove("call-unavailable"); }
   const vcb = $("#chat-video-call-btn");
@@ -3891,8 +3886,9 @@ function renderChatThreadInner() {
   // показывать кнопку как рабочую вовсе. Кнопка микрофона решается в
   // updateSendVsMic() (там же учитывается видимость от текста в поле —
   // два независимых переключателя одного и того же .hidden конфликтовали бы).
-  const attachBtn = $("#chat-attach-btn"); if (attachBtn) attachBtn.classList.toggle("hidden", isGroup(c));
-  const cameraBtn = $("#chat-camera-btn"); if (cameraBtn) cameraBtn.classList.toggle("hidden", isGroup(c));
+  // Композер одинаковый в личных чатах и группах: вложения, камера и голосовые работают и там (в группе — до 1 МБ на файл)
+  const attachBtn = $("#chat-attach-btn"); if (attachBtn) attachBtn.classList.remove("hidden");
+  const cameraBtn = $("#chat-camera-btn"); if (cameraBtn) cameraBtn.classList.remove("hidden");
   // Раздел 8 — "права группы": не-админ видит явно закрытый композер
   // (с подсказкой), а не узнаёт о запрете только по тосту после попытки
   // отправить — так понятнее сразу, не трогая поле вообще.
@@ -4064,7 +4060,7 @@ if (m.replyTo) {
   const rtId = m.replyTo.id || m.replyTo.msgId || "";
   replyHtml = `<div class="bubble-reply" data-reply-to-id="${escapeHtml(rtId)}"><div class="bubble-reply-author">${escapeHtml(m.replyTo.authorName || "")}</div><div class="bubble-reply-text">${escapeHtml(truncate(m.replyTo.text || "", 80))}</div></div>`;
 }
-    const fwdMark = m.forwarded ? `<div class="bubble-forwarded">${escapeHtml(T("chat.forward"))}</div>` : "";
+    const fwdMark = m.forwarded ? `<div class="bubble-forwarded">${escapeHtml(T("chat.forwarded"))}</div>` : "";
     let reactionsHtml = "";
     if (m.reactions && typeof m.reactions === "object") {
       const chips = Object.entries(m.reactions).filter(([, users]) => Array.isArray(users) && users.length > 0);
@@ -5040,13 +5036,17 @@ function wireMediaComposeSheet() {
     if (cancelBtn) cancelBtn.addEventListener("click", closeMediaComposeSheet);
   }
 }
+// В группе вложение уходит каждому участнику отдельной копией (один зашифрованный конверт на человека), поэтому потолок
+// ниже, чем в личном чате: 1 МБ вместо 2 МБ (картинки сжимаются под него автоматически).
+const GROUP_FILE_MAX = 1024 * 1024;
 async function sendFileMessage(contactId, file, opts) {
   opts = opts || {};
   const caption = typeof opts.caption === "string" ? opts.caption.trim().slice(0, 200) : "";
   const silent = !!opts.silent; // при массовой отправке (P1.11) не плодим тост на каждый файл
   const c = state.contacts.get(contactId); if (!c) return;
-  if (isGroup(c)) { toast(T("toast.fileGroupsUnsupported")); return; }
-  if (c.blocked) { toast(T("toast.blocked")); return; }
+  const inGroup = isGroup(c);
+  const sizeCap = inGroup ? GROUP_FILE_MAX : MAX_FILE_SIZE;
+  if (!inGroup && c.blocked) { toast(T("toast.blocked")); return; }
   // Раньше нижней границы не было вовсе — пустой (0 байт) файл
   // отправитель видел как "отправлено", а handleFilePayload на
   // стороне получателя (через EtherFileLimits.isValidFileMetaSize,
@@ -5059,17 +5059,18 @@ async function sendFileMessage(contactId, file, opts) {
   // того чтобы сразу отказывать. Итоговый Blob подменяет исходный
   // file для всего остального пути (P2P/офлайн-очередь его не
   // различают — им важен только размер и содержимое).
-  if (file.size > MAX_FILE_SIZE) {
-    const compressed = await compressImageToTarget(file, MAX_FILE_SIZE);
+  if (file.size > sizeCap) {
+    const compressed = await compressImageToTarget(file, sizeCap);
     if (compressed) {
       const origName = file.name || "photo.jpg";
       const newName = origName.replace(/\.[^.]+$/, "") + ".jpg";
       file = new File([compressed], newName, { type: "image/jpeg" });
     } else {
-      toast(T("toast.fileTooLarge", { size: formatFileSize(MAX_FILE_SIZE) }));
+      toast(T("toast.fileTooLarge", { size: formatFileSize(sizeCap) }));
       return;
     }
   }
+  if (inGroup) { await sendGroupFile(contactId, file, { caption }); return; }
   const existingLink = mesh.get(contactId);
   const alreadyLive = existingLink && (existingLink.status === "connected" || existingLink.status === "in-call");
   if (!alreadyLive && !silent) toast(T("toast.connecting"));
@@ -5118,6 +5119,53 @@ async function sendFileMessage(contactId, file, opts) {
   if (!ok) toast(T("toast.fileSendFailed"));
 }
 
+// Вложение или голосовое в группу: одна запись в ленте группы + отдельный зашифрованный конверт каждому участнику
+// (тот же путь, что у sendGroupMessage: свой deliveryId на получателя, ack сопоставляется через groupDeliveryMap).
+async function sendGroupFile(groupId, file, meta) {
+  const g = state.contacts.get(groupId); if (!g || !g.isGroup) return;
+  if (!isGroupWriteAllowed(g, Store.myId)) { toast(T("toast.groupWriteRestricted")); return; }
+  meta = meta || {};
+  if (!file || file.size === 0) { toast(T("toast.fileEmpty")); return; }
+  if (file.size > GROUP_FILE_MAX) { toast(T("toast.fileTooLarge", { size: formatFileSize(GROUP_FILE_MAX) })); return; }
+  const mime = file.type || meta.mime || "application/octet-stream";
+  const name = meta.name || file.name || "file";
+  const caption = typeof meta.caption === "string" ? meta.caption.trim().slice(0, 200) : "";
+  const msgId = crypto.randomUUID();
+  const ts = Date.now();
+  const rec = {
+    id: msgId, from: "me", text: "", ts, ack: "sent",
+    file: { name, mime, size: file.size, kind: fileKindFromMime(mime), pending: true },
+  };
+  if (meta.duration) rec.file.duration = meta.duration;
+  if (caption) rec.file.caption = caption;
+  if (g.disappearingTimer) rec.ttl = g.disappearingTimer;
+  g.messages.push(rec); trimMessages(g); g.lastActivity = ts; persistContacts();
+  if (state.chatId === groupId) { renderChatThreadInner(); const wrap = $("#chat-messages"); if (wrap) wrap.scrollTop = wrap.scrollHeight; }
+  if (state.tab === "chats") renderChatsList();
+  let buffer;
+  try { buffer = await file.arrayBuffer(); }
+  catch (e) { rec.file.pending = false; rec.ack = "failed"; persistContacts(); if (state.chatId === groupId) renderChatThreadInner(); return; }
+  try { await IDB.set("file:" + msgId, new Blob([buffer], { type: mime })); } catch (e) {}
+  const payload = { kind: "file", id: msgId, ts, name, mime, size: file.size, dataB64: arrayBufferToBase64(buffer), groupId, senderName: Store.name || T("sys.someone") };
+  if (meta.duration) payload.duration = meta.duration;
+  if (caption) payload.caption = caption;
+  if (g.disappearingTimer) payload.ttl = g.disappearingTimer;
+  playOutgoingSound();
+  for (const m of g.members) {
+    if (m.id === Store.myId) continue;
+    const mc = ensureContactEntry(m.id, m.name);
+    const deliveryId = crypto.randomUUID();
+    groupDeliveryMap.set(deliveryId, { groupId, contentId: msgId, to: m.id });
+    trimMap(groupDeliveryMap, GROUP_DELIVERY_MAP_LIMIT);
+    persistGroupDeliveryMap();
+    await trySendOrQueue(mc, deliveryId, payload);
+  }
+  rec.file.pending = false;
+  persistContacts();
+  if (state.chatId === groupId) renderChatThreadInner();
+  if (state.tab === "chats") renderChatsList();
+}
+
 // Путь через почтовый ящик сервера для небольших файлов, когда
 // собеседник офлайн (P2P недоступен даже после ensureLiveLink). Один
 // зашифрованный payload одним сообщением — БЕЗ чанкования, в отличие
@@ -5158,13 +5206,15 @@ async function sendFileOffline(contactId, file, opts) {
 // записи и типом отрисовки пузыря (проигрыватель вместо файла).
 async function sendVoiceMessage(contactId, blob, durationSec) {
   const c = state.contacts.get(contactId); if (!c) return;
-  if (isGroup(c)) { toast(T("toast.fileGroupsUnsupported")); return; }
-  if (c.blocked) { toast(T("toast.blocked")); return; }
+  const inGroup = isGroup(c);
+  if (!inGroup && c.blocked) { toast(T("toast.blocked")); return; }
   // Та же симметрия, что в sendFileMessage — на всякий случай, если
   // запись почему-то дала пустой blob (получатель бы его всё равно
   // молча отбросил через isValidFileMetaSize).
   if (blob.size === 0) { toast(T("toast.fileEmpty")); return; }
-  if (blob.size > MAX_FILE_SIZE) { toast(T("toast.fileTooLarge", { size: formatFileSize(MAX_FILE_SIZE) })); return; }
+  const voiceCap = inGroup ? GROUP_FILE_MAX : MAX_FILE_SIZE;
+  if (blob.size > voiceCap) { toast(T("toast.fileTooLarge", { size: formatFileSize(voiceCap) })); return; }
+  if (inGroup) { await sendGroupFile(contactId, blob, { name: "voice-message", duration: durationSec, mime: blob.type || "audio/webm" }); return; }
   const existingLink2 = mesh.get(contactId);
   const alreadyLive2 = existingLink2 && (existingLink2.status === "connected" || existingLink2.status === "in-call");
   if (!alreadyLive2) toast(T("toast.connecting"));
@@ -5438,6 +5488,8 @@ function handleFilePayload(from, payload) {
     const isOpen = state.chatId === from;
     const rec = { id: payload.id, from: "them", text: "", ts: Date.now(), readAckSent: false,
       file: { name: payload.name, mime: payload.mime, size: payload.size, kind: fileKindFromMime(payload.mime), duration: payload.duration || 0, pending: true } };
+    if (fileGroupId) { rec.fromId = from; rec.fromName = payload.senderName || (state.contacts.get(from) && state.contacts.get(from).name) || T("sys.someone"); }
+    if (payload.ttl) rec.ttl = payload.ttl;
     if (payload.forwarded) rec.forwarded = true;
     if (typeof payload.caption === "string" && payload.caption) rec.file.caption = payload.caption.slice(0, 200);
     c.messages.push(rec); trimMessages(c); c.lastActivity = Date.now(); persistContacts();
@@ -5886,7 +5938,7 @@ function updateSendVsMic() {
   // Голосовые сообщения не поддерживаются в группах — кнопка микрофона
   // не должна становиться видимой даже при пустом поле ввода. Также
   // скрыта, если писать в группу запрещено ("только админы").
-  if (micBtn) micBtn.classList.toggle("hidden", hasText || inGroup || writeBlocked);
+  if (micBtn) micBtn.classList.toggle("hidden", hasText || writeBlocked);
 }
 function sweepExpiredMessages() {
   const now = Date.now();
@@ -6423,8 +6475,24 @@ function addToOutbox(msgId, to, payload) {
   trimMap(outbox, OUTBOX_LIMIT);
   persistOutbox();
 }
+// Вложение целиком (base64) в очереди отправки раздувало localStorage (квота ~5–10 МБ на всё приложение, а в группе копия
+// на каждого участника). В сохранённой очереди вместо dataB64 лежит ключ IndexedDB, откуда файл достаётся перед отправкой.
+function slimPayload(payload) {
+  if (!payload || typeof payload.dataB64 !== "string") return payload;
+  const { dataB64, ...rest } = payload;
+  rest.idbKey = "file:" + payload.id;
+  return rest;
+}
+async function hydratePayload(payload) {
+  if (!payload || payload.dataB64 || !payload.idbKey) return payload;
+  const blob = await IDB.get(payload.idbKey);
+  if (!blob || typeof blob.arrayBuffer !== "function") return null;
+  const { idbKey, ...rest } = payload;
+  rest.dataB64 = arrayBufferToBase64(await blob.arrayBuffer());
+  return rest;
+}
 function persistOutbox() {
-  const arr = Array.from(outbox.values()).map((e) => ({ msgId: e.msgId, to: e.to, payload: e.payload, sentAt: e.sentAt, attempts: e.attempts, serverAcked: !!e.serverAcked }));
+  const arr = Array.from(outbox.values()).map((e) => ({ msgId: e.msgId, to: e.to, payload: slimPayload(e.payload), sentAt: e.sentAt, attempts: e.attempts, serverAcked: !!e.serverAcked }));
   try { Store.outboxJson = JSON.stringify(arr); } catch (e) { handlePersistError(e, "outbox"); }
 }
 function restoreOutbox() {
@@ -6501,6 +6569,11 @@ async function flushOutboxItem(msgId) {
     return;
   }
   try {
+    if (entry.payload && entry.payload.idbKey && !entry.payload.dataB64) {
+      const full = await hydratePayload(entry.payload);
+      if (!full) { outbox.delete(msgId); persistOutbox(); markMessageAck(entry.to, msgId, "failed"); return; } // файл пропал из IndexedDB — отправить нечего
+      entry.payload = full;
+    }
     const sharedKey = await CryptoHelper.deriveSharedKey(Store.myPrivateKeyJwk, contact.publicKey);
     const envelope = await CryptoHelper.encryptJson(sharedKey, entry.payload);
     entry.attempts = (entry.attempts || 0) + 1;
@@ -6544,7 +6617,7 @@ function pruneOutbox() {
 function trimMap(map, max) { while (map.size > max) map.delete(map.keys().next().value); }
 function persistPendingNoKey() {
   const obj = {};
-  for (const [cid, list] of pendingNoKey) { if (!list || list.length === 0) continue; obj[cid] = list.map((x) => ({ msgId: x.msgId, payload: x.payload })); }
+  for (const [cid, list] of pendingNoKey) { if (!list || list.length === 0) continue; obj[cid] = list.map((x) => ({ msgId: x.msgId, payload: slimPayload(x.payload) })); }
   try { Store.pendingNoKeyJson = JSON.stringify(obj); } catch (e) { handlePersistError(e, "pendingNoKey"); }
 }
 function restorePendingNoKey() {
@@ -6702,7 +6775,7 @@ function sendTypingStop(contactId) {
 function sendPrivacyPrefsTo(contactId) {
   const link = mesh.get(contactId);
   if (!link || (link.status !== "connected" && link.status !== "in-call")) return;
-  link.send({ kind: "privacy-pref", receiptsEnabled: Store.receiptsEnabled, lastSeenVisible: Store.lastSeenVisible, presenceVisible: Store.presenceVisible, status: Store.myStatus || "" });
+  link.send({ kind: "privacy-pref", receiptsEnabled: Store.receiptsEnabled, lastSeenVisible: Store.lastSeenVisible, presenceVisible: Store.presenceVisible, status: Store.myStatus || "", avatar: Store.myAvatar || "" });
 }
 function broadcastPrivacyPrefs() {
   for (const c of state.contacts.values()) if (!isGroup(c)) sendPrivacyPrefsTo(c.id);
@@ -6807,6 +6880,7 @@ function initSignaling() {
   etherLog("info", "[signaling] connecting to " + url);
   signaling = new SignalingClient(url, Store.myId, { name: Store.name, visible: Store.discoverable, publicKey: Store.myPublicKeyJwk });
   signalingCleanup = wireSignalingEvents(signaling);
+  signaling.addEventListener("slow-connect", () => { if (!signaling.connected) updateSignalingStatusUI("connecting", T("status.waking")); });
   signaling.start();
 }
 // Общая обработка входящего offer/answer — используется и для сигнального
@@ -6830,6 +6904,12 @@ async function handleIncomingOffer(from, packet, replySignal) {
   // при renegotiation (оба одновременно увидели negotiationneeded).
   if (existing && (existing.status === "connected" || existing.status === "in-call")) {
     etherLog("info", "[offer] " + String(from).slice(0, 10) + "…", "уже live, игнорирую повторный offer");
+    return;
+  }
+  // Оба конца могут одновременно слать offer (звонок с force). Тай-брейк как в attemptConnect: offerer — тот, у кого id меньше.
+  // Если мы — этот offerer и наш линк ещё подключается, встречный offer игнорируем: собеседник примет наш и ответит.
+  if (existing && existing.role === "offerer" && existing.status === "connecting" && Store.myId < from && Date.now() - (existing._createdAt || 0) < CONNECT_STUCK_MS) {
+    etherLog("info", "[offer] " + String(from).slice(0, 10) + "…", "встречный offer: я offerer по тай-брейку, игнорирую");
     return;
   }
   if (existing) mesh.remove(from);
@@ -7232,7 +7312,15 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     // см. handleFilePayload/finishIncomingFile — та запись сначала
     // "pending", потом дозаполняется). Тут вся информация уже есть
     // сразу, собирать по частям нечего.
-    const c = ensureContactEntry(from, null);
+    const fileGroupId = payload.groupId;
+    const c = fileGroupId ? state.contacts.get(fileGroupId) : ensureContactEntry(from, null);
+    if (!c) return; // файл в группу, о которой мы ничего не знаем
+    if (fileGroupId) {
+      // Только участник группы; режим «пишут только админы» проверяется и здесь, как для текста
+      if (!isGroup(c) || !c.members.some((m) => m.id === from)) return;
+      if (c.writeRestricted && !isGroupAdmin(c, from)) return;
+    }
+    const fileRouteId = fileGroupId || from;
     if (c.messages.some((m) => m.id === payload.id)) return;
     // Симметрично handleFilePayload (чанкованный P2P-путь) — там
     // payload.size проверяется EtherFileLimits.isValidFileMetaSize ещё до
@@ -7259,13 +7347,13 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     // переносим внутрь .then.
     IDB.set("file:" + payload.id, blob)
       .then(() => {
-        const isOpen = state.chatId === from;
-        if (isOpen) { renderChatThread(); playMessageSound(from); vibrate([80, 40, 80]); }
+        const isOpen = state.chatId === fileRouteId;
+        if (isOpen) { renderChatThread(); playMessageSound(fileRouteId); vibrate([80, 40, 80]); }
         else {
-          const label = T("chat.file.preview." + rec.file.kind);
+          const label = (fileGroupId ? rec.fromName + ": " : "") + T("chat.file.preview." + rec.file.kind);
           toast(`${c.name}: ${label}`);
           if (!isContactMuted(c)) showNotification(c.name || T("app.name"), label, { tag: "ether-msg-" + c.id, contactId: c.id, kind: "message", forceSilent: c.vibrateOnly });
-          playMessageSound(from);
+          playMessageSound(fileRouteId);
           vibrate([80, 40, 80]);
         }
         if (state.tab === "chats") renderChatsList();
@@ -7275,7 +7363,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
         etherLog("error", "[file] IDB.set failed:", String(e));
         // даже без сохранённого блоба пузырь уже добавлен — при
         // следующем рендере слот покажет «недоступно»
-        const isOpen = state.chatId === from;
+        const isOpen = state.chatId === fileRouteId;
         if (isOpen) renderChatThread();
         if (state.tab === "chats") renderChatsList();
         updateAppBadge();
@@ -7397,6 +7485,12 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
       c.peerLastSeenVisible = payload.lastSeenVisible !== false;
       c.peerPresenceVisible = payload.presenceVisible !== false;
       if (typeof payload.status === "string") c.peerStatus = payload.status;
+      // Собственное фото собеседника (до ~20 КБ, строгая проверка формата): показывается, пока вы не выбрали контакту своё
+      if (typeof payload.avatar === "string") {
+        if (payload.avatar === "") delete c.peerAvatar;
+        else if (payload.avatar.length <= 40000 && AVATAR_DATAURL_RE.test(payload.avatar)) c.peerAvatar = payload.avatar;
+        persistContacts();
+      }
       if (state.chatId === from || state.tab === "chats") renderTab();
     }
   } else if (kind === "reaction") {
@@ -7628,9 +7722,13 @@ async function attemptConnect(id, force) {
   }
 }
 function watchConnectionTimeout(id) {
+  // Следим именно за ЭТИМ экземпляром линка. Раньше таймер смотрел на mesh.get(id) в момент срабатывания:
+  // если за 10 с линк уже был заменён новой попыткой, таймер убивал свежий, ещё нормально
+  // подключающийся линк — отсюда пары «offer, и через 0,8 с ещё один» и вечный цикл переподключений.
+  const watched = mesh.get(id);
   setTimeout(() => {
     const link = mesh.get(id);
-    if (!link || link.status === "connected" || link.status === "in-call" || link.status === "disconnected") return;
+    if (!link || link !== watched || link.status === "connected" || link.status === "in-call" || link.status === "disconnected") return;
     mesh.remove(id);
     const c = state.contacts.get(id);
     if (c) {
@@ -8317,9 +8415,9 @@ function openMessageSheet(msgId, contactId) {
       expandBtn.setAttribute("aria-label", T("chat.reactionMore"));
       expandBtn.textContent = "+";
       expandBtn.addEventListener("click", () => {
-        bar.innerHTML = "";
-        bar.classList.add("reaction-bar-expanded");
-        REACTION_EMOJIS.forEach((emoji) => bar.appendChild(renderEmojiBtn(emoji)));
+        // «+» открывает тот же полный пикер, что и в композере (общий набор, поиск, тон кожи) — выбранный эмодзи ставится реакцией
+        const ms = $("#message-sheet"); if (ms) ms.classList.add("hidden");
+        openEmojiPicker({ closeOnPick: true, onPick: (emoji) => { recordRecentReaction(emoji); toggleReaction(contactId, msgId, emoji); } });
       });
       bar.appendChild(expandBtn);
       bar.classList.remove("reaction-bar-expanded");
@@ -8709,40 +8807,65 @@ function wireHandshakeLongPress(btn, onFire) {
   btn.addEventListener("pointerup", clear);
   btn.addEventListener("pointercancel", clear);
 }
-let __emojiActiveCategory = 0;
+let __emojiTab = "smileys";      // id категории или "recent"
+let __emojiPickHandler = null;   // кто получает выбранный эмодзи: композер (по умолчанию) или реакция на сообщение
+let __emojiCloseOnPick = false;
+const RECENT_EMOJI_MAX = 32;
+function recentEmojiList() {
+  try { const a = JSON.parse(Store.recentEmojiJson); return Array.isArray(a) ? a.filter((x) => typeof x === "string") : []; } catch (e) { return []; }
+}
+function recordRecentEmoji(base) {
+  const cur = recentEmojiList().filter((e) => e !== base);
+  cur.unshift(base);
+  try { Store.recentEmojiJson = JSON.stringify(cur.slice(0, RECENT_EMOJI_MAX)); } catch (e) {}
+}
+function emojiTabSource(tab) {
+  if (tab === "recent") return recentEmojiList();
+  const cat = EMOJI_CATEGORIES.find((x) => x.id === tab);
+  return cat ? cat.emojis : [];
+}
+function pickEmoji(base, rendered) {
+  recordRecentEmoji(base);
+  const h = __emojiPickHandler;
+  if (h) h(rendered, base); else insertEmojiAtCursor(rendered);
+  if (__emojiCloseOnPick) { const sh = $("#emoji-picker-sheet"); if (sh) sh.classList.add("hidden"); }
+}
 function renderEmojiGrid(emojis) {
   const grid = $("#emoji-grid"); if (!grid) return;
+  const search = $("#emoji-search-input");
+  const searching = !!(search && search.value.trim());
+  const title = $("#emoji-section-title");
+  if (title) title.textContent = searching ? T("emoji.search.results") : T("emoji.cat." + __emojiTab);
   grid.innerHTML = "";
+  if (!emojis.length) {
+    const p = document.createElement("p"); p.className = "muted emoji-empty"; p.textContent = T(searching ? "emoji.search.none" : "emoji.recent.empty");
+    grid.appendChild(p); return;
+  }
   for (const e of emojis) {
-    // applySkinTone — применяется и к отображению, и к тому, что реально
-    // вставится в поле ввода, так что превью в сетке — это именно то, что
-    // получит собеседник, без сюрпризов (базовый "e" используется только
-    // как ключ для поиска по EMOJI_KEYWORDS — см. emojiSearchResults —
-    // модификатор тона туда не попадает).
+    // Тон кожи применяется и к отображению, и к вставляемому символу (превью в сетке = то, что получит собеседник);
+    // базовый «e» остаётся ключом для поиска и для списка недавних.
     const rendered = applySkinTone(e);
     const btn = document.createElement("button");
     btn.type = "button"; btn.className = "emoji-grid-btn"; btn.textContent = rendered;
     if (e === "🤝") {
-      // Обычный tap — как у всех остальных (единый текущий тон). Долгое
-      // нажатие — шторка выбора ДВУХ разных тонов (раздел 11 роадмапа),
-      // см. buildHandshakeEmoji()/openHandshakeToneSheet() выше/ниже.
+      // Обычный tap — единый текущий тон; долгое нажатие — шторка выбора ДВУХ разных тонов (buildHandshakeEmoji)
       let longPressFired = false;
       wireHandshakeLongPress(btn, () => { longPressFired = true; openHandshakeToneSheet(); });
       btn.addEventListener("click", () => {
         if (longPressFired) { longPressFired = false; return; }
-        insertEmojiAtCursor(rendered);
+        pickEmoji(e, rendered);
       });
     } else {
-      btn.addEventListener("click", () => insertEmojiAtCursor(rendered));
+      btn.addEventListener("click", () => pickEmoji(e, rendered));
     }
     grid.appendChild(btn);
   }
 }
-// Раздел 6 роадмапа — выбор тона кожи. Рендерит 6 круглых свотчей,
-// подсвечивает текущий выбранный, по клику сохраняет выбор и перерисовывает
-// уже открытую сетку (активную категорию или, если идёт поиск, текущие
-// результаты поиска — поэтому колбэк передаётся снаружи, а не пересчитывается
-// здесь: на момент клика по свотчу неизвестно, в каком режиме сейчас пикер).
+// Выбор тона кожи: кнопка с рукой справа от поиска раскрывает строку из 6 свотчей; выбор применяется ко всем категориям
+// (ко всем эмодзи, которые тон допускают) и сворачивает строку. onChange перерисовывает текущий режим (категория или поиск).
+function updateEmojiToneButton() {
+  const b = $("#emoji-tone-btn"); if (b) b.textContent = applySkinTone("👋");
+}
 function renderSkinToneRow(onChange) {
   const row = $("#emoji-skin-tone-row"); if (!row) return;
   row.innerHTML = "";
@@ -8756,6 +8879,9 @@ function renderSkinToneRow(onChange) {
     btn.addEventListener("click", () => {
       Store.emojiSkinTone = tone.id;
       renderSkinToneRow(onChange);
+      updateEmojiToneButton();
+      row.classList.add("hidden");
+      const tb = $("#emoji-tone-btn"); if (tb) tb.setAttribute("aria-expanded", "false");
       onChange();
     });
     row.appendChild(btn);
@@ -8808,25 +8934,29 @@ function wireHandshakeToneSheet() {
   const sheet = $("#handshake-tone-sheet"); if (!sheet) return;
   const insertBtn = $("#handshake-tone-insert");
   if (insertBtn) insertBtn.addEventListener("click", () => {
-    insertEmojiAtCursor(buildHandshakeEmoji(__handshakeToneA, __handshakeToneB));
+    pickEmoji("🤝", buildHandshakeEmoji(__handshakeToneA, __handshakeToneB));
     sheet.classList.add("hidden");
   });
 }
 function renderEmojiTabs() {
   const tabs = $("#emoji-tabs"); if (!tabs) return;
   tabs.innerHTML = "";
-  EMOJI_CATEGORIES.forEach((cat, i) => {
+  const list = [{ id: "recent", icon: "🕘" }].concat(EMOJI_CATEGORIES);
+  for (const cat of list) {
     const btn = document.createElement("button");
-    btn.type = "button"; btn.className = "emoji-tab-btn" + (i === __emojiActiveCategory ? " active" : "");
+    btn.type = "button"; btn.className = "emoji-tab-btn" + (cat.id === __emojiTab ? " active" : "");
     btn.textContent = cat.icon;
+    btn.setAttribute("role", "tab"); btn.setAttribute("aria-selected", cat.id === __emojiTab ? "true" : "false");
+    btn.setAttribute("aria-label", T("emoji.cat." + cat.id));
     btn.addEventListener("click", () => {
-      __emojiActiveCategory = i;
+      __emojiTab = cat.id;
       const search = $("#emoji-search-input"); if (search) search.value = "";
       renderEmojiTabs();
-      renderEmojiGrid(cat.emojis);
+      renderEmojiGrid(emojiTabSource(cat.id));
+      const grid = $("#emoji-grid"); if (grid) grid.scrollTop = 0;
     });
     tabs.appendChild(btn);
-  });
+  }
 }
 // Вставляет эмодзи в позицию курсора (а не всегда в конец — пользователь
 // может редактировать середину текста) и держит фокус в поле ввода,
@@ -8902,7 +9032,7 @@ function currentEmojiGridSource() {
   const search = $("#emoji-search-input");
   const q = search ? search.value : "";
   const results = emojiSearchResults(q);
-  return results === null ? EMOJI_CATEGORIES[__emojiActiveCategory].emojis : results;
+  return results === null ? emojiTabSource(__emojiTab) : results;
 }
 // Высота композера зависит от того, какие баннеры сейчас видны (ответ,
 // редактирование, "отправить позже") и от safe-area-inset-bottom — её
@@ -8922,72 +9052,67 @@ function positionEmojiFlyout() {
   const bottomOffset = Math.max(gap, Math.round(shellRect.bottom - formRect.top + gap));
   panel.style.marginBottom = bottomOffset + "px";
 }
-function openEmojiPicker() {
+// Один пикер на всё приложение: из композера (вставка в поле ввода, шторка остаётся открытой) и из реакций на сообщение
+// (opts.onPick — выбранный эмодзи уходит в реакцию, шторка закрывается).
+function openEmojiPicker(opts) {
   const sheet = $("#emoji-picker-sheet"); if (!sheet) return;
+  __emojiPickHandler = (opts && typeof opts.onPick === "function") ? opts.onPick : null;
+  __emojiCloseOnPick = !!(opts && opts.closeOnPick);
   const search = $("#emoji-search-input"); if (search) search.value = "";
+  if (!EMOJI_CATEGORIES.some((c) => c.id === __emojiTab) && __emojiTab !== "recent") __emojiTab = "smileys";
+  if (__emojiTab === "recent" && recentEmojiList().length === 0) __emojiTab = "smileys";
+  const tr = $("#emoji-skin-tone-row"); if (tr) tr.classList.add("hidden");
+  const tb = $("#emoji-tone-btn"); if (tb) tb.setAttribute("aria-expanded", "false");
   renderEmojiTabs();
   renderSkinToneRow(() => renderEmojiGrid(currentEmojiGridSource()));
-  renderEmojiGrid(EMOJI_CATEGORIES[__emojiActiveCategory].emojis);
+  updateEmojiToneButton();
+  renderEmojiGrid(emojiTabSource(__emojiTab));
   sheet.classList.remove("hidden");
   positionEmojiFlyout();
-  setTimeout(() => { if (search) search.focus(); }, 50);
+  // Фокус в поле поиска открывал бы экранную клавиатуру и сразу прятал половину пикера — ставим его только по нажатию на поиск
 }
 function wireEmojiPicker() {
   const btn = $("#chat-emoji-btn");
   if (btn) btn.addEventListener("click", () => { if (state.chatId) openEmojiPicker(); });
   const search = $("#emoji-search-input");
   if (search) search.addEventListener("input", () => renderEmojiGrid(currentEmojiGridSource()));
-}
-// Раздел 6 роадмапа — кнопка "+" для композера. В самой формулировке
-// задачи был явно отмечен риск для мышечной памяти существующих
-// пользователей ("стоит сделать переключаемым экспериментом, а не тихой
-// заменой") — поэтому это Settings-тумблер (выкл. по умолчанию), а не
-// замена разметки по умолчанию. Включённый режим: attach/emoji/camera
-// скрыты, видна только "+"; тап разворачивает все три (повторный тап или
-// клик по любой из трёх — сворачивает обратно). Выключенный режим (по
-// умолчанию) — "+" скрыта, три кнопки видны как раньше, применяется ровно
-// как до этой версии.
-const COMPOSER_PLUS_BTN_IDS = ["#chat-attach-btn", "#chat-emoji-btn", "#chat-camera-btn"];
-function setComposerActionButtonsHidden(hidden) {
-  for (const id of COMPOSER_PLUS_BTN_IDS) {
-    const btn = $(id);
-    if (btn) btn.classList.toggle("hidden", hidden);
-  }
-}
-function collapseComposerPlus() {
-  const plusBtn = $("#chat-plus-btn");
-  if (plusBtn) plusBtn.classList.remove("composer-plus-expanded-icon");
-  if (!Store.composerPlusMode) return;
-  setComposerActionButtonsHidden(true);
-}
-function applyComposerPlusMode() {
-  const on = Store.composerPlusMode;
-  const plusBtn = $("#chat-plus-btn");
-  if (plusBtn) plusBtn.classList.toggle("hidden", !on);
-  if (on) collapseComposerPlus();
-  // Выключили эксперимент — все три кнопки должны стать видимыми
-  // безусловно (а не оставаться случайно свёрнутыми с прошлого раза).
-  else setComposerActionButtonsHidden(false);
-}
-function wireComposerPlusMode() {
-  applyComposerPlusMode();
-  const plusBtn = $("#chat-plus-btn");
-  if (plusBtn) plusBtn.addEventListener("click", () => {
-    const attachBtn = $("#chat-attach-btn");
-    const expanded = attachBtn && !attachBtn.classList.contains("hidden");
-    if (expanded) { collapseComposerPlus(); return; }
-    setComposerActionButtonsHidden(false);
-    plusBtn.classList.add("composer-plus-expanded-icon");
+  const toneBtn = $("#emoji-tone-btn");
+  if (toneBtn) toneBtn.addEventListener("click", () => {
+    const row = $("#emoji-skin-tone-row"); if (!row) return;
+    const open = row.classList.contains("hidden");
+    row.classList.toggle("hidden", !open);
+    toneBtn.setAttribute("aria-expanded", open ? "true" : "false");
   });
-  // Выбор любого из трёх действий сворачивает панель обратно — так же,
-  // как «+» в WhatsApp/Telegram не остаётся открытым после выбора пункта.
-  // Слушатель — capture-фаза, ДО остальных click-хендлеров на тех же
-  // кнопках (открытие шторки вложения/эмодзи/камеры), чтобы сворачивание
-  // не зависело от того, что делают эти хендлеры дальше.
-  for (const id of COMPOSER_PLUS_BTN_IDS) {
+}
+// Кнопка «+» композера — постоянная. По нажатию вверх «выезжают» три кружка: (1) эмодзи, (2) камера, (3) скрепка;
+// «+» при этом поворачивается в «×». Любое действие, нажатие мимо, Esc, смена чата и отправка сообщения сворачивают веер.
+// Прежний экспериментальный тумблер «+» в Настройках убран: теперь так выглядит композер всегда (и в личных чатах, и в группах).
+function setComposerFan(open) {
+  const form = $("#chat-form"); if (!form) return;
+  form.classList.toggle("fan-open", !!open);
+  const plus = $("#chat-plus-btn"); if (plus) plus.setAttribute("aria-expanded", open ? "true" : "false");
+  const fan = $("#composer-fan"); if (fan) fan.setAttribute("aria-hidden", open ? "false" : "true");
+}
+function collapseComposerPlus() { setComposerFan(false); }
+function wireComposerPlusMode() {
+  const plusBtn = $("#chat-plus-btn"); if (!plusBtn) return;
+  plusBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    const form = $("#chat-form");
+    setComposerFan(!(form && form.classList.contains("fan-open")));
+  });
+  // Выбор любого из трёх действий сворачивает веер (capture — раньше, чем сработают обработчики самих кнопок)
+  for (const id of ["#chat-attach-btn", "#chat-emoji-btn", "#chat-camera-btn"]) {
     const btn = $(id);
     if (btn) btn.addEventListener("click", collapseComposerPlus, { capture: true });
   }
+  document.addEventListener("pointerdown", (e) => {
+    const form = $("#chat-form");
+    if (form && form.classList.contains("fan-open") && !form.contains(e.target)) collapseComposerPlus();
+  }, true);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") collapseComposerPlus(); });
+  const form = $("#chat-form");
+  if (form) form.addEventListener("submit", collapseComposerPlus);
 }
 function wireJumpToDateSheet() {
   const goBtn = $("#jump-date-go-btn");
@@ -9248,7 +9373,36 @@ function renderCallsList() {
     list.appendChild(row);
   }
 }
-function clearPendingCall() { if (pendingCall.timer) clearTimeout(pendingCall.timer); pendingCall.timer = null; pendingCall.contactId = null; }
+let callInviteTimer = null;
+function clearPendingCall() {
+  if (pendingCall.timer) clearTimeout(pendingCall.timer); pendingCall.timer = null; pendingCall.contactId = null;
+  if (callInviteTimer) { clearInterval(callInviteTimer); callInviteTimer = null; }
+}
+// Ждём, пока клиент сигнального сервера подключится (на мобильной сети и «спящем» сервере это занимает секунды).
+function waitForSignaling(ms) {
+  if (signaling && signaling.connected) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const sig = signaling; if (!sig) { resolve(false); return; }
+    let done = false;
+    const finish = (v) => { if (done) return; done = true; clearTimeout(t); sig.removeEventListener("connected", onC); resolve(v); };
+    const onC = () => finish(true);
+    const t = setTimeout(() => finish(!!(signaling && signaling.connected)), ms);
+    sig.addEventListener("connected", onC);
+  });
+}
+// Звонок без готового P2P: шлём приглашение (на сервере оно превращается в push), повторяем его, пока идёт
+// набор, и пытаемся поднять P2P, как только контакт появится в сети.
+function startCallInviteResend(id, invite) {
+  if (callInviteTimer) clearInterval(callInviteTimer);
+  callInviteTimer = setInterval(() => {
+    if (state.callId !== id || state.callPhase !== "calling") { clearInterval(callInviteTimer); callInviteTimer = null; return; }
+    if (signaling && signaling.connected) {
+      try { signaling.signal(id, invite); } catch (e) {}
+      const l = mesh.get(id);
+      if (!l || l.status === "disconnected") attemptConnect(id, true);
+    }
+  }, CALL_INVITE_RESEND_MS);
+}
 
 async function beginCall(id, withVideo) {
   const c = state.contacts.get(id);
@@ -9321,18 +9475,28 @@ async function beginCall(id, withVideo) {
     return;
   }
 
-  // P2P пока нет — тут сигнальный сервер уже обязателен
+  // P2P пока нет — нужен сигнальный сервер. Он может ещё просыпаться (холодный старт), ждём до CALL_SERVER_WAIT_MS.
   if (!signaling || !signaling.connected) {
-    toast(T("toast.noServer"));
-    state._lastCallFailedAt = Date.now();
-    closeCallScreen("failed");
-    return;
+    const cp = $("#call-phase"); if (cp) cp.textContent = T("status.waking");
+    const ok = await waitForSignaling(CALL_SERVER_WAIT_MS);
+    if (state.callId !== id) return; // пока ждали, звонок отменили
+    if (!ok) {
+      toast(T("toast.noServer"));
+      state._lastCallFailedAt = Date.now();
+      closeCallScreen("failed");
+      return;
+    }
   }
 
-  signaling.signal(id, { t: "call-invite", n: Store.name, x: crypto.randomUUID() });
+  const offline = !onlineSet.has(id);
+  const invite = { t: "call-invite", n: Store.name, x: crypto.randomUUID() };
+  signaling.signal(id, invite);
+  const phaseEl = $("#call-phase");
+  if (phaseEl) phaseEl.textContent = offline ? T("call.viaPush") : T("call.calling");
 
   clearPendingCall();
   pendingCall.contactId = id;
+  startCallInviteResend(id, invite);
   attemptConnect(id, true);
   pendingCall.timer = setTimeout(() => {
     if (pendingCall.contactId !== id) return;
@@ -9348,7 +9512,7 @@ async function beginCall(id, withVideo) {
     playNoAnswerSound();
     state._lastCallFailedAt = Date.now();
     closeCallScreen("cancelled");
-  }, PENDING_CALL_TIMEOUT_MS);
+  }, offline ? CALL_PUSH_TIMEOUT_MS : PENDING_CALL_TIMEOUT_MS);
 }
 
 // Сворачивание звонка в тонкую полоску над таб-баром — звонок (и его
@@ -9371,7 +9535,7 @@ function restoreCallScreen() {
   const contentEl = $("#content"); if (contentEl) contentEl.classList.add("hidden");
   const cs = $("#call-screen"); if (cs) cs.classList.remove("hidden");
 }
-function openCallScreen(id, phase) {
+function openCallScreen(id, phase, opts) {
   // media-viewer, будучи position:fixed поверх всего окна, всё равно
   // закрыл бы обзор звонка, даже когда #call-screen стал обычным
   // flex-элементом (а не оверлеем, как раньше) — закрываем его.
@@ -9425,7 +9589,7 @@ function openCallScreen(id, phase) {
       }
       toast(T("toast.missedCall"));
       closeCallScreen("missed");
-    }, INCOMING_CALL_TIMEOUT_MS);
+    }, (opts && opts.timeoutMs) || INCOMING_CALL_TIMEOUT_MS);
   }
 
   if (!state.currentCallRecord) {
@@ -9695,6 +9859,27 @@ function startCallTimer() {
   }, 1000);
 }
 let __lastCallQualityRtt = null;
+// Следим, идёт ли реально звук в обе стороны (раз в 3 с вместе с индикатором качества). Само по себе это только диагностика —
+// «соединение есть, а звука нет» теперь видно в журнале: сколько байт ушло/пришло и на каком этапе остановилось.
+// Если входящий звук молчит 9 секунд, один раз пробуем перезапустить ICE.
+const __audioWatch = { callId: null, lastIn: -1, lastOut: -1, silentIn: 0, silentOut: 0, kicked: false };
+function watchCallAudioFlow(stats) {
+  if (__audioWatch.callId !== state.callId) Object.assign(__audioWatch, { callId: state.callId, lastIn: -1, lastOut: -1, silentIn: 0, silentOut: 0, kicked: false });
+  let inB = 0, outB = 0, hasIn = false, hasOut = false;
+  stats.forEach((r) => {
+    const kind = r.kind || r.mediaType;
+    if (r.type === "inbound-rtp" && kind === "audio") { hasIn = true; inB += r.bytesReceived || 0; }
+    if (r.type === "outbound-rtp" && kind === "audio") { hasOut = true; outB += r.bytesSent || 0; }
+  });
+  const w = __audioWatch;
+  if (hasIn) { w.silentIn = (w.lastIn >= 0 && inB <= w.lastIn) ? w.silentIn + 1 : 0; w.lastIn = inB; }
+  if (hasOut) { w.silentOut = (w.lastOut >= 0 && outB <= w.lastOut) ? w.silentOut + 1 : 0; w.lastOut = outB; }
+  if (w.silentOut === 3) etherLog("warn", "[call] звук не уходит собеседнику уже 9 с (исходящих байт: " + outB + "); микрофон отдаёт данные?");
+  if (w.silentIn === 3) {
+    etherLog("warn", "[call] звук от собеседника не приходит 9 с (входящих байт: " + inB + ")");
+    if (!w.kicked) { w.kicked = true; const l = mesh.get(state.callId); if (l) l.reInvite(); }
+  }
+}
 async function updateCallQualityIcon(pc) {
   const icon = $("#call-quality-icon"); if (!icon) return;
   try {
@@ -9710,6 +9895,7 @@ async function updateCallQualityIcon(pc) {
       }
     });
     __lastCallQualityRtt = rttMs;
+    try { watchCallAudioFlow(stats); } catch (e) {}
     let level = "good";
     if (rttMs == null) { icon.classList.add("hidden"); return; }
     if (rttMs > 300 || lossRatio > 0.08) level = "poor";
@@ -9810,7 +9996,25 @@ function closeCallScreen(reason) {
     }
   }
 }
+// Меню «ещё» в звонке: кнопка «⋯» видна, только когда в меню есть хотя бы один видимый пункт (показ экрана, рисование на видео).
+function wireCallMoreMenu() {
+  const btn = $("#call-more-btn"), menu = $("#call-more-menu");
+  if (!btn || !menu || btn.dataset.wired) return;
+  btn.dataset.wired = "1";
+  const sync = () => {
+    const any = Array.from(menu.querySelectorAll(".call-menu-item")).some((b) => !b.classList.contains("hidden"));
+    btn.classList.toggle("hidden", !any);
+    if (!any) { menu.classList.add("hidden"); btn.setAttribute("aria-expanded", "false"); }
+  };
+  const close = () => { menu.classList.add("hidden"); btn.setAttribute("aria-expanded", "false"); };
+  btn.addEventListener("click", () => { const open = menu.classList.contains("hidden"); menu.classList.toggle("hidden", !open); btn.setAttribute("aria-expanded", open ? "true" : "false"); });
+  menu.addEventListener("click", (e) => { if (e.target.closest(".call-menu-item")) close(); });
+  document.addEventListener("pointerdown", (e) => { if (!menu.classList.contains("hidden") && !menu.contains(e.target) && !btn.contains(e.target)) close(); }, true);
+  try { new MutationObserver(sync).observe(menu, { subtree: true, childList: true, attributes: true, attributeFilter: ["class"] }); } catch (e) {}
+  sync();
+}
 function wireCallScreen() {
+  wireCallMoreMenu();
   const minimizeBtn = $("#call-minimize-btn");
   if (minimizeBtn) minimizeBtn.addEventListener("click", () => minimizeCallScreen());
   const miniBar = $("#mini-call-bar");
@@ -10025,14 +10229,29 @@ async function acceptCall(withMute) {
       }
       return;
     }
-    // P2P ещё нет — ждём "connected" в wireMeshEvents. Серверный
-    // call-accepted пока не шлём: если линк не поднимется, собеседник
-    // должен увидеть "не дозвонились", а не "принято".
-    if (!link) {
+    // P2P ещё нет (экран «входящий» открылся по серверному приглашению или по нажатию на push, а соединение
+    // с звонящим ещё строится). Раньше без линка звонок сразу «не удался», хотя звонящий продолжал звонить.
+    // Теперь показываем «Соединение…», подталкиваем подключение и ждём "connected" в wireMeshEvents (там уйдёт answerCall).
+    const cp = $("#call-phase"); if (cp) cp.textContent = T("call.connecting");
+    const ci = $("#call-controls-incoming"); if (ci) ci.classList.add("hidden");
+    const ca = $("#call-controls-active"); if (ca) ca.classList.remove("hidden");
+    const iShouldOffer = Store.myId < cid;
+    if (signaling && signaling.connected) {
+      if (!link || link.status === "disconnected") attemptConnect(cid, iShouldOffer);
+    } else {
+      waitForSignaling(CALL_SERVER_WAIT_MS).then((ok) => { if (ok && state.callId === cid && state._callUserAccepted && state.callPhase !== "active") attemptConnect(cid, iShouldOffer); });
+    }
+    clearPendingCall();
+    pendingCall.contactId = cid;
+    pendingCall.timer = setTimeout(() => {
+      if (state.callId !== cid || state.callPhase === "active") return;
+      etherLog("warn", "[call] принятый звонок: P2P не поднялся за " + (CALL_ACCEPT_CONNECT_MS / 1000) + " с");
+      try { const l = mesh.get(cid); if (l) l.endCall(); } catch (e) {}
+      if (signaling && signaling.connected) { try { signaling.signal(cid, { t: "call-ended" }); } catch (e) {} }
       toast(T("calls.failed"));
       state._lastCallFailedAt = Date.now();
       closeCallScreen("failed");
-    }
+    }, CALL_ACCEPT_CONNECT_MS);
   } catch (e) {
     etherLog("error", "[call] accept handler failed:", String(e));
   } finally {
@@ -10313,8 +10532,34 @@ function updateSettingsCategoryView() {
   }
   groups.forEach((g) => g.classList.toggle("category-hidden", g.dataset.settingsCategory !== state.settingsCategory));
 }
+// Своё фото: выбирается в Настройки → Профиль, сжимается до 160×160 JPEG и рассылается контактам вместе с настройками приватности
+// (см. sendPrivacyPrefsTo) — у собеседника оно показывается, пока он не выбрал вам своё.
+function renderProfileAvatar() {
+  const b = $("#settings-avatar-btn"); if (!b) return;
+  const av = Store.myAvatar;
+  if (av && AVATAR_DATAURL_RE.test(av)) { b.style.background = ""; b.style.backgroundImage = `url('${av}')`; b.textContent = ""; }
+  else { b.style.backgroundImage = ""; b.style.background = avatarGradient(Store.name); b.textContent = initials(Store.name); }
+  const rm = $("#settings-avatar-remove"); if (rm) rm.classList.toggle("hidden", !av);
+}
+function wireProfileAvatar() {
+  const btn = $("#settings-avatar-btn"), change = $("#settings-avatar-change"), rm = $("#settings-avatar-remove"), input = $("#settings-avatar-input");
+  if (!input || input.dataset.wired) return;
+  input.dataset.wired = "1";
+  const pick = () => input.click();
+  if (btn) btn.addEventListener("click", pick);
+  if (change) change.addEventListener("click", pick);
+  input.addEventListener("change", async () => {
+    const file = input.files && input.files[0]; input.value = "";
+    if (!file) return;
+    try { Store.myAvatar = await readImageAsAvatarDataUrl(file); renderProfileAvatar(); toast(T("toast.avatarUpdated")); }
+    catch (e) { toast(T("toast.avatarFailed")); }
+  });
+  if (rm) rm.addEventListener("click", () => { Store.myAvatar = ""; renderProfileAvatar(); });
+  renderProfileAvatar();
+}
 function wireSettingsScreen() {
   renderSettingsCategories();
+  wireProfileAvatar();
   updateSettingsCategoryView();
   const backBtn = $("#settings-back-btn");
   if (backBtn) backBtn.addEventListener("click", closeSettingsCategory);
@@ -10414,7 +10659,7 @@ function wireSettingsScreen() {
   if (nameEl) nameEl.addEventListener("change", (e) => {
     const v = e.target.value.trim();
     if (v) {
-      Store.name = v; toast(T("toast.nameUpdated"));
+      Store.name = v; toast(T("toast.nameUpdated")); renderProfileAvatar();
       // initSignaling() полностью пересоздаёт WebSocket — если сейчас идёт
       // звонок, лучше не рисковать кратким окном недоступности сигналинга
       // (может понадобиться ICE restart и т.п.) ради обновления имени.
@@ -10471,11 +10716,6 @@ function wireSettingsScreen() {
   const autoEmoji = $("#settings-auto-emoji");
   if (autoEmoji) autoEmoji.addEventListener("change", (e) => {
     Store.autoEmoji = e.target.checked;
-  });
-  const composerPlus = $("#settings-composer-plus");
-  if (composerPlus) composerPlus.addEventListener("change", (e) => {
-    Store.composerPlusMode = e.target.checked;
-    applyComposerPlusMode();
   });
   const ringtoneSel = $("#settings-ringtone");
   if (ringtoneSel) {
@@ -10606,14 +10846,15 @@ function wireSettingsScreen() {
 // же экране добавил бы путаницу; кнопка в шапке работает одинаково
 // предсказуемо на обеих платформах.
 // =====================================================================
-function openGlobalSearch() {
+function openGlobalSearch(prefill) {
   const sheet = $("#global-search-sheet");
   if (!sheet) return;
   sheet.classList.remove("hidden");
   const input = $("#global-search-input");
   if (input) {
-    input.value = "";
-    renderGlobalSearchResults("");
+    const q = typeof prefill === "string" ? prefill : "";
+    input.value = q;
+    renderGlobalSearchResults(q);
     setTimeout(() => input.focus(), 50);
   }
 }
@@ -10722,9 +10963,39 @@ function globalSearchRowHtml(kind, id, avatarHtml, title, subtitle) {
     </button>
   `;
 }
+// Один поиск вместо двух: на вкладках с собственным полем (Общение, Контакты, Настройки) лупа в шапке просто ведёт к этому полю,
+// а когда в поле есть текст, под ним появляется «Искать везде» — переход в общий поиск (чаты, сообщения, контакты, настройки) с тем же запросом.
+const INLINE_SEARCH_FIELDS = { chats: "#global-search", connect: "#contacts-search", settings: "#settings-search" };
+function focusInlineSearchOrGlobal() {
+  const sel = INLINE_SEARCH_FIELDS[state.tab];
+  const el = sel && !state.chatId && !state.contactCardId ? $(sel) : null;
+  if (el && el.offsetParent !== null) {
+    const scr = el.closest(".screen") || $("#content");
+    try { scr.scrollTo({ top: 0, behavior: "smooth" }); } catch (e) {}
+    setTimeout(() => { try { el.focus(); } catch (e) {} }, 80);
+    return;
+  }
+  openGlobalSearch();
+}
+function wireSearchBridge() {
+  for (const sel of Object.values(INLINE_SEARCH_FIELDS)) {
+    const input = $(sel); if (!input || input.dataset.bridge) continue;
+    input.dataset.bridge = "1";
+    const link = document.createElement("button");
+    link.type = "button"; link.className = "search-everywhere hidden";
+    link.setAttribute("data-i18n", "search.everywhere"); link.textContent = T("search.everywhere");
+    const host = input.closest(".search-wrap") || input;
+    host.insertAdjacentElement("afterend", link);
+    const sync = () => link.classList.toggle("hidden", !input.value.trim());
+    input.addEventListener("input", sync);
+    link.addEventListener("click", () => openGlobalSearch(input.value.trim()));
+    sync();
+  }
+}
 function wireGlobalSearch() {
   const btn = $("#global-search-btn");
-  if (btn) btn.addEventListener("click", openGlobalSearch);
+  if (btn) btn.addEventListener("click", focusInlineSearchOrGlobal);
+  wireSearchBridge();
   const input = $("#global-search-input");
   let searchTimer = null;
   if (input) input.addEventListener("input", (e) => {
@@ -10959,9 +11230,32 @@ async function requestMotionPermissionIfNeeded() {
   // DeviceMotionEvent.requestPermission существует только на iOS 13+ —
   // на Android и десктопе его просто нет, доступ не требует жеста.
   if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
-    try { return (await DeviceMotionEvent.requestPermission()) === "granted"; } catch (e) { return false; }
+    try {
+      const ok = (await DeviceMotionEvent.requestPermission()) === "granted";
+      try { localStorage.setItem("ether.motionOk", ok ? "1" : "0"); } catch (e) {}
+      if (ok) wireShakeUndoGuard();
+      return ok;
+    } catch (e) { return false; }
   }
   return true;
+}
+// iOS показывает системное окно «Отменить ввод?» при встряхивании, если в фокусе поле с набранным текстом (отключить его из веба
+// нельзя), а в PWA оно ещё и ломает раскладку. Лучшее, что можно сделать: как только датчик движения (если доступ уже разрешён)
+// видит резкую встряску, снимаем фокус с поля — тогда окно не появляется, а набранный текст остаётся в черновике.
+let __shakeUndoGuardOn = false;
+function wireShakeUndoGuard() {
+  if (__shakeUndoGuardOn || typeof DeviceMotionEvent === "undefined") return;
+  if (typeof DeviceMotionEvent.requestPermission === "function") {
+    let ok = false; try { ok = localStorage.getItem("ether.motionOk") === "1"; } catch (e) {}
+    if (!ok) return; // без разрешения датчик недоступен, ничего не делаем (спрашивать ради этого не будем)
+  }
+  __shakeUndoGuardOn = true;
+  window.addEventListener("devicemotion", (e) => {
+    const a = e.accelerationIncludingGravity || e.acceleration; if (!a) return;
+    if (Math.abs(a.x || 0) + Math.abs(a.y || 0) + Math.abs(a.z || 0) < 32) return;
+    const el = document.activeElement;
+    if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) { try { saveCurrentDraft(); } catch (er) {} el.blur(); }
+  }, { passive: true });
 }
 function wirePanicShake() {
   if (typeof DeviceMotionEvent === "undefined") return;
@@ -11227,6 +11521,7 @@ function buildWebRtcText() {
     lines.push("--- " + String(d.id).slice(0, 14) + "… ---");
     lines.push("role: " + d.role + ", status: " + d.status);
     lines.push("pc: " + d.pcState + ", ice: " + d.iceState + ", dc: " + d.dcState);
+    if (d.lastPair) lines.push("pair: " + d.lastPair);
     lines.push("");
   }
   return lines.join("\n");
@@ -11774,8 +12069,6 @@ if (cameraInput) {
     if (!state.chatId) return;
     beginCall(state.chatId, true);
   });
-  const moreBtn = $("#chat-more-btn");
-  if (moreBtn) moreBtn.addEventListener("click", () => { const id = state.chatId; if (id) openContactCard(id); });
   const retryAllBtn = $("#chat-retry-all-btn");
   if (retryAllBtn) retryAllBtn.addEventListener("click", () => {
     const id = state.chatId; if (!id) return;

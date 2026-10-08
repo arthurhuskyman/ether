@@ -35,6 +35,9 @@ function normalizeRosterEntry(u) {
   return { id: u.id, name: u.name || "", visible: u.visible !== false, publicKey: u.publicKey || null };
 }
 
+const CONNECT_TIMEOUT_MS = 7000;
+const SLOW_CONNECT_MS = 3500;
+
 class SignalingClient extends EventTarget {
   constructor(url, myId, opts = {}) {
     super();
@@ -58,6 +61,9 @@ class SignalingClient extends EventTarget {
     this._pushSubscription = null;
     this._pingTimer = null;
     this._lastPongAt = 0;
+    this._connectTimer = null;     // таймаут установления WebSocket
+    this._slowTimer = null;        // «сервер просыпается» — подсказка при долгом подключении
+    this._resumeProbe = null;      // проверка «живости» сокета после возврата из фона
   }
 
   start() {
@@ -79,6 +85,7 @@ class SignalingClient extends EventTarget {
     this.registered = false;
     this._stopHeartbeat();
     if (this._retryTimer) { clearTimeout(this._retryTimer); this._retryTimer = null; }
+    clearTimeout(this._connectTimer); clearTimeout(this._slowTimer); clearTimeout(this._resumeProbe);
     if (this.ws) {
       // Раньше тут было this.ws.onopen = this.ws.onmessage = ... = null —
       // выглядело как «снимаем обработчики», но на самом деле ничего не
@@ -100,9 +107,24 @@ class SignalingClient extends EventTarget {
     try { ws = new WebSocket(this.url); }
     catch (e) { this._scheduleRetry(); return; }
     this.ws = ws;
+    // Бесплатный Render «засыпает» без обращений, и холодный старт держит рукопожатие десятки секунд;
+    // на мобильной сети зависшее рукопожатие тоже бывает. Не ждём вечно: через CONNECT_TIMEOUT_MS
+    // пробуем заново (новое TCP/TLS-соединение часто проходит сразу), а через SLOW_CONNECT_MS
+    // сообщаем интерфейсу, чтобы он показал «сервер просыпается».
+    clearTimeout(this._connectTimer); clearTimeout(this._slowTimer);
+    this._slowTimer = setTimeout(() => { if (this.ws === ws && !this.connected) this.dispatchEvent(new CustomEvent("slow-connect")); }, SLOW_CONNECT_MS);
+    this._connectTimer = setTimeout(() => {
+      if (this.ws !== ws || this.connected) return;
+      etherLog("warn", "[signaling] подключение дольше " + (CONNECT_TIMEOUT_MS / 1000) + " с, пробую заново");
+      this._retryDelay = 300;
+      try { ws.close(); } catch (e) {}
+      // close-событие у зависшего сокета может прийти не сразу — не ждём его
+      if (this.ws === ws) { this.ws = null; this.connected = false; this._scheduleRetry(); }
+    }, CONNECT_TIMEOUT_MS);
 
     ws.addEventListener("open", () => {
       if (this.ws !== ws) return;
+      clearTimeout(this._connectTimer); clearTimeout(this._slowTimer);
       this._retryDelay = 1000;
       this.connected = true;
       this._lastPongAt = Date.now();
@@ -198,6 +220,31 @@ class SignalingClient extends EventTarget {
       etherLog("warn", "[signaling] ошибка соединения", String(e));
       try { ws.close(); } catch (e2) {}
     });
+  }
+
+  // Приложение вернулось из фона / сеть появилась: не ждём таймеров (на iOS сокет мог умереть незаметно).
+  resume() {
+    if (!this.shouldRun || this._stopped) return;
+    const ws = this.ws;
+    if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+      if (this._retryTimer) { clearTimeout(this._retryTimer); this._retryTimer = null; }
+      this.ws = null; this.connected = false; this._retryDelay = 300;
+      this._connect();
+      return;
+    }
+    if (ws.readyState !== WebSocket.OPEN) return; // идёт подключение — таймаут сам разберётся
+    // Сокет «открыт», но мог быть заморожен системой: проверяем pong за 3 секунды
+    const before = this._lastPongAt;
+    try { ws.send(JSON.stringify({ type: "ping", t: Date.now() })); } catch (e) { try { ws.close(); } catch (e2) {} return; }
+    clearTimeout(this._resumeProbe);
+    this._resumeProbe = setTimeout(() => {
+      if (this.ws === ws && this._lastPongAt === before) {
+        etherLog("warn", "[signaling] после возврата из фона нет pong — переподключаюсь");
+        this._retryDelay = 300;
+        try { ws.close(); } catch (e) {}
+        if (this.ws === ws) { this.ws = null; this.connected = false; this.registered = false; this.dispatchEvent(new CustomEvent("disconnected")); this._connect(); }
+      }
+    }, 3000);
   }
 
   _scheduleRetry() {

@@ -178,7 +178,6 @@
       <button type="button" id="chat-search-btn" class="icon-btn" aria-label="Search" data-i18n-aria="a11y.search"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg></button>
       <button type="button" id="chat-call-btn" class="icon-btn call-icon" aria-label="Call" data-i18n-aria="chat.call"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.7 21 3 13.3 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.4 0 .8-.2 1L6.6 10.8z"/></svg></button>
       <button type="button" id="chat-video-call-btn" class="icon-btn call-icon" aria-label="Video call" data-i18n-aria="call.video"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/></svg></button>
-      <button type="button" id="chat-more-btn" class="icon-btn" aria-label="More" data-i18n-aria="a11y.more"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M6 10.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm6 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm6 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z"/></svg></button>
     </div>
     <div id="nav-contact-mode" class="nav-mode-chat hidden">
       <button type="button" id="contact-back" class="icon-btn back-btn"><svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M14.7 5.3a1 1 0 0 1 0 1.4L9.41 12l5.3 5.3a1 1 0 0 1-1.42 1.4l-6-6a1 1 0 0 1 0-1.4l6-6a1 1 0 0 1 1.42 0z"/></svg></button>
@@ -214,7 +213,7 @@
            динамически (renderChatFolderChips), чипы берут вид/логику
            переключения у .chat-filter-chip выше бесплатно. -->
       <span id="chat-filters-custom" class="chat-filters-custom"></span>
-      <button type="button" class="chat-filter-chip" data-filter="calls"><span data-i18n="nav.calls">Calls</span><span id="chats-segment-calls-badge" class="tab-badge hidden">0</span></button>
+      <button type="button" class="chat-filter-chip" data-filter="calls"><span data-i18n="chats.filter.calls">Calls</span><span id="chats-segment-calls-badge" class="tab-badge hidden">0</span></button>
       <button type="button" id="chat-folder-add-btn" class="chat-filter-chip chat-filter-chip-add" aria-label="Manage folders" data-i18n-aria="chats.folder.manage">+</button>
     </div>
 
@@ -364,6 +363,14 @@
         <span id="settings-category-title" class="settings-category-header-title"></span>
       </div>
       <div class="settings-group flat-content" data-settings-category="profile">
+        <div class="settings-row profile-avatar-row">
+          <button type="button" id="settings-avatar-btn" class="avatar profile-avatar" aria-label="Change photo" data-i18n-aria="settings.avatar.change"></button>
+          <div class="profile-avatar-actions">
+            <button type="button" id="settings-avatar-change" class="link-inline" data-i18n="settings.avatar.change">Change photo</button>
+            <button type="button" id="settings-avatar-remove" class="link-inline destructive hidden" data-i18n="settings.avatar.remove">Remove photo</button>
+          </div>
+          <input id="settings-avatar-input" type="file" accept="image/*" style="display:none;" />
+        </div>
         <label class="settings-row"><span data-i18n="settings.name">Your name</span><input id="settings-name" type="text" maxlength="40" /></label>
         <label class="settings-row"><span data-i18n="settings.id">Phone / email</span><input id="settings-identity" type="text" maxlength="80" /></label>
         <label class="settings-row"><span data-i18n="settings.myStatus">About</span><input id="settings-my-status" type="text" maxlength="80" data-i18n-ph="settings.myStatus.placeholder" /></label>
@@ -471,7 +478,6 @@
         <!-- V.51.0.0: раздел 6 роадмапа — переключаемый эксперимент, а не
              тихая замена трёх кнопок композера одной "+". Выкл. по
              умолчанию. -->
-        <label class="settings-row"><span data-i18n="settings.composerPlus">Experimental "+" composer button</span><input id="settings-composer-plus" type="checkbox" class="switch" /></label>
       </div>
       <div class="settings-group flat-content" data-settings-category="help">
         <div class="settings-row column" style="align-items:center; text-align:center;">
@@ -581,17 +587,14 @@
 
       <div id="mention-autocomplete" class="mention-autocomplete hidden" role="listbox"></div>
       <form id="chat-form" class="chat-input-bar glass">
-        <!-- V.51.0.0: раздел 6 роадмапа — кнопка "+" для композера.
-             Переключаемый ЭКСПЕРИМЕНТ (выкл. по умолчанию, см.
-             Settings → Appearance), а не тихая замена трёх кнопок — см.
-             комментарий у Store.composerPlusMode в js/app.js. Видна только
-             когда body.composer-plus-mode; остальные три кнопки в этом
-             режиме скрыты, пока не раскрыта панель
-             (body.composer-plus-expanded). -->
-        <button type="button" id="chat-plus-btn" class="icon-btn hidden" aria-label="More" data-i18n-aria="chat.composerPlus"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5z"/></svg></button>
-        <button type="button" id="chat-attach-btn" class="icon-btn" aria-label="Attach" data-i18n-aria="chat.attach"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M16.5 6v10.5a4 4 0 1 1-8 0V5a2.5 2.5 0 0 1 5 0v10.5a1 1 0 1 1-2 0V6H10v9.5a2.5 2.5 0 0 0 5 0V5a4 4 0 1 0-8 0v11.5a5.5 5.5 0 0 0 11 0V6h-1.5z"/></svg></button>
-        <button type="button" id="chat-emoji-btn" class="icon-btn" aria-label="Emoji" data-i18n-aria="chat.emoji"><svg viewBox="0 0 24 24" width="20" height="20"><circle cx="12" cy="12" r="9.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="8.7" cy="10" r="1.3" fill="currentColor"/><circle cx="15.3" cy="10" r="1.3" fill="currentColor"/><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" d="M7.5 14.2a5 5 0 0 0 9 0"/></svg></button>
-        <button type="button" id="chat-camera-btn" class="icon-btn" aria-label="Camera" data-i18n-aria="chat.camera"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M9 3 7.2 5H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.2L15 3H9zm3 15a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/></svg></button>
+        <!-- Кнопка «+» постоянная: по нажатию вверх «выезжают» три кружка (эмодзи, камера, скрепка), «+» превращается в «×».
+             Кнопки сохраняют свои id — на них завешаны обработчики эмодзи-пикера, камеры и выбора файла. -->
+        <div id="composer-fan" class="composer-fan" role="menu" aria-hidden="true">
+          <button type="button" id="chat-emoji-btn" class="fan-btn" role="menuitem" aria-label="Emoji" data-i18n-aria="chat.emoji"><svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="9.2" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="8.7" cy="10" r="1.3" fill="currentColor"/><circle cx="15.3" cy="10" r="1.3" fill="currentColor"/><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" d="M7.5 14.2a5 5 0 0 0 9 0"/></svg></button>
+          <button type="button" id="chat-camera-btn" class="fan-btn" role="menuitem" aria-label="Camera" data-i18n-aria="chat.camera"><svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M9 3 7.2 5H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.2L15 3H9zm3 15a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/></svg></button>
+          <button type="button" id="chat-attach-btn" class="fan-btn" role="menuitem" aria-label="Attach" data-i18n-aria="chat.attach"><svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M16.5 6v10.5a4 4 0 1 1-8 0V5a2.5 2.5 0 0 1 5 0v10.5a1 1 0 1 1-2 0V6H10v9.5a2.5 2.5 0 0 0 5 0V5a4 4 0 1 0-8 0v11.5a5.5 5.5 0 0 0 11 0V6h-1.5z"/></svg></button>
+        </div>
+        <button type="button" id="chat-plus-btn" class="icon-btn composer-plus-btn" aria-label="More" aria-haspopup="menu" aria-expanded="false" data-i18n-aria="chat.composerPlus"><svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5z"/></svg></button>
         <input id="chat-file-input" type="file" accept="*/*" multiple style="display:none;" />
         <input id="chat-camera-input" type="file" accept="image/*,video/*" capture="environment" style="display:none;" />
         <input id="chat-input" type="text" placeholder="Message" data-i18n-ph="chat.placeholder" autocomplete="off" maxlength="4000" />
@@ -748,14 +751,20 @@
       <svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/></svg>
       <span data-i18n="call.video">Video</span>
     </button>
-    <!-- Раздел 7 роадмапа: screen sharing через getDisplayMedia. Скрыта по
-         умолчанию — показывается только если браузер реально поддерживает
-         getDisplayMedia (см. wireCallScreen в app.js), а не прячется чисто
-         CSS-медиа-запросом, который ничего не знает о реальном API. -->
-    <button type="button" id="call-screenshare-btn" class="call-btn hidden">
+    <!-- Основных кнопок звонка четыре (микрофон, динамик, видео, завершить). Редкие действия — показ экрана, рисование на видео —
+         убраны в меню «ещё»; сама кнопка «ещё» видна, только если в меню есть что показать. Показ экрана (getDisplayMedia)
+         скрыт, если браузер его не поддерживает (см. wireCallScreen в app.js). -->
+    <button type="button" id="call-more-btn" class="call-btn hidden" aria-haspopup="menu" aria-expanded="false" aria-label="More" data-i18n-aria="a11y.more">
+      <svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M6 10.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm6 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm6 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z"/></svg>
+      <span data-i18n="a11y.more">More</span>
+    </button>
+    <div id="call-more-menu" class="call-more-menu hidden" role="menu">
+
+    <button type="button" id="call-screenshare-btn" class="call-menu-item hidden" role="menuitem">
       <svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M20 18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6zm5 8.5 3-3 2 2 4-4-1.4-1.4L13.5 10.5 11.5 8.5 7.5 12.5z"/></svg>
       <span data-i18n="call.screenShare">Share screen</span>
     </button>
+    </div>
     <button type="button" id="call-hangup-btn" class="call-btn hangup">
       <svg viewBox="0 0 24 24" width="26" height="26">
         <path fill="currentColor" transform="rotate(135 12 12)" d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
@@ -953,12 +962,15 @@
   <div class="sheet-backdrop"></div>
   <div class="sheet-panel glass-content emoji-picker-panel">
     <div class="sheet-handle"></div>
-    <input id="emoji-search-input" type="text" class="search-input" data-i18n-ph="chat.emoji.search" placeholder="Search emoji" autocomplete="off" />
-    <!-- V.50.0.0: skin-tone selector (раздел 6 роадмапа) — 6 круглых
-         свотчей (дефолт + 5 тонов Fitzpatrick), рендерится/перерисовывается
-         из renderSkinToneRow() в js/app.js. -->
-    <div id="emoji-skin-tone-row" class="skin-tone-row"></div>
-    <div id="emoji-tabs" class="emoji-tabs"></div>
+    <!-- Структура пикера: строка поиска (+ кнопка тона кожи), полоса категорий, заголовок текущей категории, сетка эмодзи.
+         Тон кожи раскрывается кнопкой с рукой и действует на все категории (на все эмодзи, которые его допускают). -->
+    <div class="emoji-search-row">
+      <input id="emoji-search-input" type="text" class="search-input" data-i18n-ph="chat.emoji.search" placeholder="Search emoji" autocomplete="off" />
+      <button type="button" id="emoji-tone-btn" class="emoji-tone-btn" aria-expanded="false" aria-label="Skin tone" data-i18n-aria="emoji.tone">👋</button>
+    </div>
+    <div id="emoji-skin-tone-row" class="skin-tone-row hidden"></div>
+    <div id="emoji-tabs" class="emoji-tabs" role="tablist"></div>
+    <div id="emoji-section-title" class="emoji-section-title"></div>
     <div id="emoji-grid" class="emoji-grid"></div>
   </div>
 </div>
@@ -1279,6 +1291,7 @@
 <script src="js/signaling-client.js"></script>
 <script src="js/webrtc.js"></script>
 <script src="js/file-limits.js"></script>
+<script src="js/emoji-data.js"></script>
 <script src="js/app.js"></script>
 <script src="js/group-call.js"></script>
 <script src="js/features.js"></script>

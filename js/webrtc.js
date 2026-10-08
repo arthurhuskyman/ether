@@ -28,11 +28,17 @@ function signalingUrlForIce() {
   return url.replace(/^wss:\/\//i, "https://").replace(/^ws:\/\//i, "http://");
 }
 
-async function fetchIceServers() {
+// /ice на «спящем» бесплатном сервере (холодный старт Render) отвечает десятки секунд, а PeerLink'и
+// не создаются, пока список не готов. Поэтому ждём не дольше ICE_FETCH_TIMEOUT_MS: на это время
+// берём публичный STUN, а настоящий список (с TURN) догружаем в фоне — он применится к следующим соединениям.
+const ICE_FETCH_TIMEOUT_MS = 4000;
+async function fetchIceServers(timeoutMs) {
   const base = signalingUrlForIce();
   if (!base) return null;
+  const ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timer = ctl && timeoutMs ? setTimeout(() => { try { ctl.abort(); } catch (e) {} }, timeoutMs) : null;
   try {
-    const r = await fetch(base.replace(/\/+$/, "") + "/ice", { cache: "no-store" });
+    const r = await fetch(base.replace(/\/+$/, "") + "/ice", { cache: "no-store", signal: ctl ? ctl.signal : undefined });
     if (!r.ok) throw new Error("HTTP " + r.status);
     const list = await r.json();
     if (Array.isArray(list) && list.length > 0) return list;
@@ -41,19 +47,32 @@ async function fetchIceServers() {
     if (window.etherLog) window.etherLog("warn", "[webrtc] /ice недоступен:", String(e));
     console.warn("[webrtc] /ice недоступен:", e);
     return null;
+  } finally { if (timer) clearTimeout(timer); }
+}
+
+async function refreshIceServersInBackground() {
+  for (let i = 0; i < 8; i++) {
+    await new Promise((r) => setTimeout(r, 5000 * (i + 1)));
+    const list = await fetchIceServers(15000);
+    if (list) {
+      ICE_SERVERS = list;
+      if (window.etherLog) window.etherLog("info", "[webrtc] ICE-серверы (с TURN) догружены в фоне:", list.length);
+      return;
+    }
   }
 }
 
 window.__etherIceReady = (async () => {
-  const fromServer = await fetchIceServers();
+  const fromServer = await fetchIceServers(ICE_FETCH_TIMEOUT_MS);
   if (fromServer) {
     ICE_SERVERS = fromServer;
     if (window.etherLog) window.etherLog("info", "[webrtc] ICE-серверы получены с сигнального сервера:", ICE_SERVERS.length);
     console.log("[webrtc] ICE-серверы получены с сигнального сервера:", ICE_SERVERS.length);
   } else {
     ICE_SERVERS = FALLBACK_ICE.slice();
-    if (window.etherLog) window.etherLog("warn", "[webrtc] использую fallback-STUN (без TURN)");
+    if (window.etherLog) window.etherLog("warn", "[webrtc] использую fallback-STUN (без TURN), TURN догрузится в фоне");
     console.warn("[webrtc] использую fallback-STUN (без TURN)");
+    refreshIceServersInBackground();
   }
 })();
 
@@ -70,6 +89,7 @@ const ICE_GATHER_TIMEOUT_MS = 2500;
 // background-период. При полной заморозке дольше 60с — да, рвём, но
 // пересоединение установит всё заново быстрее, чем реальный перерыв.
 const HEARTBEAT_TIMEOUT_MS = 60000;
+const DISCONNECT_GRACE_MS = 7000; // сколько ждём самовосстановления ICE, прежде чем считать линк отключённым
 
 function waitForIceGathering(pc) {
   if (pc.iceGatheringState === "complete") return Promise.resolve();
@@ -228,6 +248,7 @@ class PeerLink extends EventTarget {
       const s = this.pc.iceConnectionState;
       this._log("info", "[webrtc]", id.slice(0, 10) + "…", "iceConnection:", s);
       this.dispatchEvent(new CustomEvent("ice-connection-state", { detail: { state: s } }));
+      if (s === "disconnected" || s === "failed") this._logSelectedPair(s);
       if (s === "disconnected") {
         if (this._iceDisconnectTimer) clearTimeout(this._iceDisconnectTimer);
         this._iceDisconnectTimer = setTimeout(() => {
@@ -243,10 +264,10 @@ class PeerLink extends EventTarget {
             this._log("warn", "[webrtc]", id.slice(0, 10) + "…", "ICE failed, reInvite()");
             this.reInvite();
           } else if (this.pc.iceConnectionState === "disconnected") {
-            this._log("warn", "[webrtc]", id.slice(0, 10) + "…", "ICE still disconnected after 20s, reInvite()");
+            this._log("warn", "[webrtc]", id.slice(0, 10) + "…", "ICE still disconnected after 8s, reInvite()");
             this.reInvite();
           }
-        }, 20000);
+        }, 8000);
       } else if (s === "connected" || s === "completed") {
         if (this._iceDisconnectTimer) { clearTimeout(this._iceDisconnectTimer); this._iceDisconnectTimer = null; }
       } else if (s === "failed") {
@@ -268,17 +289,31 @@ class PeerLink extends EventTarget {
 
       const inCall = this.status === "in-call";
 
+      if (s === "disconnected") {
+        // «disconnected» в WebRTC — часто короткая потеря связи (переключение сети, «моргнувший» LTE), после которой
+        // ICE восстанавливается сам. Раньше мы сразу объявляли линк отключённым, приложение его пересоздавало и
+        // обрывало то, что могло вот-вот восстановиться (звонок «самопроизвольно отключался»). Даём время на восстановление.
+        if (this._discTimer) clearTimeout(this._discTimer);
+        this._discTimer = setTimeout(() => {
+          this._discTimer = null;
+          if (!this._closed && this.pc.connectionState === "disconnected") this._setStatus("disconnected");
+        }, DISCONNECT_GRACE_MS);
+        return;
+      }
       if (s === "connecting") {
+        if (this._discTimer) { clearTimeout(this._discTimer); this._discTimer = null; }
         if (!inCall) this._setStatus("connecting");
         return;
       }
       if (s === "connected") {
+        if (this._discTimer) { clearTimeout(this._discTimer); this._discTimer = null; }
         this._everConnected = true;
         if (this._connectStallTimer) { clearTimeout(this._connectStallTimer); this._connectStallTimer = null; }
         if (!inCall) this._setStatus("connected");
         return;
       }
-      if (s === "failed" || s === "disconnected" || s === "closed") {
+      if (s === "failed" || s === "closed") {
+        if (this._discTimer) { clearTimeout(this._discTimer); this._discTimer = null; }
         this._setStatus("disconnected");
       }
     });
@@ -307,6 +342,24 @@ class PeerLink extends EventTarget {
   _log(level, ...args) {
     if (window.etherLog) window.etherLog(level, ...args);
     else (console[level] || console.log).apply(console, args);
+  }
+
+  // Какая именно пара кандидатов была выбрана и сколько данных по ней прошло — главный вопрос при
+  // «ICE connected, а через 5 секунд disconnected». Пишется в журнал и в диагностику.
+  async _logSelectedPair(reason) {
+    try {
+      const stats = await this.pc.getStats();
+      const byId = new Map(); stats.forEach((r) => byId.set(r.id, r));
+      let pair = null;
+      stats.forEach((r) => { if (r.type === "transport" && r.selectedCandidatePairId) pair = byId.get(r.selectedCandidatePairId); });
+      if (!pair) stats.forEach((r) => { if (!pair && r.type === "candidate-pair" && (r.nominated || r.state === "succeeded")) pair = r; });
+      if (!pair) { this._lastPairInfo = "нет выбранной пары (" + reason + ")"; this._log("warn", "[webrtc]", this.id.slice(0, 10) + "…", this._lastPairInfo); return; }
+      const l = byId.get(pair.localCandidateId) || {}, r = byId.get(pair.remoteCandidateId) || {};
+      this._lastPairInfo = reason + ": " + (l.candidateType || "?") + "/" + (l.protocol || "?") + (l.relayProtocol ? "(" + l.relayProtocol + ")" : "") + " → " + (r.candidateType || "?") + "/" + (r.protocol || "?")
+        + ", rtt=" + (pair.currentRoundTripTime != null ? Math.round(pair.currentRoundTripTime * 1000) + "мс" : "?")
+        + ", ↑" + (pair.bytesSent || 0) + " ↓" + (pair.bytesReceived || 0) + " Б, consent " + (pair.consentRequestsSent || 0) + ", state=" + pair.state;
+      this._log("warn", "[webrtc]", this.id.slice(0, 10) + "…", "pair " + this._lastPairInfo);
+    } catch (e) {}
   }
 
   _setStatus(status) {
@@ -972,6 +1025,7 @@ async startCall(withVideo) {
     if (this._renegotiationRetryTimer) { clearTimeout(this._renegotiationRetryTimer); this._renegotiationRetryTimer = null; }
     if (this._iceDisconnectTimer) { clearTimeout(this._iceDisconnectTimer); this._iceDisconnectTimer = null; }
     if (this._connectStallTimer) { clearTimeout(this._connectStallTimer); this._connectStallTimer = null; }
+    if (this._discTimer) { clearTimeout(this._discTimer); this._discTimer = null; }
     try {
       if (this.localStream) {
         try { this.localStream.getTracks().forEach((t) => { try { t.stop(); } catch (e) {} }); } catch (e) {}
@@ -1007,6 +1061,7 @@ async startCall(withVideo) {
       candidates: this._iceCandidates.slice(),
       errors: this._iceErrors.slice(),
       createdAt: this._createdAt,
+      lastPair: this._lastPairInfo || null,
       closed: this._closed,
     };
   }

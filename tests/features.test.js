@@ -43,7 +43,7 @@ test("Sonic Signature: детерминированный chime из ключа,
   a.close();
 });
 
-test("Personal Sigil: детерминирован, симметричен, зависит от ключа; показывается в карточке контакта и в настройках", async () => {
+test("Personal Sigil: детерминирован, симметричен, зависит от ключа; показывается в карточке контакта и в профиле", async () => {
   const a = await chatApp();
   const s1 = a.run(`sigilSvg("k1", 48)`), s2 = a.run(`sigilSvg("k1", 48)`), s3 = a.run(`sigilSvg("k2", 48)`);
   assert.equal(s1, s2); assert.notEqual(s1, s3);
@@ -52,7 +52,7 @@ test("Personal Sigil: детерминирован, симметричен, за
   for (const x of xs) assert.ok(xs.includes(40 - x), "зеркальная пара есть для x=" + x);
   a.run(`state.contactCardId = "alice"; state.chatId = null; renderTab();`);
   assert.ok(a.document.querySelector("#screen-contact #fx-sigil svg"));
-  assert.ok(a.document.querySelector("#fx-my-sigil svg"));
+  assert.ok(a.document.querySelector("#fx-profile-sigil svg"));
   a.close();
 });
 

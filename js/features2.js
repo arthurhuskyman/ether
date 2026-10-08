@@ -337,18 +337,18 @@ function fxdIn(from, p) {
   }
 }
 function fx2InjectDrawButton() {
-  const bar = document.getElementById("call-controls-active"); if (!bar) return;
+  // Кнопка «Рисовать» живёт в меню «ещё» звонка (основных кнопок четыре), а не в ряду основных
+  const menu = document.getElementById("call-more-menu") || document.getElementById("call-controls-active"); if (!menu) return;
   let btn = document.getElementById("fx-draw-btn");
   if (!btn) {
-    btn = document.createElement("button"); btn.type = "button"; btn.id = "fx-draw-btn"; btn.className = "call-btn hidden";
-    btn.innerHTML = `<svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zM20.7 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg><span data-i18n="fx2.draw.btn">${fx2Esc(T("fx2.draw.btn"))}</span>`;
+    btn = document.createElement("button"); btn.type = "button"; btn.id = "fx-draw-btn"; btn.className = "call-menu-item hidden"; btn.setAttribute("role", "menuitem");
+    btn.innerHTML = `<svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zM20.7 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg><span data-i18n="fx2.draw.btn">${fx2Esc(T("fx2.draw.btn"))}</span>`;
     btn.addEventListener("click", () => {
       const id = state.callId; if (!id) return;
       if (FXD.active) { fx2Send(id, { kind: "fxdraw", t: "stop" }); fxdSetActive(false); }
       else fx2Send(id, { kind: "fxdraw", t: "req" });
     });
-    const hang = document.getElementById("call-hangup-btn");
-    if (hang) bar.insertBefore(btn, hang); else bar.appendChild(btn);
+    menu.appendChild(btn);
   }
   btn.classList.toggle("hidden", !(FX.get("draw") && state.callId && state.callPhase === "active"));
   if (!state.callId && FXD.active) fxdSetActive(false);
