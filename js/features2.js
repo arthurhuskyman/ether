@@ -421,16 +421,19 @@ function fxLookIn(from, p) {
   }
 }
 function fx2InjectLookButton() {
-  const callBtn = document.getElementById("chat-call-btn"); if (!callBtn) return;
+  // «Заглянуть» (👁) живёт в карточке контакта, а не в шапке чата: шапка и так тесная (имя выдавливалось иконками).
+  const nameEl = document.getElementById("contact-name"); if (!nameEl) return;
   let b = document.getElementById("fx-look-btn");
-  const c = state.chatId ? state.contacts.get(state.chatId) : null;
+  const cid = state.contactCardId;
+  const c = cid ? state.contacts.get(cid) : null;
   const show = !!(FX.get("look") && c && !isGroup(c) && !c.isSelf);
   if (!b) {
-    b = document.createElement("button"); b.type = "button"; b.id = "fx-look-btn"; b.className = callBtn.className.replace(/\bcall-unavailable\b/g, "") + " hidden";
-    b.setAttribute("aria-label", T("fx2.look.btn")); b.setAttribute("data-i18n-aria", "fx2.look.btn"); b.textContent = "👁";
-    b.addEventListener("click", () => { if (state.chatId) fxLookStart(state.chatId); });
-    callBtn.insertAdjacentElement("beforebegin", b);
+    b = document.createElement("button"); b.type = "button"; b.id = "fx-look-btn"; b.className = "btn-secondary fx-look-row hidden";
+    b.setAttribute("data-i18n", "fx2.look.btn");
+    b.addEventListener("click", () => { if (state.contactCardId) fxLookStart(state.contactCardId); });
+    nameEl.parentNode.appendChild(b);
   }
+  b.textContent = "👁 " + T("fx2.look.btn");
   b.classList.toggle("hidden", !show);
 }
 

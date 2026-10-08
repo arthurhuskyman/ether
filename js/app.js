@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.59.0.1";
+const APP_VERSION = "V.60.0.0";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 // Сервер перевода по умолчанию (LibreTranslate-совместимый). Официальный публичный инстанс обычно
@@ -5488,7 +5488,6 @@ function handleFilePayload(from, payload) {
     const isOpen = state.chatId === from;
     const rec = { id: payload.id, from: "them", text: "", ts: Date.now(), readAckSent: false,
       file: { name: payload.name, mime: payload.mime, size: payload.size, kind: fileKindFromMime(payload.mime), duration: payload.duration || 0, pending: true } };
-    if (fileGroupId) { rec.fromId = from; rec.fromName = payload.senderName || (state.contacts.get(from) && state.contacts.get(from).name) || T("sys.someone"); }
     if (payload.ttl) rec.ttl = payload.ttl;
     if (payload.forwarded) rec.forwarded = true;
     if (typeof payload.caption === "string" && payload.caption) rec.file.caption = payload.caption.slice(0, 200);
@@ -6914,6 +6913,7 @@ async function handleIncomingOffer(from, packet, replySignal) {
   }
   if (existing) mesh.remove(from);
   ensureContactEntry(from, packet.n);
+  if (packet.rl) markRelayOnly(from); // собеседник обнаружил, что UDP «глухой» — отвечаем тоже только через TURN
   const link = mesh.createIncomingLink(from);
   flushPendingIceFor(from, link);
   try {
@@ -10003,8 +10003,9 @@ function wireCallMoreMenu() {
   btn.dataset.wired = "1";
   const sync = () => {
     const any = Array.from(menu.querySelectorAll(".call-menu-item")).some((b) => !b.classList.contains("hidden"));
-    btn.classList.toggle("hidden", !any);
-    if (!any) { menu.classList.add("hidden"); btn.setAttribute("aria-expanded", "false"); }
+    if (btn.classList.contains("hidden") === any) btn.classList.toggle("hidden", !any);
+    // add() на уже скрытом меню всё равно пишет атрибут → MutationObserver вызывает sync снова (бесконечный цикл)
+    if (!any && !menu.classList.contains("hidden")) { menu.classList.add("hidden"); btn.setAttribute("aria-expanded", "false"); }
   };
   const close = () => { menu.classList.add("hidden"); btn.setAttribute("aria-expanded", "false"); };
   btn.addEventListener("click", () => { const open = menu.classList.contains("hidden"); menu.classList.toggle("hidden", !open); btn.setAttribute("aria-expanded", open ? "true" : "false"); });
@@ -11777,6 +11778,14 @@ function wireMeshEvents() {
     if (ev.detail && ev.detail.id === state.callId) {
       const btn = $("#call-screenshare-btn"); if (btn) btn.classList.remove("active");
     }
+  });
+  mesh.addEventListener("relay-fallback", (ev) => {
+    const rid = ev.detail.id;
+    setTimeout(() => {
+      const l = mesh.get(rid);
+      if (l && (l.status === "connected" || l.status === "in-call")) return;
+      attemptConnect(rid, true).catch(() => {});
+    }, 400);
   });
   mesh.addEventListener("link-status", (ev) => {
     try {

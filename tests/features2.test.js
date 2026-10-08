@@ -203,7 +203,7 @@ test("Vision Loop: приём только если включён; индика
 test("Vision Loop (отправитель): подтверждение, ~3 секунды кадров, индикатор «камера открыта», камера выключается", async () => {
   const a = await chatApp();
   const sent = stubLink(a);
-  a.run(`FX.set("look", true); openChat = null; state.chatId = "alice"; renderTab();`);
+  a.run(`FX.set("look", true); openChat = null; state.chatId = null; state.contactCardId = "alice"; renderTab();`);
   assert.equal(a.document.querySelector("#fx-look-btn").classList.contains("hidden"), false);
   let stopped = 0, seenIndicator = false;
   a.window.navigator.mediaDevices.getUserMedia = async () => ({ getVideoTracks: () => [{ stop() { stopped++; } }], getTracks: () => [{ stop() { stopped++; } }] });

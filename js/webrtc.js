@@ -15,6 +15,22 @@ const FALLBACK_ICE = [
 
 let ICE_SERVERS = [];
 
+// Режим «только relay»: на ряде мобильных/домашних сетей (DPI-фильтрация WebRTC) ICE по UDP проходит («connected»),
+// но DTLS так и не завершается и через ~6 с всё рвётся. Тогда следующая попытка идёт ТОЛЬКО через TURN (TCP/TLS 443 —
+// выглядит как обычный HTTPS). Запоминаем по контакту на 30 минут.
+const RELAY_ONLY_TTL_MS = 30 * 60 * 1000;
+const relayOnlyUntil = new Map();
+function markRelayOnly(id) { if (id) relayOnlyUntil.set(id, Date.now() + RELAY_ONLY_TTL_MS); }
+function isRelayOnly(id) {
+  const t = relayOnlyUntil.get(id);
+  if (!t) return false;
+  if (t < Date.now()) { relayOnlyUntil.delete(id); return false; }
+  return true;
+}
+function relayCapableServers() {
+  return ICE_SERVERS.filter((srv) => [].concat(srv.urls || []).some((u) => /^turns?:/i.test(u)));
+}
+
 function getMyId() {
   try { return localStorage.getItem("ether.myId") || ""; } catch (e) { return ""; }
 }
@@ -144,7 +160,12 @@ class PeerLink extends EventTarget {
     // прежде, чем ICE реально стартует. 10 — недорого (несколько лишних
     // UDP-пакетов) и заметно ускоряет setup, особенно через TURN.
     const effectiveIceServers = ICE_SERVERS.length > 0 ? ICE_SERVERS : FALLBACK_ICE;
-    this.pc = new RTCPeerConnection({ iceServers: effectiveIceServers, iceCandidatePoolSize: 10 });
+    const relayServers = isRelayOnly(id) ? relayCapableServers() : [];
+    this._relayOnly = relayServers.length > 0;
+    this.pc = new RTCPeerConnection(this._relayOnly
+      ? { iceServers: relayServers, iceTransportPolicy: "relay", iceCandidatePoolSize: 4 }
+      : { iceServers: effectiveIceServers, iceCandidatePoolSize: 10 });
+    if (this._relayOnly) this._log("info", "[webrtc]", id.slice(0, 10) + "…", "режим relay-only (TURN)");
     // Страховка от "вечного connecting": обработчики ниже (iceconnectionstatechange
     // на "failed"/"disconnected") реагируют, только если браузер ФОРМАЛЬНО
     // объявит один из этих статусов — а бывают случаи (например, TURN
@@ -249,6 +270,14 @@ class PeerLink extends EventTarget {
       this._log("info", "[webrtc]", id.slice(0, 10) + "…", "iceConnection:", s);
       this.dispatchEvent(new CustomEvent("ice-connection-state", { detail: { state: s } }));
       if (s === "disconnected" || s === "failed") this._logSelectedPair(s);
+      if (s === "connected" || s === "completed") {
+        // ICE прошёл, а DTLS за 6 с не завершился — путь по UDP «глухой» (фильтрация). Переходим на relay-only.
+        if (!this._dtlsWatch && !this._everConnected) this._dtlsWatch = setTimeout(() => {
+          this._dtlsWatch = null;
+          if (!this._closed && this.pc.connectionState !== "connected") this._fallbackToRelay("dtls-timeout");
+        }, 6000);
+      }
+      if ((s === "disconnected" || s === "failed") && !this._everConnected) this._fallbackToRelay("ice-" + s);
       if (s === "disconnected") {
         if (this._iceDisconnectTimer) clearTimeout(this._iceDisconnectTimer);
         this._iceDisconnectTimer = setTimeout(() => {
@@ -307,6 +336,7 @@ class PeerLink extends EventTarget {
       }
       if (s === "connected") {
         if (this._discTimer) { clearTimeout(this._discTimer); this._discTimer = null; }
+        if (this._dtlsWatch) { clearTimeout(this._dtlsWatch); this._dtlsWatch = null; }
         this._everConnected = true;
         if (this._connectStallTimer) { clearTimeout(this._connectStallTimer); this._connectStallTimer = null; }
         if (!inCall) this._setStatus("connected");
@@ -337,6 +367,14 @@ class PeerLink extends EventTarget {
         this._bindDataChannel();
       });
     }
+  }
+
+  _fallbackToRelay(reason) {
+    if (this._closed || this._relayOnly || this._everConnected) return;
+    if (!relayCapableServers().length) return;
+    markRelayOnly(this.id);
+    this._log("warn", "[webrtc]", this.id.slice(0, 10) + "…", "UDP-путь не работает (" + reason + ") → следующая попытка только через TURN (TCP/TLS)");
+    this.dispatchEvent(new CustomEvent("relay-fallback", { detail: { reason } }));
   }
 
   _log(level, ...args) {
@@ -488,7 +526,7 @@ class PeerLink extends EventTarget {
       if (this._closed || this.pc.signalingState === "closed") return null;
       this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "offer ready, candidates:", this._iceCandidates.length);
       return {
-        t: "offer", n: this.localName, r: roomTag, x: crypto.randomUUID(),
+        t: "offer", n: this.localName, r: roomTag, x: crypto.randomUUID(), ...(this._relayOnly ? { rl: 1 } : {}),
         d: { type: this.pc.localDescription.type, sdp: this.pc.localDescription.sdp },
       };
     } catch (e) {
@@ -1025,6 +1063,7 @@ async startCall(withVideo) {
     if (this._renegotiationRetryTimer) { clearTimeout(this._renegotiationRetryTimer); this._renegotiationRetryTimer = null; }
     if (this._iceDisconnectTimer) { clearTimeout(this._iceDisconnectTimer); this._iceDisconnectTimer = null; }
     if (this._connectStallTimer) { clearTimeout(this._connectStallTimer); this._connectStallTimer = null; }
+    if (this._dtlsWatch) { clearTimeout(this._dtlsWatch); this._dtlsWatch = null; }
     if (this._discTimer) { clearTimeout(this._discTimer); this._discTimer = null; }
     try {
       if (this.localStream) {
@@ -1062,6 +1101,7 @@ async startCall(withVideo) {
       errors: this._iceErrors.slice(),
       createdAt: this._createdAt,
       lastPair: this._lastPairInfo || null,
+      relayOnly: !!this._relayOnly,
       closed: this._closed,
     };
   }
@@ -1112,6 +1152,9 @@ class MeshManager extends EventTarget {
     // кнопку) — см. startScreenShare()/screenTrack.onended выше. UI
     // (кнопка #call-screenshare-btn) должен узнать об этом, чтобы не
     // остаться "залипшей" в активном состоянии.
+    link.addEventListener("relay-fallback", () => {
+      this.dispatchEvent(new CustomEvent("relay-fallback", { detail: { id: link.id } }));
+    });
     link.addEventListener("screen-share-ended", () => {
       this.dispatchEvent(new CustomEvent("screen-share-ended", { detail: { id: link.id } }));
     });

@@ -73,8 +73,16 @@ const TURN_STATIC_USERNAME = process.env.TURN_STATIC_USERNAME || "";
 const TURN_STATIC_PASSWORD = process.env.TURN_STATIC_PASSWORD || "";
 function staticTurnServers() {
   if (!TURN_STATIC_URL || !TURN_STATIC_USERNAME || !TURN_STATIC_PASSWORD) return null;
+  // TURN_STATIC_URL может содержать несколько адресов через запятую/пробел. К каждому turn:host:port
+  // добавляем вариант ?transport=tcp — когда UDP режется провайдером (DPI), relay по TCP/TLS всё ещё проходит.
+  const base = TURN_STATIC_URL.split(/[\s,]+/).filter(Boolean);
+  const urls = [];
+  for (const u of base) {
+    urls.push(u);
+    if (/^turn:/i.test(u) && !/transport=/i.test(u)) urls.push(u + "?transport=tcp");
+  }
   return [
-    { urls: TURN_STATIC_URL, username: TURN_STATIC_USERNAME, credential: TURN_STATIC_PASSWORD },
+    { urls: Array.from(new Set(urls)), username: TURN_STATIC_USERNAME, credential: TURN_STATIC_PASSWORD },
     { urls: "stun:stun.l.google.com:19302" },
   ];
 }
@@ -242,7 +250,7 @@ async function getIceServers() {
     // клиенту НЕЛЬЗЯ — ICE на клиенте будет ждать таймаута TURN
     // allocate, блокируя весь звонок, хотя STUN-путь работал бы.
     const turnUrl = TURN_STATIC_URL;
-    const alive = await isTurnAlive(turnUrl);
+    const alive = await isTurnAlive(turnUrl.split(/[\s,]+/).filter(Boolean)[0]);
     if (alive) {
       console.log("[ice] используются статические TURN-креденшлы (TURN_STATIC_*)");
     } else {

@@ -2371,3 +2371,10 @@ html[data-voice-style="cassette"] .fx-voice-deco.cassette, html[data-voice-style
 .fx-sigil-fp { font-family: ui-monospace, monospace; letter-spacing: 0.08em; font-size: 16px; padding: 4px 0 8px; }
 .fx-sigil-how { margin: 0 0 12px; }
 #fx-sigil[role="button"], #fx-profile-sigil { cursor: pointer; }
+
+/* шапка чата: статус и значок транспорта в одной строке, имя не выдавливается иконками */
+.chat-peer-status-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.chat-peer-status-row .transport-badge { margin: 0; flex: none; }
+#nav-chat-mode .chat-header-info { min-width: 0; flex: 1 1 auto; }
+#chat-peer-status { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fx-look-row { margin-top: 8px; }

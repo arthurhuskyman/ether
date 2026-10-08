@@ -137,3 +137,20 @@ test("startScreenShare: onended сам останавливает показ и 
   assert.equal(l._screenSharing, false);
   a.close();
 });
+
+test("relay-only: после «ICE connected без DTLS» следующий линк идёт только через TURN, offer несёт rl:1", async () => {
+  const a = createApp(); await a.ready;
+  a.run(`ICE_SERVERS = [{ urls: ["turn:t.example:3478", "turn:t.example:3478?transport=tcp"], username: "u", credential: "c" }, { urls: "stun:s.example" }];`);
+  assert.equal(a.run(`isRelayOnly("bob")`), false);
+  a.run(`markRelayOnly("bob")`);
+  assert.equal(a.run(`isRelayOnly("bob")`), true);
+  assert.equal(a.run(`isRelayOnly("carol")`), false);
+  const servers = JSON.parse(JSON.stringify(a.run(`relayCapableServers()`)));
+  assert.equal(servers.length, 1, "только TURN-серверы");
+  const l = a.run(`(() => { const l = new PeerLink({ id: "bob", localName: "me", role: "offerer" }); window.__rl = l; return l._relayOnly; })()`);
+  assert.equal(l, true);
+  const offer = await a.window.__rl.createInitialOffer("room");
+  assert.equal(offer.rl, 1, "offer помечен rl:1 — собеседник тоже уйдёт на relay");
+  a.run(`window.__rl.close()`);
+  a.close();
+});
