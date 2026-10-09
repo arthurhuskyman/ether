@@ -714,6 +714,7 @@ window.__LANG_DICTS["kk"] = {
     "settings.hideNotifContent": "Хабарландыруларда хабарлама мәтінін жасыру",
     "call.screenSharing": "Сіз экранды бөлісіп жатырсыз",
     "fx2.draw.stop": "Сызуды тоқтату",
+    "chat.forwardedFrom": "{name} жіберген",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("kk");

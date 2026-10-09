@@ -714,6 +714,7 @@ window.__LANG_DICTS["su"] = {
     "settings.hideNotifContent": "Sumputkeun eusi pesen dina bewara",
     "call.screenSharing": "Anjeun keur ngabagi layar",
     "fx2.draw.stop": "Eureun ngagambar",
+    "chat.forwardedFrom": "Diteruskeun ti {name}",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("su");

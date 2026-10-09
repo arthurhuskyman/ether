@@ -714,6 +714,7 @@ window.__LANG_DICTS["ar"] = {
     "settings.hideNotifContent": "إخفاء نص الرسائل في الإشعارات",
     "call.screenSharing": "أنت تشارك شاشتك",
     "fx2.draw.stop": "إيقاف الرسم",
+    "chat.forwardedFrom": "تمت إعادة التوجيه من {name}",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ar");

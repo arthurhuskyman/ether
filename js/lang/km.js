@@ -714,6 +714,7 @@ window.__LANG_DICTS["km"] = {
     "settings.hideNotifContent": "លាក់អត្ថបទសារក្នុងការជូនដំណឹង",
     "call.screenSharing": "អ្នកកំពុងចែករំលែកអេក្រង់របស់អ្នក",
     "fx2.draw.stop": "បញ្ឈប់ការគូរ",
+    "chat.forwardedFrom": "បានបញ្ជូនបន្តពី {name}",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("km");

@@ -714,6 +714,7 @@ window.__LANG_DICTS["mn"] = {
     "settings.hideNotifContent": "Мэдэгдэлд мессежийн текстийг нуух",
     "call.screenSharing": "Та дэлгэцээ хуваалцаж байна",
     "fx2.draw.stop": "Зурахыг зогсоох",
+    "chat.forwardedFrom": "{name}-аас дамжуулсан",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("mn");

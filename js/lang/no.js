@@ -714,6 +714,7 @@ window.__LANG_DICTS["no"] = {
     "settings.hideNotifContent": "Skjul meldingstekst i varsler",
     "call.screenSharing": "Du deler skjermen din",
     "fx2.draw.stop": "Stopp tegning",
+    "chat.forwardedFrom": "Videresendt fra {name}",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("no");

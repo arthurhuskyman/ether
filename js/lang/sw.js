@@ -714,6 +714,7 @@ window.__LANG_DICTS["sw"] = {
     "settings.hideNotifContent": "Ficha maandishi ya ujumbe kwenye arifa",
     "call.screenSharing": "Unashiriki skrini yako",
     "fx2.draw.stop": "Acha kuchora",
+    "chat.forwardedFrom": "Imetumwa kutoka kwa {name}",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("sw");

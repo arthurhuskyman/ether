@@ -714,6 +714,7 @@ window.__LANG_DICTS["fr"] = {
     "settings.hideNotifContent": "Masquer le texte des messages dans les notifications",
     "call.screenSharing": "Vous partagez votre écran",
     "fx2.draw.stop": "Arrêter le dessin",
+    "chat.forwardedFrom": "Transféré de {name}",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("fr");

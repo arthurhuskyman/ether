@@ -714,6 +714,7 @@ window.__LANG_DICTS["fi"] = {
     "settings.hideNotifContent": "Piilota viestin teksti ilmoituksista",
     "call.screenSharing": "Jaat näyttöäsi",
     "fx2.draw.stop": "Lopeta piirtäminen",
+    "chat.forwardedFrom": "Välitetty käyttäjältä {name}",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("fi");

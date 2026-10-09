@@ -714,6 +714,7 @@ window.__LANG_DICTS["sr"] = {
     "settings.hideNotifContent": "Сакриј текст порука у обавештењима",
     "call.screenSharing": "Делите свој екран",
     "fx2.draw.stop": "Заустави цртање",
+    "chat.forwardedFrom": "Прослеђено од {name}",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("sr");

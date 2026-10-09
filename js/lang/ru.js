@@ -693,6 +693,7 @@ window.__LANG_DICTS["ru"] = {
     "chats.filter.groups": "Группы",
     "chats.filter.direct": "Личные",
     "chats.filter.calls": "Звонки",
+    "chat.forwardedFrom": "Переслано от {name}",
     "chat.forwarded": "Переслано",
     "chat.contact.unarchive": "Из архива",
     "settings.hideNotifContent": "Скрывать текст сообщений в уведомлениях",

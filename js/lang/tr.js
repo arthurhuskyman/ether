@@ -714,6 +714,7 @@ window.__LANG_DICTS["tr"] = {
     "settings.hideNotifContent": "Bildirimlerde mesaj metnini gizle",
     "call.screenSharing": "Ekranınızı paylaşıyorsunuz",
     "fx2.draw.stop": "Çizimi durdur",
+    "chat.forwardedFrom": "{name} kişisinden iletildi",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("tr");

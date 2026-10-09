@@ -2472,12 +2472,13 @@ html[data-theme="light"] .bubble-row.theirs .bubble-forwarded { background: rgba
 /* кольцо «активен сейчас» — круг, а не квадрат */
 #chat-peer-avatar, .chat-peer-avatar { border-radius: 50%; }
 #chat-peer-avatar.fx-active { border-radius: 50%; }
-/* шапка чата: имя и кристалл в одной строке, статус ниже — ничего не вылезает за 50px */
-.chat-peer-info-col { display: grid; grid-template-columns: minmax(0, auto) auto; align-items: center; column-gap: 5px; justify-items: start; }
-.chat-peer-info-col > #chat-peer-name { grid-column: 1; min-width: 0; }
-.chat-peer-info-col > #fx-vault-crystal { grid-column: 2; align-self: center; }
-.chat-peer-info-col > .chat-peer-status-row { grid-column: 1 / -1; }
-
+/* шапка чата: имя (с кристаллом) в одной строке, статус ниже; длинное имя не обрезается, пока есть место */
+.chat-peer-info-col { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+.chat-peer-name-row { display: flex; align-items: center; gap: 5px; min-width: 0; max-width: 100%; }
+.chat-peer-name-row > #chat-peer-name { flex: 0 1 auto; min-width: 0; }
+.chat-peer-name-row > #fx-vault-crystal { flex: none; }
+.chat-peer-status-row { min-width: 0; max-width: 100%; }
+#nav-chat-mode .chat-header-info { min-width: 0; flex: 1 1 auto; }
 /* эмодзи-пикер: ни одна строка не сжимается (раньше полоса категорий схлопывалась до 15px и налезала на заголовок) */
 #emoji-picker-sheet .sheet-panel { display: flex; flex-direction: column; overflow: hidden; }
 #emoji-picker-sheet .sheet-panel > * { flex: 0 0 auto; }
@@ -2506,7 +2507,8 @@ html.inline-search-open #search-dock { display: block; animation: searchDrop .18
 #search-dock .search-everywhere { display: none; margin-top: 6px; }
 html[data-search-tab="chats"] #search-dock [data-search-tab="chats"],
 html[data-search-tab="connect"] #search-dock [data-search-tab="connect"],
-html[data-search-tab="settings"] #search-dock [data-search-tab="settings"] { display: block; }
+html[data-search-tab="settings"] #search-dock [data-search-tab="settings"],
+html[data-search-tab="debug"] #search-dock [data-search-tab="debug"] { display: block; }
 @keyframes searchDrop { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
 
 /* Пустой чат: красочная сцена — северное сияние, мерцающие звёзды, тёплый огонёк */

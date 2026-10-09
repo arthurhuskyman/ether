@@ -714,6 +714,7 @@ window.__LANG_DICTS["tl"] = {
     "settings.hideNotifContent": "Itago ang teksto ng mensahe sa mga notification",
     "call.screenSharing": "Ibinabahagi mo ang iyong screen",
     "fx2.draw.stop": "Ihinto ang pagguhit",
+    "chat.forwardedFrom": "Ipinasa mula kay {name}",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("tl");

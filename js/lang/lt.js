@@ -714,6 +714,7 @@ window.__LANG_DICTS["lt"] = {
     "settings.hideNotifContent": "Slėpti žinutės tekstą pranešimuose",
     "call.screenSharing": "Bendrinate savo ekraną",
     "fx2.draw.stop": "Baigti piešti",
+    "chat.forwardedFrom": "Persiųsta nuo {name}",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("lt");

@@ -714,6 +714,7 @@ window.__LANG_DICTS["ka"] = {
     "settings.hideNotifContent": "შეტყობინების ტექსტის დამალვა შეტყობინებებში",
     "call.screenSharing": "თქვენ აზიარებთ ეკრანს",
     "fx2.draw.stop": "ხატვის შეჩერება",
+    "chat.forwardedFrom": "გადმოგზავნილია {name}-ისგან",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ka");

@@ -714,6 +714,7 @@ window.__LANG_DICTS["ceb"] = {
     "settings.hideNotifContent": "Itago ang teksto sa mensahe sa mga notipikasyon",
     "call.screenSharing": "Nag-share ka sa imong screen",
     "fx2.draw.stop": "Undangi ang pagdrowing",
+    "chat.forwardedFrom": "Gipasa gikan kang {name}",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ceb");

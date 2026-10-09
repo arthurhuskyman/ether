@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.61.0.1";
+const APP_VERSION = "V.61.1.0";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 // Сервер перевода по умолчанию (LibreTranslate-совместимый). Официальный публичный инстанс обычно
@@ -120,7 +120,12 @@ const ONBOARDING_HINT_SHOWN = "ether.hintShown";
 const PIN_ITERATIONS = 120000;
 const DEBUG_KEY = "ether.debugHidden";
 const CONNECT_STUCK_MS = 30000;
-const WATCH_CONNECT_TIMEOUT_MS = 10000;  // было 20000
+const WATCH_CONNECT_TIMEOUT_MS = 10000;  // базовое ожидание подключения; при повторных неудачах растёт (см. connectWaitMs)
+// Чем больше подряд неудач с контактом, тем дольше ждём очередную попытку и тем реже стартуем новую: на плохой сети (3G/2G, LTE-модем)
+// ICE и TURN просто не успевают за 10 секунд, а бесконечный цикл «создать — убить через 10 с» только мусорит и жжёт квоту TURN.
+const connectFails = new Map();
+function connectWaitMs(id) { const n = connectFails.get(id) || 0; return [10000, 16000, 24000, 32000][Math.min(n, 3)]; }
+function connectRetryDelayMs(id) { const n = connectFails.get(id) || 0; return Math.min(800 * Math.pow(2, n), 20000); }
 const ACK_DEDUP_WINDOW_MS = 5000;
 const CALL_DEAD_LINK_TIMEOUT_MS = 10000;
 const INCOMING_CALL_TIMEOUT_MS = PENDING_CALL_TIMEOUT_MS - 2000;
@@ -4114,7 +4119,7 @@ if (m.replyTo) {
   const rtId = m.replyTo.id || m.replyTo.msgId || "";
   replyHtml = `<div class="bubble-reply" data-reply-to-id="${escapeHtml(rtId)}"><div class="bubble-reply-author">${escapeHtml(m.replyTo.authorName || "")}</div><div class="bubble-reply-text">${escapeHtml(truncate(m.replyTo.text || "", 80))}</div></div>`;
 }
-    const fwdMark = m.forwarded ? `<div class="bubble-forwarded">${escapeHtml(T("chat.forwarded"))}</div>` : "";
+    const fwdMark = m.forwarded ? `<div class="bubble-forwarded">${escapeHtml(m.forwardedFrom ? T("chat.forwardedFrom", { name: m.forwardedFrom }) : T("chat.forwarded"))}</div>` : "";
     let reactionsHtml = "";
     if (m.reactions && typeof m.reactions === "object") {
       const chips = Object.entries(m.reactions).filter(([, users]) => Array.isArray(users) && users.length > 0);
@@ -5591,7 +5596,7 @@ function handleFilePayload(from, payload) {
     const rec = { id: payload.id, from: "them", text: "", ts: Date.now(), readAckSent: false,
       file: { name: payload.name, mime: payload.mime, size: payload.size, kind: fileKindFromMime(payload.mime), duration: payload.duration || 0, pending: true } };
     if (payload.ttl) rec.ttl = payload.ttl;
-    if (payload.forwarded) rec.forwarded = true;
+    if (payload.forwarded) { rec.forwarded = true; if (typeof payload.fwdFrom === "string" && payload.fwdFrom) rec.forwardedFrom = payload.fwdFrom.slice(0, 40); }
     if (typeof payload.caption === "string" && payload.caption) rec.file.caption = payload.caption.slice(0, 200);
     c.messages.push(rec); trimMessages(c); c.lastActivity = Date.now(); persistContacts();
     if (isOpen) renderChatThread();
@@ -6407,6 +6412,7 @@ async function forwardContact(fromContactId, toContactId) {
 // Пересылка в группу: каждому участнику уходит своя копия (как у обычных групповых сообщений), с пометкой «Переслано»
 async function forwardIntoGroup(g, rec, m, srcMsgId) {
   const payload = { id: rec.id, ts: rec.ts, groupId: g.id, senderName: Store.name || T("sys.someone"), forwarded: true };
+  if (rec.forwardedFrom) payload.fwdFrom = rec.forwardedFrom;
   if (g.disappearingTimer) { payload.ttl = g.disappearingTimer; rec.ttl = g.disappearingTimer; }
   const fail = (msgKey) => {
     if (rec.file) { rec.file.pending = false; rec.file.failed = true; }
@@ -6450,10 +6456,13 @@ async function forwardMessage(msgId, fromContactId, toContactId) {
   if (to.isGroup && !isGroupWriteAllowed(to, Store.myId)) { toast(T("toast.groupWriteRestricted")); return; }
   const msgId2 = crypto.randomUUID();
   const ts = Date.now();
+  // Автор оригинала: «Переслано от …» (если сообщение уже пересылали — остаётся первый автор)
+  const origName = String(m.forwardedFrom || (m.from === "me" ? (Store.name || "") : (m.fromName || from.name || ""))).slice(0, 40);
   const rec = {
     id: msgId2, from: "me", text: m.text || "", ts,
     ack: "sent", forwarded: true, serverAcked: false,
   };
+  if (origName) rec.forwardedFrom = origName;
   if (to.isGroup && m.contactCard) { rec.contactCard = undefined; rec.text = "📇 " + (m.contactCard.name || ""); }
 
   // ── Копируем метаданные файла (если это файл/фото/видео/голосовое) ──
@@ -6521,6 +6530,7 @@ async function forwardMessage(msgId, fromContactId, toContactId) {
           chunks.push(arrayBufferToBase64(buffer.slice(offset, offset + FILE_CHUNK_SIZE)));
         }
         const meta = { id: msgId2, name: m.file.name, mime: m.file.mime, size: m.file.size, forwarded: true };
+        if (rec.forwardedFrom) meta.fwdFrom = rec.forwardedFrom;
         if (m.file.duration != null) meta.duration = m.file.duration;
         if (m.file.caption) meta.caption = m.file.caption;
         const ok = await link.sendFile(meta, chunks);
@@ -6548,6 +6558,7 @@ async function forwardMessage(msgId, fromContactId, toContactId) {
         dataB64: arrayBufferToBase64(buffer),
         forwarded: true,
       };
+      if (rec.forwardedFrom) payload.fwdFrom = rec.forwardedFrom;
       if (m.file.duration != null) payload.duration = m.file.duration;
       if (m.file.caption) payload.caption = m.file.caption;
       await trySendOrQueue(to, msgId2, payload);
@@ -6575,12 +6586,14 @@ async function forwardMessage(msgId, fromContactId, toContactId) {
       contactName: m.contactCard.name || "",
       forwarded: true,
     };
+    if (rec.forwardedFrom) payload.fwdFrom = rec.forwardedFrom;
     await trySendOrQueue(to, msgId2, payload);
     return;
   }
 
   // ── 3. ОБЫЧНЫЙ ТЕКСТ ──
   const payload = { kind: "chat", id: msgId2, text: m.text || "", ts, forwarded: true };
+  if (rec.forwardedFrom) payload.fwdFrom = rec.forwardedFrom;
   await trySendOrQueue(to, msgId2, payload);
 }
 async function trySendOrQueue(contact, msgId, payloadObj) {
@@ -7446,7 +7459,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     const rec = { id: payload.id, from: "them", text: payload.text, ts: payload.ts || Date.now(), readAckSent: false, deliveryId: envelopeMsgId };
     if (groupId) { rec.fromId = from; rec.fromName = payload.senderName || (state.contacts.get(from) && state.contacts.get(from).name) || T("sys.someone"); }
     if (payload.replyTo) rec.replyTo = payload.replyTo;
-    if (payload.forwarded) rec.forwarded = true;
+    if (payload.forwarded) { rec.forwarded = true; if (typeof payload.fwdFrom === "string" && payload.fwdFrom) rec.forwardedFrom = payload.fwdFrom.slice(0, 40); }
     if (payload.ttl) rec.ttl = payload.ttl;
     if (groupId && Store.name && typeof payload.text === "string" && isMentioned(payload.text, Store.name)) {
       rec.mentionMe = true;
@@ -7507,7 +7520,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
       id: payload.id, from: "them", text: "", ts: payload.ts || Date.now(), readAckSent: false, deliveryId: envelopeMsgId,
       file: { name: payload.name || "file", mime: payload.mime || "application/octet-stream", size: payload.size || blob.size, kind: fileKindFromMime(payload.mime), duration: payload.duration, pending: false },
     };
-    if (payload.forwarded) rec.forwarded = true;
+    if (payload.forwarded) { rec.forwarded = true; if (typeof payload.fwdFrom === "string" && payload.fwdFrom) rec.forwardedFrom = payload.fwdFrom.slice(0, 40); }
     if (typeof payload.caption === "string" && payload.caption) rec.file.caption = payload.caption.slice(0, 200);
     c.messages.push(rec); trimMessages(c); c.lastActivity = Date.now();
     persistContacts();
@@ -7671,7 +7684,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     if (c.messages.some((m) => m.id === payload.id)) return;
     const isOpen = state.chatId === from;
     const rec = { id: payload.id, from: "them", text: "", ts: payload.ts || Date.now(), readAckSent: false, deliveryId: envelopeMsgId, contactCard: { id: payload.contactId, name: payload.contactName || "" } };
-    if (payload.forwarded) rec.forwarded = true;
+    if (payload.forwarded) { rec.forwarded = true; if (typeof payload.fwdFrom === "string" && payload.fwdFrom) rec.forwardedFrom = payload.fwdFrom.slice(0, 40); }
     c.messages.push(rec); trimMessages(c); c.lastActivity = Date.now();
     persistContacts();
     const previewText = T("chat.contactCard.preview", { name: payload.contactName || T("sys.someone") });
@@ -7833,6 +7846,7 @@ async function attemptConnectViaRelay(targetId) {
 }
 
 function scheduleAutoConnect(id) {
+  const delay = connectRetryDelayMs(id);
   // Только одна отложенная попытка на контакт (было: немедленная +
   // ещё одна через 4с). Короткая задержка нужна, чтобы дать встречной
   // стороне тоже увидеть presence — тогда тай-брейк по id отработает
@@ -7844,7 +7858,7 @@ function scheduleAutoConnect(id) {
     autoConnectTimers.delete(id);
     attemptConnect(id);
     attemptConnectViaRelay(id).catch(() => {});
-  }, 800));
+  }, delay));
 }
 const _notMyTurnLogAt = new Map();
 
@@ -7900,6 +7914,8 @@ function watchConnectionTimeout(id) {
   setTimeout(() => {
     const link = mesh.get(id);
     if (!link || link !== watched || link.status === "connected" || link.status === "in-call" || link.status === "disconnected") return;
+    connectFails.set(id, (connectFails.get(id) || 0) + 1);
+    etherLog("info", "[connect] " + String(id).slice(0, 10) + "…", "не подключились, неудач подряд: " + connectFails.get(id) + "; следующая попытка через " + Math.round(connectRetryDelayMs(id) / 1000) + " с");
     mesh.remove(id);
     const c = state.contacts.get(id);
     if (c) {
@@ -7908,7 +7924,7 @@ function watchConnectionTimeout(id) {
       if (state.tab === "chats") renderChatsList();
       if (c.managed && c.online) scheduleAutoConnect(id);
     }
-  }, WATCH_CONNECT_TIMEOUT_MS);
+  }, connectWaitMs(id));
 }
 
 // =====================================================================
@@ -11207,7 +11223,7 @@ function globalSearchRowHtml(kind, id, avatarHtml, title, subtitle) {
 }
 // Один поиск вместо двух: на вкладках с собственным полем (Общение, Контакты, Настройки) лупа в шапке просто ведёт к этому полю,
 // а когда в поле есть текст, под ним появляется «Искать везде» — переход в общий поиск (чаты, сообщения, контакты, настройки) с тем же запросом.
-const INLINE_SEARCH_FIELDS = { chats: "#global-search", connect: "#contacts-search", settings: "#settings-search" };
+const INLINE_SEARCH_FIELDS = { chats: "#global-search", connect: "#contacts-search", settings: "#settings-search", debug: "#debug-search" };
 // Поиск живёт в одном месте — лупа в шапке. По нажатию над списком выезжает поле поиска ТЕКУЩЕЙ вкладки (чаты / контакты / настройки);
 // под ним — «Искать везде» (общий поиск по чатам, сообщениям, контактам и настройкам с тем же запросом). Пока поиск закрыт, места он не занимает.
 function setInlineSearchOpen(open) {
@@ -11250,7 +11266,29 @@ function wireSearchBridge() {
     link.addEventListener("click", () => { const v = input.value.trim(); setInlineSearchOpen(false); openGlobalSearch(v); });
   }
 }
+// Вкладка «Отладка»: то же поле, что и на других вкладках (в общей панели под шапкой); фильтрует пункты экрана
+function wireDebugSearch() {
+  const input = $("#debug-search"); if (!input || input.dataset.filterWired) return;
+  input.dataset.filterWired = "1";
+  input.addEventListener("input", () => {
+    const q = input.value.trim().toLowerCase();
+    const scr = $("#screen-debug"); if (!scr) return;
+    scr.querySelectorAll(".settings-group").forEach((g) => {
+      const rows = Array.from(g.querySelectorAll(".settings-row, p.fine"));
+      let any = false;
+      rows.forEach((r) => {
+        const hit = !q || (r.textContent || "").toLowerCase().includes(q) || (r.matches("p.fine") ? false : false);
+        // пояснения (p.fine) показываем только без запроса; пункты — по совпадению текста (и вложенные строки считаются отдельно)
+        const show = r.matches("p.fine") ? !q : (!q || hit);
+        r.classList.toggle("search-hidden", !show);
+        if (show && !r.matches("p.fine")) any = true;
+      });
+      g.classList.toggle("search-hidden", !!q && !any);
+    });
+  });
+}
 function wireGlobalSearch() {
+  wireDebugSearch();
   const btn = $("#global-search-btn");
   if (btn) btn.addEventListener("click", focusInlineSearchOrGlobal);
   wireSearchBridge();
@@ -12052,6 +12090,7 @@ function wireMeshEvents() {
       const wasConnected = c.status === "connected" || c.status === "in-call";
       c.status = status;
       etherLog("info", "[link] " + String(id).slice(0, 10) + "…", "status=" + status);
+      if (status === "connected" || status === "in-call") connectFails.delete(id);
       if (status === "connected" && !wasConnected) {
         const link = mesh.get(id);
         if (link && link.remoteName) c.name = link.remoteName;

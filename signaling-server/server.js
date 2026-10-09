@@ -71,6 +71,14 @@ const FALLBACK_ICE = [
 const TURN_STATIC_URL = process.env.TURN_STATIC_URL || "";
 const TURN_STATIC_USERNAME = process.env.TURN_STATIC_USERNAME || "";
 const TURN_STATIC_PASSWORD = process.env.TURN_STATIC_PASSWORD || "";
+// Запасной TURN-провайдер (например, с TLS на 443): TURN_EXTRA_JSON='[{"urls":["turns:host:443?transport=tcp"],"username":"u","credential":"p"}]'
+function extraTurnServers() {
+  try {
+    const raw = process.env.TURN_EXTRA_JSON; if (!raw) return [];
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr.filter((x) => x && x.urls && x.username && x.credential) : [];
+  } catch (e) { console.warn("[ice] TURN_EXTRA_JSON не разобран:", String(e)); return []; }
+}
 function staticTurnServers() {
   if (!TURN_STATIC_URL || !TURN_STATIC_USERNAME || !TURN_STATIC_PASSWORD) return null;
   // TURN_STATIC_URL может содержать несколько адресов через запятую/пробел. К каждому turn:host:port
@@ -83,6 +91,7 @@ function staticTurnServers() {
   }
   return [
     { urls: Array.from(new Set(urls)), username: TURN_STATIC_USERNAME, credential: TURN_STATIC_PASSWORD },
+    ...extraTurnServers(),
     { urls: "stun:stun.l.google.com:19302" },
   ];
 }
@@ -258,7 +267,7 @@ async function getIceServers() {
       servers = null;
     }
   }
-  if (!servers) servers = FALLBACK_ICE.slice();
+  if (!servers) servers = FALLBACK_ICE.slice().concat(extraTurnServers());
   iceCache = { at: now, servers };
   return servers;
 }

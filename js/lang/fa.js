@@ -714,6 +714,7 @@ window.__LANG_DICTS["fa"] = {
     "settings.hideNotifContent": "پنهان کردن متن پیام در اعلان‌ها",
     "call.screenSharing": "شما در حال اشتراک‌گذاری صفحه‌نمایش خود هستید",
     "fx2.draw.stop": "توقف نقاشی",
+    "chat.forwardedFrom": "هدایت‌شده از {name}",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("fa");

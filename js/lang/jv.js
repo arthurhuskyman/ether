@@ -714,6 +714,7 @@ window.__LANG_DICTS["jv"] = {
     "settings.hideNotifContent": "Delikake isi pesen ing kabar",
     "call.screenSharing": "Sampeyan lagi nuduhake layar",
     "fx2.draw.stop": "Mungkasi nggambar",
+    "chat.forwardedFrom": "Diterusake saka {name}",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("jv");

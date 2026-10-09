@@ -714,6 +714,7 @@ window.__LANG_DICTS["uz"] = {
     "settings.hideNotifContent": "Bildirishnomalarda xabar matnini yashirish",
     "call.screenSharing": "Siz ekraningizni ulashmoqdasiz",
     "fx2.draw.stop": "Chizishni to‘xtatish",
+    "chat.forwardedFrom": "{name} dan yuborilgan",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("uz");

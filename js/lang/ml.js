@@ -714,6 +714,7 @@ window.__LANG_DICTS["ml"] = {
     "settings.hideNotifContent": "അറിയിപ്പുകളിൽ സന്ദേശ വാചകം മറയ്ക്കുക",
     "call.screenSharing": "നിങ്ങൾ നിങ്ങളുടെ സ്ക്രീൻ പങ്കിടുന്നു",
     "fx2.draw.stop": "വരയ്ക്കൽ നിർത്തുക",
+    "chat.forwardedFrom": "{name} ഫോർവേഡ് ചെയ്തത്",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ml");

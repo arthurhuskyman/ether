@@ -714,6 +714,7 @@ window.__LANG_DICTS["uk"] = {
     "settings.hideNotifContent": "Приховувати текст повідомлень у сповіщеннях",
     "call.screenSharing": "Ви демонструєте свій екран",
     "fx2.draw.stop": "Зупинити малювання",
+    "chat.forwardedFrom": "Переслано від {name}",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("uk");

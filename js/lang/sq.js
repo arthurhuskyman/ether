@@ -714,6 +714,7 @@ window.__LANG_DICTS["sq"] = {
     "settings.hideNotifContent": "Fshih tekstin e mesazheve në njoftime",
     "call.screenSharing": "Po ndani ekranin tuaj",
     "fx2.draw.stop": "Ndalo vizatimin",
+    "chat.forwardedFrom": "Përcjellë nga {name}",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("sq");

@@ -714,6 +714,7 @@ window.__LANG_DICTS["vi"] = {
     "settings.hideNotifContent": "Ẩn nội dung tin nhắn trong thông báo",
     "call.screenSharing": "Bạn đang chia sẻ màn hình",
     "fx2.draw.stop": "Dừng vẽ",
+    "chat.forwardedFrom": "Được chuyển tiếp từ {name}",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("vi");

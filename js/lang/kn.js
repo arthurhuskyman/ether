@@ -714,6 +714,7 @@ window.__LANG_DICTS["kn"] = {
     "settings.hideNotifContent": "ಅಧಿಸೂಚನೆಗಳಲ್ಲಿ ಸಂದೇಶದ ಪಠ್ಯ ಮರೆಮಾಡಿ",
     "call.screenSharing": "ನೀವು ನಿಮ್ಮ ಪರದೆಯನ್ನು ಹಂಚಿಕೊಳ್ಳುತ್ತಿದ್ದೀರಿ",
     "fx2.draw.stop": "ಚಿತ್ರಬಿಡಿಸುವುದನ್ನು ನಿಲ್ಲಿಸಿ",
+    "chat.forwardedFrom": "{name} ಅವರಿಂದ ಫಾರ್ವರ್ಡ್ ಮಾಡಲಾಗಿದೆ",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("kn");

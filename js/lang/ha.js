@@ -714,6 +714,7 @@ window.__LANG_DICTS["ha"] = {
     "settings.hideNotifContent": "Ɓoye rubutun saƙo a cikin sanarwa",
     "call.screenSharing": "Kuna raba allonka",
     "fx2.draw.stop": "Daina zane",
+    "chat.forwardedFrom": "An tura daga {name}",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ha");

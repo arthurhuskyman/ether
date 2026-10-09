@@ -714,6 +714,7 @@ window.__LANG_DICTS["si"] = {
     "settings.hideNotifContent": "දැනුම්දීම්වල පණිවිඩ පෙළ සඟවන්න",
     "call.screenSharing": "ඔබ ඔබේ තිරය බෙදා ගනිමින් සිටී",
     "fx2.draw.stop": "ඇඳීම නවත්වන්න",
+    "chat.forwardedFrom": "{name} වෙතින් ඉදිරියට යැවූ",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("si");

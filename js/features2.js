@@ -227,16 +227,18 @@ function fx2RenderConstellation() {
     bar = document.createElement("div"); bar.id = "fx-view-toggle"; bar.className = "fx-view-toggle";
     bar.innerHTML = `<button type="button" data-view="list" data-i18n="fx2.list">${fx2Esc(T("fx2.list"))}</button><button type="button" data-view="constellation" data-i18n="fx2.constellation">${fx2Esc(T("fx2.constellation"))}</button>`;
     bar.addEventListener("click", (e) => { const b = e.target.closest("button[data-view]"); if (b) { FX.set("constellation", b.dataset.view === "constellation"); } });
-    search.insertAdjacentElement("beforebegin", bar);
   }
+  // Переключатель «Список/Созвездие» и само созвездие живут в карточке «Мои контакты» (поле поиска вынесено в общую панель под шапкой)
+  const anchor = card.querySelector("p.muted") || card.querySelector("h2") || card.firstElementChild;
+  if (anchor && bar.previousElementSibling !== anchor) anchor.insertAdjacentElement("afterend", bar);
   let box = document.getElementById("fx-constellation");
-  if (!box) { box = document.createElement("div"); box.id = "fx-constellation"; box.className = "fx-constellation hidden"; search.insertAdjacentElement("afterend", box); }
+  if (!box) { box = document.createElement("div"); box.id = "fx-constellation"; box.className = "fx-constellation hidden"; }
+  if (bar.nextElementSibling !== box) bar.insertAdjacentElement("afterend", box);
   const stars = constellationStars(Array.from(state.contacts.values()));
   const want = !!FX.get("constellation") && stars.length > 0;
   bar.querySelectorAll("button").forEach((b) => b.classList.toggle("active", (b.dataset.view === "constellation") === !!FX.get("constellation")));
   const list = document.getElementById("contacts-list"), idx = document.getElementById("contacts-index");
   box.classList.toggle("hidden", !want);
-  search.classList.toggle("hidden", want);
   if (list) list.classList.toggle("hidden", want);
   if (idx && want) idx.classList.add("hidden");
   if (!want) { box.innerHTML = ""; return; }

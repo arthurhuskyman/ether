@@ -714,6 +714,7 @@ window.__LANG_DICTS["bg"] = {
     "settings.hideNotifContent": "Скриване на текста на съобщенията в известията",
     "call.screenSharing": "Споделяте екрана си",
     "fx2.draw.stop": "Спри рисуването",
+    "chat.forwardedFrom": "Препратено от {name}",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("bg");

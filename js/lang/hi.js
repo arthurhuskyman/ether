@@ -714,6 +714,7 @@ window.__LANG_DICTS["hi"] = {
     "settings.hideNotifContent": "सूचनाओं में संदेश का टेक्स्ट छिपाएँ",
     "call.screenSharing": "आप अपनी स्क्रीन साझा कर रहे हैं",
     "fx2.draw.stop": "ड्रॉइंग बंद करें",
+    "chat.forwardedFrom": "{name} से फ़ॉरवर्ड किया गया",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("hi");

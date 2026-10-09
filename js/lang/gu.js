@@ -714,6 +714,7 @@ window.__LANG_DICTS["gu"] = {
     "settings.hideNotifContent": "સૂચનાઓમાં સંદેશનું લખાણ છુપાવો",
     "call.screenSharing": "તમે તમારી સ્ક્રીન શેર કરી રહ્યા છો",
     "fx2.draw.stop": "દોરવાનું બંધ કરો",
+    "chat.forwardedFrom": "{name} તરફથી ફોરવર્ડ કરેલ",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("gu");

@@ -714,6 +714,7 @@ window.__LANG_DICTS["sv"] = {
     "settings.hideNotifContent": "Dölj meddelandetext i aviseringar",
     "call.screenSharing": "Du delar din skärm",
     "fx2.draw.stop": "Sluta rita",
+    "chat.forwardedFrom": "Vidarebefordrat från {name}",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("sv");

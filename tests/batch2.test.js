@@ -214,3 +214,60 @@ test("свайп строки чата: кнопки действий скрыт
   assert.match(css, /\.chat-row-wrapper \.chat-row-actions \{ opacity: 0; visibility: hidden/);
   assert.match(css, /\.chat-row-wrapper\.drag-start \.chat-row-actions-start/);
 });
+
+test("пересланное: «Переслано от <автор оригинала>» — у отправителя и получателя, автор сохраняется при повторной пересылке", async () => {
+  const a = await app();
+  const sent = [];
+  a.window.__sent = sent;
+  a.run(`ensureContactEntry("bob","Bob"); state.contacts.get("bob").managed = true; state.contacts.get("alice").managed = true;
+    trySendOrQueue = async (contact, id, payload) => { window.__sent.push({ to: contact.id, payload }); };
+    state.contacts.get("alice").messages.push({id:"orig", from:"them", text:"привет", ts: Date.now()});`);
+  await a.run(`forwardMessage("orig", "alice", "bob")`);
+  assert.equal(sent[0].payload.fwdFrom, "Alice");
+  const rec = a.run(`state.contacts.get("bob").messages.at(-1)`);
+  assert.equal(rec.forwardedFrom, "Alice");
+  a.run(`state.chatId = "bob"; renderTab();`);
+  assert.match(a.document.querySelector("#chat-messages .bubble-forwarded").textContent, /Alice/);
+  // повторная пересылка из bob в alice сохраняет первого автора
+  await a.run(`forwardMessage(state.contacts.get("bob").messages.at(-1).id, "bob", "alice")`);
+  assert.equal(sent[1].payload.fwdFrom, "Alice");
+  // получатель
+  a.run(`applyIncomingPayload("alice", "in1", { kind: "chat", id: "in1", text: "x", ts: Date.now(), forwarded: true, fwdFrom: "Zed" }, false, "chat")`);
+  assert.equal(a.run(`state.contacts.get("alice").messages.find((m) => m.id === "in1").forwardedFrom`), "Zed");
+  a.close();
+});
+
+test("поиск в «Отладке»: поле в общей панели, фильтрует пункты; Список/Созвездие остаются в карточке «Мои контакты»", async () => {
+  const a = await app();
+  const dock = a.document.querySelector("#search-dock");
+  assert.ok(dock.querySelector("#debug-search"), "поле отладки в панели под шапкой");
+  const input = a.document.querySelector("#debug-search");
+  input.value = "diagnostics"; input.dispatchEvent(new a.window.Event("input", { bubbles: true }));
+  const visible = Array.from(a.document.querySelectorAll("#screen-debug .settings-row")).filter((r) => !r.classList.contains("search-hidden")).map((r) => r.id);
+  assert.ok(visible.includes("diagnostics-btn") || visible.includes("export-diagnostics-btn"), "найден пункт диагностики: " + visible.join(","));
+  assert.ok(!visible.includes("reset-all-btn"));
+  input.value = ""; input.dispatchEvent(new a.window.Event("input", { bubbles: true }));
+  assert.equal(a.document.querySelectorAll("#screen-debug .search-hidden").length, 0);
+  a.run(`fx2RenderConstellation && fx2RenderConstellation()`);
+  assert.ok(a.document.querySelector("#screen-connect .connect-card #fx-view-toggle"), "переключатель вида внутри карточки контактов");
+  assert.ok(!dock.querySelector("#fx-view-toggle"), "и не в панели поиска");
+  a.close();
+});
+
+test("подключение: повторные неудачи растягивают ожидание и паузу между попытками; TURN по TCP/TLS — только в режиме relay-only", async () => {
+  const a = await app();
+  assert.equal(a.run(`connectWaitMs("x")`), 10000);
+  a.run(`connectFails.set("x", 3)`);
+  assert.equal(a.run(`connectWaitMs("x")`), 32000);
+  assert.equal(a.run(`connectRetryDelayMs("x")`), 6400);
+  a.run(`connectFails.set("x", 9)`);
+  assert.equal(a.run(`connectRetryDelayMs("x")`), 20000, "пауза ограничена");
+  a.run(`ICE_SERVERS = [{ urls: ["turn:t.example:3478", "turn:t.example:3478?transport=tcp", "turns:t.example:443"], username: "u", credential: "c" }];`);
+  const urls = (id) => JSON.parse(JSON.stringify(a.run(`(() => { const l = new PeerLink({ id: "${id}", localName: "me", role: "offerer" }); const u = l.pc.getConfiguration().iceServers; l.close(); return u.map((s) => s.urls); })()`)));
+  const normal = urls("n1").flat();
+  assert.ok(normal.every((u) => !/transport=tcp|^turns:/.test(u)), "обычный режим — только UDP: " + normal.join(","));
+  a.run(`markRelayOnly("n2")`);
+  const relay = urls("n2").flat();
+  assert.ok(relay.some((u) => /transport=tcp/.test(u)) && relay.some((u) => /^turns:/.test(u)), "relay-only — все варианты: " + relay.join(","));
+  a.close();
+});

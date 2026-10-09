@@ -714,6 +714,7 @@ window.__LANG_DICTS["mr"] = {
     "settings.hideNotifContent": "सूचनांमध्ये संदेशाचा मजकूर लपवा",
     "call.screenSharing": "तुम्ही तुमची स्क्रीन शेअर करत आहात",
     "fx2.draw.stop": "चित्र काढणे थांबवा",
+    "chat.forwardedFrom": "{name} कडून फॉरवर्ड केले",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("mr");

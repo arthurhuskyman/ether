@@ -714,6 +714,7 @@ window.__LANG_DICTS["be"] = {
     "settings.hideNotifContent": "Хаваць тэкст паведамленняў у апавяшчэннях",
     "call.screenSharing": "Вы дэманструеце свой экран",
     "fx2.draw.stop": "Спыніць маляванне",
+    "chat.forwardedFrom": "Перасланае ад {name}",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("be");

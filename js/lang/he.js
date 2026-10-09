@@ -714,6 +714,7 @@ window.__LANG_DICTS["he"] = {
     "settings.hideNotifContent": "הסתר את תוכן ההודעות בהתראות",
     "call.screenSharing": "אתם משתפים את המסך שלכם",
     "fx2.draw.stop": "הפסק לצייר",
+    "chat.forwardedFrom": "הועבר מ-{name}",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("he");

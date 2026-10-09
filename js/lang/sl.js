@@ -714,6 +714,7 @@ window.__LANG_DICTS["sl"] = {
     "settings.hideNotifContent": "Skrij besedilo sporočil v obvestilih",
     "call.screenSharing": "Delite svoj zaslon",
     "fx2.draw.stop": "Ustavi risanje",
+    "chat.forwardedFrom": "Posredovano od {name}",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("sl");

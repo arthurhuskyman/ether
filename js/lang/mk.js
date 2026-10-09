@@ -714,6 +714,7 @@ window.__LANG_DICTS["mk"] = {
     "settings.hideNotifContent": "Сокриј го текстот на пораките во известувањата",
     "call.screenSharing": "Го споделувате вашиот екран",
     "fx2.draw.stop": "Запри го цртањето",
+    "chat.forwardedFrom": "Препратено од {name}",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("mk");

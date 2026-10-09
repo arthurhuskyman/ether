@@ -714,6 +714,7 @@ window.__LANG_DICTS["ro"] = {
     "settings.hideNotifContent": "Ascunde textul mesajelor în notificări",
     "call.screenSharing": "Îți partajezi ecranul",
     "fx2.draw.stop": "Oprește desenul",
+    "chat.forwardedFrom": "Redirecționat de la {name}",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ro");

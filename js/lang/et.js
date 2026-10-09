@@ -714,6 +714,7 @@ window.__LANG_DICTS["et"] = {
     "settings.hideNotifContent": "Peida sõnumi tekst teavitustes",
     "call.screenSharing": "Jagad oma ekraani",
     "fx2.draw.stop": "Lõpeta joonistamine",
+    "chat.forwardedFrom": "Edastatud kasutajalt {name}",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("et");

@@ -169,7 +169,13 @@ class PeerLink extends EventTarget {
     // (двойной NAT, мобильные операторы) пул мог оказаться исчерпан
     // прежде, чем ICE реально стартует. 10 — недорого (несколько лишних
     // UDP-пакетов) и заметно ускоряет setup, особенно через TURN.
-    const effectiveIceServers = ICE_SERVERS.length > 0 ? ICE_SERVERS : FALLBACK_ICE;
+    // Обычный режим: TURN только по UDP. Варианты через TCP/TLS (turn:…?transport=tcp, turns:) подключаем лишь в режиме relay-only после
+    // неудачной попытки — иначе недоступный TCP-TURN замедляет сбор кандидатов и портит обычное соединение (ICE error 701 в журнале).
+    const udpOnly = ICE_SERVERS.map((srv) => {
+      const urls = [].concat(srv.urls || []).filter((u) => !/^turns:/i.test(u) && !/transport=tcp/i.test(u));
+      return urls.length ? { ...srv, urls } : null;
+    }).filter(Boolean);
+    const effectiveIceServers = ICE_SERVERS.length > 0 ? (udpOnly.length ? udpOnly : ICE_SERVERS) : FALLBACK_ICE;
     const relayServers = isRelayOnly(id) ? relayCapableServers() : [];
     this._relayOnly = relayServers.length > 0;
     this.pc = new RTCPeerConnection(this._relayOnly
@@ -199,6 +205,10 @@ class PeerLink extends EventTarget {
       if (this._everConnected) return;
       if (this.pc.connectionState !== "connected") {
         this._log("warn", "[webrtc]", id.slice(0, 10) + "…", "connectionState всё ещё '" + this.pc.connectionState + "' спустя 10с, reInvite()");
+        // Что именно застряло: какие пары кандидатов пробовались и получили ли хоть один ответ — главный вопрос при «ICE не подключается»
+        this._logPairs("stall");
+        const ics = this.pc.iceConnectionState;
+        if (ics === "checking" || ics === "new") this._fallbackToRelay("ice-stall");
         this.reInvite();
       }
     }, 10000);
@@ -401,6 +411,24 @@ class PeerLink extends EventTarget {
         await sender.setParameters(p);
       } catch (err) { /* не все браузеры позволяют менять параметры — не критично */ }
     }
+  }
+
+  async _logPairs(reason) {
+    try {
+      const stats = await this.pc.getStats();
+      const byId = new Map(); stats.forEach((r) => byId.set(r.id, r));
+      const rows = []; let local = 0, remote = 0;
+      stats.forEach((r) => {
+        if (r.type === "local-candidate") local++;
+        if (r.type === "remote-candidate") remote++;
+        if (r.type !== "candidate-pair") return;
+        const l = byId.get(r.localCandidateId) || {}, rm = byId.get(r.remoteCandidateId) || {};
+        rows.push((l.candidateType || "?") + "/" + (l.protocol || "?") + (l.relayProtocol ? "(" + l.relayProtocol + ")" : "") + "→" + (rm.candidateType || "?") + "/" + (rm.protocol || "?")
+          + " " + r.state + " ↑" + (r.requestsSent || 0) + " ↓" + (r.responsesReceived || 0));
+      });
+      this._log("warn", "[webrtc]", this.id.slice(0, 10) + "…", "pairs(" + reason + "): локальных кандидатов " + local + ", удалённых " + remote + ", пар " + rows.length + (rows.length ? " | " + rows.slice(0, 10).join(" ; ") : ""));
+      this._lastPairsInfo = reason + ": лок " + local + ", удал " + remote + ", пар " + rows.length;
+    } catch (e) {}
   }
 
   _fallbackToRelay(reason) {
@@ -1146,6 +1174,7 @@ async startCall(withVideo) {
       createdAt: this._createdAt,
       lastPair: this._lastPairInfo || null,
       relayOnly: !!this._relayOnly,
+      pairs: this._lastPairsInfo || null,
       closed: this._closed,
     };
   }

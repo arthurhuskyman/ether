@@ -693,6 +693,7 @@ window.__LANG_DICTS["en"] = {
     "chats.filter.groups": "Groups",
     "chats.filter.direct": "Direct",
     "chats.filter.calls": "Calls",
+    "chat.forwardedFrom": "Forwarded from {name}",
     "chat.forwarded": "Forwarded",
     "chat.contact.unarchive": "Unarchive",
     "settings.hideNotifContent": "Hide message text in notifications",

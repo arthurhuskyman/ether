@@ -714,6 +714,7 @@ window.__LANG_DICTS["tg"] = {
     "settings.hideNotifContent": "Пинҳон кардани матни паёмҳо дар огоҳиномаҳо",
     "call.screenSharing": "Шумо экрани худро мубодила мекунед",
     "fx2.draw.stop": "Қатъи расмкашӣ",
+    "chat.forwardedFrom": "Аз {name} фиристода шуд",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("tg");

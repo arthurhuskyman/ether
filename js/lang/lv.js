@@ -714,6 +714,7 @@ window.__LANG_DICTS["lv"] = {
     "settings.hideNotifContent": "Paslēpt ziņas tekstu paziņojumos",
     "call.screenSharing": "Jūs kopīgojat savu ekrānu",
     "fx2.draw.stop": "Pārtraukt zīmēšanu",
+    "chat.forwardedFrom": "Pārsūtīts no {name}",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("lv");

@@ -714,6 +714,7 @@ window.__LANG_DICTS["hu"] = {
     "settings.hideNotifContent": "Üzenetszöveg elrejtése az értesítésekben",
     "call.screenSharing": "Megosztod a képernyődet",
     "fx2.draw.stop": "Rajzolás leállítása",
+    "chat.forwardedFrom": "Továbbítva tőle: {name}",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("hu");

@@ -714,6 +714,7 @@ window.__LANG_DICTS["ta"] = {
     "settings.hideNotifContent": "அறிவிப்புகளில் செய்தி உரையை மறை",
     "call.screenSharing": "நீங்கள் உங்கள் திரையைப் பகிர்கிறீர்கள்",
     "fx2.draw.stop": "வரைவதை நிறுத்து",
+    "chat.forwardedFrom": "{name} இடமிருந்து பகிரப்பட்டது",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ta");

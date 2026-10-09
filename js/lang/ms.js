@@ -714,6 +714,7 @@ window.__LANG_DICTS["ms"] = {
     "settings.hideNotifContent": "Sembunyikan teks mesej dalam pemberitahuan",
     "call.screenSharing": "Anda sedang berkongsi skrin anda",
     "fx2.draw.stop": "Henti melukis",
+    "chat.forwardedFrom": "Dimajukan daripada {name}",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ms");

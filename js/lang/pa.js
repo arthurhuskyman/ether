@@ -714,6 +714,7 @@ window.__LANG_DICTS["pa"] = {
     "settings.hideNotifContent": "ਸੂਚਨਾਵਾਂ ਵਿੱਚ ਸੁਨੇਹੇ ਦਾ ਲਿਖਤ ਲੁਕਾਓ",
     "call.screenSharing": "ਤੁਸੀਂ ਆਪਣੀ ਸਕ੍ਰੀਨ ਸਾਂਝੀ ਕਰ ਰਹੇ ਹੋ",
     "fx2.draw.stop": "ਡਰਾਇੰਗ ਬੰਦ ਕਰੋ",
+    "chat.forwardedFrom": "{name} ਵੱਲੋਂ ਅੱਗੇ ਭੇਜਿਆ ਗਿਆ",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("pa");

@@ -714,6 +714,7 @@ window.__LANG_DICTS["id"] = {
     "settings.hideNotifContent": "Sembunyikan isi pesan di notifikasi",
     "call.screenSharing": "Anda sedang membagikan layar",
     "fx2.draw.stop": "Berhenti menggambar",
+    "chat.forwardedFrom": "Diteruskan dari {name}",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("id");

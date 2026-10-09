@@ -714,6 +714,7 @@ window.__LANG_DICTS["nl"] = {
     "settings.hideNotifContent": "Berichttekst verbergen in meldingen",
     "call.screenSharing": "Je deelt je scherm",
     "fx2.draw.stop": "Stop met tekenen",
+    "chat.forwardedFrom": "Doorgestuurd van {name}",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("nl");

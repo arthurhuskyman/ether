@@ -714,6 +714,7 @@ window.__LANG_DICTS["te"] = {
     "settings.hideNotifContent": "నోటిఫికేషన్‌లలో సందేశ వచనాన్ని దాచండి",
     "call.screenSharing": "మీరు మీ స్క్రీన్‌ను షేర్ చేస్తున్నారు",
     "fx2.draw.stop": "గీయడం ఆపండి",
+    "chat.forwardedFrom": "{name} నుండి ఫార్వర్డ్ చేయబడింది",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("te");

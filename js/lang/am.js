@@ -714,6 +714,7 @@ window.__LANG_DICTS["am"] = {
     "settings.hideNotifContent": "በማሳወቂያዎች ውስጥ የመልዕክት ጽሑፍን ደብቅ",
     "call.screenSharing": "ማያ ገጽዎን እያጋሩ ነው",
     "fx2.draw.stop": "ሥዕልን አቁም",
+    "chat.forwardedFrom": "ከ{name} የተላለፈ",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("am");

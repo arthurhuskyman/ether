@@ -714,6 +714,7 @@ window.__LANG_DICTS["bn"] = {
     "settings.hideNotifContent": "নোটিফিকেশনে বার্তার লেখা লুকান",
     "call.screenSharing": "আপনি আপনার স্ক্রিন শেয়ার করছেন",
     "fx2.draw.stop": "আঁকা বন্ধ করুন",
+    "chat.forwardedFrom": "{name} থেকে ফরওয়ার্ড করা",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("bn");

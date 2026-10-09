@@ -714,6 +714,7 @@ window.__LANG_DICTS["zh"] = {
     "settings.hideNotifContent": "隐藏通知中的消息内容",
     "call.screenSharing": "你正在共享屏幕",
     "fx2.draw.stop": "停止绘制",
+    "chat.forwardedFrom": "转发自 {name}",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("zh");

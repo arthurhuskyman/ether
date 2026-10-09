@@ -169,7 +169,7 @@
       <button type="button" id="chat-peer-tap" class="chat-header-info chat-header-tappable">
         <span id="chat-peer-avatar" class="chat-peer-avatar"></span>
         <span class="chat-peer-info-col">
-          <span id="chat-peer-name">Peer</span>
+          <span class="chat-peer-name-row"><span id="chat-peer-name">Peer</span></span>
           <span class="chat-peer-status-row"><span id="chat-peer-status" class="muted"></span><span id="chat-transport-badge" class="transport-badge hidden">P2P</span></span>
         </span>
       </button>
@@ -489,6 +489,7 @@
     </section>
 
     <section id="screen-debug" class="screen hidden">
+      <div class="search-wrap"><input id="debug-search" type="text" placeholder="Search" data-i18n-ph="settings.search" class="search-input" autocomplete="off" /></div>
       <div class="settings-group flat-content">
         <div class="settings-row column"><span class="settings-group-title" data-i18n="settings.deadMan.title">Dead man's switch</span></div>
         <p class="fine muted" style="margin:0 0 10px;" data-i18n="settings.deadMan.explain">Best-effort, not a guaranteed background trigger: each time you open Ether, it sends a small "I'm alive" signal to the contact below; it only updates when the other side also opens Ether. If you'd like, enable it there too to be alerted after your own silence.</p>

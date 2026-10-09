@@ -714,6 +714,7 @@ window.__LANG_DICTS["az"] = {
     "settings.hideNotifContent": "Bildirişlərdə mesaj mətnini gizlət",
     "call.screenSharing": "Ekranınızı paylaşırsınız",
     "fx2.draw.stop": "Çəkməyi dayandır",
+    "chat.forwardedFrom": "{name} tərəfindən yönləndirilib",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("az");

@@ -714,6 +714,7 @@ window.__LANG_DICTS["el"] = {
     "settings.hideNotifContent": "Απόκρυψη κειμένου μηνυμάτων στις ειδοποιήσεις",
     "call.screenSharing": "Μοιράζεστε την οθόνη σας",
     "fx2.draw.stop": "Διακοπή σχεδίασης",
+    "chat.forwardedFrom": "Προώθηση από {name}",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("el");

@@ -714,6 +714,7 @@ window.__LANG_DICTS["my"] = {
     "settings.hideNotifContent": "အကြောင်းကြားချက်များတွင် မက်ဆေ့ချ်စာသား ဖျောက်ထားရန်",
     "call.screenSharing": "သင့်စခရင်ကို မျှဝေနေသည်",
     "fx2.draw.stop": "ဆွဲခြင်းရပ်ရန်",
+    "chat.forwardedFrom": "{name}ထံမှ ထပ်ဆင့်ပို့ထားသည်",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("my");

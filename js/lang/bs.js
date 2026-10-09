@@ -714,6 +714,7 @@ window.__LANG_DICTS["bs"] = {
     "settings.hideNotifContent": "Sakrij tekst poruke u obavještenjima",
     "call.screenSharing": "Dijelite svoj ekran",
     "fx2.draw.stop": "Zaustavi crtanje",
+    "chat.forwardedFrom": "Proslijeđeno od {name}",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("bs");

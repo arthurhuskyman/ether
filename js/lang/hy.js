@@ -714,6 +714,7 @@ window.__LANG_DICTS["hy"] = {
     "settings.hideNotifContent": "Թաքցնել հաղորդագրության տեքստը ծանուցումներում",
     "call.screenSharing": "Դուք կիսվում եք ձեր էկրանով",
     "fx2.draw.stop": "Դադարեցնել նկարելը",
+    "chat.forwardedFrom": "Վերահասցեավորված է {name}-ից",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("hy");

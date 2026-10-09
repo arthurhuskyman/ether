@@ -714,6 +714,7 @@ window.__LANG_DICTS["sk"] = {
     "settings.hideNotifContent": "Skryť text správ v upozorneniach",
     "call.screenSharing": "Zdieľate svoju obrazovku",
     "fx2.draw.stop": "Zastaviť kreslenie",
+    "chat.forwardedFrom": "Preposlané od {name}",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("sk");
