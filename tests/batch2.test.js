@@ -181,13 +181,14 @@ test("пасхалки: эмодзи в новом сообщении запус
 
 test("громкость на iPhone: element.volume только для чтения → слайдер работает через GainNode (подключается, когда громкость уменьшают)", async () => {
   const a = await app({ platform: "ios" });
-  a.run(`ensureContactEntry("alice","Alice"); state.callId = "alice"; state.callPhase = "active";`);
+  a.run(`ensureContactEntry("alice","Alice"); state.callId = "alice"; state.callPhase = "active"; Store.callVolume = 1;`);
   const audio = a.document.createElement("audio"); audio.id = "remote-audio-alice"; a.document.body.appendChild(audio);
   Object.defineProperty(audio, "volume", { get: () => 1, set: () => {}, configurable: true });
   a.window.__s = { id: "S", getTracks: () => [], getAudioTracks: () => [], getVideoTracks: () => [] };
   a.run(`attachRemoteAudio("alice", window.__s)`);
   assert.equal(audio._volReadOnly, true);
   assert.equal(audio._relayGain, undefined, "на полной громкости Web Audio не участвует");
+  assert.equal(a.run(`DEFAULT_CALL_VOLUME`), 0.3333, "по умолчанию громкость 33%");
   a.run(`applyCallVolume("alice", 0.4)`);
   assert.ok(audio._relayGain, "после уменьшения громкости подключён GainNode");
   assert.equal(audio._relayGain.gain.value, 0.4);

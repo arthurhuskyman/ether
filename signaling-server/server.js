@@ -943,8 +943,10 @@ wss.on("connection", (ws, req) => {
       }
       if (clients.has(msg.id) && clients.get(msg.id).ws !== ws) {
         try {
-          safeSend(clients.get(msg.id).ws, { type: "replaced" });
-          clients.get(msg.id).ws.close();
+          const old = clients.get(msg.id);
+          // Для диагностики: с какого адреса пришла «замена» и совпадает ли он со старым соединением (то же устройство/сеть)
+          safeSend(old.ws, { type: "replaced", sameIp: old.ip === clientIp, ageSec: Math.round((Date.now() - (old.since || Date.now())) / 1000) });
+          old.ws.close();
         } catch (e) {}
         broadcastPresence(msg.id, false);
       }
@@ -952,7 +954,7 @@ wss.on("connection", (ws, req) => {
       ws._etherId = myId;
       ws.lastClientPing = Date.now();
       clients.set(myId, {
-        ws,
+        ws, ip: clientIp, since: Date.now(),
         name: String(msg.name || "").slice(0, 60),
         visible: msg.visible !== false,
         publicKey: msg.publicKey || null,

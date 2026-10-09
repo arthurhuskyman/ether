@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.61.0.0";
+const APP_VERSION = "V.61.0.1";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 // Сервер перевода по умолчанию (LibreTranslate-совместимый). Официальный публичный инстанс обычно
@@ -126,7 +126,7 @@ const CALL_DEAD_LINK_TIMEOUT_MS = 10000;
 const INCOMING_CALL_TIMEOUT_MS = PENDING_CALL_TIMEOUT_MS - 2000;
 const INCOMING_PUSH_CALL_TIMEOUT_MS = CALL_PUSH_TIMEOUT_MS - 5000; // экран «входящий», открытый по нажатию на push // должен истекать НЕ ПОЗЖЕ, чем звонящий сдастся — иначе у принимающего экран "входящий" висит, когда звонящий уже положил трубку
 // Громкость удалённого потока по умолчанию — 33,33%.
-const DEFAULT_CALL_VOLUME = 1;
+const DEFAULT_CALL_VOLUME = 0.3333;
 
 function effectiveSignalingUrl() {
   return (Store.signalingUrl || DEFAULT_SIGNALING_URL).trim();
@@ -7018,6 +7018,7 @@ function refreshSignalingStatusText() {
   updateSignalingStatusUI("off", T("status.offline"));
 }
 let __lastReclaimAt = 0;
+let __replacedHits = [];
 function reclaimSignaling() {
   if (Date.now() - __lastReclaimAt < 4000) return; // два окна рядом не должны бесконечно отбирать соединение друг у друга
   __lastReclaimAt = Date.now();
@@ -7192,7 +7193,16 @@ function wireSignalingEvents(sig) {
     // индикатор «офлайн»), оно заберёт соединение себе — побеждает окно, которым пользуются сейчас.
     state._replaced = true;
     updateSignalingStatusUI("off", T("status.replaced"));
-    toast(T("status.replaced"));
+    // Выбросить могло и «призрачное» соединение (старый сокет после перезагрузки страницы, переключения сети). Поэтому, если окно
+    // на виду, забираем соединение обратно сами через пару секунд; если за минуту выбрасывало трижды — это настоящее второе окно,
+    // и ждём действия пользователя (фокус или нажатие на индикатор), чтобы два окна не отнимали соединение друг у друга бесконечно.
+    const now = Date.now();
+    __replacedHits = __replacedHits.filter((t) => now - t < 60000); __replacedHits.push(now);
+    if (__replacedHits.length < 3) {
+      setTimeout(() => { if (state._replaced && !document.hidden) reclaimSignaling(); }, 1500 + Math.random() * 1500);
+    } else {
+      toast(T("status.replaced"));
+    }
   }));
   subs.push(on("vapid-key", (ev) => {
     const { key } = ev.detail;

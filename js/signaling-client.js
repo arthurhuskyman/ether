@@ -103,6 +103,9 @@ class SignalingClient extends EventTarget {
 
   _connect() {
     if (!this.shouldRun || !this.url || this._stopped) return;
+    // Никогда не держим два сокета одновременно: второй register с тем же id заставил бы сервер выбросить первый («replaced»)
+    if (this.ws && (this.ws.readyState === WebSocket.CONNECTING || this.ws.readyState === WebSocket.OPEN)) return;
+    if (this._retryTimer) { clearTimeout(this._retryTimer); this._retryTimer = null; }
     let ws;
     try { ws = new WebSocket(this.url); }
     catch (e) { this._scheduleRetry(); return; }
@@ -195,7 +198,7 @@ class SignalingClient extends EventTarget {
       } else if (msg.type === "deliver-ack" && typeof msg.msgId === "string") {
         this.dispatchEvent(new CustomEvent("deliver-ack", { detail: { msgId: msg.msgId } }));
       } else if (msg.type === "replaced") {
-        etherLog("warn", "[signaling] вкладка отключена сервером — тот же id открыт в другом месте");
+        etherLog("warn", "[signaling] вкладка отключена сервером — тот же id открыт в другом месте" + (msg.sameIp === true ? " (тот же адрес/сеть)" : msg.sameIp === false ? " (другой адрес)" : "") + (typeof msg.ageSec === "number" ? ", моё соединение жило " + msg.ageSec + " с" : ""));
         // Раньше здесь вручную ставилось shouldRun = false без вызова stop() —
         // _pingTimer (setInterval каждые 15с) продолжал тикать до конца жизни
         // страницы, просто находя this.ws === null и выходя по return.
@@ -249,6 +252,7 @@ class SignalingClient extends EventTarget {
 
   _scheduleRetry() {
     if (!this.shouldRun || this._stopped) return;
+    if (this._retryTimer) clearTimeout(this._retryTimer);
     this._retryTimer = setTimeout(() => {
       this._retryTimer = null;
       this._connect();
