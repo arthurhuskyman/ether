@@ -308,6 +308,8 @@ window.__LANG_DICTS["en"] = {
     "call.mute.off": "Mic off",
     "call.volume": "Volume",
     "status.online": "online",
+    "status.replaced": "Open in another window — tap to connect here",
+    "toast.noOtherOutput": "No other audio output devices found",
     "status.offline": "offline",
     "status.lastSeen": "last seen {ago}",
     "status.connected": "connected",

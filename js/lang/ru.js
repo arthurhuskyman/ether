@@ -306,6 +306,8 @@ window.__LANG_DICTS["ru"] = {
     "call.mute.off": "Микрофон выкл",
     "call.volume": "Громкость",
     "status.online": "в сети",
+    "status.replaced": "Открыто в другом окне — нажмите, чтобы подключиться здесь",
+    "toast.noOtherOutput": "Других устройств вывода звука не найдено",
     "status.offline": "офлайн",
     "status.lastSeen": "был(а) {ago}",
     "status.connected": "на связи",

@@ -393,13 +393,19 @@ test("Настройки: названия категорий перерисов
   a.close();
 });
 
-test("Настройки: поле поиска — первый элемент страницы и закреплено вверху (как на других вкладках)", async () => {
+test("Поиск: поля чатов/контактов/настроек живут в одной панели под шапкой и открываются лупой на любой вкладке", async () => {
   const a = await chatApp();
-  const scr = a.document.querySelector("#screen-settings");
-  assert.equal(scr.firstElementChild.className.includes("search-wrap"), true);
-  assert.ok(scr.querySelector("#settings-search"));
-  const css = require("fs").readFileSync(require("path").join(__dirname, "..", "css", "styles.css"), "utf8");
-  assert.match(css, /#screen-settings > \.search-wrap\s*\{[^}]*position:\s*sticky/);
+  const dock = a.document.querySelector("#search-dock");
+  assert.ok(dock, "общая панель поиска");
+  assert.equal(dock.previousElementSibling.id, "nav-bar", "панель — сразу под шапкой");
+  for (const [tab, id] of [["chats", "#global-search"], ["connect", "#contacts-search"], ["settings", "#settings-search"]]) {
+    assert.ok(dock.querySelector(id), id + " внутри панели");
+    a.run(`state.tab = "${tab}"; renderTab(); document.querySelector("#global-search-btn").click();`);
+    assert.equal(a.document.documentElement.getAttribute("data-search-tab"), tab);
+    assert.ok(a.document.documentElement.classList.contains("inline-search-open"));
+    a.run(`document.querySelector("#global-search-btn").click();`);
+    assert.ok(!a.document.documentElement.classList.contains("inline-search-open"));
+  }
   a.close();
 });
 

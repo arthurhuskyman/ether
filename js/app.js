@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.60.1.0";
+const APP_VERSION = "V.61.0.0";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 // Сервер перевода по умолчанию (LibreTranslate-совместимый). Официальный публичный инстанс обычно
@@ -126,7 +126,7 @@ const CALL_DEAD_LINK_TIMEOUT_MS = 10000;
 const INCOMING_CALL_TIMEOUT_MS = PENDING_CALL_TIMEOUT_MS - 2000;
 const INCOMING_PUSH_CALL_TIMEOUT_MS = CALL_PUSH_TIMEOUT_MS - 5000; // экран «входящий», открытый по нажатию на push // должен истекать НЕ ПОЗЖЕ, чем звонящий сдастся — иначе у принимающего экран "входящий" висит, когда звонящий уже положил трубку
 // Громкость удалённого потока по умолчанию — 33,33%.
-const DEFAULT_CALL_VOLUME = 0.3333;
+const DEFAULT_CALL_VOLUME = 1;
 
 function effectiveSignalingUrl() {
   return (Store.signalingUrl || DEFAULT_SIGNALING_URL).trim();
@@ -1908,7 +1908,7 @@ function startApp() {
     // очередь отправки (P1.14): что именно зависло и почему. Настройки
     // остаются на расстоянии одного тапа через нижнюю вкладку Settings.
     const nav = $("#nav-conn-indicator");
-    if (nav) nav.addEventListener("click", () => { openOutboxSheet(); });
+    if (nav) nav.addEventListener("click", () => { if (state._replaced) reclaimSignaling(); else openOutboxSheet(); });
   }, "wireNavConnIndicator");
   safeCall(wireConnectScreen, "wireConnectScreen");
   safeCall(wireQrButtons, "wireQrButtons");
@@ -2200,7 +2200,12 @@ function hangupOnPageClose() {
 window.addEventListener("pagehide", hangupOnPageClose);
 window.addEventListener("beforeunload", hangupOnPageClose);
 function wireNetworkListeners() {
-  const resumeSignaling = () => { try { if (signaling && typeof signaling.resume === "function") signaling.resume(); } catch (e) {} };
+  const resumeSignaling = () => {
+    try {
+      if (state._replaced && !document.hidden) { reclaimSignaling(); return; }
+      if (signaling && typeof signaling.resume === "function") signaling.resume();
+    } catch (e) {}
+  };
   window.addEventListener("online", () => { etherLog("info", "[net] online"); resumeSignaling(); });
   window.addEventListener("pageshow", resumeSignaling);
   window.addEventListener("focus", resumeSignaling);
@@ -2985,6 +2990,7 @@ function setNavMode(mode) {
 }
 let __searchTab = null;
 function renderTabInner() {
+  if (state.chatId || state.contactCardId) document.documentElement.classList.remove("inline-search-open");
   if (__searchTab !== state.tab) { if (__searchTab !== null) { try { setInlineSearchOpen(false); } catch (e) {} } __searchTab = state.tab; }
   $$(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === state.tab));
   $$(".screen").forEach((s) => s.classList.add("hidden"));
@@ -4009,7 +4015,7 @@ function renderChatThreadInner() {
   // prev пуст → ничего не считаем новым, иначе при открытии чата все
   // пузыри разом анимировались бы.
   const prevMsgIds = __prevRenderedMsgIds;
-  const freshEnabled = prevMsgIds.size > 0;
+  const freshEnabled = prevMsgIds.size > 0 || !freshEntry;
   const nextMsgIds = new Set();
   for (const m of c.messages) {
     nextMsgIds.add(m.id);
@@ -4410,10 +4416,13 @@ function attachChatRowSwipe(wrapper, row, c) {
     if (!dragging) return;
     const dx = Math.max(-CHAT_ROW_REVEAL_END_PX * 1.3, Math.min(CHAT_ROW_REVEAL_PX * 1.3, rawDx));
     row.style.transform = `translateX(${dx}px)`;
+    // кнопки действий показываем только с той стороны, в которую тянут (иначе они просвечивают сквозь полупрозрачную плашку)
+    wrapper.classList.toggle("drag-start", dx > 4); wrapper.classList.toggle("drag-end", dx < -4);
   }, { passive: true });
   row.addEventListener("touchend", () => {
     row.style.transition = "";
     if (!dragging) return;
+    setTimeout(() => wrapper.classList.remove("drag-start", "drag-end"), 260);
     const m1 = row.style.transform.match(/translateX\((-?\d+(?:\.\d+)?)px\)/);
     const dx = m1 ? parseFloat(m1[1]) : 0;
     // Положительный сдвиг открывает панель, которая физически СЛЕВА —
@@ -4589,10 +4598,14 @@ let __kbBaseH = 0;
 // Нажатия на «+», эмодзи, камеру, скрепку, отправку и т.п. не должны убирать системную клавиатуру: кнопка перехватывает фокус у поля ввода.
 // Отменяем сдвиг фокуса на mousedown и, если фокус всё-таки потерян, возвращаем его в поле сразу после действия.
 function wireKeepKeyboard() {
-  const sel = ".chat-input-bar button, #composer-fan button, #emoji-picker-sheet button";
+  const sel = ".chat-input-bar button:not(#chat-emoji-btn), #composer-fan button:not(#chat-emoji-btn)";
   let had = false;
   const inp = () => $("#chat-input");
   document.addEventListener("pointerdown", (e) => { had = document.activeElement === inp(); }, true);
+  // Панель эмодзи выезжает вместо клавиатуры: при её открытии клавиатуру убираем
+  document.addEventListener("click", (e) => {
+    if (e.target.closest && e.target.closest("#chat-emoji-btn")) { const i = inp(); if (i && document.activeElement === i) i.blur(); }
+  }, true);
   document.addEventListener("mousedown", (e) => {
     if (had && e.target.closest && e.target.closest(sel) && !e.target.closest("#emoji-search-input")) e.preventDefault();
   }, true);
@@ -7004,6 +7017,14 @@ function refreshSignalingStatusText() {
   if (signaling && signaling.connected) { updateSignalingStatusUI("online", T("status.online")); return; }
   updateSignalingStatusUI("off", T("status.offline"));
 }
+let __lastReclaimAt = 0;
+function reclaimSignaling() {
+  if (Date.now() - __lastReclaimAt < 4000) return; // два окна рядом не должны бесконечно отбирать соединение друг у друга
+  __lastReclaimAt = Date.now();
+  state._replaced = false;
+  etherLog("info", "[signaling] забираю соединение в этом окне");
+  initSignaling();
+}
 function initSignaling() {
   const url = effectiveSignalingUrl();
   if (signalingCleanup) { try { signalingCleanup(); } catch (e) {} signalingCleanup = null; }
@@ -7166,8 +7187,12 @@ function wireSignalingEvents(sig) {
     markUnreachable(to);
   }));
   subs.push(on("replaced", () => {
-    updateSignalingStatusUI("off", T("status.offline"));
-    toast(T("status.offline"));
+    // Тот же идентификатор открыт в другом окне/вкладке (часто — забытая старая вкладка). Сервер оставляет только одно соединение,
+    // и «лишнее» окно раньше навсегда оставалось офлайн. Теперь оно ждёт: как только вы вернётесь в это окно (или нажмёте
+    // индикатор «офлайн»), оно заберёт соединение себе — побеждает окно, которым пользуются сейчас.
+    state._replaced = true;
+    updateSignalingStatusUI("off", T("status.replaced"));
+    toast(T("status.replaced"));
   }));
   subs.push(on("vapid-key", (ev) => {
     const { key } = ev.detail;
@@ -9166,7 +9191,9 @@ function insertEmojiAtCursor(emoji) {
   input.value = input.value.slice(0, start) + emoji + input.value.slice(end);
   const newPos = start + emoji.length;
   input.setSelectionRange(newPos, newPos);
-  input.focus();
+  // пока открыта панель эмодзи, клавиатуру не поднимаем
+  const pk = $("#emoji-picker-sheet");
+  if (!pk || pk.classList.contains("hidden")) input.focus();
   input.dispatchEvent(new Event("input", { bubbles: true }));
 }
 // Общая точка для "что сейчас должно быть в сетке" — используется и
@@ -9778,6 +9805,7 @@ async function findAudioOutputDevice(pattern) {
 // переключили.
 async function toggleSpeaker() {
   const id = state.callId; if (!id) return;
+  if (!isMobileDevice() && !navigator.audioSession) { await openAudioOutputPicker(); return; }
   const audioEl = document.getElementById("remote-audio-" + id);
   const wantSpeaker = !speakerOn;
   // iOS Safari 16.4+: Audio Session API — "play-and-record" во время звонка ведёт звук в
@@ -9807,10 +9835,32 @@ async function toggleSpeaker() {
 }
 // Единая точка изменения громкости собеседника: GainNode (работает и на iOS) либо element.volume,
 // если звук идёт напрямую без Web Audio.
+function ensureRelayGain(audioEl, stream) {
+  if (audioEl._relayGain) return audioEl._relayGain;
+  const ctx = ensureGlobalAudioCtx();
+  if (!ctx || !stream) return null;
+  try {
+    if (ctx.state === "suspended") { try { ctx.resume(); } catch (e) {} }
+    const source = ctx.createMediaStreamSource(stream);
+    const dest = ctx.createMediaStreamDestination();
+    const gain = ctx.createGain();
+    gain.gain.value = Store.callVolume;
+    source.connect(gain); gain.connect(dest);
+    audioEl._relaySource = source; audioEl._relayDest = dest; audioEl._relayGain = gain;
+    audioEl.srcObject = dest.stream;
+    const p = audioEl.play(); if (p && p.catch) p.catch(() => {});
+    return gain;
+  } catch (e) { etherLog("warn", "[audio] GainNode недоступен:", String(e)); return null; }
+}
 function applyCallVolume(id, v) {
   const vol = Math.max(0, Math.min(1, Number(v) || 0));
   const el = document.getElementById("remote-audio-" + id);
   if (!el) return;
+  if (el._volReadOnly) {
+    const g = el._relayGain || (vol < 0.99 ? ensureRelayGain(el, el._relayStream) : null);
+    if (g) { try { g.gain.value = vol; } catch (e) {} }
+    return;
+  }
   try { el.volume = vol; } catch (e) {}
 }
 function attachRemoteAudio(id, stream) {
@@ -9838,12 +9888,14 @@ function attachRemoteAudio(id, stream) {
   audioEl.muted = false;
   audioEl.srcObject = stream;
   audioEl.volume = Store.callVolume;
-  // iOS: HTMLMediaElement.volume только для чтения — слайдер там бесполезен (громкость — боковыми кнопками), прячем его
+  { const out = savedAudioOutput(); if (out && audioEl.setSinkId) audioEl.setSinkId(out).catch(() => {}); }
+  // iOS: HTMLMediaElement.volume только для чтения. Звук играет напрямую (лучшее качество), а когда пользователь уменьшает громкость
+  // слайдером, поток один раз пропускается через GainNode (см. ensureRelayGain). На полной громкости Web Audio не участвует.
   try {
     const keep = audioEl.volume; audioEl.volume = keep > 0.5 ? 0.4 : 0.6;
-    const readOnly = Math.abs(audioEl.volume - keep) < 0.01;
+    audioEl._volReadOnly = Math.abs(audioEl.volume - keep) < 0.01;
     audioEl.volume = keep;
-    const cv0 = $(".call-volume"); if (cv0 && readOnly) cv0.classList.add("hidden");
+    if (audioEl._volReadOnly && Store.callVolume < 0.99) ensureRelayGain(audioEl, stream);
   } catch (e) {}
   const p = audioEl.play();
   if (p && p.catch) p.catch(() => {
@@ -9879,7 +9931,33 @@ function isMobileDevice() {
 }
 function speakerToggleSupported() {
   if (navigator.audioSession) return true; // iOS: playback ↔ play-and-record
-  return isMobileDevice() && typeof HTMLMediaElement !== "undefined" && typeof HTMLMediaElement.prototype.setSinkId === "function";
+  // Android: динамик/наушник; десктоп: выбор устройства вывода (колонки/наушники/гарнитура) через setSinkId
+  return typeof HTMLMediaElement !== "undefined" && typeof HTMLMediaElement.prototype.setSinkId === "function";
+}
+function savedAudioOutput() { try { return localStorage.getItem("ether.audioOut") || ""; } catch (e) { return ""; } }
+async function setAudioOutput(deviceId) {
+  try { localStorage.setItem("ether.audioOut", deviceId || ""); } catch (e) {}
+  for (const el of document.querySelectorAll("audio[id^=remote-audio-]")) { try { if (el.setSinkId) await el.setSinkId(deviceId || "default"); } catch (e) {} }
+  for (const el of soundPool.values()) { try { if (el.setSinkId) await el.setSinkId(deviceId || "default"); } catch (e) {} }
+}
+// Десктоп: выбор устройства вывода звука из списка (колонки, наушники, гарнитура…)
+async function openAudioOutputPicker() {
+  let devices = [];
+  try { devices = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "audiooutput"); } catch (e) {}
+  const old = $("#audio-out-menu"); if (old) { old.remove(); return; }
+  if (devices.length < 2) { toast(T("toast.noOtherOutput")); return; }
+  const cur = savedAudioOutput() || "default";
+  const menu = document.createElement("div"); menu.id = "audio-out-menu"; menu.className = "call-more-menu"; menu.setAttribute("role", "menu");
+  devices.forEach((d, i) => {
+    const b = document.createElement("button"); b.type = "button"; b.className = "call-menu-item"; b.setAttribute("role", "menuitem");
+    const label = d.label || (T("call.speaker") + " " + (i + 1));
+    b.innerHTML = `<span>${escapeHtml(label)}</span>${(d.deviceId === cur || (cur === "default" && d.deviceId === "default")) ? " ✓" : ""}`;
+    b.addEventListener("click", async () => { menu.remove(); await setAudioOutput(d.deviceId); toast(label); const spk = $("#call-speaker-btn"); if (spk) spk.classList.toggle("active", d.deviceId !== "default"); });
+    menu.appendChild(b);
+  });
+  const host = $("#call-controls-active"); if (!host) return;
+  host.appendChild(menu);
+  setTimeout(() => document.addEventListener("pointerdown", function close(e) { if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener("pointerdown", close, true); } }, true), 0);
 }
 function updateCallButtonsSupport() {
   const mobile = isMobileDevice();
@@ -10479,7 +10557,7 @@ function renderChatFolderChips() {
       $$("#chat-filters .chat-filter-chip").forEach((b) => b.classList.toggle("active", b === chip));
       state.chatsSegment = "chats";
       state.chatFilter = chip.dataset.filter;
-      renderChatsList();
+      renderTab(); // из «Звонков» нужно заново показать список чатов, а не только перерисовать его скрытым
     });
   });
 }
@@ -10585,7 +10663,7 @@ function wireSearchHandlers() {
       } else {
         state.chatsSegment = "chats";
         state.chatFilter = f;
-        renderChatsList();
+        renderTab(); // из «Звонков» нужно заново показать список чатов, а не только перерисовать его скрытым
       }
     });
   });
@@ -11123,7 +11201,9 @@ const INLINE_SEARCH_FIELDS = { chats: "#global-search", connect: "#contacts-sear
 // Поиск живёт в одном месте — лупа в шапке. По нажатию над списком выезжает поле поиска ТЕКУЩЕЙ вкладки (чаты / контакты / настройки);
 // под ним — «Искать везде» (общий поиск по чатам, сообщениям, контактам и настройкам с тем же запросом). Пока поиск закрыт, места он не занимает.
 function setInlineSearchOpen(open) {
-  document.documentElement.classList.toggle("inline-search-open", !!open);
+  const root = document.documentElement;
+  root.classList.toggle("inline-search-open", !!open);
+  if (open) root.setAttribute("data-search-tab", state.tab);
   if (!open) {
     for (const sel of Object.values(INLINE_SEARCH_FIELDS)) {
       const el = $(sel);
@@ -11135,24 +11215,28 @@ function focusInlineSearchOrGlobal() {
   const sel = INLINE_SEARCH_FIELDS[state.tab];
   const el = sel && !state.chatId && !state.contactCardId ? $(sel) : null;
   if (!el) { openGlobalSearch(); return; }
-  const isOpen = document.documentElement.classList.contains("inline-search-open");
-  if (isOpen && !el.value.trim() && document.activeElement !== el) { setInlineSearchOpen(false); return; }
-  if (isOpen && el.value.trim()) { setInlineSearchOpen(false); return; }
+  const isOpen = document.documentElement.classList.contains("inline-search-open") && document.documentElement.getAttribute("data-search-tab") === state.tab;
+  if (isOpen) { setInlineSearchOpen(false); return; }
   setInlineSearchOpen(true);
-  const scr = el.closest(".screen") || $("#content");
-  try { scr.scrollTo({ top: 0, behavior: "smooth" }); } catch (e) {}
   setTimeout(() => { try { el.focus(); } catch (e) {} }, 120);
 }
+// Все три поля (чаты, контакты, настройки) живут в одной «панели поиска» сразу под шапкой — на любой вкладке на одном и том же месте
 function wireSearchBridge() {
-  for (const sel of Object.values(INLINE_SEARCH_FIELDS)) {
+  let dock = $("#search-dock");
+  if (!dock) {
+    dock = document.createElement("div"); dock.id = "search-dock";
+    const nav = $("#nav-bar"); if (nav) nav.insertAdjacentElement("afterend", dock);
+  }
+  for (const [tab, sel] of Object.entries(INLINE_SEARCH_FIELDS)) {
     const input = $(sel); if (!input || input.dataset.bridge) continue;
     input.dataset.bridge = "1";
+    let host = input.closest(".search-wrap");
+    if (!host) { host = document.createElement("div"); host.className = "search-wrap"; input.parentNode.insertBefore(host, input); host.appendChild(input); input.style.marginBottom = ""; }
+    host.classList.add("search-collapsible"); host.dataset.searchTab = tab;
     const link = document.createElement("button");
-    link.type = "button"; link.className = "search-everywhere";
+    link.type = "button"; link.className = "search-everywhere"; link.dataset.searchTab = tab;
     link.setAttribute("data-i18n", "search.everywhere"); link.textContent = T("search.everywhere");
-    const host = input.closest(".search-wrap") || input;
-    host.classList.add("search-collapsible");
-    host.insertAdjacentElement("afterend", link);
+    dock.appendChild(host); dock.appendChild(link);
     link.addEventListener("click", () => { const v = input.value.trim(); setInlineSearchOpen(false); openGlobalSearch(v); });
   }
 }

@@ -135,3 +135,81 @@ test("эмодзи: кнопка тона кожи видна только та�
   assert.ok(!a.document.querySelector("#emoji-tone-btn").classList.contains("hidden"), "в «Людях» тон есть");
   a.close();
 });
+
+test("сервер выбросил это окно («тот же id в другом окне») — окно ждёт и забирает соединение при возвращении фокуса", async () => {
+  const a = await app();
+  a.run(`signaling = new EventTarget(); signaling.stop = () => {}; signaling.resume = () => {}; wireSignalingEvents(signaling); signaling.dispatchEvent(new CustomEvent("replaced"));`);
+  assert.equal(a.run(`state._replaced`), true);
+  a.run(`__lastReclaimAt = 0; initSignaling = () => { window.__reclaimed = (window.__reclaimed || 0) + 1; };`);
+  a.window.dispatchEvent(new a.window.Event("focus"));
+  assert.equal(a.run(`state._replaced`), false, "после возврата фокуса окно забирает соединение");
+  assert.equal(a.window.__reclaimed, 1);
+  a.close();
+});
+
+test("«Звонки» → другие чипы: список чатов возвращается", async () => {
+  const a = await app();
+  a.run(`state.tab = "chats"; renderTab();`);
+  a.document.querySelector('#chat-filters [data-filter="calls"]').click();
+  assert.equal(a.run(`state.chatsSegment`), "calls");
+  a.document.querySelector('#chat-filters [data-filter="groups"]').click();
+  assert.equal(a.run(`state.chatsSegment`), "chats");
+  assert.ok(!a.document.querySelector("#screen-chats").classList.contains("hidden"), "экран чатов снова виден");
+  assert.ok(a.document.querySelector("#screen-calls").classList.contains("hidden"));
+  a.close();
+});
+
+test("пасхалки: эмодзи в новом сообщении запускают эффект и у отправителя, и у получателя; не больше двух на сообщение", async () => {
+  const a = await app();
+  a.run(`const c1 = state.contacts.get("alice"); c1.managed = true; c1.messages.push({id:"x0", from:"them", text:"привет", ts: Date.now()}); state.chatId = "alice"; renderTab();`);
+  a.run(`const c2 = state.contacts.get("alice"); c2.messages.push({id:"x1", from:"them", text:"люблю ❤️", ts: Date.now()}); renderChatThread();`);
+  await tick(20);
+  assert.ok(a.document.querySelector("#egg-layer .egg-rise"), "сердечки у получателя");
+  a.document.querySelector("#egg-layer").innerHTML = "";
+  a.run(`const c3 = state.contacts.get("alice"); c3.messages.push({id:"x2", from:"me", text:"🔥🌈🍕", ts: Date.now(), ack:"sent"}); renderChatThread();`);
+  await tick(20);
+  const layer = a.document.querySelector("#egg-layer");
+  assert.ok(layer.querySelector(".egg-rise"), "огонь у отправителя");
+  assert.ok(layer.querySelector(".egg-run"), "пицца — второй эффект");
+  assert.equal(layer.querySelector(".egg-rainbow"), null, "третий эффект (радуга) не запускается");
+  a.run(`FX.set("easter", false)`);
+  a.document.querySelector("#egg-layer").innerHTML = "";
+  a.run(`const c4 = state.contacts.get("alice"); c4.messages.push({id:"x3", from:"them", text:"❄️", ts: Date.now()}); renderChatThread();`);
+  assert.equal(a.document.querySelector("#egg-layer").children.length, 0, "выключено настройкой");
+  a.close();
+});
+
+test("громкость на iPhone: element.volume только для чтения → слайдер работает через GainNode (подключается, когда громкость уменьшают)", async () => {
+  const a = await app({ platform: "ios" });
+  a.run(`ensureContactEntry("alice","Alice"); state.callId = "alice"; state.callPhase = "active";`);
+  const audio = a.document.createElement("audio"); audio.id = "remote-audio-alice"; a.document.body.appendChild(audio);
+  Object.defineProperty(audio, "volume", { get: () => 1, set: () => {}, configurable: true });
+  a.window.__s = { id: "S", getTracks: () => [], getAudioTracks: () => [], getVideoTracks: () => [] };
+  a.run(`attachRemoteAudio("alice", window.__s)`);
+  assert.equal(audio._volReadOnly, true);
+  assert.equal(audio._relayGain, undefined, "на полной громкости Web Audio не участвует");
+  a.run(`applyCallVolume("alice", 0.4)`);
+  assert.ok(audio._relayGain, "после уменьшения громкости подключён GainNode");
+  assert.equal(audio._relayGain.gain.value, 0.4);
+  a.close();
+});
+
+test("динамик: на десктопе с setSinkId кнопка есть и открывает выбор устройства вывода", async () => {
+  const a = await app({ platform: "desktop" });
+  a.window.HTMLMediaElement.prototype.setSinkId = async () => {};
+  a.run(`updateCallButtonsSupport()`);
+  assert.ok(!a.document.querySelector("#call-speaker-btn").classList.contains("hidden"));
+  a.window.navigator.mediaDevices.enumerateDevices = async () => [{ kind: "audiooutput", deviceId: "default", label: "Колонки" }, { kind: "audiooutput", deviceId: "hp", label: "Наушники" }];
+  a.run(`state.callId = "alice"; openAudioOutputPicker()`);
+  await tick(30);
+  const items = Array.from(a.document.querySelectorAll("#audio-out-menu .call-menu-item")).map((b) => b.textContent);
+  assert.equal(items.length, 2);
+  assert.match(items[1], /Наушники/);
+  a.close();
+});
+
+test("свайп строки чата: кнопки действий скрыты, пока строка не сдвинута (не просвечивают через плашку)", async () => {
+  const css = require("fs").readFileSync(require("path").join(__dirname, "..", "css", "styles.css"), "utf8");
+  assert.match(css, /\.chat-row-wrapper \.chat-row-actions \{ opacity: 0; visibility: hidden/);
+  assert.match(css, /\.chat-row-wrapper\.drag-start \.chat-row-actions-start/);
+});

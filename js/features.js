@@ -189,7 +189,6 @@ sendChatMessage = async function (contactId, text) {
     if (c && fxIsBirthdayToday(c) && c.birthdayCelebrated !== year && BIRTHDAY_WORDS.test(String(text || ""))) {
       c.birthdayCelebrated = year; persistContacts(); fxConfetti(3200);
     }
-    if (FX.get("easter") && /🚀/.test(String(text || ""))) fxRocket();
   } catch (e) {}
   return r;
 };
@@ -589,7 +588,6 @@ function fxAfterRender() {
   fxUpdateVault();
   fxPatina();
   fxDance();
-  fxScanRockets();
   fxSilenceScene();
   fxWireVoiceStyle();
   fxDecorateVoice();
