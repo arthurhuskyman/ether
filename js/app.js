@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.61.1.1";
+const APP_VERSION = "V.61.1.2";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 // Сервер перевода по умолчанию (LibreTranslate-совместимый). Официальный публичный инстанс обычно
@@ -2184,7 +2184,9 @@ function lockViewportGestures() {
   let lastTouchEnd = 0;
   document.addEventListener("touchend", (e) => {
     const now = Date.now();
-    if (now - lastTouchEnd < 300 && e.cancelable) e.preventDefault(); // двойной тап = зум
+    // двойной тап = зум; но на заголовке (5 быстрых тапов открывают «Отладку») click должен доходить
+    const onTitle = e.target && e.target.closest && e.target.closest("#nav-title, #about-app-logo");
+    if (now - lastTouchEnd < 300 && e.cancelable && !onTitle) e.preventDefault();
     lastTouchEnd = now;
   }, { passive: false });
   try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock("portrait").catch(() => {}); } catch (e) {}
