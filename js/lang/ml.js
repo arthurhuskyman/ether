@@ -712,6 +712,8 @@ window.__LANG_DICTS["ml"] = {
     "chats.filter.groups": "ഗ്രൂപ്പ്",
     "chats.filter.direct": "നേരിട്ട്",
     "settings.hideNotifContent": "അറിയിപ്പുകളിൽ സന്ദേശ വാചകം മറയ്ക്കുക",
+    "call.screenSharing": "നിങ്ങൾ നിങ്ങളുടെ സ്ക്രീൻ പങ്കിടുന്നു",
+    "fx2.draw.stop": "വരയ്ക്കൽ നിർത്തുക",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ml");

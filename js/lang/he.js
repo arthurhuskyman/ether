@@ -712,6 +712,8 @@ window.__LANG_DICTS["he"] = {
     "chats.filter.groups": "קבוצות",
     "chats.filter.direct": "פרטי",
     "settings.hideNotifContent": "הסתר את תוכן ההודעות בהתראות",
+    "call.screenSharing": "אתם משתפים את המסך שלכם",
+    "fx2.draw.stop": "הפסק לצייר",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("he");

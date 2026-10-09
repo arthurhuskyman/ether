@@ -712,6 +712,8 @@ window.__LANG_DICTS["ha"] = {
     "chats.filter.groups": "Ƙungiyoyi",
     "chats.filter.direct": "Kai tsaye",
     "settings.hideNotifContent": "Ɓoye rubutun saƙo a cikin sanarwa",
+    "call.screenSharing": "Kuna raba allonka",
+    "fx2.draw.stop": "Daina zane",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ha");

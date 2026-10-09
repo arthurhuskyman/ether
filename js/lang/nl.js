@@ -712,6 +712,8 @@ window.__LANG_DICTS["nl"] = {
     "chats.filter.groups": "Groepen",
     "chats.filter.direct": "Privé",
     "settings.hideNotifContent": "Berichttekst verbergen in meldingen",
+    "call.screenSharing": "Je deelt je scherm",
+    "fx2.draw.stop": "Stop met tekenen",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("nl");

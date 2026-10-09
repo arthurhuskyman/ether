@@ -712,6 +712,8 @@ window.__LANG_DICTS["sk"] = {
     "chats.filter.groups": "Skupiny",
     "chats.filter.direct": "Osobné",
     "settings.hideNotifContent": "Skryť text správ v upozorneniach",
+    "call.screenSharing": "Zdieľate svoju obrazovku",
+    "fx2.draw.stop": "Zastaviť kreslenie",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("sk");

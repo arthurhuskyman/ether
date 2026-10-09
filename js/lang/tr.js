@@ -712,6 +712,8 @@ window.__LANG_DICTS["tr"] = {
     "chats.filter.groups": "Grup",
     "chats.filter.direct": "Özel",
     "settings.hideNotifContent": "Bildirimlerde mesaj metnini gizle",
+    "call.screenSharing": "Ekranınızı paylaşıyorsunuz",
+    "fx2.draw.stop": "Çizimi durdur",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("tr");

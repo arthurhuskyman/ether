@@ -712,6 +712,8 @@ window.__LANG_DICTS["tl"] = {
     "chats.filter.groups": "Grupo",
     "chats.filter.direct": "Direkta",
     "settings.hideNotifContent": "Itago ang teksto ng mensahe sa mga notification",
+    "call.screenSharing": "Ibinabahagi mo ang iyong screen",
+    "fx2.draw.stop": "Ihinto ang pagguhit",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("tl");

@@ -712,6 +712,8 @@ window.__LANG_DICTS["ar"] = {
     "chats.filter.groups": "مجموعات",
     "chats.filter.direct": "فردية",
     "settings.hideNotifContent": "إخفاء نص الرسائل في الإشعارات",
+    "call.screenSharing": "أنت تشارك شاشتك",
+    "fx2.draw.stop": "إيقاف الرسم",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ar");

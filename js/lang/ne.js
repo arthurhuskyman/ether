@@ -712,6 +712,8 @@ window.__LANG_DICTS["ne"] = {
     "chats.filter.groups": "समूह",
     "chats.filter.direct": "प्रत्यक्ष",
     "settings.hideNotifContent": "सूचनाहरूमा सन्देशको पाठ लुकाउनुहोस्",
+    "call.screenSharing": "तपाईं आफ्नो स्क्रिन साझा गर्दै हुनुहुन्छ",
+    "fx2.draw.stop": "चित्र बनाउन रोक्नुहोस्",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ne");

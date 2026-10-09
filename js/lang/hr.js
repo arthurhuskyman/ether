@@ -712,6 +712,8 @@ window.__LANG_DICTS["hr"] = {
     "chats.filter.groups": "Grupe",
     "chats.filter.direct": "Privatni",
     "settings.hideNotifContent": "Sakrij tekst poruke u obavijestima",
+    "call.screenSharing": "Dijelite svoj zaslon",
+    "fx2.draw.stop": "Zaustavi crtanje",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("hr");

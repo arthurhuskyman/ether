@@ -712,6 +712,8 @@ window.__LANG_DICTS["da"] = {
     "chats.filter.groups": "Grupper",
     "chats.filter.direct": "Direkte",
     "settings.hideNotifContent": "Skjul beskedtekst i notifikationer",
+    "call.screenSharing": "Du deler din skærm",
+    "fx2.draw.stop": "Stop tegning",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("da");

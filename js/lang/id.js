@@ -712,6 +712,8 @@ window.__LANG_DICTS["id"] = {
     "chats.filter.groups": "Grup",
     "chats.filter.direct": "Pribadi",
     "settings.hideNotifContent": "Sembunyikan isi pesan di notifikasi",
+    "call.screenSharing": "Anda sedang membagikan layar",
+    "fx2.draw.stop": "Berhenti menggambar",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("id");

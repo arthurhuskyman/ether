@@ -712,6 +712,8 @@ window.__LANG_DICTS["zh"] = {
     "chats.filter.groups": "群组",
     "chats.filter.direct": "单聊",
     "settings.hideNotifContent": "隐藏通知中的消息内容",
+    "call.screenSharing": "你正在共享屏幕",
+    "fx2.draw.stop": "停止绘制",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("zh");

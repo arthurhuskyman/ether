@@ -36,7 +36,8 @@ for (const platform of ["desktop", "ios", "android"]) {
     assert.ok(rv.hasAttribute("muted"));
     assert.equal(a.document.querySelectorAll("audio[id^=remote-audio-]").length, 1, "ровно один аудиоэлемент на собеседника");
     const sources = a.window.__audioNodes.filter((n) => n.type === "source");
-    assert.equal(sources.length, 1, "цепочка Web Audio не пересобирается на видеотреке того же потока");
+    assert.equal(sources.length, 0, "звук идёт напрямую из WebRTC-потока, без Web Audio (иначе артефакты и тишина в Chrome)");
+    assert.equal(a.document.querySelector("audio[id^=remote-audio-]").srcObject, s.stream, "аудиоэлемент играет сам поток");
     a.close();
   });
 
@@ -46,29 +47,24 @@ for (const platform of ["desktop", "ios", "android"]) {
     a.close();
   });
 
-  test(`[${platform}] слайдер громкости меняет громкость собеседника (GainNode), в том числе когда element.volume не работает`, async () => {
+  test(`[${platform}] слайдер громкости меняет громкость собеседника (element.volume)`, async () => {
     const a = await inCall(platform);
     const s = stream(a, false); deliver(a, s.stream, s.audio);
     const audioEl = a.document.querySelector("audio[id^=remote-audio-]");
-    // iOS: element.volume read-only
-    if (platform === "ios") Object.defineProperty(audioEl, "volume", { get: () => 1, set: () => {}, configurable: true });
-    const gain = audioEl._relayGain;
-    assert.ok(gain, "в цепочке должен быть GainNode");
     const slider = a.document.querySelector("#call-volume-slider");
     slider.value = "0.25"; slider.dispatchEvent(new a.window.Event("input", { bubbles: true }));
-    assert.equal(gain.gain.value, 0.25);
+    assert.equal(audioEl.volume, 0.25);
     assert.equal(a.run(`Store.callVolume`), 0.25);
     slider.value = "0"; slider.dispatchEvent(new a.window.Event("input", { bubbles: true }));
-    assert.equal(gain.gain.value, 0);
-    assert.equal(audioEl.volume === 1 || platform !== "ios", true);
+    assert.equal(audioEl.volume, 0);
     a.close();
   });
 
-  test(`[${platform}] громкость применяется к новому звонку, link.setRemoteVolume не ломает gain`, async () => {
+  test(`[${platform}] громкость применяется к новому звонку`, async () => {
     const a = await inCall(platform);
     a.run(`Store.callVolume = 0.4;`);
     const s = stream(a, false); deliver(a, s.stream, s.audio);
-    assert.equal(a.document.querySelector("audio[id^=remote-audio-]")._relayGain.gain.value, 0.4);
+    assert.equal(a.document.querySelector("audio[id^=remote-audio-]").volume, 0.4);
     a.close();
   });
 }

@@ -712,6 +712,8 @@ window.__LANG_DICTS["mr"] = {
     "chats.filter.groups": "गट",
     "chats.filter.direct": "वैयक्तिक",
     "settings.hideNotifContent": "सूचनांमध्ये संदेशाचा मजकूर लपवा",
+    "call.screenSharing": "तुम्ही तुमची स्क्रीन शेअर करत आहात",
+    "fx2.draw.stop": "चित्र काढणे थांबवा",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("mr");

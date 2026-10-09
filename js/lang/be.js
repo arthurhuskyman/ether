@@ -712,6 +712,8 @@ window.__LANG_DICTS["be"] = {
     "chats.filter.groups": "Групы",
     "chats.filter.direct": "Асабістыя",
     "settings.hideNotifContent": "Хаваць тэкст паведамленняў у апавяшчэннях",
+    "call.screenSharing": "Вы дэманструеце свой экран",
+    "fx2.draw.stop": "Спыніць маляванне",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("be");

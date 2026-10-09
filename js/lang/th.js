@@ -712,6 +712,8 @@ window.__LANG_DICTS["th"] = {
     "chats.filter.groups": "กลุ่ม",
     "chats.filter.direct": "ส่วนตัว",
     "settings.hideNotifContent": "ซ่อนข้อความในการแจ้งเตือน",
+    "call.screenSharing": "คุณกำลังแชร์หน้าจอ",
+    "fx2.draw.stop": "หยุดวาด",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("th");

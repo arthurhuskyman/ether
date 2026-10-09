@@ -712,6 +712,8 @@ window.__LANG_DICTS["kn"] = {
     "chats.filter.groups": "ಗುಂಪುಗಳು",
     "chats.filter.direct": "ನೇರ",
     "settings.hideNotifContent": "ಅಧಿಸೂಚನೆಗಳಲ್ಲಿ ಸಂದೇಶದ ಪಠ್ಯ ಮರೆಮಾಡಿ",
+    "call.screenSharing": "ನೀವು ನಿಮ್ಮ ಪರದೆಯನ್ನು ಹಂಚಿಕೊಳ್ಳುತ್ತಿದ್ದೀರಿ",
+    "fx2.draw.stop": "ಚಿತ್ರಬಿಡಿಸುವುದನ್ನು ನಿಲ್ಲಿಸಿ",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("kn");

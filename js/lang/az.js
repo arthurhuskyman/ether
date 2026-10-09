@@ -712,6 +712,8 @@ window.__LANG_DICTS["az"] = {
     "chats.filter.groups": "Qruplar",
     "chats.filter.direct": "Şəxsi",
     "settings.hideNotifContent": "Bildirişlərdə mesaj mətnini gizlət",
+    "call.screenSharing": "Ekranınızı paylaşırsınız",
+    "fx2.draw.stop": "Çəkməyi dayandır",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("az");

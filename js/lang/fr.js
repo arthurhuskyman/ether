@@ -712,6 +712,8 @@ window.__LANG_DICTS["fr"] = {
     "chats.filter.groups": "Groupes",
     "chats.filter.direct": "Privés",
     "settings.hideNotifContent": "Masquer le texte des messages dans les notifications",
+    "call.screenSharing": "Vous partagez votre écran",
+    "fx2.draw.stop": "Arrêter le dessin",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("fr");

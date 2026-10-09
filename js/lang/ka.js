@@ -712,6 +712,8 @@ window.__LANG_DICTS["ka"] = {
     "chats.filter.groups": "ჯგუფი",
     "chats.filter.direct": "პირადი",
     "settings.hideNotifContent": "შეტყობინების ტექსტის დამალვა შეტყობინებებში",
+    "call.screenSharing": "თქვენ აზიარებთ ეკრანს",
+    "fx2.draw.stop": "ხატვის შეჩერება",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ka");

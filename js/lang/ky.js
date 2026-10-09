@@ -712,6 +712,8 @@ window.__LANG_DICTS["ky"] = {
     "chats.filter.groups": "Топтор",
     "chats.filter.direct": "Жеке",
     "settings.hideNotifContent": "Билдирмелерде билдирүүнүн текстин жашыруу",
+    "call.screenSharing": "Сиз экраныңызды бөлүшүп жатасыз",
+    "fx2.draw.stop": "Тартууну токтотуу",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ky");

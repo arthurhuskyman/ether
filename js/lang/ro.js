@@ -712,6 +712,8 @@ window.__LANG_DICTS["ro"] = {
     "chats.filter.groups": "Grupuri",
     "chats.filter.direct": "Directe",
     "settings.hideNotifContent": "Ascunde textul mesajelor în notificări",
+    "call.screenSharing": "Îți partajezi ecranul",
+    "fx2.draw.stop": "Oprește desenul",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ro");

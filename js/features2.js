@@ -307,6 +307,14 @@ function fxdSetActive(on, peer) {
   if (!on) { FXD.strokes = []; FXD.cur = null; }
   const cv = fxdCanvas(); if (cv) cv.classList.toggle("active", !!on);
   const btn = document.getElementById("fx-draw-btn"); if (btn) btn.classList.toggle("fx-on", !!on);
+  // Отдельная всегда доступная кнопка выхода из режима рисования (холст перекрывал экран, и выйти было нечем)
+  let stop = document.getElementById("fx-stop-draw");
+  if (on && !stop) {
+    stop = document.createElement("button"); stop.type = "button"; stop.id = "fx-stop-draw";
+    stop.textContent = "✕ " + T("fx2.draw.stop");
+    stop.addEventListener("click", () => { const id = FXD.peer || state.callId; if (id) fx2Send(id, { kind: "fxdraw", t: "stop" }); fxdSetActive(false); });
+    (document.getElementById("call-screen") || document.body).appendChild(stop);
+  } else if (!on && stop) stop.remove();
   fxdLoop();
 }
 function fxdAsk(peerId) {
@@ -456,6 +464,7 @@ function fxThreadReplies(c, msgId, emoji) {
 function fxOpenThread(contactId, msgId, emoji) {
   const c = state.contacts.get(contactId); if (!c) return null;
   const m = c.messages.find((x) => x.id === msgId); if (!m) return null;
+  const ms0 = document.getElementById("message-sheet"); if (ms0) ms0.classList.add("hidden"); // меню сообщения не должно висеть под тредом
   let sh = document.getElementById("fx-thread-sheet"); if (sh) sh.remove();
   sh = document.createElement("div"); sh.id = "fx-thread-sheet"; sh.className = "sheet";
   sh.innerHTML = `<div class="sheet-backdrop"></div><div class="sheet-panel glass-content"><div class="sheet-handle"></div>

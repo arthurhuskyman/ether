@@ -712,6 +712,8 @@ window.__LANG_DICTS["bs"] = {
     "chats.filter.groups": "Grupe",
     "chats.filter.direct": "Lični",
     "settings.hideNotifContent": "Sakrij tekst poruke u obavještenjima",
+    "call.screenSharing": "Dijelite svoj ekran",
+    "fx2.draw.stop": "Zaustavi crtanje",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("bs");

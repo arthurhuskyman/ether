@@ -712,6 +712,8 @@ window.__LANG_DICTS["hy"] = {
     "chats.filter.groups": "Խմբեր",
     "chats.filter.direct": "Անհատ",
     "settings.hideNotifContent": "Թաքցնել հաղորդագրության տեքստը ծանուցումներում",
+    "call.screenSharing": "Դուք կիսվում եք ձեր էկրանով",
+    "fx2.draw.stop": "Դադարեցնել նկարելը",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("hy");

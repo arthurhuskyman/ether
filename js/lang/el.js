@@ -712,6 +712,8 @@ window.__LANG_DICTS["el"] = {
     "chats.filter.groups": "Ομάδες",
     "chats.filter.direct": "Ατομικά",
     "settings.hideNotifContent": "Απόκρυψη κειμένου μηνυμάτων στις ειδοποιήσεις",
+    "call.screenSharing": "Μοιράζεστε την οθόνη σας",
+    "fx2.draw.stop": "Διακοπή σχεδίασης",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("el");

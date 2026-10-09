@@ -712,6 +712,8 @@ window.__LANG_DICTS["sq"] = {
     "chats.filter.groups": "Grupe",
     "chats.filter.direct": "Private",
     "settings.hideNotifContent": "Fshih tekstin e mesazheve në njoftime",
+    "call.screenSharing": "Po ndani ekranin tuaj",
+    "fx2.draw.stop": "Ndalo vizatimin",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("sq");

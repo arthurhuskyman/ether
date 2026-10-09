@@ -712,6 +712,8 @@ window.__LANG_DICTS["jv"] = {
     "chats.filter.groups": "Grup",
     "chats.filter.direct": "Pribadi",
     "settings.hideNotifContent": "Delikake isi pesen ing kabar",
+    "call.screenSharing": "Sampeyan lagi nuduhake layar",
+    "fx2.draw.stop": "Mungkasi nggambar",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("jv");

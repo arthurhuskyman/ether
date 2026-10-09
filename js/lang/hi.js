@@ -712,6 +712,8 @@ window.__LANG_DICTS["hi"] = {
     "chats.filter.groups": "ग्रुप",
     "chats.filter.direct": "सीधे",
     "settings.hideNotifContent": "सूचनाओं में संदेश का टेक्स्ट छिपाएँ",
+    "call.screenSharing": "आप अपनी स्क्रीन साझा कर रहे हैं",
+    "fx2.draw.stop": "ड्रॉइंग बंद करें",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("hi");

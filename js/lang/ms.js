@@ -712,6 +712,8 @@ window.__LANG_DICTS["ms"] = {
     "chats.filter.groups": "Grup",
     "chats.filter.direct": "Peribadi",
     "settings.hideNotifContent": "Sembunyikan teks mesej dalam pemberitahuan",
+    "call.screenSharing": "Anda sedang berkongsi skrin anda",
+    "fx2.draw.stop": "Henti melukis",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ms");

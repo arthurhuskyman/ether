@@ -712,6 +712,8 @@ window.__LANG_DICTS["am"] = {
     "chats.filter.groups": "ቡድኖች",
     "chats.filter.direct": "ቀጥታ",
     "settings.hideNotifContent": "በማሳወቂያዎች ውስጥ የመልዕክት ጽሑፍን ደብቅ",
+    "call.screenSharing": "ማያ ገጽዎን እያጋሩ ነው",
+    "fx2.draw.stop": "ሥዕልን አቁም",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("am");

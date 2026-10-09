@@ -712,6 +712,8 @@ window.__LANG_DICTS["uk"] = {
     "chats.filter.groups": "Групи",
     "chats.filter.direct": "Особисті",
     "settings.hideNotifContent": "Приховувати текст повідомлень у сповіщеннях",
+    "call.screenSharing": "Ви демонструєте свій екран",
+    "fx2.draw.stop": "Зупинити малювання",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("uk");

@@ -342,7 +342,7 @@ function fxDecorateVoice() {
     if (b.querySelector(".fx-voice-deco")) continue;
     const btn = b.querySelector(".voice-play-btn"); if (!btn) continue;
     for (const [cls, svg] of [["cassette", FX_CASSETTE_SVG], ["vinyl", FX_VINYL_SVG]]) {
-      const d = document.createElement("span"); d.className = "fx-voice-deco " + cls; d.innerHTML = svg; btn.insertAdjacentElement("afterend", d);
+      const d = document.createElement("span"); d.className = "fx-voice-deco " + cls; d.innerHTML = svg; btn.insertBefore(d, btn.firstChild);
     }
   }
 }

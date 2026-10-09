@@ -712,6 +712,8 @@ window.__LANG_DICTS["bg"] = {
     "chats.filter.groups": "Групи",
     "chats.filter.direct": "Лични",
     "settings.hideNotifContent": "Скриване на текста на съобщенията в известията",
+    "call.screenSharing": "Споделяте екрана си",
+    "fx2.draw.stop": "Спри рисуването",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("bg");

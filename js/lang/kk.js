@@ -712,6 +712,8 @@ window.__LANG_DICTS["kk"] = {
     "chats.filter.groups": "Топтар",
     "chats.filter.direct": "Жеке",
     "settings.hideNotifContent": "Хабарландыруларда хабарлама мәтінін жасыру",
+    "call.screenSharing": "Сіз экранды бөлісіп жатырсыз",
+    "fx2.draw.stop": "Сызуды тоқтату",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("kk");

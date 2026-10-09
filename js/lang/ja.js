@@ -712,6 +712,8 @@ window.__LANG_DICTS["ja"] = {
     "chats.filter.groups": "グループ",
     "chats.filter.direct": "個人",
     "settings.hideNotifContent": "通知にメッセージ本文を表示しない",
+    "call.screenSharing": "画面を共有しています",
+    "fx2.draw.stop": "描画を停止",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ja");

@@ -712,6 +712,8 @@ window.__LANG_DICTS["tg"] = {
     "chats.filter.groups": "Гурӯҳҳо",
     "chats.filter.direct": "Шахсӣ",
     "settings.hideNotifContent": "Пинҳон кардани матни паёмҳо дар огоҳиномаҳо",
+    "call.screenSharing": "Шумо экрани худро мубодила мекунед",
+    "fx2.draw.stop": "Қатъи расмкашӣ",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("tg");

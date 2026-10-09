@@ -712,6 +712,8 @@ window.__LANG_DICTS["lt"] = {
     "chats.filter.groups": "Grupės",
     "chats.filter.direct": "Privatūs",
     "settings.hideNotifContent": "Slėpti žinutės tekstą pranešimuose",
+    "call.screenSharing": "Bendrinate savo ekraną",
+    "fx2.draw.stop": "Baigti piešti",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("lt");

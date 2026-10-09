@@ -712,6 +712,8 @@ window.__LANG_DICTS["ur"] = {
     "chats.filter.groups": "گروپس",
     "chats.filter.direct": "ذاتی",
     "settings.hideNotifContent": "اطلاعات میں پیغام کا متن چھپائیں",
+    "call.screenSharing": "آپ اپنی اسکرین شیئر کر رہے ہیں",
+    "fx2.draw.stop": "ڈرائنگ بند کریں",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ur");

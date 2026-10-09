@@ -712,6 +712,8 @@ window.__LANG_DICTS["my"] = {
     "chats.filter.groups": "အဖွဲ့များ",
     "chats.filter.direct": "တိုက်ရိုက်",
     "settings.hideNotifContent": "အကြောင်းကြားချက်များတွင် မက်ဆေ့ချ်စာသား ဖျောက်ထားရန်",
+    "call.screenSharing": "သင့်စခရင်ကို မျှဝေနေသည်",
+    "fx2.draw.stop": "ဆွဲခြင်းရပ်ရန်",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("my");

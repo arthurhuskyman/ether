@@ -712,6 +712,8 @@ window.__LANG_DICTS["uz"] = {
     "chats.filter.groups": "Guruh",
     "chats.filter.direct": "Shaxsiy",
     "settings.hideNotifContent": "Bildirishnomalarda xabar matnini yashirish",
+    "call.screenSharing": "Siz ekraningizni ulashmoqdasiz",
+    "fx2.draw.stop": "Chizishni to‘xtatish",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("uz");

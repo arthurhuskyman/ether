@@ -712,6 +712,8 @@ window.__LANG_DICTS["cs"] = {
     "chats.filter.groups": "Skupiny",
     "chats.filter.direct": "Osobní",
     "settings.hideNotifContent": "Skrýt text zpráv v oznámeních",
+    "call.screenSharing": "Sdílíte svou obrazovku",
+    "fx2.draw.stop": "Zastavit kreslení",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("cs");

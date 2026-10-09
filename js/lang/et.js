@@ -712,6 +712,8 @@ window.__LANG_DICTS["et"] = {
     "chats.filter.groups": "Grupid",
     "chats.filter.direct": "Isiklik",
     "settings.hideNotifContent": "Peida sõnumi tekst teavitustes",
+    "call.screenSharing": "Jagad oma ekraani",
+    "fx2.draw.stop": "Lõpeta joonistamine",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("et");

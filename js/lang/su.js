@@ -712,6 +712,8 @@ window.__LANG_DICTS["su"] = {
     "chats.filter.groups": "Grup",
     "chats.filter.direct": "Pribadi",
     "settings.hideNotifContent": "Sumputkeun eusi pesen dina bewara",
+    "call.screenSharing": "Anjeun keur ngabagi layar",
+    "fx2.draw.stop": "Eureun ngagambar",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("su");

@@ -48,8 +48,13 @@ for (const platform of ["desktop", "ios", "android"]) {
     assert.equal(a.run(`state.callId`), "alice");
     assert.equal(a.run(`state.callWantsVideo`), true);
     assert.ok(sh(a, "#call-screen"));
-    assert.ok(sh(a, "#call-video-overlays"), "оверлей flip/PiP виден с локальным видео");
-    assert.ok(sh(a, "#call-flip-overlay-btn"));
+    if (platform === "desktop") {
+      assert.ok(a.document.querySelector("#call-flip-overlay-btn").classList.contains("hidden"), "на десктопе «задняя камера» не показываем");
+    } else {
+      assert.ok(sh(a, "#call-video-overlays"), "на телефоне оверлей с переключением камеры виден");
+      assert.ok(sh(a, "#call-flip-overlay-btn"));
+      assert.ok(a.document.querySelector("#call-pip-overlay-btn").classList.contains("hidden"), "на телефоне «картинка в картинке» не показываем");
+    }
     assert.ok(a.document.querySelector("#call-video-btn").classList.contains("active"));
     a.close();
   });
@@ -165,8 +170,8 @@ for (const platform of ["desktop", "ios", "android"]) {
     a.run(`setCallPhaseActive()`);
     assert.ok(sh(a, "#call-remote-video"));
     assert.ok(a.document.querySelector("#call-screen").classList.contains("video-active"));
-    assert.ok(sh(a, "#call-video-overlays"));
     assert.ok(a.document.querySelector("#call-flip-overlay-btn").classList.contains("hidden"), "своей камеры нет — flip скрыт");
+    assert.ok(!sh(a, "#call-video-overlays"), "нет применимых кнопок (на телефоне нет PiP, на десктопе нет «задней камеры») — оверлей не показываем");
     // собеседник убрал видео → не оставляем замороженный кадр
     video.dispatchEvent(new a.window.Event("mute"));
     assert.ok(!sh(a, "#call-remote-video"));

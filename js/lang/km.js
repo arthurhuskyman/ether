@@ -712,6 +712,8 @@ window.__LANG_DICTS["km"] = {
     "chats.filter.groups": "ក្រុម",
     "chats.filter.direct": "ផ្ទាល់",
     "settings.hideNotifContent": "លាក់អត្ថបទសារក្នុងការជូនដំណឹង",
+    "call.screenSharing": "អ្នកកំពុងចែករំលែកអេក្រង់របស់អ្នក",
+    "fx2.draw.stop": "បញ្ឈប់ការគូរ",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("km");

@@ -712,6 +712,8 @@ window.__LANG_DICTS["pa"] = {
     "chats.filter.groups": "ਗਰੁੱਪ",
     "chats.filter.direct": "ਨਿੱਜੀ",
     "settings.hideNotifContent": "ਸੂਚਨਾਵਾਂ ਵਿੱਚ ਸੁਨੇਹੇ ਦਾ ਲਿਖਤ ਲੁਕਾਓ",
+    "call.screenSharing": "ਤੁਸੀਂ ਆਪਣੀ ਸਕ੍ਰੀਨ ਸਾਂਝੀ ਕਰ ਰਹੇ ਹੋ",
+    "fx2.draw.stop": "ਡਰਾਇੰਗ ਬੰਦ ਕਰੋ",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("pa");

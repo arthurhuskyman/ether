@@ -712,6 +712,8 @@ window.__LANG_DICTS["yo"] = {
     "chats.filter.groups": "Ẹgbẹ́",
     "chats.filter.direct": "Àdáni",
     "settings.hideNotifContent": "Fi ọ̀rọ̀ ìfiránṣẹ́ pamọ́ nínú àwọn ìfitónilétí",
+    "call.screenSharing": "O ń pín ìfihàn ẹ̀rọ rẹ",
+    "fx2.draw.stop": "Dáwọ́ yíyà dúró",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("yo");

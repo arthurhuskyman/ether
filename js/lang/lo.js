@@ -712,6 +712,8 @@ window.__LANG_DICTS["lo"] = {
     "chats.filter.groups": "ກຸ່ມ",
     "chats.filter.direct": "ສ່ວນຕົວ",
     "settings.hideNotifContent": "ເຊື່ອງຂໍ້ຄວາມໃນການແຈ້ງເຕືອນ",
+    "call.screenSharing": "ທ່ານກຳລັງແບ່ງປັນໜ້າຈໍຂອງທ່ານ",
+    "fx2.draw.stop": "ຢຸດການແຕ້ມ",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("lo");

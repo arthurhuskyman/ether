@@ -15,6 +15,16 @@ const FALLBACK_ICE = [
 
 let ICE_SERVERS = [];
 
+// Параметры захвата: без них браузер отдаёт 640×480 и «сырой» микрофон без шумо-/эхоподавления — на звонке это выглядит
+// и звучит заметно хуже. Идеал просим мягко (ideal), чтобы устройство не падало с OverconstrainedError.
+const AUDIO_CAPTURE = { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1, sampleRate: { ideal: 48000 } };
+function videoCapture(facingMode) {
+  return { facingMode: facingMode || "user", width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } };
+}
+const AUDIO_MAX_BITRATE = 64000;   // Opus: прозрачное качество речи
+const VIDEO_MAX_BITRATE = 2500000; // 720p30 камера
+const SCREEN_MAX_BITRATE = 4000000;
+
 // Режим «только relay»: на ряде мобильных/домашних сетей (DPI-фильтрация WebRTC) ICE по UDP проходит («connected»),
 // но DTLS так и не завершается и через ~6 с всё рвётся. Тогда следующая попытка идёт ТОЛЬКО через TURN (TCP/TLS 443 —
 // выглядит как обычный HTTPS). Запоминаем по контакту на 30 минут.
@@ -104,7 +114,7 @@ const ICE_GATHER_TIMEOUT_MS = 2500;
 // рвалась, хотя была жива. 60 секунд позволяют пережить короткий
 // background-период. При полной заморозке дольше 60с — да, рвём, но
 // пересоединение установит всё заново быстрее, чем реальный перерыв.
-const HEARTBEAT_TIMEOUT_MS = 60000;
+const HEARTBEAT_TIMEOUT_MS = 20000;
 const DISCONNECT_GRACE_MS = 7000; // сколько ждём самовосстановления ICE, прежде чем считать линк отключённым
 
 function waitForIceGathering(pc) {
@@ -308,6 +318,7 @@ class PeerLink extends EventTarget {
     this.pc.addEventListener("signalingstatechange", () => {
       this._log("info", "[webrtc]", id.slice(0, 10) + "…", "signaling:", this.pc.signalingState);
       this.dispatchEvent(new CustomEvent("signaling-state", { detail: { state: this.pc.signalingState } }));
+      if (this.pc.signalingState === "stable") this._tuneSenders();
     });
 
     this.pc.addEventListener("connectionstatechange", () => {
@@ -366,6 +377,29 @@ class PeerLink extends EventTarget {
         this.dc = ev.channel;
         this._bindDataChannel();
       });
+    }
+  }
+
+  // Битрейт/приоритет отправителей: по умолчанию браузер стартует с низкого битрейта и сам режет разрешение —
+  // «картинка мылит, звук с артефактами». Вызывается после каждого согласования и добавления трека.
+  async _tuneSenders() {
+    if (this._closed) return;
+    for (const sender of this.pc.getSenders()) {
+      const t = sender.track; if (!t) continue;
+      try {
+        const p = sender.getParameters();
+        if (!p.encodings || !p.encodings.length) p.encodings = [{}];
+        const e = p.encodings[0];
+        if (t.kind === "audio") {
+          e.maxBitrate = AUDIO_MAX_BITRATE; e.priority = "high"; e.networkPriority = "high";
+        } else {
+          const screen = this._screenSharing && t === this.localVideoTrack;
+          e.maxBitrate = screen ? SCREEN_MAX_BITRATE : VIDEO_MAX_BITRATE;
+          e.scaleResolutionDownBy = 1; e.priority = "medium";
+          p.degradationPreference = screen ? "maintain-resolution" : "balanced";
+        }
+        await sender.setParameters(p);
+      } catch (err) { /* не все браузеры позволяют менять параметры — не критично */ }
     }
   }
 
@@ -739,7 +773,9 @@ class PeerLink extends EventTarget {
       if (!this.localStream) this.localStream = new MediaStream([this.localAudioTrack]);
       return;
     }
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: AUDIO_CAPTURE }); }
+    catch (e) { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
     this.localAudioTrack = stream.getAudioTracks()[0];
     this.localStream = stream;
   }
@@ -757,7 +793,10 @@ class PeerLink extends EventTarget {
 
   async _ensureLocalVideo(facingMode) {
     if (this.localVideoTrack) return;
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facingMode || "user" } });
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ video: videoCapture(facingMode) }); }
+    catch (e) { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facingMode || "user" } }); }
+    try { stream.getVideoTracks()[0].contentHint = "motion"; } catch (e) {}
     this.localVideoTrack = stream.getVideoTracks()[0];
     this._facingMode = facingMode || "user";
     if (!this.localStream) this.localStream = new MediaStream();
@@ -819,7 +858,8 @@ async switchCamera() {
     const settingsMode = this.localVideoTrack.getSettings ? this.localVideoTrack.getSettings().facingMode : null;
     const cur = settingsMode || this._facingMode || "user";
     const next = cur === "environment" ? "user" : "environment";
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: next } });
+    try { stream = await navigator.mediaDevices.getUserMedia({ video: videoCapture(next) }); }
+    catch (e0) { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: next } }); }
     const newTrack = stream.getVideoTracks()[0];
     const sender = this.pc.getSenders().find(s => s.track && s.track.kind === "video");
     if (!sender) {
@@ -857,7 +897,7 @@ async startScreenShare() {
   if (this._screenSharing) return true;
   let stream = null;
   try {
-    stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+    stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 15, max: 30 }, width: { max: 1920 }, height: { max: 1080 } }, audio: false });
   } catch (e) {
     // Пользователь закрыл системный выбор окна/экрана, либо браузер
     // запретил — не ошибка приложения, просто показ не начался.
@@ -865,6 +905,7 @@ async startScreenShare() {
     return false;
   }
   const screenTrack = stream.getVideoTracks()[0];
+  try { if (screenTrack) screenTrack.contentHint = "detail"; } catch (e) {}
   if (!screenTrack) { try { stream.getTracks().forEach((t) => t.stop()); } catch (e) {} return false; }
   try {
     if (this._videoAdded) {
@@ -893,6 +934,8 @@ async startScreenShare() {
   }
   this.localVideoTrack = screenTrack;
   this._screenSharing = true;
+  this.send({ kind: "call-state", state: "screen", on: true, ts: Date.now() });
+  this._tuneSenders();
   // "Stop sharing" из системного UI браузера (полоска/нотификация ОС) —
   // единственный надёжный кросс-браузерный сигнал о том, что показ экрана
   // прервали НЕ через нашу кнопку. Без этого обработчика состояние
@@ -908,6 +951,7 @@ async startScreenShare() {
 async stopScreenShare() {
   if (!this._screenSharing) return;
   this._screenSharing = false;
+  this.send({ kind: "call-state", state: "screen", on: false, ts: Date.now() });
   const screenTrack = this.localVideoTrack;
   try {
     if (this._screenShareAddedVideo) {
@@ -977,7 +1021,7 @@ async startCall(withVideo) {
   setRemoteVolume(v) {
     const vol = Math.max(0, Math.min(1, Number(v) || 0));
     const el = document.getElementById("remote-audio-" + this.id);
-    if (el) { if (el._relayGain) el._relayGain.gain.value = vol; else el.volume = vol; }
+    if (el) { try { el.volume = vol; } catch (e) {} }
   }
 
   async reInvite() {

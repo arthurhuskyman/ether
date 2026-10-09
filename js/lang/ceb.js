@@ -712,6 +712,8 @@ window.__LANG_DICTS["ceb"] = {
     "chats.filter.groups": "Grupo",
     "chats.filter.direct": "Direkta",
     "settings.hideNotifContent": "Itago ang teksto sa mensahe sa mga notipikasyon",
+    "call.screenSharing": "Nag-share ka sa imong screen",
+    "fx2.draw.stop": "Undangi ang pagdrowing",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ceb");

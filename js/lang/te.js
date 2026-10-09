@@ -712,6 +712,8 @@ window.__LANG_DICTS["te"] = {
     "chats.filter.groups": "గ్రూపులు",
     "chats.filter.direct": "నేరుగా",
     "settings.hideNotifContent": "నోటిఫికేషన్‌లలో సందేశ వచనాన్ని దాచండి",
+    "call.screenSharing": "మీరు మీ స్క్రీన్‌ను షేర్ చేస్తున్నారు",
+    "fx2.draw.stop": "గీయడం ఆపండి",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("te");

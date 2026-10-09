@@ -712,6 +712,8 @@ window.__LANG_DICTS["lv"] = {
     "chats.filter.groups": "Grupas",
     "chats.filter.direct": "Privāti",
     "settings.hideNotifContent": "Paslēpt ziņas tekstu paziņojumos",
+    "call.screenSharing": "Jūs kopīgojat savu ekrānu",
+    "fx2.draw.stop": "Pārtraukt zīmēšanu",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("lv");

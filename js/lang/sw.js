@@ -712,6 +712,8 @@ window.__LANG_DICTS["sw"] = {
     "chats.filter.groups": "Vikundi",
     "chats.filter.direct": "Binafsi",
     "settings.hideNotifContent": "Ficha maandishi ya ujumbe kwenye arifa",
+    "call.screenSharing": "Unashiriki skrini yako",
+    "fx2.draw.stop": "Acha kuchora",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("sw");

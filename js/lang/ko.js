@@ -712,6 +712,8 @@ window.__LANG_DICTS["ko"] = {
     "chats.filter.groups": "그룹",
     "chats.filter.direct": "개인",
     "settings.hideNotifContent": "알림에서 메시지 내용 숨기기",
+    "call.screenSharing": "화면을 공유하고 있습니다",
+    "fx2.draw.stop": "그리기 중지",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ko");

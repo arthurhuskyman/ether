@@ -712,6 +712,8 @@ window.__LANG_DICTS["fi"] = {
     "chats.filter.groups": "Ryhmät",
     "chats.filter.direct": "Yksityiset",
     "settings.hideNotifContent": "Piilota viestin teksti ilmoituksista",
+    "call.screenSharing": "Jaat näyttöäsi",
+    "fx2.draw.stop": "Lopeta piirtäminen",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("fi");

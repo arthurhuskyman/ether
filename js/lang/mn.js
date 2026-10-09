@@ -712,6 +712,8 @@ window.__LANG_DICTS["mn"] = {
     "chats.filter.groups": "Групп",
     "chats.filter.direct": "Хувийн",
     "settings.hideNotifContent": "Мэдэгдэлд мессежийн текстийг нуух",
+    "call.screenSharing": "Та дэлгэцээ хуваалцаж байна",
+    "fx2.draw.stop": "Зурахыг зогсоох",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("mn");

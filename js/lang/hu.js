@@ -712,6 +712,8 @@ window.__LANG_DICTS["hu"] = {
     "chats.filter.groups": "Csoportok",
     "chats.filter.direct": "Privát",
     "settings.hideNotifContent": "Üzenetszöveg elrejtése az értesítésekben",
+    "call.screenSharing": "Megosztod a képernyődet",
+    "fx2.draw.stop": "Rajzolás leállítása",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("hu");

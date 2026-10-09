@@ -712,6 +712,8 @@ window.__LANG_DICTS["mk"] = {
     "chats.filter.groups": "Групи",
     "chats.filter.direct": "Лични",
     "settings.hideNotifContent": "Сокриј го текстот на пораките во известувањата",
+    "call.screenSharing": "Го споделувате вашиот екран",
+    "fx2.draw.stop": "Запри го цртањето",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("mk");

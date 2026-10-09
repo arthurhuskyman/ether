@@ -712,6 +712,8 @@ window.__LANG_DICTS["si"] = {
     "chats.filter.groups": "කණ්ඩායම්",
     "chats.filter.direct": "පෞද්ගලික",
     "settings.hideNotifContent": "දැනුම්දීම්වල පණිවිඩ පෙළ සඟවන්න",
+    "call.screenSharing": "ඔබ ඔබේ තිරය බෙදා ගනිමින් සිටී",
+    "fx2.draw.stop": "ඇඳීම නවත්වන්න",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("si");

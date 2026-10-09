@@ -712,6 +712,8 @@ window.__LANG_DICTS["vi"] = {
     "chats.filter.groups": "Nhóm",
     "chats.filter.direct": "Riêng",
     "settings.hideNotifContent": "Ẩn nội dung tin nhắn trong thông báo",
+    "call.screenSharing": "Bạn đang chia sẻ màn hình",
+    "fx2.draw.stop": "Dừng vẽ",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("vi");

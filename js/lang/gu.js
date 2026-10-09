@@ -712,6 +712,8 @@ window.__LANG_DICTS["gu"] = {
     "chats.filter.groups": "ગ્રૂપ",
     "chats.filter.direct": "અંગત",
     "settings.hideNotifContent": "સૂચનાઓમાં સંદેશનું લખાણ છુપાવો",
+    "call.screenSharing": "તમે તમારી સ્ક્રીન શેર કરી રહ્યા છો",
+    "fx2.draw.stop": "દોરવાનું બંધ કરો",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("gu");

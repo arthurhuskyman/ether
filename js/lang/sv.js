@@ -712,6 +712,8 @@ window.__LANG_DICTS["sv"] = {
     "chats.filter.groups": "Grupper",
     "chats.filter.direct": "Privat",
     "settings.hideNotifContent": "Dölj meddelandetext i aviseringar",
+    "call.screenSharing": "Du delar din skärm",
+    "fx2.draw.stop": "Sluta rita",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("sv");
