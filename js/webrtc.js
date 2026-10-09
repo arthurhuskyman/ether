@@ -37,6 +37,15 @@ function isRelayOnly(id) {
   if (t < Date.now()) { relayOnlyUntil.delete(id); return false; }
   return true;
 }
+// Не «залипаем» в relay-only: после 2 безуспешных relay-попыток подряд возвращаемся к обычному режиму (прямое/UDP).
+const relayTries = new Map();
+function relayOnlyAttempt(id) {
+  if (!isRelayOnly(id)) return false;
+  const n = (relayTries.get(id) || 0) + 1;
+  if (n > 2) { relayOnlyUntil.delete(id); relayTries.delete(id); return false; }
+  relayTries.set(id, n);
+  return true;
+}
 function relayCapableServers() {
   return ICE_SERVERS.filter((srv) => [].concat(srv.urls || []).some((u) => /^turns?:/i.test(u)));
 }
@@ -176,7 +185,7 @@ class PeerLink extends EventTarget {
       return urls.length ? { ...srv, urls } : null;
     }).filter(Boolean);
     const effectiveIceServers = ICE_SERVERS.length > 0 ? (udpOnly.length ? udpOnly : ICE_SERVERS) : FALLBACK_ICE;
-    const relayServers = isRelayOnly(id) ? relayCapableServers() : [];
+    const relayServers = relayOnlyAttempt(id) ? relayCapableServers() : [];
     this._relayOnly = relayServers.length > 0;
     this.pc = new RTCPeerConnection(this._relayOnly
       ? { iceServers: relayServers, iceTransportPolicy: "relay", iceCandidatePoolSize: 4 }
@@ -359,6 +368,7 @@ class PeerLink extends EventTarget {
         if (this._discTimer) { clearTimeout(this._discTimer); this._discTimer = null; }
         if (this._dtlsWatch) { clearTimeout(this._dtlsWatch); this._dtlsWatch = null; }
         this._everConnected = true;
+        relayTries.delete(this.id);
         if (this._connectStallTimer) { clearTimeout(this._connectStallTimer); this._connectStallTimer = null; }
         if (!inCall) this._setStatus("connected");
         return;
