@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.61.1.3";
+const APP_VERSION = "V.61.1.4";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 // Сервер перевода по умолчанию (LibreTranslate-совместимый). Официальный публичный инстанс обычно
@@ -4849,7 +4849,7 @@ async function commitEdit(contactId, msgId, newText) {
   const payload = { kind: "edit", id: msgId, text: newText, ts: m.ts };
   await trySendOrQueue(c, actionId, payload);
 }
-function deleteMessageLocal(contactId, msgId) {
+function deleteMessageLocal(contactId, msgId, batch) {
   const c = state.contacts.get(contactId); if (!c) return;
   const m = c.messages.find((x) => x.id === msgId);
   if (m && m.file) {
@@ -4858,6 +4858,7 @@ function deleteMessageLocal(contactId, msgId) {
     if (url) { URL.revokeObjectURL(url); fileBlobUrlCache.delete(msgId); }
   }
   c.messages = c.messages.filter((x) => x.id !== msgId);
+  if (batch) return; // пакетное удаление: сохранение и перерисовка — один раз после цикла
   persistContacts();
   if (state.chatId === contactId) renderChatThread();
   if (state.tab === "chats") renderChatsList();
@@ -6925,7 +6926,7 @@ function sendTypingStart(contactId) {
 }
 function sendTypingStop(contactId) {
   if (!state.typingSendingState.get(contactId)) return;
-  state.typingSendingState.set(contactId, false);
+  state.typingSendingState.delete(contactId);
   const c = state.contacts.get(contactId); if (!c) return;
   const link = mesh.get(contactId);
   if (link && (link.status === "connected" || link.status === "in-call")) {
@@ -7637,14 +7638,14 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
   } else if (kind === "edit") {
     const c = resolveEditDeleteTarget(from, payload);
     if (!c) return;
-    const m = c.messages.find((x) => x.id === payload.id && (!c.isGroup || x.fromId === from));
+    const m = c.messages.find((x) => x.id === payload.id && (c.isGroup ? x.fromId === from : x.from === "them"));
     if (m) { m.text = payload.text; m.edited = true; m.ts = payload.ts || m.ts; c.lastActivity = Date.now(); persistContacts();
       if (state.chatId === c.id) renderChatThread(); if (state.tab === "chats") renderChatsList(); }
   } else if (kind === "delete") {
     const c = resolveEditDeleteTarget(from, payload);
     if (!c) return;
     const before = c.messages.length;
-    c.messages = c.messages.filter((x) => !(x.id === payload.id && (!c.isGroup || x.fromId === from)));
+    c.messages = c.messages.filter((x) => !(x.id === payload.id && (c.isGroup ? x.fromId === from : x.from === "them")));
     if (c.messages.length !== before) { persistContacts();
       if (state.chatId === c.id) renderChatThread(); if (state.tab === "chats") renderChatsList(); }
   } else if (kind === "ack" || (kind === "ack-batch" && Array.isArray(payload.ids))) {
@@ -8109,7 +8110,7 @@ function wireGroupInfo() {
     toast(T("toast.saved"));
   });
   const callBtn = $("#group-info-call-btn");
-  if (callBtn) callBtn.addEventListener("click", () => toast(T("toast.callGroupsUnsupported")));
+  if (callBtn) callBtn.addEventListener("click", () => { const gid = state.activeGroupContext; if (gid && typeof startGroupCall === "function") startGroupCall(gid, false); else toast(T("toast.callGroupsUnsupported")); });
   const writeRestrictedEl = $("#group-info-write-restricted");
   if (writeRestrictedEl) writeRestrictedEl.addEventListener("change", () => {
     const groupId = state.activeGroupContext; if (!groupId) return;
@@ -11618,7 +11619,7 @@ function wireDebugScreen() {
     c.blocked = false; persistContacts(); toast(T("toast.unblocked")); renderBlockedSheet();
   });
   const storageBtn = $("#debug-storage-btn");
-  if (storageBtn) storageBtn.addEventListener("click", () => { renderStorageSheet(); const el = $("#storage-sheet"); if (el) el.classList.remove("hidden"); });
+  if (storageBtn) storageBtn.addEventListener("click", async () => { try { await renderStorageSheet(); } catch (e) {} const el = $("#storage-sheet"); if (el) el.classList.remove("hidden"); });
   const storageClose = $("#storage-close");
   if (storageClose) storageClose.addEventListener("click", () => { const el = $("#storage-sheet"); if (el) el.classList.add("hidden"); });
   const clearOldMediaBtn = $("#storage-clear-old-media-btn");
@@ -12416,7 +12417,10 @@ if (cameraInput) {
   if (msDelete) msDelete.addEventListener("click", async () => {
     const id = state.chatId; if (!id || !state.multiSelect) return;
     if (!await confirmSheet(T("chat.selectMsgs.deleteConfirm", { n: state.multiSelect.size }), { destructive: true })) return;
-    for (const msgId of state.multiSelect) deleteMessageLocal(id, msgId);
+    for (const msgId of state.multiSelect) deleteMessageLocal(id, msgId, true);
+    persistContacts();
+    if (state.chatId === id) renderChatThread();
+    if (state.tab === "chats") renderChatsList();
     exitMultiSelect();
   });
   const msForward = $("#multiselect-forward-btn");

@@ -610,7 +610,7 @@ const httpServer = http.createServer(async (req, res) => {
         // Отладить, ПОЧЕМУ конкретная ссылка не даёт превью, было
         // невозможно без гадания. Теперь видно домен и что именно
         // произошло (или не бросило исключения, просто вернуло null).
-        console.log("[link-preview] пусто (без исключения) для " + new URL(target).hostname);
+        console.log("[link-preview] пусто (без исключения) для " + (() => { try { return new URL(target).hostname; } catch (e2) { return target; } })());
         res.writeHead(204); res.end(); return;
       }
       res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "public, max-age=3600" });

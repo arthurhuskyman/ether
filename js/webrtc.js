@@ -234,7 +234,7 @@ class PeerLink extends EventTarget {
     const relayServers = relayOnlyAttempt(id) ? relayCapableServers() : [];
     this._relayOnly = relayServers.length > 0;
     this.pc = new RTCPeerConnection(this._relayOnly
-      ? { iceServers: relayServers, iceTransportPolicy: "relay", iceCandidatePoolSize: 4 }
+      ? { iceServers: relayServers, iceTransportPolicy: "relay", iceCandidatePoolSize: 8 }
       : { iceServers: effectiveIceServers, iceCandidatePoolSize: 10 });
     if (this._relayOnly) this._log("info", "[webrtc]", id.slice(0, 10) + "…", "режим relay-only (TURN)");
     // Страховка от "вечного connecting": обработчики ниже (iceconnectionstatechange
@@ -1204,6 +1204,8 @@ async startCall(withVideo) {
       this._audioAdded = false;
       this._videoAdded = false;
       this.localVideoTrack = null;
+      // камера, отложенная на время показа экрана, не входит в localStream — гасим отдельно (иначе индикатор камеры горит)
+      if (this._preScreenShareTrack) { try { this._preScreenShareTrack.stop(); } catch (e) {} this._preScreenShareTrack = null; }
       this._negotiationQueuedIceRestart = false;
       // _renegotiationRetryTimer уже очищен выше, до try — повторная
       // идентичная очистка здесь была лишней (косметика, не баг).
