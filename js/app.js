@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.62.0.4";
+const APP_VERSION = "V.62.0.5";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 // Сервер перевода по умолчанию (LibreTranslate-совместимый). Официальный публичный инстанс обычно
@@ -10155,6 +10155,35 @@ function watchCallAudioFlow(stats) {
     if (!w.kicked) { w.kicked = true; const l = mesh.get(state.callId); if (l) l.reInvite(); }
   }
 }
+// Подробная строка о качестве звука в журнал (раз в ~15 с): путь, RTT, джиттер, потери, буфер воспроизведения, «замазанные» сэмплы.
+// Нужна, чтобы на жалобу «качество не очень, есть задержка» было видно, что именно не так.
+let __callStatsTick = 0, __callStatsPrev = null;
+function logCallStats(stats) {
+  if (++__callStatsTick % 5 !== 1) return;
+  const byId = new Map(); stats.forEach((r) => byId.set(r.id, r));
+  let pair = null, inb = null, outb = null;
+  stats.forEach((r) => {
+    if (r.type === "candidate-pair" && (r.selected || (r.nominated && r.state === "succeeded"))) pair = pair && !r.selected ? pair : r;
+    const kind = r.kind || r.mediaType;
+    if (r.type === "inbound-rtp" && kind === "audio") inb = r;
+    if (r.type === "outbound-rtp" && kind === "audio") outb = r;
+  });
+  const lt = pair && byId.get(pair.localCandidateId), rt = pair && byId.get(pair.remoteCandidateId);
+  const parts = [];
+  if (pair) parts.push(`путь ${lt ? lt.candidateType : "?"}/${lt ? (lt.relayProtocol || lt.protocol) : "?"} → ${rt ? rt.candidateType : "?"}, rtt ${Math.round((pair.currentRoundTripTime || 0) * 1000)}мс`);
+  if (inb) {
+    const jb = inb.jitterBufferEmittedCount ? Math.round(inb.jitterBufferDelay / inb.jitterBufferEmittedCount * 1000) : null;
+    const conc = inb.totalSamplesReceived ? Math.round(inb.concealedSamples / inb.totalSamplesReceived * 100) : null;
+    parts.push(`вх: джиттер ${Math.round((inb.jitter || 0) * 1000)}мс, потеряно ${inb.packetsLost || 0}/${(inb.packetsReceived || 0) + (inb.packetsLost || 0)}` + (jb != null ? `, буфер ${jb}мс` : "") + (conc != null ? `, заглушено ${conc}%` : ""));
+  }
+  if (outb) {
+    let kbps = null;
+    if (__callStatsPrev && __callStatsPrev.t < outb.timestamp) kbps = Math.round((outb.bytesSent - __callStatsPrev.b) * 8 / (outb.timestamp - __callStatsPrev.t));
+    __callStatsPrev = { t: outb.timestamp, b: outb.bytesSent };
+    parts.push("исх" + (kbps != null ? ` ${kbps} кбит/с` : ""));
+  }
+  if (parts.length) etherLog("info", "[call-stats] " + parts.join("; "));
+}
 async function updateCallQualityIcon(pc) {
   const icon = $("#call-quality-icon"); if (!icon) return;
   try {
@@ -10171,6 +10200,7 @@ async function updateCallQualityIcon(pc) {
     });
     __lastCallQualityRtt = rttMs;
     try { watchCallAudioFlow(stats); } catch (e) {}
+    try { logCallStats(stats); } catch (e) {}
     let level = "good";
     if (rttMs == null) { icon.classList.add("hidden"); return; }
     if (rttMs > 300 || lossRatio > 0.08) level = "poor";
