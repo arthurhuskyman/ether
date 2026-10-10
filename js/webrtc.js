@@ -1138,6 +1138,40 @@ async startCall(withVideo) {
     if (el) { try { el.volume = vol; } catch (e) {} }
   }
 
+  // Состояние локального аудио для журнала: мёртвый/заглушённый микрофон и «не то» направление трансивера выглядят как «исх 0 кбит/с».
+  audioDebug() {
+    const t = this.localAudioTrack;
+    const tr = (this.pc.getTransceivers ? this.pc.getTransceivers() : []).filter((x) => (x.receiver && x.receiver.track && x.receiver.track.kind === "audio"));
+    return "mic " + (t ? `${t.readyState}${t.muted ? "/muted" : ""}${t.enabled ? "" : "/off"}` : "нет") +
+      ", трансиверы " + (tr.map((x) => `${x.direction}>${x.currentDirection || "-"}${x.sender && x.sender.track ? "" : "(без трека)"}`).join(" ") || "—");
+  }
+
+  // Исходящий звук молчит, хотя звонок идёт: берём микрофон заново, подставляем в существующий sender и возвращаем направление sendrecv.
+  async recoverAudio() {
+    if (this._closed) return false;
+    try {
+      const old = this.localAudioTrack;
+      if (old) { try { old.stop(); } catch (e) {} }
+      this.localAudioTrack = null; this.localStream = null;
+      await this._ensureLocalAudio();
+      this.localAudioTrack.enabled = !this._muted;
+      const tr = this.pc.getTransceivers().find((x) => x.receiver && x.receiver.track && x.receiver.track.kind === "audio" && (!x.stopped));
+      if (tr && tr.sender) {
+        await tr.sender.replaceTrack(this.localAudioTrack);
+        if (tr.direction !== "sendrecv") tr.direction = "sendrecv";
+      } else {
+        this.pc.addTrack(this.localAudioTrack, this.localStream);
+      }
+      this._audioAdded = true;
+      this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "микрофон взят заново, " + this.audioDebug());
+      this._tuneSenders();
+      return true;
+    } catch (e) {
+      this._log("warn", "[webrtc]", this.id.slice(0, 10) + "…", "recoverAudio не удалось: " + String(e));
+      return false;
+    }
+  }
+
   async reInvite() {
     if (this._closed) return;
     if (!this.dc || this.dc.readyState !== "open") {

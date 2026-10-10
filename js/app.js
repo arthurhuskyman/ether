@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.62.0.5";
+const APP_VERSION = "V.62.0.6";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 // Сервер перевода по умолчанию (LibreTranslate-совместимый). Официальный публичный инстанс обычно
@@ -10149,7 +10149,11 @@ function watchCallAudioFlow(stats) {
   const w = __audioWatch;
   if (hasIn) { w.silentIn = (w.lastIn >= 0 && inB <= w.lastIn) ? w.silentIn + 1 : 0; w.lastIn = inB; }
   if (hasOut) { w.silentOut = (w.lastOut >= 0 && outB <= w.lastOut) ? w.silentOut + 1 : 0; w.lastOut = outB; }
-  if (w.silentOut === 3) etherLog("warn", "[call] звук не уходит собеседнику уже 9 с (исходящих байт: " + outB + "); микрофон отдаёт данные?");
+  if (w.silentOut === 3) {
+    const l = mesh.get(state.callId);
+    etherLog("warn", "[call] звук не уходит собеседнику уже 9 с (исходящих байт: " + outB + "); " + (l && l.audioDebug ? l.audioDebug() : "") + " — беру микрофон заново");
+    if (l && l.recoverAudio) l.recoverAudio().then((ok) => { if (ok) l.reInvite(); });
+  }
   if (w.silentIn === 3) {
     etherLog("warn", "[call] звук от собеседника не приходит 9 с (входящих байт: " + inB + ")");
     if (!w.kicked) { w.kicked = true; const l = mesh.get(state.callId); if (l) l.reInvite(); }
@@ -10161,12 +10165,12 @@ let __callStatsTick = 0, __callStatsPrev = null;
 function logCallStats(stats) {
   if (++__callStatsTick % 5 !== 1) return;
   const byId = new Map(); stats.forEach((r) => byId.set(r.id, r));
-  let pair = null, inb = null, outb = null;
+  let pair = null, inb = null, outb = null, outSum = 0, outN = 0;
   stats.forEach((r) => {
     if (r.type === "candidate-pair" && (r.selected || (r.nominated && r.state === "succeeded"))) pair = pair && !r.selected ? pair : r;
     const kind = r.kind || r.mediaType;
     if (r.type === "inbound-rtp" && kind === "audio") inb = r;
-    if (r.type === "outbound-rtp" && kind === "audio") outb = r;
+    if (r.type === "outbound-rtp" && kind === "audio") { outb = r; outSum += r.bytesSent || 0; outN++; }
   });
   const lt = pair && byId.get(pair.localCandidateId), rt = pair && byId.get(pair.remoteCandidateId);
   const parts = [];
@@ -10178,10 +10182,12 @@ function logCallStats(stats) {
   }
   if (outb) {
     let kbps = null;
-    if (__callStatsPrev && __callStatsPrev.t < outb.timestamp) kbps = Math.round((outb.bytesSent - __callStatsPrev.b) * 8 / (outb.timestamp - __callStatsPrev.t));
-    __callStatsPrev = { t: outb.timestamp, b: outb.bytesSent };
-    parts.push("исх" + (kbps != null ? ` ${kbps} кбит/с` : ""));
+    if (__callStatsPrev && __callStatsPrev.t < outb.timestamp && outSum >= __callStatsPrev.b) kbps = Math.round((outSum - __callStatsPrev.b) * 8 / (outb.timestamp - __callStatsPrev.t));
+    __callStatsPrev = { t: outb.timestamp, b: outSum };
+    parts.push("исх" + (kbps != null ? ` ${kbps} кбит/с` : "") + (outN > 1 ? ` (потоков ${outN})` : ""));
   }
+  const lk = state.callId && mesh.get(state.callId);
+  if (lk && lk.audioDebug) parts.push(lk.audioDebug());
   if (parts.length) etherLog("info", "[call-stats] " + parts.join("; "));
 }
 async function updateCallQualityIcon(pc) {
