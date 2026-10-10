@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.61.1.5";
+const APP_VERSION = "V.61.1.6";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 // Сервер перевода по умолчанию (LibreTranslate-совместимый). Официальный публичный инстанс обычно
@@ -11808,7 +11808,7 @@ function collectViewportMetrics() {
 }
 function buildDiagnosticsText() {
   const lines = [];
-  lines.push("Ether — diagnostics");
+  lines.push("Ether — diagnostics, " + APP_VERSION);
   lines.push("Time: " + new Date().toLocaleString(I18N.current));
   lines.push("Lang: " + I18N.current + " / sys " + I18N.systemLang());
   lines.push("My id: " + (Store.myId ? Store.myId.slice(0, 16) + "…" : "—"));

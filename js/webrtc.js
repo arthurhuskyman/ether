@@ -247,7 +247,7 @@ class PeerLink extends EventTarget {
     this.pc = new RTCPeerConnection(this._relayOnly
       ? { iceServers: relayServers, iceTransportPolicy: "relay", iceCandidatePoolSize: 8 }
       : { iceServers: effectiveIceServers, iceCandidatePoolSize: 10 });
-    if (this._relayOnly) this._log("info", "[webrtc]", id.slice(0, 10) + "…", "режим relay-only (TURN)");
+    if (this._relayOnly) this._log("info", "[webrtc]", id.slice(0, 10) + "…", "режим relay-only (TURN): " + relayServers.map((s) => [].concat(s.urls || []).join(" ")).join(" | "));
     // Страховка от "вечного connecting": обработчики ниже (iceconnectionstatechange
     // на "failed"/"disconnected") реагируют, только если браузер ФОРМАЛЬНО
     // объявит один из этих статусов — а бывают случаи (например, TURN
