@@ -1,0 +1,290 @@
+{
+"am":{
+"name":"Ether",
+"tagline":"በመሣሪያዎች መካከል ቀጥተኛ መልዕክቶች እና ጥሪዎች።"
+},
+"ar":{
+"name":"إيثر",
+"tagline":"رسائل ومكالمات مباشرة بين الأجهزة."
+},
+"az":{
+"name":"Ether",
+"tagline":"Mesajlar və zənglər birbaşa cihazlar arasında."
+},
+"be":{
+"name":"Ether",
+"tagline":"Паведамленні і званкі напрамую паміж прыладамі."
+},
+"bg":{
+"name":"Ether",
+"tagline":"Съобщения и разговори директно между устройства."
+},
+"bn":{
+"name":"Ether",
+"tagline":"ডিভাইসের মধ্যে সরাসরি বার্তা ও কল।"
+},
+"bs":{
+"name":"Ether",
+"tagline":"Poruke i pozivi direktno između uređaja."
+},
+"ceb":{
+"name":"Ether",
+"tagline":"Mga mensahe ug tawag direkta taliwala sa mga device."
+},
+"cs":{
+"name":"Ether",
+"tagline":"Zprávy a hovory přímo mezi zařízeními."
+},
+"da":{
+"name":"Ether",
+"tagline":"Beskeder og opkald direkte mellem enheder."
+},
+"de":{
+"name":"Ether",
+"tagline":"Nachrichten und Anrufe direkt zwischen Geräten."
+},
+"el":{
+"name":"Ether",
+"tagline":"Μηνύματα και κλήσεις απευθείας μεταξύ συσκευών."
+},
+"en":{
+"name":"Ether",
+"tagline":"Messages and calls directly between devices."
+},
+"es":{
+"name":"Ether",
+"tagline":"Mensajes y llamadas directamente entre dispositivos."
+},
+"et":{
+"name":"Ether",
+"tagline":"Sõnumid ja kõned otse seadmete vahel."
+},
+"fa":{
+"name":"Ether",
+"tagline":"پیام‌ها و تماس‌ها مستقیماً بین دستگاه‌ها."
+},
+"fi":{
+"name":"Ether",
+"tagline":"Viestit ja puhelut suoraan laitteiden välillä."
+},
+"fr":{
+"name":"Ether",
+"tagline":"Messages et appels directement entre appareils."
+},
+"gu":{
+"name":"Ether",
+"tagline":"ઉપકરણો વચ્ચે સીધા સંદેશા અને કૉલ્સ."
+},
+"ha":{
+"name":"Ether",
+"tagline":"Saƙonni da kira kai tsaye tsakanin na'urori."
+},
+"he":{
+"name":"Ether",
+"tagline":"הודעות ושיחות ישירות בין מכשירים."
+},
+"hi":{
+"name":"Ether",
+"tagline":"उपकरणों के बीच सीधे संदेश और कॉल।"
+},
+"hr":{
+"name":"Ether",
+"tagline":"Poruke i pozivi izravno između uređaja."
+},
+"hu":{
+"name":"Ether",
+"tagline":"Üzenetek és hívások közvetlenül az eszközök között."
+},
+"hy":{
+"name":"Ether",
+"tagline":"Հաղորդագրություններ և զանգեր ուղիղ սարքերի միջև։"
+},
+"id":{
+"name":"Ether",
+"tagline":"Pesan dan panggilan langsung antar perangkat."
+},
+"it":{
+"name":"Ether",
+"tagline":"Messaggi e chiamate direttamente tra dispositivi."
+},
+"ja":{
+"name":"エーテル",
+"tagline":"デバイス間で直接メッセージと通話。"
+},
+"jv":{
+"name":"Ether",
+"tagline":"Pesen lan telpon langsung antar piranti."
+},
+"ka":{
+"name":"Ether",
+"tagline":"შეტყობინებები და ზარები პირდაპირ მოწყობილობებს შორის."
+},
+"kk":{
+"name":"Ether",
+"tagline":"Хабарламалар мен қоңыраулар құрылғылар арасында тікелей."
+},
+"km":{
+"name":"Ether",
+"tagline":"សារ និងការហៅ ដោយផ្ទាល់រវាងឧបករណ៍។"
+},
+"kn":{
+"name":"Ether",
+"tagline":"ಸಾಧನಗಳ ನಡುವೆ ನೇರ ಸಂದೇಶಗಳು ಮತ್ತು ಕರೆಗಳು."
+},
+"ko":{
+"name":"에테르",
+"tagline":"기기 간 직접 메시지와 통화."
+},
+"ky":{
+"name":"Ether",
+"tagline":"Билдирүүлөр жана чалуулар түзмөктөр арасында түз."
+},
+"lo":{
+"name":"Ether",
+"tagline":"ຂໍ້ຄວາມ ແລະ ການໂທ ໂດຍກົງລະຫວ່າງອຸປະກອນ."
+},
+"lt":{
+"name":"Ether",
+"tagline":"Žinutės ir skambučiai tiesiogiai tarp įrenginių."
+},
+"lv":{
+"name":"Ether",
+"tagline":"Ziņas un zvani tieši starp ierīcēm."
+},
+"mk":{
+"name":"Ether",
+"tagline":"Пораки и повици директно помеѓу уреди."
+},
+"ml":{
+"name":"Ether",
+"tagline":"ഉപകരണങ്ങൾക്കിടയിൽ നേരിട്ടുള്ള സന്ദേശങ്ങളും കോളുകളും."
+},
+"mn":{
+"name":"Ether",
+"tagline":"Төхөөрөмжүүдийн хооронд шууд мессеж болон дуудлага."
+},
+"mr":{
+"name":"Ether",
+"tagline":"उपकरणांमध्ये थेट संदेश आणि कॉल."
+},
+"ms":{
+"name":"Ether",
+"tagline":"Mesej dan panggilan terus antara peranti."
+},
+"my":{
+"name":"Ether",
+"tagline":"စက်ပစ္စည်းများအကြား တိုက်ရိုက်မက်ဆေ့ခ်ျနှင့် ခေါ်ဆိုမှုများ။"
+},
+"ne":{
+"name":"Ether",
+"tagline":"उपकरणहरूबीच सिधा सन्देश र कलहरू।"
+},
+"nl":{
+"name":"Ether",
+"tagline":"Berichten en oproepen direct tussen apparaten."
+},
+"no":{
+"name":"Ether",
+"tagline":"Meldinger og samtaler direkte mellom enheter."
+},
+"pa":{
+"name":"Ether",
+"tagline":"ਡਿਵਾਈਸਾਂ ਵਿਚਕਾਰ ਸਿੱਧੇ ਸੁਨੇਹੇ ਅਤੇ ਕਾਲਾਂ।"
+},
+"pl":{
+"name":"Ether",
+"tagline":"Wiadomości i połączenia bezpośrednio między urządzeniami."
+},
+"pt":{
+"name":"Ether",
+"tagline":"Mensagens e chamadas diretamente entre dispositivos."
+},
+"ro":{
+"name":"Ether",
+"tagline":"Mesaje și apeluri direct între dispozitive."
+},
+"ru":{
+"name":"Эфир",
+"tagline":"Сообщения и звонки напрямую между устройствами."
+},
+"si":{
+"name":"Ether",
+"tagline":"උපාංග අතර සෘජු පණිවිඩ සහ ඇමතුම්."
+},
+"sk":{
+"name":"Ether",
+"tagline":"Správy a hovory priamo medzi zariadeniami."
+},
+"sl":{
+"name":"Ether",
+"tagline":"Sporočila in klici neposredno med napravami."
+},
+"sq":{
+"name":"Ether",
+"tagline":"Mesazhe dhe thirrje direkt midis pajisjeve."
+},
+"sr":{
+"name":"Ether",
+"tagline":"Поруке и позиви директно између уређаја."
+},
+"su":{
+"name":"Ether",
+"tagline":"Pesen jeung telepon langsung antar alat."
+},
+"sv":{
+"name":"Ether",
+"tagline":"Meddelanden och samtal direkt mellan enheter."
+},
+"sw":{
+"name":"Ether",
+"tagline":"Ujumbe na simu moja kwa moja kati ya vifaa."
+},
+"ta":{
+"name":"Ether",
+"tagline":"சாதனங்களுக்கு இடையே நேரடி செய்திகள் மற்றும் அழைப்புகள்."
+},
+"te":{
+"name":"Ether",
+"tagline":"పరికరాల మధ్య నేరుగా సందేశాలు మరియు కాల్స్."
+},
+"tg":{
+"name":"Ether",
+"tagline":"Паёмҳо ва зангҳо мустақим байни дастгоҳҳо."
+},
+"th":{
+"name":"Ether",
+"tagline":"ข้อความและการโทรระหว่างอุปกรณ์โดยตรง"
+},
+"tl":{
+"name":"Ether",
+"tagline":"Mga mensahe at tawag nang direkta sa pagitan ng mga device."
+},
+"tr":{
+"name":"Ether",
+"tagline":"Cihazlar arasında doğrudan mesajlar ve aramalar."
+},
+"uk":{
+"name":"Ефір",
+"tagline":"Повідомлення та дзвінки напряму між пристроями."
+},
+"ur":{
+"name":"Ether",
+"tagline":"پیغامات اور کالز براہ راست آلات کے درمیان۔"
+},
+"uz":{
+"name":"Ether",
+"tagline":"Xabarlar va qoʻngʻiroqlar qurilmalar oʻrtasida bevosita."
+},
+"vi":{
+"name":"Ether",
+"tagline":"Tin nhắn và cuộc gọi trực tiếp giữa các thiết bị."
+},
+"yo":{
+"name":"Ether",
+"tagline":"Àwọn ìṣẹ́ àti ìpè ní tààrà láàrin àwọn ẹ̀rọ."
+},
+"zh":{
+"name":"以太",
+"tagline":"设备之间直接收发消息和通话。"
+}
+}
