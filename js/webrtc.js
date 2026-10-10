@@ -125,7 +125,7 @@ async function etherTurnCheckOne(url, username, credential, timeoutMs) {
       dc.onopen = () => { res.open = true; res.openMs = Math.round(performance.now() - t0); clearTimeout(timer); finish(); };
       const wire = (from, to) => from.addEventListener("icecandidate", (e) => {
         if (e.candidate) {
-          if (/ typ relay /.test(e.candidate.candidate) && !res.relay) { res.relay = true; res.relayMs = Math.round(performance.now() - t0); }
+          if (/ typ relay /.test(e.candidate.candidate) && !res.relay) { res.relay = true; res.relayMs = Math.round(performance.now() - t0); const m = e.candidate.candidate.split(" "); res.relayAddr = m[4] || ""; }
           to.addIceCandidate(e.candidate).catch(() => {});
         }
       });
@@ -245,8 +245,11 @@ class PeerLink extends EventTarget {
     const relayServers = relayOnlyAttempt(id) ? relayCapableServers() : [];
     this._relayOnly = relayServers.length > 0;
     this.pc = new RTCPeerConnection(this._relayOnly
-      ? { iceServers: relayServers, iceTransportPolicy: "relay", iceCandidatePoolSize: 8 }
-      : { iceServers: effectiveIceServers, iceCandidatePoolSize: 10 });
+      ? { iceServers: relayServers, iceTransportPolicy: "relay" }
+      : { iceServers: effectiveIceServers, iceCandidatePoolSize: 2 });
+    // Пул кандидатов: каждый его элемент — отдельная заранее открытая TURN-allocation (при пуле 10 это десятки allocation на один
+    // линк). Бесплатный TURN режет их число на логин и после этого «выдаёт» allocation, но данные не пересылает (↑N ↓0). Кнопка
+    // «Проверить TURN» без пула проходила, а реальные линки с пулом 8–10 — нет, поэтому пул минимален (в relay-only — без пула).
     if (this._relayOnly) this._log("info", "[webrtc]", id.slice(0, 10) + "…", "режим relay-only (TURN): " + relayServers.map((s) => [].concat(s.urls || []).join(" ")).join(" | "));
     // Страховка от "вечного connecting": обработчики ниже (iceconnectionstatechange
     // на "failed"/"disconnected") реагируют, только если браузер ФОРМАЛЬНО

@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.61.1.6";
+const APP_VERSION = "V.61.1.7";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 // Сервер перевода по умолчанию (LibreTranslate-совместимый). Официальный публичный инстанс обычно
@@ -11633,7 +11633,7 @@ function wireDebugScreen() {
     turnBtn.__busy = true; out.classList.remove("hidden"); out.textContent = T("debug.turnChecking");
     try {
       const rows = typeof window.etherTurnCheck === "function" ? await window.etherTurnCheck() : [];
-      out.textContent = rows.length ? rows.map((r) => (r.open ? "✅ " : r.relay ? "⚠️ " : "❌ ") + r.url.replace(/^(turns?:)/, "$1") + " — "
+      out.textContent = rows.length ? rows.map((r) => (r.open ? "✅ " : r.relay ? "⚠️ " : "❌ ") + r.url + (r.relayAddr ? " [" + r.relayAddr + "]" : "") + " — "
         + (r.open ? T("debug.turnOk", { ms: r.openMs }) : r.relay ? T("debug.turnAllocOnly") : T("debug.turnNoAlloc")) + (r.error ? " (" + r.error + ")" : "")).join("\n")
         : T("debug.turnNone");
       rows.forEach((r) => etherLog(r.open ? "info" : "warn", "[turn-check]", r.url, r.open ? "relay OK " + r.openMs + "мс" : r.relay ? "allocation есть, данные не идут" : "allocation не получен"));
