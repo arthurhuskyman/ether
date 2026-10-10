@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.62.0.3";
+const APP_VERSION = "V.62.0.4";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 // Сервер перевода по умолчанию (LibreTranslate-совместимый). Официальный публичный инстанс обычно
@@ -212,7 +212,7 @@ const CRITICAL_LS_KEYS = [
   "ether.chatFolders", "ether.emojiSkinTone", "ether.recentEmoji", "ether.myAvatar",
   "ether.translateEndpoint", "ether.translateApiKey",
   "ether.deadManEnabled", "ether.deadManThresholdDays", "ether.deadManContactId", "ether.deadManLastSentAt",
-  "ether.panicShakeEnabled", "ether.fx", "ether.sigKey", "ether.fx.aurora",
+  "ether.panicShakeEnabled", "ether.fx", "ether.sigKey", "ether.fx.aurora", "ether.keyInfo",
 ];
 
 async function backupToIDB() {
@@ -1845,9 +1845,28 @@ function wireOnboardingOnce() {
 async function ensureKeyPair() {
   try {
     if (Store.myPrivateKeyJwk && Store.myPublicKeyJwk) return;
+    const hadProfile = !!Store.myId;
+    // Перед созданием новой пары — ещё раз пробуем достать старую из резервной копии в IndexedDB (руна и safety number не должны
+    // меняться из-за того, что localStorage на устройстве оказался пуст, а копия ключей цела).
+    try {
+      const pv = await IDB.get("ether.privKey"), pb = await IDB.get("ether.pubKey");
+      if (pv && pb) {
+        JSON.parse(pv); JSON.parse(pb);
+        localStorage.setItem("ether.privKey", pv); localStorage.setItem("ether.pubKey", pb);
+        etherLog("warn", "[crypto] ключи восстановлены из резервной копии IndexedDB");
+        return;
+      }
+    } catch (e) {}
     const { publicKeyJwk, privateKeyJwk } = await CryptoHelper.generateKeyPair();
     Store.myPrivateKeyJwk = privateKeyJwk;
     Store.myPublicKeyJwk = publicKeyJwk;
+    let info = {}; try { info = JSON.parse(localStorage.getItem("ether.keyInfo") || "{}") || {}; } catch (e) {}
+    info = { at: Date.now(), count: (info.count || 0) + 1, existing: hadProfile };
+    try { localStorage.setItem("ether.keyInfo", JSON.stringify(info)); scheduleIDBBackup(); } catch (e) {}
+    if (hadProfile) {
+      etherLog("warn", "[crypto] ключи СОЗДАНЫ ЗАНОВО для существующего профиля (в хранилище и в копии IndexedDB их не было); руна изменилась");
+      setTimeout(() => { try { toast(T("toast.keysRegenerated")); } catch (e) {} }, 2500);
+    }
   } catch (e) { etherLog("error", "[crypto] key pair:", String(e)); }
 }
 
@@ -11812,6 +11831,11 @@ function buildDiagnosticsText() {
   lines.push("Time: " + new Date().toLocaleString(I18N.current));
   lines.push("Lang: " + I18N.current + " / sys " + I18N.systemLang());
   lines.push("My id: " + (Store.myId ? Store.myId.slice(0, 16) + "…" : "—"));
+  try {
+    const ki = JSON.parse(localStorage.getItem("ether.keyInfo") || "null");
+    const seed = typeof fxSeed === "function" ? fxSeed("sigil|" + fxMyKeyString())().toString(16).padStart(8, "0") : "—";
+    lines.push("Keys: rune-seed " + seed + (ki ? ", создана " + new Date(ki.at).toLocaleString(I18N.current) + ", создана раз: " + ki.count + (ki.existing ? " (поверх существующего профиля)" : "") : ", создана до V.62.0.4"));
+  } catch (e) {}
   lines.push("Signaling: " + effectiveSignalingUrl());
   lines.push("Status: " + (signaling ? (signaling.connected ? "on" : "off") : "—"));
   lines.push("Online: " + onlineSet.size);
