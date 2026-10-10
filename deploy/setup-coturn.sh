@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Установка TURN-сервера (coturn) для «Эфира» на Ubuntu/Debian.
 # Запуск от root на VPS с БЕЛЫМ (не серым) IPv4:   sudo bash setup-coturn.sh [домен]
-# Домен нужен только для TLS (turns:…:5349); без домена ставится TURN по UDP/TCP на 3478.
+# Домен нужен только для TLS на 443 (turns:…:443); без домена ставится TURN по UDP/TCP на 3478.
 # Не проверялось на конкретных хостерах — читай вывод команд и сверяйся с README.
 set -euo pipefail
 DOMAIN="${1:-}"
@@ -23,7 +23,8 @@ CERT_LINES=""
 if [ -n "$DOMAIN" ]; then
   # Домен должен уже указывать (A-запись) на этот сервер; порт 80 должен быть свободен на время выпуска.
   certbot certonly --standalone -d "$DOMAIN" --non-interactive --agree-tos --register-unsafely-without-email
-  CERT_LINES="tls-listening-port=5349
+  CERT_LINES="tls-listening-port=443
+alt-tls-listening-port=5349
 cert=/etc/letsencrypt/live/$DOMAIN/fullchain.pem
 pkey=/etc/letsencrypt/live/$DOMAIN/privkey.pem"
   # coturn работает от пользователя turnserver — даём читать сертификат
@@ -52,18 +53,26 @@ $CERT_LINES
 CONF
 
 sed -i 's/^#\?TURNSERVER_ENABLED=.*/TURNSERVER_ENABLED=1/' /etc/default/coturn
+if [ -n "$DOMAIN" ]; then
+  # TLS на 443 (выглядит как обычный HTTPS): непривилегированному coturn нужно право занимать порт <1024
+  mkdir -p /etc/systemd/system/coturn.service.d
+  printf '[Service]\nAmbientCapabilities=CAP_NET_BIND_SERVICE\n' > /etc/systemd/system/coturn.service.d/override.conf
+  systemctl daemon-reload
+  # порт 443 не должен быть занят (nginx/apache и т.п.)
+  ss -ltn 'sport = :443' | tail -n +2 | grep -q . && echo "ВНИМАНИЕ: порт 443 уже занят другим сервисом — TLS на 443 не поднимется"
+fi
 systemctl enable coturn
 systemctl restart coturn
 sleep 1
 systemctl --no-pager --lines=5 status coturn || true
 
 URLS="turn:$PUBIP:3478"
-[ -n "$DOMAIN" ] && URLS="$URLS,turns:$DOMAIN:5349?transport=tcp"
+[ -n "$DOMAIN" ] && URLS="$URLS,turns:$DOMAIN:443?transport=tcp"
 
 cat <<OUT
 
 ================ ГОТОВО ================
-Открой в файрволе хостера/ufw: 3478 (UDP и TCP), 5349 (TCP, если есть домен), 49152-49300 (UDP).
+Открой в файрволе хостера/ufw: 3478 (UDP и TCP), 443 и 5349 (TCP, если есть домен), 49152-49300 (UDP).
 
 Значения для Render → Environment:
 TURN_STATIC_URL=$URLS
