@@ -72,12 +72,36 @@ const TURN_STATIC_URL = process.env.TURN_STATIC_URL || "";
 const TURN_STATIC_USERNAME = process.env.TURN_STATIC_USERNAME || "";
 const TURN_STATIC_PASSWORD = process.env.TURN_STATIC_PASSWORD || "";
 // Запасной TURN-провайдер (например, с TLS на 443): TURN_EXTRA_JSON='[{"urls":["turns:host:443?transport=tcp"],"username":"u","credential":"p"}]'
+// Принимает чистый JSON-массив ИЛИ JS-фрагмент, как его показывают панели провайдеров (Metered: "var myPeer = new Peer({config:{iceServers:[{urls:'…',username:'…'}]}})"):
+// берётся первый сбалансированный массив [ … ], ключи без кавычек и одинарные кавычки приводятся к JSON, лишние запятые убираются. Код не исполняется.
+function parseLooseIceArray(raw) {
+  const s = String(raw || "");
+  try { const j = JSON.parse(s); if (Array.isArray(j)) return j; } catch (e) {}
+  const start = s.indexOf("[");
+  if (start < 0) throw new Error("не найден массив [ … ]");
+  let depth = 0, end = -1, quote = "";
+  for (let i = start; i < s.length; i++) {
+    const c = s[i];
+    if (quote) { if (c === "\\") i++; else if (c === quote) quote = ""; continue; }
+    if (c === '"' || c === "'") quote = c;
+    else if (c === "[") depth++;
+    else if (c === "]" && --depth === 0) { end = i; break; }
+  }
+  if (end < 0) throw new Error("массив не закрыт");
+  let t = s.slice(start, end + 1);
+  t = t.replace(/'([^'"\\]*)'/g, '"$1"');                      // одинарные кавычки → двойные
+  t = t.replace(/([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:/g, '$1"$2":'); // ключи без кавычек
+  t = t.replace(/,\s*([}\]])/g, "$1");                         // хвостовые запятые
+  const j = JSON.parse(t);
+  if (!Array.isArray(j)) throw new Error("не массив");
+  return j;
+}
 function extraTurnServers() {
   try {
     const raw = process.env.TURN_EXTRA_JSON; if (!raw) return [];
-    const arr = JSON.parse(raw);
-    return Array.isArray(arr) ? arr.filter((x) => x && x.urls && x.username && x.credential) : [];
-  } catch (e) { console.warn("[ice] TURN_EXTRA_JSON не разобран:", String(e)); return []; }
+    const arr = parseLooseIceArray(raw);
+    return arr.filter((x) => x && x.urls && x.username && x.credential);
+  } catch (e) { console.warn("[ice] TURN_EXTRA_JSON не разобран:", String(e && e.message || e)); return []; }
 }
 // Cloudflare Realtime TURN (бесплатный тариф, надёжный; порты 443/80 по TCP/TLS). Нужны CF_TURN_KEY_ID и CF_TURN_API_TOKEN
 // (Cloudflare → Realtime → TURN → Create). Временные креды запрашиваются по API и кэшируются на сутки.
@@ -1241,6 +1265,7 @@ process.on("SIGINT", shutdown);
 httpServer.listen(PORT, () => {
   console.log(`Сигнальный релей "Эфир" слушает порт ${PORT}`);
   if (CF_TURN_KEY_ID && CF_TURN_API_TOKEN) console.log("[ice] заданы CF_TURN_* — используется Cloudflare TURN");
+  { const n = extraTurnServers().length; if (process.env.TURN_EXTRA_JSON) console.log("[ice] TURN_EXTRA_JSON: серверов с логином — " + n); }
   if (staticTurnServers()) {
     console.log("[ice] заданы TURN_STATIC_* — используется статический TURN");
   } else {
