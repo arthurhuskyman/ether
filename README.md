@@ -2,7 +2,7 @@
 
 Мессенджер-PWA без аккаунтов и без сервера, который хранит переписку. Сообщения, файлы и звонки идут **напрямую между устройствами** (WebRTC). Сигнальный сервер нужен только чтобы устройства нашли друг друга, чтобы временно подержать зашифрованное сообщение для офлайн-получателя и чтобы отправить push.
 
-> Этот документ описывает то, что **делает код** на версии из файла `VERSION` (сейчас V.61.1.4). Он написан по исходникам, а не по старой документации. Места, которые не удалось подтвердить чтением кода, помечены словом «не проверено».
+> Этот документ описывает то, что **делает код** на версии из файла `VERSION` (сейчас V.62.0.0). Он написан по исходникам, а не по старой документации. Места, которые не удалось подтвердить чтением кода, помечены словом «не проверено».
 
 ## Содержание
 
@@ -222,7 +222,7 @@
 - Ящик: до 500 записей на пользователя (старейшие вытесняются); конверты не-чатов (файлы, голос) живут 48 часов; текстовые конверты по времени **не** истекают, удаляются подтверждением `mailbox-ack`.
 - Push включается только при наличии `VAPID_PUBLIC` и `VAPID_PRIVATE`.
 
-**Переменные окружения:** `PORT` (8787), `ALLOWED_ORIGIN` (по умолчанию `*`), `APP_BASE_URL`, `VAPID_PUBLIC`, `VAPID_PRIVATE`, `VAPID_SUBJECT`, `TURN_STATIC_URL`, `TURN_STATIC_USERNAME`, `TURN_STATIC_PASSWORD`, `TURN_EXTRA_JSON` (запасной TURN-провайдер: JSON-массив `[{"urls":["turns:host:443?transport=tcp"],"username":"…","credential":"…"}]`), `TURN_CHECK_DISABLED`. Ключи VAPID: `npm run generate-vapid`.
+**Переменные окружения:** `PORT` (8787), `ALLOWED_ORIGIN` (по умолчанию `*`), `APP_BASE_URL`, `VAPID_PUBLIC`, `VAPID_PRIVATE`, `VAPID_SUBJECT`, `TURN_STATIC_URL`, `TURN_STATIC_USERNAME`, `TURN_STATIC_PASSWORD`, `CF_TURN_KEY_ID` + `CF_TURN_API_TOKEN` (Cloudflare Realtime TURN: бесплатный тариф, временные креды запрашиваются по API и кэшируются на сутки; идёт первым в `/ice`, адреса 443/80 по TCP/TLS; Cloudflare → Realtime → TURN → Create), `TURN_EXTRA_JSON` (запасной TURN-провайдер: JSON-массив `[{"urls":["turns:host:443?transport=tcp"],"username":"…","credential":"…"}]`), `TURN_CHECK_DISABLED`. Ключи VAPID: `npm run generate-vapid`.
 
 **Запуск:** `render.yaml` (Blueprint для Render: корень `signaling-server`, `npm install --omit=dev`, `node server.js`, проверка `/health`, автодеплой), `Dockerfile`, `docker-compose.yml`, подробности в `signaling-server/SELF_HOSTING.md`. На бесплатных тарифах сервер «засыпает» без обращений, первое подключение после паузы занимает до ~30 с.
 

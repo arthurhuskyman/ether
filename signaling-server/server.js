@@ -79,6 +79,44 @@ function extraTurnServers() {
     return Array.isArray(arr) ? arr.filter((x) => x && x.urls && x.username && x.credential) : [];
   } catch (e) { console.warn("[ice] TURN_EXTRA_JSON не разобран:", String(e)); return []; }
 }
+// Cloudflare Realtime TURN (бесплатный тариф, надёжный; порты 443/80 по TCP/TLS). Нужны CF_TURN_KEY_ID и CF_TURN_API_TOKEN
+// (Cloudflare → Realtime → TURN → Create). Временные креды запрашиваются по API и кэшируются на сутки.
+const CF_TURN_KEY_ID = process.env.CF_TURN_KEY_ID || "";
+const CF_TURN_API_TOKEN = process.env.CF_TURN_API_TOKEN || "";
+const CF_TURN_API_BASE = process.env.CF_TURN_API_BASE || "https://rtc.live.cloudflare.com";
+const CF_TURN_TTL_S = 86400;
+let cfTurnCache = { server: null, expiresAt: 0 };
+async function cloudflareTurnServer() {
+  if (!CF_TURN_KEY_ID || !CF_TURN_API_TOKEN) return null;
+  const now = Date.now();
+  if (cfTurnCache.server && cfTurnCache.expiresAt - now > 3600_000) return cfTurnCache.server;
+  try {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 6000);
+    let r;
+    try {
+      r = await fetch(CF_TURN_API_BASE + "/v1/turn/keys/" + encodeURIComponent(CF_TURN_KEY_ID) + "/credentials/generate", {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + CF_TURN_API_TOKEN, "Content-Type": "application/json" },
+        body: JSON.stringify({ ttl: CF_TURN_TTL_S }),
+        signal: ctl.signal,
+      });
+    } finally { clearTimeout(timer); }
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const j = await r.json();
+    const s = j && j.iceServers;
+    const urls = s && [].concat(s.urls || []).filter((u) => /^turns?:/i.test(u));
+    if (!urls || !urls.length || !s.username || !s.credential) throw new Error("неожиданный ответ");
+    const server = { urls, username: s.username, credential: s.credential };
+    cfTurnCache = { server, expiresAt: now + CF_TURN_TTL_S * 1000 };
+    console.log("[ice] Cloudflare TURN: креды получены (" + urls.length + " адресов)");
+    return server;
+  } catch (e) {
+    console.warn("[ice] Cloudflare TURN недоступен:", String(e && e.message || e));
+    // Старые креды ещё живы — лучше отдать их, чем ничего
+    return cfTurnCache.server && cfTurnCache.expiresAt > now ? cfTurnCache.server : null;
+  }
+}
 function staticTurnServers() {
   if (!TURN_STATIC_URL || !TURN_STATIC_USERNAME || !TURN_STATIC_PASSWORD) return null;
   // TURN_STATIC_URL может содержать несколько адресов через запятую/пробел. К каждому turn:host:port
@@ -254,6 +292,13 @@ async function getIceServers() {
   // Статический TURN (ExpressTURN или аналог) — основной механизм.
   // Metered.ca требует оплаты и больше не используется.
   let servers = staticTurnServers();
+  const cf = await cloudflareTurnServer();
+  if (cf) {
+    // Cloudflare — первым: основной рабочий TURN; статический остаётся запасным, пока его не уберут из окружения
+    servers = [cf].concat(servers || FALLBACK_ICE.slice().concat(extraTurnServers()));
+    iceCache = { at: now, servers };
+    return servers;
+  }
   if (servers) {
     // Дополнительная проверка: если TURN недоступен, отдавать его
     // клиенту НЕЛЬЗЯ — ICE на клиенте будет ждать таймаута TURN
@@ -1195,6 +1240,7 @@ process.on("SIGINT", shutdown);
 
 httpServer.listen(PORT, () => {
   console.log(`Сигнальный релей "Эфир" слушает порт ${PORT}`);
+  if (CF_TURN_KEY_ID && CF_TURN_API_TOKEN) console.log("[ice] заданы CF_TURN_* — используется Cloudflare TURN");
   if (staticTurnServers()) {
     console.log("[ice] заданы TURN_STATIC_* — используется статический TURN");
   } else {
