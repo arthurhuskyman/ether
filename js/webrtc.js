@@ -900,9 +900,28 @@ class PeerLink extends EventTarget {
       return;
     }
     await this._ensureLocalAudio();
-    this.pc.addTrack(this.localAudioTrack, this.localStream);
+    await this._attachTrack(this.localAudioTrack, this.localStream);
     this._audioAdded = true;
     if (this.localAudioTrack) this.localAudioTrack.enabled = !this._muted;
+  }
+
+  // addTrack() после removeTrack() на каждом звонке заводит НОВЫЙ трансивер (m-line), а старые остаются inactive:
+  // после пяти звонков в SDP пять секций. Переиспользуем свободный трансивер того же вида.
+  async _attachTrack(track, stream) {
+    const kind = track.kind;
+    const busy = new Set(Array.from(this._gSenders ? this._gSenders.values() : []));
+    const free = this.pc.getTransceivers().find((t) =>
+      !t.stopped && t.currentDirection !== "stopped" && t.receiver && t.receiver.track && t.receiver.track.kind === kind &&
+      t.sender && !t.sender.track && !busy.has(t.sender));
+    if (free) {
+      try {
+        await free.sender.replaceTrack(track);
+        try { free.sender.setStreams(stream); } catch (e) {}
+        if (free.direction !== "sendrecv") free.direction = "sendrecv";
+        return free.sender;
+      } catch (e) { /* не вышло — обычный addTrack ниже */ }
+    }
+    return this.pc.addTrack(track, stream);
   }
 
   async _ensureLocalVideo(facingMode) {
@@ -928,7 +947,7 @@ class PeerLink extends EventTarget {
     }
     try {
       await this._ensureLocalVideo(facingMode);
-      this.pc.addTrack(this.localVideoTrack, this.localStream);
+      await this._attachTrack(this.localVideoTrack, this.localStream);
       this._videoAdded = true;
       return true;
     } catch (e) {

@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.62.0.7";
+const APP_VERSION = "V.62.0.8";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 // Сервер перевода по умолчанию (LibreTranslate-совместимый). Официальный публичный инстанс обычно
@@ -10162,14 +10162,19 @@ function watchCallAudioFlow(stats) {
 // Подробная строка о качестве звука в журнал (раз в ~15 с): путь, RTT, джиттер, потери, буфер воспроизведения, «замазанные» сэмплы.
 // Нужна, чтобы на жалобу «качество не очень, есть задержка» было видно, что именно не так.
 let __callStatsTick = 0, __callStatsPrev = null;
+const __callStatsInPrev = new Map();
 function logCallStats(stats) {
   if (++__callStatsTick % 5 !== 1) return;
   const byId = new Map(); stats.forEach((r) => byId.set(r.id, r));
-  let pair = null, inb = null, outb = null, outSum = 0, outN = 0;
+  let pair = null, inb = null, outb = null, outSum = 0, outN = 0, inGrow = 0;
   stats.forEach((r) => {
     if (r.type === "candidate-pair" && (r.selected || (r.nominated && r.state === "succeeded"))) pair = pair && !r.selected ? pair : r;
     const kind = r.kind || r.mediaType;
-    if (r.type === "inbound-rtp" && kind === "audio") inb = r;
+    if (r.type === "inbound-rtp" && kind === "audio") {
+      const prev = __callStatsInPrev.get(r.id), grow = (r.packetsReceived || 0) - (prev || 0);
+      __callStatsInPrev.set(r.id, r.packetsReceived || 0);
+      if (!inb || grow > inGrow) { inb = r; inGrow = grow; }
+    }
     if (r.type === "outbound-rtp" && kind === "audio") { outb = r; outSum += r.bytesSent || 0; outN++; }
   });
   const lt = pair && byId.get(pair.localCandidateId), rt = pair && byId.get(pair.remoteCandidateId);

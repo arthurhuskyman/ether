@@ -124,6 +124,20 @@ test("после завершения видеозвонка и нового з�
   p.close();
 });
 
+test("несколько звонков подряд на одном линке не плодят трансиверы, звук идёт в каждом", async () => {
+  const p = await pair();
+  for (let i = 0; i < 4; i++) {
+    await p.A.startCall(false); await p.B.answerCall(false);
+    assert.ok(await until(() => p.A.pc.signalingState === "stable"), "stable на звонке " + i);
+    assert.ok(p.A.pc.getSenders().some((s) => s.track && s.track.kind === "audio" && s.track.readyState === "live"), "живой аудиотрек на звонке " + i);
+    p.A.endCall(); p.B.endCall();
+    await sleep(300);
+  }
+  assert.ok(p.A.pc.getTransceivers().filter((t) => t.receiver.track && t.receiver.track.kind === "audio").length <= 2,
+    "аудио-трансиверов: " + p.A.pc.getTransceivers().length);
+  p.close();
+});
+
 test("переключение камеры: фронтальная ↔ тыловая, localStream обновляется", async () => {
   const p = await pair();
   await p.A.startCall(true);
