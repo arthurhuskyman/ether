@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.61.1.4";
+const APP_VERSION = "V.61.1.5";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 // Сервер перевода по умолчанию (LibreTranslate-совместимый). Официальный публичный инстанс обычно
@@ -7927,7 +7927,7 @@ function watchConnectionTimeout(id) {
       if (state.tab === "chats") renderChatsList();
       if (c.managed && c.online) scheduleAutoConnect(id);
     }
-  }, connectWaitMs(id));
+  }, connectWaitMs(id) + (watched && watched._relayOnly ? 14000 : 0));
 }
 
 // =====================================================================

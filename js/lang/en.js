@@ -398,7 +398,7 @@ window.__LANG_DICTS["en"] = {
     "sys.clear": "Clear",
     "sys.confirm": "Confirm",
     "debug.turnCheck": "Check TURN relay",
-    "debug.turnChecking": "Checking… (up to 10 s per address)",
+    "debug.turnChecking": "Checking… (up to 15 s per address)",
     "debug.turnOk": "works, relay opened in {ms} ms",
     "debug.turnAllocOnly": "allocation OK, but data does NOT pass",
     "debug.turnNoAlloc": "no allocation (server unreachable or blocked)",

@@ -46,8 +46,19 @@ function relayOnlyAttempt(id) {
   relayTries.set(id, n);
   return true;
 }
+// В relay-only берём только TCP/TLS-адреса TURN, если они есть: UDP-relay у части серверов (free ExpressTURN) выдаёт allocation, но данные
+// не пропускает (проверено кнопкой «Проверить TURN»), и ICE зря ждёт его, а TCP проходит.
 function relayCapableServers() {
-  return ICE_SERVERS.filter((srv) => [].concat(srv.urls || []).some((u) => /^turns?:/i.test(u)));
+  const isTurn = (u) => /^turns?:/i.test(u);
+  const isStream = (u) => /^turns:/i.test(u) || /transport=tcp/i.test(u);
+  const out = [];
+  for (const srv of ICE_SERVERS) {
+    const urls = [].concat(srv.urls || []).filter(isTurn);
+    if (!urls.length) continue;
+    const tcp = urls.filter(isStream);
+    out.push({ ...srv, urls: tcp.length ? tcp : urls });
+  }
+  return out;
 }
 
 function getMyId() {
@@ -130,7 +141,7 @@ async function etherTurnCheckOne(url, username, credential, timeoutMs) {
   try { if (b) b.close(); } catch (e) {}
   return res;
 }
-async function etherTurnCheck(timeoutMs = 9000) {
+async function etherTurnCheck(timeoutMs = 15000) {
   try { await window.__etherIceReady; } catch (e) {}
   const out = [];
   for (const srv of ICE_SERVERS) {
@@ -266,7 +277,7 @@ class PeerLink extends EventTarget {
         if (ics === "checking" || ics === "new") this._fallbackToRelay("ice-stall");
         this.reInvite();
       }
-    }, 10000);
+    }, this._relayOnly ? 22000 : 10000); // TURN по TCP/TLS поднимается дольше (до ~6 с на десктопе, дольше в мобильной сети)
     this.dc = null;
     this.localAudioTrack = null;
     this.localStream = null;

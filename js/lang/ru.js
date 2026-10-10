@@ -398,7 +398,7 @@ window.__LANG_DICTS["ru"] = {
     "sys.clear": "Очистить",
     "sys.confirm": "Подтвердить",
     "debug.turnCheck": "Проверить TURN",
-    "debug.turnChecking": "Проверяю… (до 10 с на адрес)",
+    "debug.turnChecking": "Проверяю… (до 15 с на адрес)",
     "debug.turnOk": "работает, канал через relay открылся за {ms} мс",
     "debug.turnAllocOnly": "allocation есть, но данные НЕ проходят",
     "debug.turnNoAlloc": "allocation не получен (сервер недоступен или заблокирован)",
