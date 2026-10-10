@@ -97,6 +97,52 @@ async function refreshIceServersInBackground() {
   }
 }
 
+// Проверка TURN «на месте»: два соединения в этой же вкладке, оба только через TURN (iceTransportPolicy: relay),
+// между ними открывается data channel. Если он открылся — сервер действительно пересылает данные
+// (trickle-ice этого не показывает: он лишь получает allocation). Каждый URL проверяется отдельно.
+async function etherTurnCheckOne(url, username, credential, timeoutMs) {
+  const t0 = performance.now();
+  const res = { url, relay: false, relayMs: null, open: false, openMs: null, error: "" };
+  let a = null, b = null;
+  try {
+    const cfg = { iceServers: [{ urls: [url], username, credential }], iceTransportPolicy: "relay" };
+    a = new RTCPeerConnection(cfg); b = new RTCPeerConnection(cfg);
+    const done = new Promise((resolve) => {
+      const finish = () => resolve();
+      const timer = setTimeout(finish, timeoutMs);
+      const dc = a.createDataChannel("turn-check");
+      dc.onopen = () => { res.open = true; res.openMs = Math.round(performance.now() - t0); clearTimeout(timer); finish(); };
+      const wire = (from, to) => from.addEventListener("icecandidate", (e) => {
+        if (e.candidate) {
+          if (/ typ relay /.test(e.candidate.candidate) && !res.relay) { res.relay = true; res.relayMs = Math.round(performance.now() - t0); }
+          to.addIceCandidate(e.candidate).catch(() => {});
+        }
+      });
+      wire(a, b); wire(b, a);
+    });
+    const offer = await a.createOffer(); await a.setLocalDescription(offer);
+    await b.setRemoteDescription(offer);
+    const answer = await b.createAnswer(); await b.setLocalDescription(answer);
+    await a.setRemoteDescription(answer);
+    await done;
+  } catch (e) { res.error = String(e && e.message || e); }
+  try { if (a) a.close(); } catch (e) {}
+  try { if (b) b.close(); } catch (e) {}
+  return res;
+}
+async function etherTurnCheck(timeoutMs = 9000) {
+  try { await window.__etherIceReady; } catch (e) {}
+  const out = [];
+  for (const srv of ICE_SERVERS) {
+    for (const u of [].concat(srv.urls || [])) {
+      if (!/^turns?:/i.test(u) || !srv.username) continue;
+      out.push(await etherTurnCheckOne(u, srv.username, srv.credential, timeoutMs));
+    }
+  }
+  return out;
+}
+window.etherTurnCheck = etherTurnCheck;
+
 window.__etherIceReady = (async () => {
   const fromServer = await fetchIceServers(ICE_FETCH_TIMEOUT_MS);
   if (fromServer) {
