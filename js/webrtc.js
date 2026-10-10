@@ -113,11 +113,13 @@ async function refreshIceServersInBackground() {
 // (trickle-ice этого не показывает: он лишь получает allocation). Каждый URL проверяется отдельно.
 async function etherTurnCheckOne(url, username, credential, timeoutMs) {
   const t0 = performance.now();
-  const res = { url, relay: false, relayMs: null, open: false, openMs: null, error: "" };
+  const res = { url, relay: false, relayMs: null, open: false, openMs: null, error: "", diag: "" };
   let a = null, b = null;
+  const errs = [];
   try {
     const cfg = { iceServers: [{ urls: [url], username, credential }], iceTransportPolicy: "relay" };
     a = new RTCPeerConnection(cfg); b = new RTCPeerConnection(cfg);
+    for (const pc of [a, b]) pc.addEventListener("icecandidateerror", (e) => { if (errs.length < 3) errs.push((e.errorCode || "?") + (e.errorText ? " " + e.errorText : "")); });
     const done = new Promise((resolve) => {
       const finish = () => resolve();
       const timer = setTimeout(finish, timeoutMs);
@@ -137,6 +139,20 @@ async function etherTurnCheckOne(url, username, credential, timeoutMs) {
     await a.setRemoteDescription(answer);
     await done;
   } catch (e) { res.error = String(e && e.message || e); }
+  // Если канал не открылся — чем закончились проверки ICE (иначе «данные не идут» не отличить от ошибки TURN/DTLS)
+  if (!res.open) {
+    try {
+      const parts = ["ice " + (a ? a.iceConnectionState : "?") + "/" + (b ? b.iceConnectionState : "?")];
+      for (const pc of [a, b]) {
+        if (!pc) continue;
+        const st = await pc.getStats(); let sent = 0, got = 0, np = 0;
+        st.forEach((r) => { if (r.type === "candidate-pair") { np++; sent += r.requestsSent || 0; got += r.responsesReceived || 0; } });
+        parts.push("пар " + np + " ↑" + sent + " ↓" + got);
+      }
+      if (errs.length) parts.push("ошибки: " + errs.join("; "));
+      res.diag = parts.join(", ");
+    } catch (e) {}
+  }
   try { if (a) a.close(); } catch (e) {}
   try { if (b) b.close(); } catch (e) {}
   return res;
