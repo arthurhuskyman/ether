@@ -49,6 +49,7 @@
 <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
+<a class="skip-link" href="#content" data-i18n="a11y.skip">Skip to content</a>
 <div id="rotate-lock" aria-hidden="true"><div data-i18n="rotate.lock">Rotate your phone to portrait</div></div>
 
 <div id="lock-screen" class="hidden">
@@ -204,7 +205,7 @@
     </button>
   </div>
 
-  <main id="content">
+  <main id="content" tabindex="-1">
 
     <!-- Живёт ВНЕ #screen-chats: раньше чипы были внутри секции чатов, и
          при переключении на сегмент "Звонки" (#screen-calls) вся секция,
@@ -457,6 +458,8 @@
             <button type="button" data-theme="auto" class="active" data-i18n="settings.theme.auto">System</button>
           </div>
         </div>
+        <label class="settings-row"><span data-i18n="settings.readable">Easy-reading mode</span><input id="settings-readable-mode" type="checkbox" class="switch" /></label>
+        <p class="fine muted" style="margin:0 0 10px;" data-i18n="settings.readable.explain">Wider letter and word spacing, taller lines, left-aligned text — easier for dyslexia and tired eyes.</p>
         <label class="settings-row"><span data-i18n="settings.calmMode">Calm mode</span><input id="settings-calm-mode" type="checkbox" class="switch" /></label>
         <p class="fine muted" style="margin:0 0 10px;" data-i18n="settings.calmMode.explain">Turns off the animated background and lowers blur — for a quieter, more focused interface.</p>
         <label class="settings-row"><span data-i18n="settings.bubbleSize">Message bubble size</span>
@@ -691,7 +694,7 @@
 
   </main>
 
-  <nav id="tab-bar" class="glass">
+  <nav id="tab-bar" class="glass" aria-label="Main" data-i18n-aria="a11y.navMain">
     <button type="button" class="tab-btn active" data-tab="chats">
       <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 4V6a2 2 0 0 1 2-2z"/></svg>
       <span id="tab-chats-badge" class="tab-badge hidden">0</span>
@@ -1253,7 +1256,7 @@
   <button type="button" id="panic-shake-cancel-btn" data-i18n="sys.cancel">Cancel</button>
 </div>
 
-<div id="media-viewer" class="hidden">
+<div id="media-viewer" class="hidden" role="dialog" aria-modal="true" aria-label="Media" data-i18n-aria="a11y.mediaViewer">
   <button type="button" id="media-viewer-close" class="icon-btn media-viewer-close" aria-label="Close"><svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg></button>
   <img id="media-viewer-img" alt="" />
   <video id="media-viewer-video" controls playsinline class="hidden"></video>

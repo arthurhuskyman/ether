@@ -248,7 +248,7 @@ test("футер и нижняя safe area: стекло как у хедера,
   assert.doesNotMatch(rule("#tab-bar"), /(^|[;\s])background:/, "фон футера даёт .glass (var(--glass-regular))");
   assert.match(rule("#nav-bar") + css.match(/#nav-bar\.glass[^{]*\{[^}]*\}/)?.[0], /blur|glass|padding/);
   assert.match(rule(".glass,\n.glass-regular"), /background:\s*var\(--glass-regular\)/);
-  assert.match(html, /<nav id="tab-bar" class="glass">/);
+  assert.match(html, /<nav id="tab-bar" class="glass"[^>]*>/);
 });
 
 test("запрет масштабирования: viewport, touch-action, блокировка жестов и двойного тапа", async () => {

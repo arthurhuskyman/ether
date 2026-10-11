@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.64.0.0";
+const APP_VERSION = "V.65.0.0";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 // Сервер перевода по умолчанию (LibreTranslate-совместимый). Официальный публичный инстанс обычно
@@ -211,7 +211,7 @@ const CRITICAL_LS_KEYS = [
   "ether.callVolume", "ether.lang", "ether.recentReactions",
   "ether.chatFolders", "ether.emojiSkinTone", "ether.recentEmoji", "ether.myAvatar",
   "ether.translateEndpoint", "ether.translateApiKey",
-  "ether.deadManEnabled", "ether.deadManThresholdDays", "ether.deadManContactId", "ether.deadManLastSentAt",
+  "ether.readable", "ether.deadManEnabled", "ether.deadManThresholdDays", "ether.deadManContactId", "ether.deadManLastSentAt",
   "ether.panicShakeEnabled", "ether.fx", "ether.sigKey", "ether.fx.aurora", "ether.keyInfo",
 ];
 
@@ -262,7 +262,11 @@ const Store = {
   set lastSeenVisible(v) { localStorage.setItem("ether.lastSeenVisible", v ? "1" : "0"); broadcastPrivacyPrefs(); },
   get presenceVisible() { return localStorage.getItem("ether.presenceVisible") !== "0"; },
   set presenceVisible(v) { localStorage.setItem("ether.presenceVisible", v ? "1" : "0"); broadcastPrivacyPrefs(); },
-  get linkPreviewsEnabled() { return localStorage.getItem("ether.linkPreviews") !== "0"; },
+  get linkPreviewsEnabled() {
+    const v = localStorage.getItem("ether.linkPreviews");
+    if (v === null) { try { return !(window.matchMedia && window.matchMedia("(prefers-reduced-data: reduce)").matches); } catch (e) { return true; } } // экономия трафика: без явного выбора превью ссылок выключены
+    return v !== "0";
+  },
   set linkPreviewsEnabled(v) { localStorage.setItem("ether.linkPreviews", v ? "1" : "0"); scheduleIDBBackup(); },
   // "Перевести" (раздел 5 роадмапа) — честно пусто по умолчанию, НЕ
   // захардкожен публичный LibreTranslate-эндпоинт: текст сообщения ушёл
@@ -404,6 +408,8 @@ const Store = {
   // сообщений, этот — размер ВСЕГО текста приложения (доступность).
   get fontSize() { return localStorage.getItem("ether.fontSize") || "normal"; },
   set fontSize(v) { localStorage.setItem("ether.fontSize", v); scheduleIDBBackup(); },
+  get readableMode() { return localStorage.getItem("ether.readable") === "1"; },
+  set readableMode(v) { localStorage.setItem("ether.readable", v ? "1" : "0"); scheduleIDBBackup(); },
   get calmMode() { return localStorage.getItem("ether.calmMode") === "1"; },
   set calmMode(v) { localStorage.setItem("ether.calmMode", v ? "1" : "0"); scheduleIDBBackup(); },
   get myAvatar() { return localStorage.getItem("ether.myAvatar") || ""; },
@@ -1143,6 +1149,7 @@ function applyChatAppearancePrefs() {
   if (messages) messages.dataset.wallpaper = Store.chatWallpaper || "none";
   document.documentElement.dataset.bubbleSize = Store.bubbleSize || "normal";
   document.documentElement.dataset.fontSize = Store.fontSize || "normal";
+  document.documentElement.dataset.readable = Store.readableMode ? "1" : "0";
 }
 // «Спокойный режим» — отключает анимацию фона и снижает блюр для тех,
 // кому текущая эстетика (glass + градиентные волны) кажется отвлекающей
@@ -1962,6 +1969,7 @@ function startApp() {
   safeCall(wireJumpToDateSheet, "wireJumpToDateSheet");
   safeCall(wireEmojiPicker, "wireEmojiPicker");
   safeCall(wireComposerPlusMode, "wireComposerPlusMode");
+  safeCall(wireSkipLink, "wireSkipLink");
   safeCall(wireBackupPasswordSheet, "wireBackupPasswordSheet");
   safeCall(wireHandshakeToneSheet, "wireHandshakeToneSheet");
   safeCall(wireNotificationPermission, "wireNotificationPermission");
@@ -3921,10 +3929,24 @@ function renderChatThread() { try { renderKeyChangeBanner(); renderChatThreadInn
 let __lastChatSig = "";
 // «Подпись» содержимого переписки: если с прошлой отрисовки ничего видимого не изменилось, DOM не пересобираем —
 // раньше каждый заход в чат и каждое событие (статус, набор текста, соединение) перерисовывали ленту 2–3 раза, и это было видно глазом.
-function chatRenderSig(c, q) {
+// Окно отрисовки ленты: в DOM только последние N сообщений (до 5000 в чате — иначе вкладка тяжелеет), выше — кнопка «Показать более ранние».
+const RENDER_WINDOW_STEP = 150;
+const renderWindow = new Map(); // contactId -> сколько последних сообщений сейчас в DOM
+let __suppressFreshAnim = false; // при подгрузке старых сообщений не проигрываем анимацию «появления» на каждом
+function renderWindowOf(c) { return Math.max(renderWindow.get(c.id) || RENDER_WINDOW_STEP, RENDER_WINDOW_STEP); }
+// Гарантирует, что сообщение есть в DOM (для переходов: ответ-цитата, закреп, поиск, избранное, переход к дате)
+function ensureMessageRendered(contactId, msgId) {
+  const c = state.contacts.get(contactId); if (!c) return false;
+  const idx = c.messages.findIndex((m) => m.id === msgId); if (idx < 0) return false;
+  const need = c.messages.length - idx + 20;
+  if (need > renderWindowOf(c)) { renderWindow.set(c.id, need); __suppressFreshAnim = true; if (state.chatId === contactId) renderChatThreadInner(); }
+  return true;
+}
+function chatRenderSig(c, q, list) {
   let h = c.id + "|" + q + "|" + (state.multiSelect ? Array.from(state.multiSelect).join(",") : "") + "|" + (unreadDividerFor.get(c.id) || "")
     + "|" + document.documentElement.lang + "|" + Store.linkPreviewsEnabled + "|" + linkPreviewCache.size + "|" + (c.pinnedMessageId || "") + "|" + (isGroup(c) ? "g" : "p") + "|" + (function () { try { return localStorage.getItem("ether.fx") || ""; } catch (e) { return ""; } })();
-  for (const m of c.messages) {
+  h += "|win:" + (list ? list.length : c.messages.length);
+  for (const m of (list || c.messages)) {
     h += "\n" + m.id + ":" + (m.ack || "") + (m.edited ? "e" : "") + (m.deleted ? "d" : "") + (m.favorite ? "f" : "") + (m.ttl || "") + (m.forwarded ? "w" : "") + ":" + (m.text || "")
       + (m.translation ? m.translation.text : "") + (m.reactions ? JSON.stringify(m.reactions) : "")
       + (m.file ? [m.file.pending ? 1 : 0, m.file.failed ? 1 : 0, m.file.progress || "", m.file.w || ""].join("") : "") + (m.replyTo ? "r" : "");
@@ -4076,7 +4098,15 @@ function renderChatThreadInner() {
     }
   }
   const q = state.chatSearchQuery.toLowerCase();
-  const sig = chatRenderSig(c, q);
+  // Какие сообщения реально рисуем: при поиске — все (подсветка совпадений), иначе только последние renderWindowOf(c)
+  let renderList = c.messages, hiddenBefore = 0;
+  if (!q) {
+    let win = renderWindowOf(c);
+    const ua = unreadDividerFor.get(c.id);
+    if (ua) { const ui = c.messages.findIndex((m) => m.id === ua); if (ui >= 0) win = Math.max(win, c.messages.length - ui + 10); } // разделитель «Непрочитанные» всегда в DOM
+    if (c.messages.length > win) { hiddenBefore = c.messages.length - win; renderList = c.messages.slice(hiddenBefore); }
+  }
+  const sig = chatRenderSig(c, q, renderList);
   if (sig === __lastChatSig && wrap.dataset.renderedChat === c.id && wrap.childElementCount > 0) {
     // Ничего видимого не изменилось — DOM оставляем, только приводим в порядок прокрутку/поле ввода
     const dv = wrap.querySelector(".unread-divider");
@@ -4103,9 +4133,23 @@ function renderChatThreadInner() {
   // prev пуст → ничего не считаем новым, иначе при открытии чата все
   // пузыри разом анимировались бы.
   const prevMsgIds = __prevRenderedMsgIds;
-  const freshEnabled = prevMsgIds.size > 0 || !freshEntry;
+  const freshEnabled = (prevMsgIds.size > 0 || !freshEntry) && !__suppressFreshAnim;
+  __suppressFreshAnim = false;
   const nextMsgIds = new Set();
-  for (const m of c.messages) {
+  if (hiddenBefore > 0) {
+    const more = document.createElement("button");
+    more.type = "button"; more.className = "load-earlier-btn";
+    more.textContent = T("chat.loadEarlier", { n: Math.min(hiddenBefore, RENDER_WINDOW_STEP) });
+    more.addEventListener("click", () => { renderWindow.set(c.id, renderWindowOf(c) + RENDER_WINDOW_STEP); __suppressFreshAnim = true; renderChatThreadInner(); });
+    frag.appendChild(more);
+    // Листаете вверх — старые сообщения подгружаются сами, когда кнопка почти на экране
+    if (typeof IntersectionObserver !== "undefined") setTimeout(() => {
+      if (!more.isConnected) return;
+      const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) { io.disconnect(); more.click(); } }, { root: wrap, rootMargin: "160px 0px 0px 0px" });
+      io.observe(more);
+    }, 400);
+  }
+  for (const m of renderList) {
     nextMsgIds.add(m.id);
     const freshnessClass = (freshEnabled && !prevMsgIds.has(m.id))
       ? (m.from === "me" ? " just-sent" : " just-received")
@@ -4286,7 +4330,8 @@ if (m.replyTo) {
       if (replyQuoteEl) {
         ev.stopPropagation();
         const targetId = replyQuoteEl.getAttribute("data-reply-to-id");
-        const targetEl = targetId && wrap.querySelector(`[data-msg-id="${CSS.escape(targetId)}"]`);
+        if (targetId && !wrap.querySelector(`[data-msg-id="${CSS.escape(targetId)}"]`)) ensureMessageRendered(c.id, targetId);
+        const targetEl = targetId && document.querySelector(`#chat-messages [data-msg-id="${CSS.escape(targetId)}"]`);
         if (targetEl) {
           targetEl.scrollIntoView({ block: "center", behavior: prefersReducedMotion() ? "auto" : "smooth" });
           targetEl.classList.add("highlight-origin");
@@ -5766,19 +5811,39 @@ function openMediaViewer(url, kind) {
     if (video) { video.classList.add("hidden"); video.pause(); video.removeAttribute("src"); }
     if (img) { img.classList.remove("hidden"); img.src = url; }
   }
+  __mediaViewerReturnFocus = document.activeElement;
   viewer.classList.remove("hidden");
+  const closeBtn = $("#media-viewer-close"); if (closeBtn) closeBtn.focus();
 }
+let __mediaViewerReturnFocus = null;
 function closeMediaViewer() {
   const viewer = $("#media-viewer"); if (!viewer) return;
   viewer.classList.add("hidden");
+  const back = __mediaViewerReturnFocus; __mediaViewerReturnFocus = null;
+  if (back && document.body.contains(back) && typeof back.focus === "function") { try { back.focus(); } catch (e) {} }
   const video = $("#media-viewer-video"); if (video) { video.pause(); video.removeAttribute("src"); }
   const img = $("#media-viewer-img"); if (img) img.removeAttribute("src");
+}
+// «К содержимому»: перенос фокуса на <main> без изменения адреса страницы (приложение читает hash для инвайтов)
+function wireSkipLink() {
+  const link = $(".skip-link"); if (!link || link.dataset.wired) return; link.dataset.wired = "1";
+  link.addEventListener("click", (e) => { e.preventDefault(); const m = $("#content"); if (m) m.focus(); });
 }
 function wireMediaViewer() {
   const closeBtn = $("#media-viewer-close");
   if (closeBtn) closeBtn.addEventListener("click", closeMediaViewer);
   const viewer = $("#media-viewer");
   if (viewer) viewer.addEventListener("click", (ev) => { if (ev.target === viewer) closeMediaViewer(); });
+  // Модальное окно: Esc закрывает, Tab не выходит за его пределы
+  document.addEventListener("keydown", (e) => {
+    const v = $("#media-viewer"); if (!v || v.classList.contains("hidden")) return;
+    if (e.key === "Escape") { e.preventDefault(); closeMediaViewer(); return; }
+    if (e.key !== "Tab") return;
+    const items = focusableIn(v); if (items.length === 0) { e.preventDefault(); return; }
+    const first = items[0], last = items[items.length - 1];
+    if (e.shiftKey && (document.activeElement === first || !v.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && (document.activeElement === last || !v.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
+  });
 }
 
 let linkActionTargetUrl = "";
@@ -7242,6 +7307,7 @@ async function toggleReaction(contactId, msgId, emoji) {
   if (meIdx >= 0) { m.reactions[emoji].splice(meIdx, 1); remove = true; if (m.reactions[emoji].length === 0) delete m.reactions[emoji]; }
   else { m.reactions[emoji].push(Store.myId); recordRecentReaction(emoji); }
   persistContacts();
+  try { announceToScreenReader(T(remove ? "a11y.reactionRemoved" : "a11y.reactionAdded", { emoji })); } catch (e) {}
   if (state.chatId === contactId) renderChatThread();
   const actionId = crypto.randomUUID();
   const payload = { kind: "reaction", id: msgId, emoji, remove, ts: Date.now() };
@@ -8029,6 +8095,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     }
   } else if (kind === "reaction") {
     applyReaction(from, payload);
+    try { if (!payload.remove && payload.emoji) { const rc = state.contacts.get(from); announceToScreenReader(T("a11y.reactionFrom", { name: (rc && rc.name) || T("sys.someone"), emoji: payload.emoji })); } } catch (e) {}
   } else if (kind === "contact-card") {
     const c = ensureContactEntry(from, null);
     if (c.messages.some((m) => m.id === payload.id)) return;
@@ -9090,6 +9157,7 @@ function jumpToMessageInChat(contactId, msgId) {
   state.tab = "chats";
   renderTab();
   requestAnimationFrame(() => {
+    ensureMessageRendered(contactId, msgId);
     const wrap = $("#chat-messages");
     const targetEl = wrap && wrap.querySelector(`[data-msg-id="${CSS.escape(msgId)}"]`);
     if (targetEl) {
@@ -9657,6 +9725,7 @@ function wireJumpToDateSheet() {
     // renderChatThread уже отрисовала DOM синхронно выше — ищем элемент
     // сообщения по data-msg-id, который проставляется в разметке пузыря.
     setTimeout(() => {
+      ensureMessageRendered(contactId, match.id);
       const el = document.querySelector(`#chat-messages [data-msg-id="${CSS.escape(match.id)}"]`);
       if (el) {
         el.scrollIntoView({ block: "center", behavior: "auto" });
@@ -11452,6 +11521,8 @@ function wireSettingsScreen() {
       $$(".theme-seg button").forEach((b) => b.classList.toggle("active", b === btn));
     });
   });
+  const readableToggle = $("#settings-readable-mode");
+  if (readableToggle) { readableToggle.checked = Store.readableMode; readableToggle.addEventListener("change", () => { Store.readableMode = readableToggle.checked; applyChatAppearancePrefs(); }); }
   const calmModeToggle = $("#settings-calm-mode");
   if (calmModeToggle) { calmModeToggle.checked = Store.calmMode; calmModeToggle.addEventListener("change", () => { Store.calmMode = calmModeToggle.checked; applyCalmMode(); }); }
   const bubbleSizeSel = $("#settings-bubble-size");
@@ -12783,6 +12854,7 @@ if (cameraInput) {
   const pinnedJump = $("#pinned-msg-jump");
   if (pinnedJump) pinnedJump.addEventListener("click", () => {
     const c = state.chatId && state.contacts.get(state.chatId); if (!c || !c.pinnedMessageId) return;
+    ensureMessageRendered(c.id, c.pinnedMessageId);
     const el = document.querySelector(`.bubble[data-msg-id="${CSS.escape(c.pinnedMessageId)}"]`);
     if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.classList.add("jump-highlight"); setTimeout(() => el.classList.remove("jump-highlight"), 1200); }
   });

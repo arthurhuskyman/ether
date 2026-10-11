@@ -395,6 +395,7 @@ html[data-scheme="light"] .glass-content {
 }
 .chat-row-wrapper { position: relative; border-radius: var(--radius-l); overflow: hidden; }
 .chat-row {
+  content-visibility: auto; contain-intrinsic-size: auto 72px;
   display: flex; align-items: center; gap: 12px;
   width: 100%; padding: 12px 14px;
   border-radius: var(--radius-l);
@@ -2401,3 +2402,31 @@ html.egg-disco #app-shell { animation: eggDisco 1.2s linear infinite; }
 
 /* меню «+» композера */
 .composer-menu-item svg { color: var(--accent); }
+
+/* ===================== Доступность ===================== */
+.skip-link { position: fixed; top: -100px; inset-inline-start: var(--sp-3); z-index: 1000; background: var(--accent); color: #fff; padding: var(--sp-2) var(--sp-4); border-radius: var(--r-md); font-weight: 600; text-decoration: none; }
+.skip-link:focus { top: calc(env(safe-area-inset-top, 0px) + var(--sp-2)); outline: 2px solid #fff; outline-offset: 2px; }
+#content:focus { outline: none; }
+#media-viewer[role="dialog"] .media-viewer-close:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+/* Режим «Читаемость»: шире буквы и слова, выше строка, выравнивание по левому краю (удобнее при дислексии и усталости глаз) */
+html[data-readable="1"] body { letter-spacing: 0.04em; word-spacing: 0.12em; }
+html[data-readable="1"] .bubble { line-height: 1.6; text-align: start; }
+html[data-readable="1"] .chat-row-preview-text, html[data-readable="1"] .settings-row { line-height: 1.5; }
+/* Пониженная прозрачность (системная настройка): без блюра, плотные подложки — для тех, кому размытие мешает читать */
+@media (prefers-reduced-transparency: reduce) {
+  :root { --glass-alpha: 0.96; --glass-blur: 0px; }
+  .glass, .glass-content, .glass-regular, .sheet-panel, #tab-bar, .quick-reaction-flyout { -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+/* Повышенная контрастность: границы и разделители заметнее, тени и свечения убраны на всех поверхностях */
+@media (prefers-contrast: more) {
+  :root { --line-1: rgba(255, 255, 255, 0.28); --line-2: rgba(255, 255, 255, 0.42); --glass-border: rgba(255, 255, 255, 0.4); --ink-3: rgba(255, 255, 255, 0.72); --ink-2: rgba(255, 255, 255, 0.82); }
+  html[data-scheme="light"] { --line-1: rgba(0, 0, 0, 0.32); --line-2: rgba(0, 0, 0, 0.5); --glass-border: rgba(0, 0, 0, 0.45); --ink-3: rgba(10, 10, 15, 0.78); --ink-2: rgba(10, 10, 15, 0.86); }
+  .bubble, .glass, .glass-content, .flat-content, .quick-reaction-flyout, .unread-badge { box-shadow: none !important; border: 1px solid var(--line-2) !important; }
+}
+
+.load-earlier-btn {
+  display: block; margin: var(--space-2, 8px) auto; padding: 8px 16px;
+  border-radius: var(--radius-lg, 16px); border: 1px solid var(--border, rgba(128,128,128,.3));
+  background: transparent; color: var(--accent, inherit); font-size: var(--t-meta, 13px);
+  cursor: pointer; min-height: 36px;
+}

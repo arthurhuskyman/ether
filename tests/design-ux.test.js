@@ -190,3 +190,63 @@ test("поле ввода: многострочное; Enter отправляе�
   assert.equal(a.run(`linkifyAndHighlight("<b>x</b>\\ny", "")`).includes("<b>"), false, "разметка по-прежнему экранируется");
   a.close();
 });
+
+test("доступность: skip-ссылка и ориентиры, модальный просмотр медиа с ловушкой фокуса, объявление реакций, читаемость, экономия данных", async () => {
+  const a = await booted();
+  const d = a.document;
+  assert.ok(d.querySelector("a.skip-link[href='#content']"));
+  d.querySelector(".skip-link").click();
+  assert.equal(d.activeElement.id, "content", "skip-ссылка переносит фокус на main");
+  assert.equal(a.window.location.hash, "", "адрес страницы не меняется");
+  assert.ok(d.querySelector("main#content")); assert.ok(d.querySelector("nav#tab-bar[aria-label]"));
+  // просмотрщик медиа
+  const viewer = d.querySelector("#media-viewer");
+  assert.equal(viewer.getAttribute("role"), "dialog"); assert.equal(viewer.getAttribute("aria-modal"), "true");
+  const opener = d.querySelector("#chat-plus-btn"); opener.focus();
+  a.run(`openMediaViewer("blob:x", "image")`);
+  assert.equal(d.activeElement.id, "media-viewer-close", "фокус внутри окна");
+  d.dispatchEvent(new a.window.KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true }));
+  assert.equal(viewer.contains(d.activeElement), true, "Tab не выходит за пределы окна");
+  d.dispatchEvent(new a.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+  assert.ok(viewer.classList.contains("hidden"), "Esc закрывает");
+  assert.equal(d.activeElement, opener, "фокус вернулся на вызвавший элемент");
+  // реакции объявляются
+  a.run(`const c = ensureContactEntry("alice", "Alice"); c.managed = true; c.messages.push({ id: "m1", from: "them", text: "x", ts: Date.now() }); toggleReaction("alice", "m1", "👍");`);
+  await new Promise((r) => setTimeout(r, 60));
+  assert.match(d.querySelector("#sr-announcer").textContent, /👍/);
+  // входящая реакция собеседника тоже озвучивается
+  a.run(`applyIncomingPayload("alice", "env1", { kind: "reaction", id: "m1", emoji: "❤️", remove: false, ts: Date.now() }, true)`);
+  await new Promise((r) => setTimeout(r, 60));
+  assert.match(d.querySelector("#sr-announcer").textContent, /Alice.*❤️/);
+  // режим читаемости
+  a.run(`Store.readableMode = true; applyChatAppearancePrefs();`);
+  assert.equal(d.documentElement.dataset.readable, "1");
+  // экономия данных: без явного выбора превью ссылок выключены
+  a.window.localStorage.removeItem("ether.linkPreviews");
+  a.window.matchMedia = (q) => ({ matches: /reduced-data/.test(q), addEventListener() {}, addListener() {} });
+  assert.equal(a.run(`Store.linkPreviewsEnabled`), false);
+  a.window.localStorage.setItem("ether.linkPreviews", "1");
+  assert.equal(a.run(`Store.linkPreviewsEnabled`), true, "явный выбор пользователя сильнее системной настройки");
+  a.close();
+  const css = fs.readFileSync(path.join(ROOT, "css", "styles.css"), "utf8");
+  for (const q of ["prefers-reduced-transparency", "prefers-contrast: more", "data-readable"]) assert.ok(css.includes(q), q);
+});
+
+test("окно отрисовки чата: длинная переписка рисуется частями, старые сообщения подгружаются кнопкой и переходами", async () => {
+  const a = await booted();
+  const d = a.document;
+  a.run(`const c = ensureContactEntry("alice", "Alice"); c.managed = true; const t = Date.now();
+    for (let i = 0; i < 400; i++) c.messages.push({ id: "m" + i, from: "me", text: "msg " + i, ts: t - (400 - i) * 1000 });
+    unreadDividerFor.delete("alice"); state.chatId = "alice"; state.tab = "chats"; renderTab();`);
+  await new Promise((r) => setTimeout(r, 80));
+  const count = () => d.querySelectorAll("#chat-messages .bubble[data-msg-id]").length;
+  assert.equal(count(), 150, "рисуются только последние 150");
+  assert.ok(d.querySelector(".load-earlier-btn"), "есть кнопка «ещё»");
+  assert.match(d.querySelector(".load-earlier-btn").textContent, /150/);
+  d.querySelector(".load-earlier-btn").click();
+  assert.equal(count(), 300);
+  a.run(`ensureMessageRendered("alice", "m0")`);
+  assert.equal(count(), 400, "переход к старому сообщению раскрывает окно");
+  assert.equal(d.querySelector(".load-earlier-btn"), null);
+  a.close();
+});
