@@ -148,6 +148,12 @@ self.addEventListener("message", (event) => {
     return;
   }
 
+  // Список заблокированных контактов — Web Push от них не должен показываться (сервер о блокировке не знает)
+  if (data.type === "blocked-ids") {
+    const ids = Array.isArray(data.ids) ? data.ids.filter((x) => typeof x === "string").slice(0, 2000) : [];
+    event.waitUntil(caches.open("ether-meta").then((c) => c.put("./__blocked.json", new Response(JSON.stringify(ids), { headers: { "Content-Type": "application/json" } }))).catch(() => {}));
+    return;
+  }
   if (data.type !== "show-notification") return;
   const title = String(data.title || "Эфир").slice(0, 60);
   const body = String(data.body || "").slice(0, 200);
@@ -182,7 +188,11 @@ self.addEventListener("push", (event) => {
   if (!n) n = { title: "Эфир", body: "", tag: "ether", data: {} };
   const data = n.data || {};
   event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+    caches.open("ether-meta").then((c) => c.match("./__blocked.json")).then((r) => r ? r.json() : []).catch(() => []).then((blockedIds) => {
+      if (data.contactId && blockedIds.indexOf(data.contactId) >= 0) return null; // заблокирован: ни звонка, ни сообщения
+      return self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    }).then((clientList) => {
+      if (!clientList) return;
       const hasVisibleClient = clientList.some((c) => c.visibilityState === "visible");
       if (hasVisibleClient) return;
       // P2.37 (урезанный вариант) — для настоящего web-push (сервер

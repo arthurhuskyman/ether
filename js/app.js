@@ -205,7 +205,7 @@ const CRITICAL_LS_KEYS = [
   "ether.contacts",
   "ether.outbox", "ether.pendingNoKey", "ether.recentlyDeleted",
   "ether.theme", "ether.glassAlpha",
-  "ether.notifications", "ether.sounds", "ether.ringtone", "ether.linkPreviews",
+  "ether.notifications", "ether.sounds", "ether.ringtone", "ether.linkPreviews", "ether.linkPreviewMode",
   "ether.vapidPublicKey", "ether.pushSubscription",
   "ether.callLog", "ether.lastSeen", "ether.drafts",
   "ether.callVolume", "ether.lang", "ether.recentReactions",
@@ -262,12 +262,17 @@ const Store = {
   set lastSeenVisible(v) { localStorage.setItem("ether.lastSeenVisible", v ? "1" : "0"); broadcastPrivacyPrefs(); },
   get presenceVisible() { return localStorage.getItem("ether.presenceVisible") !== "0"; },
   set presenceVisible(v) { localStorage.setItem("ether.presenceVisible", v ? "1" : "0"); broadcastPrivacyPrefs(); },
-  get linkPreviewsEnabled() {
+  // Превью ссылок: "off" — никогда; "ask" — по нажатию на конкретной ссылке (по умолчанию: сервер сам открывает ссылку с чужого IP,
+  // поэтому делать это без вашего решения нельзя); "auto" — всегда сразу. Старый переключатель ether.linkPreviews ("1" → auto, "0" → off) учитывается.
+  get linkPreviewMode() {
+    const m = localStorage.getItem("ether.linkPreviewMode");
+    if (m === "off" || m === "ask" || m === "auto") return m;
     const v = localStorage.getItem("ether.linkPreviews");
-    if (v === null) { try { return !(window.matchMedia && window.matchMedia("(prefers-reduced-data: reduce)").matches); } catch (e) { return true; } } // экономия трафика: без явного выбора превью ссылок выключены
-    return v !== "0";
+    return v === "1" ? "auto" : v === "0" ? "off" : "ask";
   },
-  set linkPreviewsEnabled(v) { localStorage.setItem("ether.linkPreviews", v ? "1" : "0"); scheduleIDBBackup(); },
+  set linkPreviewMode(v) { localStorage.setItem("ether.linkPreviewMode", v === "off" || v === "auto" ? v : "ask"); scheduleIDBBackup(); },
+  get linkPreviewsEnabled() { return this.linkPreviewMode === "auto"; },
+  set linkPreviewsEnabled(v) { localStorage.setItem("ether.linkPreviews", v ? "1" : "0"); localStorage.removeItem("ether.linkPreviewMode"); scheduleIDBBackup(); },
   // "Перевести" (раздел 5 роадмапа) — честно пусто по умолчанию, НЕ
   // захардкожен публичный LibreTranslate-эндпоинт: текст сообщения ушёл
   // бы на сторонний сервер без явного согласия пользователя на то, какому
@@ -558,8 +563,17 @@ const outbox = new Map();
 // Store.groupDeliveryMapJson и resolveGroupDelivery().
 const groupDeliveryMap = new Map();
 const pendingNoKey = new Map();
+const linkPreviewAllowed = new Set(); // ссылки, для которых вы нажали «Показать превью» (режим «спрашивать»)
 const seenGroupInviteIds = new Set(); // отдельно от seenDeliverIds, чтобы инвайты не вытесняли обычные id
-const seenDeliverIds = new Set(); // ключ — "from|msgId", не голый msgId (см. ниже)
+// Окно дедупликации входящих: по времени (24 ч), а не только по числу — при плотном потоке старые id раньше вытеснялись за минуты
+// и повторная доставка проходила как новое сообщение. Лимит по числу остаётся страховкой по памяти.
+const SEEN_DELIVER_TTL_MS = 24 * 3600e3;
+const seenDeliverIds = new Map(); // ключ — "from|msgId", не голый msgId (см. ниже); значение — когда видели
+function rememberDeliverId(key) {
+  const now = Date.now();
+  seenDeliverIds.set(key, now);
+  for (const [k, t] of seenDeliverIds) { if (now - t > SEEN_DELIVER_TTL_MS || seenDeliverIds.size > SEEN_DELIVER_LIMIT * 4) seenDeliverIds.delete(k); else break; }
+}
 const _connectInFlight = new Set();
 // Недавно завершённые звонки — id собеседника -> timestamp. Защита от
 // повторного "звонка" от того же человека в течение короткого окна
@@ -2044,7 +2058,7 @@ function startApp() {
     const sp = $("#settings-presence"); if (sp) sp.checked = Store.presenceVisible;
     const snn = $("#settings-notifications"); if (snn) snn.checked = Store.notificationsEnabled;
     const shn = $("#settings-hide-notif"); if (shn) shn.checked = Store.hideNotifContent;
-    const slp = $("#settings-link-previews"); if (slp) slp.checked = Store.linkPreviewsEnabled;
+    const slp = $("#settings-link-previews"); if (slp) slp.value = Store.linkPreviewMode;
     const ste = $("#settings-translate-endpoint"); if (ste) ste.value = Store.translateEndpoint;
     const stk = $("#settings-translate-key"); if (stk) stk.value = Store.translateApiKey;
     const ssn = $("#settings-sounds"); if (ssn) ssn.checked = Store.soundsEnabled;
@@ -2877,7 +2891,20 @@ function persistContactsNow() {
   }
 }
 let __lastPersistMsgCount = 0, __lastContactsJson = "";
+// Список заблокированных — в service worker (его push-обработчик не видит localStorage)
+let __blockedSyncKey = "";
+function syncBlockedToSW() {
+  try {
+    const ids = Array.from(state.contacts.values()).filter((c) => c.blocked && !c.isGroup).map((c) => c.id).sort();
+    const key = ids.join(",");
+    if (key === __blockedSyncKey) return; __blockedSyncKey = key;
+    const msg = { type: "blocked-ids", ids };
+    if (navigator.serviceWorker && navigator.serviceWorker.controller) navigator.serviceWorker.controller.postMessage(msg);
+    else if (swRegistration && swRegistration.active) swRegistration.active.postMessage(msg);
+  } catch (e) {}
+}
 function persistContacts() {
+  try { syncBlockedToSW(); } catch (e) {}
   __contactsPersistPending = Array.from(state.contacts.values()).filter((c) => c.managed).map((c) => ({
     id: c.id, name: c.name, raw: c.raw, publicKey: c.publicKey,
     rc: c.rc || undefined, pendingKey: c.pendingKey || undefined, rejectedKey: c.rejectedKey || undefined, authSeen: c.authSeen || undefined,
@@ -4039,7 +4066,7 @@ function ensureMessageRendered(contactId, msgId) {
 }
 function chatRenderSig(c, q, list) {
   let h = c.id + "|" + q + "|" + (state.multiSelect ? Array.from(state.multiSelect).join(",") : "") + "|" + (unreadDividerFor.get(c.id) || "")
-    + "|" + document.documentElement.lang + "|" + Store.linkPreviewsEnabled + "|" + linkPreviewCache.size + "|" + (c.pinnedMessageId || "") + "|" + (isGroup(c) ? "g" : "p") + "|" + (function () { try { return localStorage.getItem("ether.fx") || ""; } catch (e) { return ""; } })();
+    + "|" + document.documentElement.lang + "|" + Store.linkPreviewMode + linkPreviewAllowed.size + "|" + linkPreviewCache.size + "|" + (c.pinnedMessageId || "") + "|" + (isGroup(c) ? "g" : "p") + "|" + (function () { try { return localStorage.getItem("ether.fx") || ""; } catch (e) { return ""; } })();
   h += "|win:" + (list ? list.length : c.messages.length);
   for (const m of (list || c.messages)) {
     h += "\n" + m.id + ":" + (m.rv || 0) + (m.ack || "") + (m.edited ? "e" : "") + (m.deleted ? "d" : "") + (m.favorite ? "f" : "") + (m.ttl || "") + (m.forwarded ? "w" : "") + ":" + (m.text || "")
@@ -4333,12 +4360,14 @@ function renderChatThreadInner() {
       ? `<div class="bubble-sender">${escapeHtml(m.fromName || T("sys.someone"))}</div>` : "";
     let previewSlotHtml = "";
     let previewUrl = null;
-    if (Store.linkPreviewsEnabled && !m.deleted) {
+    if (Store.linkPreviewMode !== "off" && !m.deleted) {
       previewUrl = extractFirstUrl(m.text);
       if (previewUrl) {
         const cached = linkPreviewCache.get(previewUrl);
         if (cached && cached.status === "done" && cached.data) {
           previewSlotHtml = linkPreviewCardHtml(cached.data);
+        } else if (Store.linkPreviewMode === "ask" && !linkPreviewAllowed.has(previewUrl)) {
+          previewSlotHtml = `<button type="button" class="link-preview-ask" data-preview-ask="${escapeHtml(previewUrl)}">${Icons.html("link", 14)}<span>${escapeHtml(T("linkPreview.ask"))}</span></button>`;
         } else if (!cached || cached.status !== "none") {
           previewSlotHtml = `<div class="link-preview-slot" data-preview-for="${escapeHtml(previewUrl)}"></div>`;
           urlsToFetch.add(previewUrl);
@@ -4417,6 +4446,8 @@ if (m.replyTo) {
     inner.addEventListener("click", (ev) => {
       if (longPressFired) { longPressFired = false; return; } // меню уже открыто долгим нажатием — не открываем ещё и обычное действие следом
       if (state.multiSelect) { ev.stopPropagation(); toggleMultiSelectMsg(m.id); return; }
+      const askEl = ev.target.closest("[data-preview-ask]");
+      if (askEl) { ev.stopPropagation(); linkPreviewAllowed.add(askEl.getAttribute("data-preview-ask")); renderChatThread(); return; }
       const threadEl = ev.target.closest("[data-thread]");
       if (threadEl) { ev.stopPropagation(); openThread(c.id, threadEl.getAttribute("data-thread")); return; }
       const richEl = ev.target.closest("[data-poll-opt], [data-poll-close], [data-board-act]");
@@ -5845,7 +5876,7 @@ async function sendGroupFile(groupId, file, meta) {
   if (!isGroupWriteAllowed(g, Store.myId)) { toast(T("toast.groupWriteRestricted")); return; }
   meta = meta || {};
   if (!file || file.size === 0) { toast(T("toast.fileEmpty")); return; }
-  if (file.size > GROUP_FILE_MAX) { toast(T("toast.fileTooLarge", { size: formatFileSize(GROUP_FILE_MAX) })); return; }
+  if (file.size > GROUP_FILE_MAX || !EtherFileLimits.isValidFileMetaSize(file.size)) { toast(T("toast.fileTooLarge", { size: formatFileSize(GROUP_FILE_MAX) })); return; } // до чтения и base64
   const mime = file.type || meta.mime || "application/octet-stream";
   const name = meta.name || file.name || "file";
   const caption = typeof meta.caption === "string" ? meta.caption.trim().slice(0, 200) : "";
@@ -8003,6 +8034,17 @@ function initSignaling() {
 // сервера, и для релея через общий контакт (см. ниже): сама логика
 // WebRTC-рукопожатия не должна знать и не знает, через какой транспорт
 // пришёл пакет.
+// Звонок от заблокированного: у нас — полная тишина (ни звонка, ни уведомления, ни записи в журнале, P2P не поднимаем, чтобы не
+// раскрыть IP), а звонящему через 20–30 с приходит обычный «отклонён» — как при ручном отбое. Мгновенный ответ или «занят»
+// выдавал бы блокировку; полное молчание оставляло бы его в бесконечном «вызов…» с повторными попытками.
+const blockedCallDecline = new Map(); // id -> время, до которого повторные приглашения не плодят новые таймеры
+function scheduleBlockedCallDecline(from, sig) {
+  const until = blockedCallDecline.get(from);
+  if (until && Date.now() < until) return;
+  const delay = 20000 + Math.floor(Math.random() * 10000);
+  blockedCallDecline.set(from, Date.now() + delay + 60000);
+  setTimeout(() => { try { const c = state.contacts.get(from); if (c && c.blocked && sig) sig.signal(from, { t: "call-declined" }); } catch (e) {} }, delay);
+}
 async function handleIncomingOffer(from, packet, replySignal) {
   if (recentlyDeletedIds.has(from)) return;
   // Заблокированный собеседник не должен устанавливать P2P-соединение.
@@ -8222,7 +8264,7 @@ function wireSignalingEvents(sig) {
       // и в deliver), а сигнал входящего звонка — нет. Заблокировав
       // человека, пользователь продолжал бы получать от него звонки.
       const existingBlocked = state.contacts.get(from);
-      if (existingBlocked && existingBlocked.blocked) return;
+      if (existingBlocked && existingBlocked.blocked) { scheduleBlockedCallDecline(from, sig); return; }
       ensureContactEntry(from, packet.n);
       if (state.callId && state.callId !== from) {
         const busySent = sig.signal(from, { t: "call-busy" });
@@ -8452,8 +8494,7 @@ async function handleDeliver(detail, replay) {
       if (kind === "chat") sendAckBatch(from, [msgId], "delivered");
       return;
     }
-    seenDeliverIds.add(from + "|" + msgId);
-    if (seenDeliverIds.size > SEEN_DELIVER_LIMIT) seenDeliverIds.delete(seenDeliverIds.values().next().value);
+    rememberDeliverId(from + "|" + msgId);
   }
   let payload;
   try {
@@ -8650,10 +8691,20 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
       g.messages.push({ id: crypto.randomUUID(), from: "system", text: T("group.systemCreated", { name: g.name }), textKey: "group.systemCreated", textParams: { name: g.name }, ts: Date.now() });
       trimMessages(g);
     } else {
+      // Менять состав, роли, название и аватар существующей группы может только её админ (раньше — любой участник мог перезаписать всё).
+      // Исключение — выход самого отправителя из группы: тогда из НАШЕГО списка убирается только он, роли и прочее не берутся из пакета.
+      const oldIds = g.members.map((m) => m.id), newIds = payload.members.map((m) => m.id);
+      const fromAdmin = isGroupAdmin(g, from);
+      const selfLeave = !newIds.includes(from) && oldIds.includes(from) && newIds.every((id) => oldIds.includes(id)) && oldIds.every((id) => newIds.includes(id) || id === from);
+      if (!fromAdmin && !selfLeave) { etherLog("warn", "[group] invite от не-админа " + String(from).slice(0, 8) + "… отклонён (группа " + String(g.id).slice(0, 8) + "…)"); return; }
+      if (!fromAdmin) {
+        g.members = g.members.filter((m) => m.id !== from);
+      } else {
       g.members = payload.members;
       if (payload.groupName) g.name = payload.groupName;
       if (payload.groupAvatar !== undefined) g.avatar = (payload.groupAvatar && AVATAR_DATAURL_RE.test(payload.groupAvatar)) ? payload.groupAvatar : null;
       if (payload.groupDescription !== undefined) g.description = String(payload.groupDescription || "").slice(0, 200) || undefined;
+      }
     }
     g.lastActivity = Date.now();
     persistContacts();
@@ -11116,9 +11167,21 @@ function hideCallVideo() {
   const overlays = $("#call-video-overlays"); if (overlays) overlays.classList.add("hidden");
   const videoBtn = $("#call-video-btn"); if (videoBtn) videoBtn.classList.remove("active");
 }
+// Показ таймера (и в мини-плашке тоже) обновляется 4 раза в секунду и сразу при старте — раньше он зависел от секундного тика логики
+// и в мини-плашке отставал до секунды; сама логика «мёртвой связи» ниже по-прежнему считает целые секунды.
+let callTimerDisplayInterval = null;
+function paintCallTimer(started) {
+  const secs = Math.max(0, Math.floor((Date.now() - started) / 1000));
+  const txt = String(Math.floor(secs / 60)).padStart(2, "0") + ":" + String(secs % 60).padStart(2, "0");
+  const cp = $("#call-phase"); if (cp && state.callPhase === "active") cp.textContent = txt;
+  const mct = $("#mini-call-timer"); if (mct) mct.textContent = txt;
+}
 function startCallTimer() {
   const started = Date.now();
   clearInterval(callTimerInterval);
+  clearInterval(callTimerDisplayInterval);
+  paintCallTimer(started);
+  callTimerDisplayInterval = setInterval(() => { if (!state.callId) { clearInterval(callTimerDisplayInterval); callTimerDisplayInterval = null; return; } paintCallTimer(started); }, 250);
   state._callDeadSeconds = 0;
   let qualityTick = 0;
   callTimerInterval = setInterval(() => {
@@ -11887,7 +11950,10 @@ function wireProfileAvatar() {
   if (rm) rm.addEventListener("click", () => { Store.myAvatar = ""; renderProfileAvatar(); });
   renderProfileAvatar();
 }
+let __settingsWired = false;
 function wireSettingsScreen() {
+  if (__settingsWired) return; // повторный вызов (например, после смены языка или повторного входа) не должен вешать обработчики дважды
+  __settingsWired = true;
   renderSettingsCategories();
   wireProfileAvatar();
   updateSettingsCategoryView();
@@ -12070,7 +12136,8 @@ function wireSettingsScreen() {
   });
   const linkPreviews = $("#settings-link-previews");
   if (linkPreviews) linkPreviews.addEventListener("change", (e) => {
-    Store.linkPreviewsEnabled = e.target.checked;
+    Store.linkPreviewMode = e.target.value;
+    if (state.chatId) renderChatThread();
   });
   const translateEndpointEl = $("#settings-translate-endpoint");
   if (translateEndpointEl) translateEndpointEl.addEventListener("change", (e) => {
@@ -12820,7 +12887,28 @@ async function renderStorageSheet() {
       }
     }
   } catch (e) {}
-  el.innerHTML = `<div>localStorage: ${(totalBytes / 1024).toFixed(1)} KB, ${items.length} keys</div><div>IndexedDB + Cache: ${escapeHtml(idbSize)}</div>` + buildEnvText();
+  const bd = await computeStorageBreakdown(items);
+  const rows = bd.rows.map((r) => `<div class="storage-row"><span>${escapeHtml(T("storage.cat." + r.key))}</span><b>${escapeHtml(formatFileSize(r.bytes))}</b><i style="width:${bd.max ? Math.max(2, Math.round(r.bytes / bd.max * 100)) : 0}%"></i></div>`).join("");
+  el.innerHTML = `<div class="storage-breakdown">${rows}</div><div class="fine muted">${escapeHtml(T("storage.total", { used: idbSize }))}</div><div>localStorage: ${(totalBytes / 1024).toFixed(1)} KB, ${items.length} keys</div>` + buildEnvText();
+}
+// Разбивка занятого места по категориям: переписка (localStorage), медиа по типам (по метаданным сообщений), кэш приложения (Cache Storage), прочее
+async function computeStorageBreakdown(lsItems) {
+  const bytes = { messages: 0, photos: 0, videos: 0, voice: 0, files: 0, cache: 0, other: 0 };
+  for (const it of lsItems) { if (it.key === "ether.contacts") bytes.messages += it.size; else bytes.other += it.size; }
+  for (const c of state.contacts.values()) for (const m of c.messages) {
+    const f = m.file; if (!f || f.pending || f.failed || !(f.size > 0)) continue;
+    if (f.kind === "image") bytes.photos += f.size; else if (f.kind === "video") bytes.videos += f.size; else if (f.kind === "audio") bytes.voice += f.size; else bytes.files += f.size;
+  }
+  try {
+    if (typeof caches !== "undefined") {
+      for (const name of await caches.keys()) {
+        const cache = await caches.open(name), reqs = (await cache.keys()).slice(0, 300);
+        for (const r of reqs) { const resp = await cache.match(r); if (resp) { const len = parseInt(resp.headers.get("content-length") || "0", 10); bytes.cache += len || (await resp.clone().blob()).size; } }
+      }
+    }
+  } catch (e) {}
+  const rows = Object.entries(bytes).map(([key, b]) => ({ key, bytes: b })).filter((r) => r.bytes > 0).sort((a, b) => b.bytes - a.bytes);
+  return { rows, max: rows.length ? rows[0].bytes : 0 };
 }
 // P1.19 — удаляет блобы (фото/видео/голосовые/документы) старше N дней
 // из IndexedDB, не трогая сами сообщения (текст и метаданные остаются,
@@ -13288,7 +13376,7 @@ function wireMeshEvents() {
     try {
       const { id, payload } = ev.detail;
       const c = state.contacts.get(id); if (!c) return;
-      if (c.blocked) return;
+      if (c.blocked) { if (payload && payload.kind === "call-state" && payload.state === "ringing") scheduleBlockedCallDecline(id, signaling); return; }
       { // шлюз аутентификации канала
         const lk = mesh.get(id);
         if (payload && payload.kind === "auth") { if (lk) onAuthMessage(id, lk, payload); return; }

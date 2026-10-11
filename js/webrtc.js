@@ -227,6 +227,10 @@ function classifyCandidate(candidateStr) {
 // Служебные виды сообщений, которым разрешено идти по каналу ещё до завершения аутентификации (не содержат переписки).
 const AUTH_PASS_KINDS = new Set(["auth", "ping", "pong", "sdp", "call-state"]);
 
+// Пул заранее собранных ICE-кандидатов — это отдельные TURN-allocation на каждый линк. При сотне контактов пул 2 на каждом давал
+// десятки лишних allocation (бесплатный TURN режет их по логину). Теперь пул есть только у нескольких одновременно «тёплых» линков.
+const ICE_POOL_LINKS_MAX = 3;
+const __icePooledLinks = new Set();
 class PeerLink extends EventTarget {
   constructor({ id, localName, remoteName = "", role }) {
     super();
@@ -266,7 +270,7 @@ class PeerLink extends EventTarget {
     this._relayOnly = relayServers.length > 0;
     this.pc = new RTCPeerConnection(this._relayOnly
       ? { iceServers: relayServers, iceTransportPolicy: "relay" }
-      : { iceServers: effectiveIceServers, iceCandidatePoolSize: 2 });
+      : { iceServers: effectiveIceServers, iceCandidatePoolSize: (__icePooledLinks.size < ICE_POOL_LINKS_MAX && (__icePooledLinks.add(this), true)) ? 2 : 0 });
     // Пул кандидатов: каждый его элемент — отдельная заранее открытая TURN-allocation (при пуле 10 это десятки allocation на один
     // линк). Бесплатный TURN режет их число на логин и после этого «выдаёт» allocation, но данные не пересылает (↑N ↓0). Кнопка
     // «Проверить TURN» без пула проходила, а реальные линки с пулом 8–10 — нет, поэтому пул минимален (в relay-only — без пула).
@@ -490,8 +494,12 @@ class PeerLink extends EventTarget {
   // «картинка мылит, звук с артефактами». Вызывается после каждого согласования и добавления трека.
   async _tuneSenders() {
     if (this._closed) return;
+    // Параметры задаём только если сменилась дорожка, режим экрана или SDP (перегоняет кодировки): раньше обход шёл на каждый stable/enableVideo/switchCamera
+    const ld = this.pc.currentLocalDescription, sdpSig = ld && ld.sdp ? ld.sdp.length : 0;
     for (const sender of this.pc.getSenders()) {
       const t = sender.track; if (!t) continue;
+      const sig = t.id + "|" + (this._screenSharing && t === this.localVideoTrack ? "s" : "c") + "|" + sdpSig;
+      if (sender.__ethTuned === sig) continue;
       try {
         const p = sender.getParameters();
         if (!p.encodings || !p.encodings.length) p.encodings = [{}];
@@ -505,6 +513,7 @@ class PeerLink extends EventTarget {
           p.degradationPreference = screen ? "maintain-resolution" : "balanced";
         }
         await sender.setParameters(p);
+        sender.__ethTuned = sig;
       } catch (err) { /* не все браузеры позволяют менять параметры — не критично */ }
     }
   }
@@ -1287,6 +1296,7 @@ async startCall(withVideo) {
   }
 
   close() {
+    __icePooledLinks.delete(this);
     if (this._closed) return;
     this._closed = true;
     clearInterval(this._pingTimer);

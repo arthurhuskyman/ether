@@ -32,13 +32,15 @@ test("сервер перевода: адрес по умолчанию, пус�
   a.close();
 });
 
-test("«Переключатель мертвеца» перенесён в Отладку (и по-прежнему работает)", async () => {
+test("«Переключатель мертвеца» вернулся в обычные настройки, раздел «Приватность» (и по-прежнему работает)", async () => {
   const a = await bootApp({});
   const dm = a.document.querySelector("#settings-deadman-enabled");
-  assert.ok(dm.closest("#screen-debug"), "переключатель внутри экрана отладки");
-  assert.equal(a.document.querySelector('[data-settings-category] #settings-deadman-enabled'), null, "в обычных настройках его больше нет");
-  assert.ok(a.document.querySelector("#screen-debug #settings-deadman-threshold"));
-  assert.ok(a.document.querySelector("#screen-debug #settings-deadman-contact-btn"));
+  assert.ok(!dm.closest("#screen-debug"), "в Отладке его больше нет");
+  assert.ok(dm.closest('[data-settings-category="privacy"]'), "он в разделе «Приватность» настроек");
+  assert.ok(a.document.querySelector('#screen-settings #settings-deadman-threshold'));
+  assert.ok(a.document.querySelector('#screen-settings #settings-deadman-contact-btn'));
+  assert.ok(a.document.querySelector('#screen-settings [data-settings-category="appearance"] #glass-slider'), "прозрачность стекла — во внешнем виде");
+  assert.equal(a.document.querySelector("#screen-debug #glass-slider"), null);
   // без доверенного контакта включить нельзя — тумблер откатывается (поведение не изменилось)
   dm.checked = true; dm.dispatchEvent(new a.window.Event("change", { bubbles: true })); await tick(20);
   assert.equal(dm.checked, false);

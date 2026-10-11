@@ -150,16 +150,6 @@
     const primary = dictFor(current);
     const fallback = dictFor(DEFAULT_LANG);
     let text;
-    // Множественные формы: если в параметрах есть число n и в словаре есть key.one / key.few / key.many / key.other — берём нужную
-    // (для ru это 1 участник / 2 участника / 5 участников); без таких ключей работает обычная строка.
-    if (params && typeof params.n === "number" && typeof Intl !== "undefined" && Intl.PluralRules) {
-      let cat; try { cat = new Intl.PluralRules(current).select(params.n); } catch (e) {}
-      if (cat) {
-        const k = key + "." + cat;
-        if (typeof primary[k] === "string") text = primary[k];
-        else if (typeof primary[key + ".other"] === "string") text = primary[key + ".other"];
-      }
-    }
     if (typeof text !== "string") text = primary[key];
     if (typeof text !== "string") text = fallback[key];
     if (typeof text !== "string") return key;

@@ -487,7 +487,6 @@ window.__LANG_DICTS["ko"] = {
     "settings.autoEmoji": ":)를 이모지로 바꾸기",
     "settings.composerPlus": "실험적인 \"+\" 작성 버튼",
     "chat.selectMsgs": "메시지 선택",
-    "chat.selectMsgs.deleteConfirm": "선택한 메시지 {n}개를 삭제하시겠습니까? (내 화면에서만 삭제됩니다)",
     "chats.folder.manage": "폴더 관리",
     "chats.folder.manageTitle": "채팅 폴더",
     "chats.folder.none": "아직 폴더가 없습니다",

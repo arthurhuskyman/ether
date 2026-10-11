@@ -12,23 +12,24 @@ async function booted(lang) {
   return a;
 }
 
-test("русские плюралы и типографика", async () => {
+test("счётные строки без склонений: «Подпись: N» и сокращения, типографика остаётся", async () => {
   const a = await booted("ru");
-  const t = (n) => a.run(`T("chat.poll.votes", { n: ${n} })`);
-  assert.equal(t(1).replace(/ /g, " "), "1 голос");
-  assert.equal(t(3).replace(/ /g, " "), "3 голоса");
-  assert.equal(t(5).replace(/ /g, " "), "5 голосов");
-  assert.equal(t(21).replace(/ /g, " "), "21 голос");
-  assert.equal(t(12).replace(/ /g, " "), "12 голосов");
-  assert.match(a.run(`T("group.memberCount", { n: 2 })`), /участника/);
-  // предлог не отрывается от слова
-  assert.ok(a.run(`T("settings.privacy.presence.hint")`).includes(" ") || true);
-  assert.match(a.run(`T("demo.s1")`), / /, "после коротких слов — неразрывный пробел");
+  const t = (k, n) => a.run(`T(${JSON.stringify(k)}, { n: ${n} })`).replace(/\u00A0/g, " ");
+  for (const n of [1, 2, 5, 11, 21, 22, 25]) {
+    assert.equal(t("chat.poll.votes", n), "Голосов: " + n, "одинаково при любом числе");
+    assert.equal(t("group.memberCount", n), "Участников: " + n);
+    assert.equal(t("chat.thread.replies", n), "Ответов: " + n);
+  }
+  assert.equal(t("chat.loadEarlier", 150), "Показать ранее: 150 шт.");
+  assert.match(a.run(`T("demo.s1")`), /\u00A0/, "после коротких слов — неразрывный пробел");
   a.close();
   const e = await booted("en");
-  assert.equal(e.run(`T("chat.poll.votes", { n: 1 })`), "1 vote");
-  assert.equal(e.run(`T("chat.poll.votes", { n: 4 })`), "4 votes");
+  assert.equal(e.run(`T("chat.poll.votes", { n: 1 })`), "Votes: 1");
+  assert.equal(e.run(`T("chat.poll.votes", { n: 4 })`), "Votes: 4");
   e.close();
+  // ни в одном словаре не осталось ключей-вариантов .one/.few/.many/.other
+  const fs = require("fs"), path = require("path"), dir = path.join(__dirname, "..", "js", "lang");
+  for (const f of fs.readdirSync(dir)) assert.ok(!/"[\w.]+\.(one|few|many|other)":/.test(fs.readFileSync(path.join(dir, f), "utf8")), f + ": остались ключи множественных форм");
 });
 
 test("тихие часы: интервал через полночь, звонки не затрагиваются, обычный день", async () => {
@@ -85,7 +86,7 @@ test("треды: плашка «N ответов», лист с цепочко�
     unreadDividerFor.delete("alice"); state.chatId = "alice"; state.tab = "chats"; renderTab();`);
   const chip = d.querySelector('[data-thread="r1"]');
   assert.ok(chip, "плашка у корня");
-  assert.match(chip.textContent.replace(/ /g, " "), /1 ответ/);
+  assert.match(chip.textContent.replace(/ /g, " "), /Ответов: 1/);
   chip.click();
   assert.ok(!d.querySelector("#thread-sheet").classList.contains("hidden"));
   assert.equal(d.querySelectorAll("#thread-list .thread-msg").length, 3, "корень и вся цепочка");

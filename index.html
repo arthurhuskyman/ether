@@ -414,7 +414,8 @@
         <label class="settings-row"><span data-i18n="settings.notifications">Notifications for messages and calls</span><input id="settings-notifications" type="checkbox" class="switch" /></label>
         <label class="settings-row"><span data-i18n="settings.hideNotifContent">Hide message content</span><input id="settings-hide-notif" type="checkbox" class="switch" /></label>
         <p class="fine muted settings-hint" data-i18n="settings.hideNotifContent.hint">Notifications show only the sender's name, not the message text.</p>
-        <label class="settings-row"><span data-i18n="settings.linkPreviews">Link previews</span><input id="settings-link-previews" type="checkbox" class="switch" /></label>
+        <label class="settings-row"><span data-i18n="settings.linkPreviews">Link previews</span>
+          <select id="settings-link-previews" class="settings-select"><option value="ask" data-i18n="settings.linkPreviews.ask">Ask for each link</option><option value="auto" data-i18n="settings.linkPreviews.auto">Always</option><option value="off" data-i18n="settings.linkPreviews.off">Never</option></select></label>
         <p class="fine muted" style="padding:0 4px 6px;" data-i18n="settings.linkPreviews.disclaimer">To show a preview, the signaling server briefly fetches the link on your behalf — it sees which link, not the message.</p>
         <div class="settings-row column">
           <span data-i18n="settings.translateServer">Translation server</span>
@@ -517,19 +518,7 @@
              тихая замена трёх кнопок композера одной "+". Выкл. по
              умолчанию. -->
       </div>
-      <div class="settings-group flat-content" data-settings-category="help">
-        <div class="settings-row column" style="align-items:center; text-align:center;">
-          <img class="about-logo" src="icons/logo-256.png" width="96" height="96" alt="Ether" />
-          <span id="about-app-logo" class="about-app-name">Ether</span>
-          <span id="about-version" class="fine muted"></span>
-          <span class="fine muted about-designed-by">Designed by AIK in Moscow, Holy Russia, Planet Earth, Solar System, Local Interstellar Cloud, Local Bubble, Orion Arm, Milky Way Galaxy, Local Group of Galaxies, Virgo Supercluster, Laniakea Supercluster, Pisces–Cetus Supercluster Complex, Observable Universe, Universe</span>
-        </div>
-      </div>
-    </section>
-
-    <section id="screen-debug" class="screen hidden">
-      <div class="search-wrap"><input id="debug-search" type="text" placeholder="Search" data-i18n-ph="settings.search" class="search-input" autocomplete="off" /></div>
-      <div class="settings-group flat-content">
+      <div class="settings-group flat-content" data-settings-category="privacy">
         <div class="settings-row column"><span class="settings-group-title" data-i18n="settings.deadMan.title">Dead man's switch</span></div>
         <p class="fine muted" style="margin:0 0 10px;" data-i18n="settings.deadMan.explain">Best-effort, not a guaranteed background trigger: each time you open Ether, it sends a small "I'm alive" signal to the contact below; it only updates when the other side also opens Ether. If you'd like, enable it there too to be alerted after your own silence.</p>
         <label class="settings-row"><span data-i18n="settings.deadMan.enable">Enable</span><input id="settings-deadman-enabled" type="checkbox" class="switch" /></label>
@@ -543,12 +532,24 @@
         </label>
         <button type="button" id="settings-deadman-contact-btn" class="settings-row link-row"><span data-i18n="settings.deadMan.contact">Trusted contact</span><span id="settings-deadman-contact-name" class="chevron"></span></button>
       </div>
-      <div class="settings-group flat-content">
+      <div class="settings-group flat-content" data-settings-category="appearance">
         <div class="settings-row column">
           <span data-i18n="settings.glass">Glass transparency</span> <span id="glass-slider-value" class="fine muted"></span>
           <input id="glass-slider" type="range" min="0" max="1" step="0.01" />
         </div>
       </div>
+      <div class="settings-group flat-content" data-settings-category="help">
+        <div class="settings-row column" style="align-items:center; text-align:center;">
+          <img class="about-logo" src="icons/logo-256.png" width="96" height="96" alt="Ether" />
+          <span id="about-app-logo" class="about-app-name">Ether</span>
+          <span id="about-version" class="fine muted"></span>
+          <span class="fine muted about-designed-by">Designed by AIK in Moscow, Holy Russia, Planet Earth, Solar System, Local Interstellar Cloud, Local Bubble, Orion Arm, Milky Way Galaxy, Local Group of Galaxies, Virgo Supercluster, Laniakea Supercluster, Pisces–Cetus Supercluster Complex, Observable Universe, Universe</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="screen-debug" class="screen hidden">
+      <div class="search-wrap"><input id="debug-search" type="text" placeholder="Search" data-i18n-ph="settings.search" class="search-input" autocomplete="off" /></div>
       <div class="settings-group flat-content">
         <button type="button" id="diagnostics-btn" class="settings-row link-row"><span data-i18n="debug.diagnostics">Diagnostics</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
         <button type="button" id="webrtc-debug-btn" class="settings-row link-row"><span data-i18n="debug.webrtc">WebRTC connections</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>

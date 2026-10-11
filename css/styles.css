@@ -2596,3 +2596,11 @@ html.theme-fading, html.theme-fading *, html.theme-fading *::before, html.theme-
 .voice-wave-bars { overflow: hidden; gap: 1px; }
 .voice-wave-bars i { min-width: 0; }
 .voice-speed-btn, .voice-tr-btn { flex: none; }
+
+/* Разбивка хранилища */
+.storage-breakdown { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.storage-row { position: relative; display: flex; justify-content: space-between; gap: 8px; padding: 6px 8px; border-radius: var(--radius-s, 8px); overflow: hidden; }
+.storage-row i { position: absolute; inset-block: 0; inset-inline-start: 0; background: color-mix(in srgb, var(--accent) 18%, transparent); z-index: 0; }
+.storage-row > span, .storage-row > b { position: relative; z-index: 1; }
+.link-preview-ask { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; padding: 4px 10px; min-height: 32px; border-radius: 999px; border: 1px solid color-mix(in srgb, currentColor 25%, transparent); background: transparent; color: inherit; font: inherit; font-size: var(--t-meta, 12px); cursor: pointer; position: relative; }
+.link-preview-ask::after { content: ""; position: absolute; inset: -6px; }
