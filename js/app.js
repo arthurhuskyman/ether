@@ -1654,6 +1654,7 @@ function initBoot() {
   // блокировки некому было бы ответить (шторка в DOM статична и есть
   // всегда, не хватало бы только обработчиков кнопок).
   wireConfirmSheet();
+  wireKeyChangeBanner();
   wireLockScreen();
   if (Store.pinEnabled && Store.pinHash) { showLockScreen(); return; }
   bootAfterUnlock();
@@ -2012,7 +2013,7 @@ function startApp() {
   } catch (e) { etherLog("error", "[startApp] settings init:", String(e)); }
 
   try {
-    loadContacts(); loadLastSeen(); loadDrafts(); loadScheduledMessages(); loadChatFolders();
+    loadContacts(); loadHeld(); loadLastSeen(); loadDrafts(); loadScheduledMessages(); loadChatFolders();
     restoreOutbox(); restoreGroupDeliveryMap(); restorePendingNoKey(); restoreRecentlyDeleted(); loadCallLog();
     migrateServerAckedFlags();
     // Контакты теперь загружены — можно подставить имя уже выбранного
@@ -2718,6 +2719,9 @@ function loadContacts() {
     state.contacts.set(c.id, {
       id: c.id, name: c.name || "", raw: c.raw || "",
       managed: true, publicKey: c.publicKey || null,
+      rc: !!c.rc || undefined,
+      pendingKey: c.pendingKey && c.pendingKey.key ? { key: c.pendingKey.key, at: c.pendingKey.at || 0 } : undefined,
+      rejectedKey: c.rejectedKey || undefined, authSeen: !!c.authSeen || undefined,
       online: false, status: "disconnected",
       messages: Array.isArray(c.messages) ? c.messages : [],
       lastActivity: c.lastActivity || 0,
@@ -2831,6 +2835,7 @@ let __lastPersistMsgCount = 0, __lastContactsJson = "";
 function persistContacts() {
   __contactsPersistPending = Array.from(state.contacts.values()).filter((c) => c.managed).map((c) => ({
     id: c.id, name: c.name, raw: c.raw, publicKey: c.publicKey,
+    rc: c.rc || undefined, pendingKey: c.pendingKey || undefined, rejectedKey: c.rejectedKey || undefined, authSeen: c.authSeen || undefined,
     messages: c.messages, lastActivity: c.lastActivity,
     archived: c.archived, muted: c.muted, muteUntil: c.muteUntil || undefined, blocked: c.blocked, vibrateOnly: c.vibrateOnly || undefined,
     pinned: c.pinned || undefined, pinnedMessageId: c.pinnedMessageId || undefined,
@@ -3856,7 +3861,7 @@ function ackGlyph(ack) {
 const NEAR_BOTTOM_PX = 80;
 function isNearBottom(el) { if (!el) return true; return el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX; }
 
-function renderChatThread() { try { renderChatThreadInner(); } catch (e) { __lastChatSig = ""; etherLog("error", "[renderChatThread]", String(e)); const w = $("#chat-messages"); if (w) w.innerHTML = `<div class="empty-state"><p>Error.</p></div>`; } }
+function renderChatThread() { try { renderKeyChangeBanner(); renderChatThreadInner(); } catch (e) { __lastChatSig = ""; etherLog("error", "[renderChatThread]", String(e)); const w = $("#chat-messages"); if (w) w.innerHTML = `<div class="empty-state"><p>Error.</p></div>`; } }
 
 let __lastChatSig = "";
 // «Подпись» содержимого переписки: если с прошлой отрисовки ничего видимого не изменилось, DOM не пересобираем —
@@ -6723,11 +6728,12 @@ function resolveGroupDelivery(deliveryId) {
 // ---- Double Ratchet (js/ratchet.js) для офлайн-конвертов ----
 // Конверт для одного msgId шифруется один раз и кэшируется: повторная отправка не должна тратить новые ключи цепочки.
 const envelopeCache = new Map();
-async function encryptForContact(contact, msgId, payload) {
+async function encryptForContact(contact, msgId, payload, forceV1) {
   const cached = envelopeCache.get(msgId);
   if (cached) return cached;
   let envelope = null;
-  if (contact.rc) {
+  const serverOk = !!(signaling && Array.isArray(signaling.features) && signaling.features.includes("ratchet2"));
+  if (contact.rc && serverOk && !forceV1) {
     try {
       envelope = await Ratchet.encrypt({ contactId: contact.id, myId: Store.myId, myPrivJwk: Store.myPrivateKeyJwk, theirPubJwk: contact.publicKey }, payload);
     } catch (e) { etherLog("warn", "[ratchet] шифрование не удалось, отправляю прежним способом:", String(e)); }
@@ -6746,23 +6752,100 @@ function markContactRatchet(c) {
   c.rc = true; persistContacts();
   etherLog("info", "[ratchet] " + String(c.id).slice(0, 10) + "… поддерживает Double Ratchet");
 }
-// Единая точка смены долговременного ключа контакта (раньше ключ молча подменялся в трёх местах).
-function adoptContactKey(c, newKey) {
-  if (c.publicKey && keysDiffer(newKey, c.publicKey)) {
-    try { Ratchet.reset(c.id); } catch (e) {}
-    envelopeCache.clear();
-    etherLog("warn", "[ratchet] ключ " + String(c.id).slice(0, 10) + "… изменился, сессии сброшены");
-    try { toast(T("toast.contactKeyChanged", { name: c.name || T("sys.someone") })); } catch (e) {}
+// ---- Доверие к долговременному ключу контакта ----
+// Первый увиденный ключ принимается сразу (как и раньше). Любое ПОСЛЕДУЮЩЕЕ изменение ключа — это либо новое устройство
+// собеседника, либо подмена: новый ключ не используется, пока человек не подтвердит (c.pendingKey), входящие от нового ключа
+// удерживаются (heldDeliveries) и расшифровываются после подтверждения, исходящие ждут в pendingNoKey.
+const HELD_LIMIT = 100, HELD_MAX_CHARS = 2000000;
+let heldDeliveries = [];
+function loadHeld() { try { heldDeliveries = JSON.parse(localStorage.getItem("ether.heldDeliveries") || "[]") || []; } catch (e) { heldDeliveries = []; } if (!Array.isArray(heldDeliveries)) heldDeliveries = []; }
+function persistHeld() {
+  while (heldDeliveries.length > HELD_LIMIT) heldDeliveries.shift();
+  let total = 0;
+  for (let i = heldDeliveries.length - 1; i >= 0; i--) {
+    total += JSON.stringify(heldDeliveries[i]).length;
+    if (total > HELD_MAX_CHARS) { heldDeliveries.splice(0, i + 1); break; }
   }
-  c.publicKey = newKey;
+  try { localStorage.setItem("ether.heldDeliveries", JSON.stringify(heldDeliveries)); } catch (e) { handlePersistError(e, "heldDeliveries"); }
+}
+// true — ключ можно использовать прямо сейчас; false — он ждёт подтверждения (или отклонён).
+function noteContactKey(c, newKey) {
+  if (!newKey) return !c.pendingKey;
+  if (!c.publicKey) { c.publicKey = newKey; return true; }
+  if (!keysDiffer(newKey, c.publicKey)) {
+    if (c.pendingKey) { c.pendingKey = undefined; persistContacts(); renderKeyChangeBanner(); } // вернулся прежний ключ — ожидание снимается
+    return true;
+  }
+  if (c.rejectedKey && !keysDiffer(newKey, c.rejectedKey)) return false;
+  if (!c.pendingKey || keysDiffer(newKey, c.pendingKey.key)) {
+    c.pendingKey = { key: newKey, at: Date.now() };
+    persistContacts();
+    etherLog("warn", "[trust] ключ " + String(c.id).slice(0, 10) + "… изменился — нужно подтверждение");
+    try { toast(T("toast.contactKeyChanged", { name: c.name || T("sys.someone") })); } catch (e) {}
+    try { renderKeyChangeBanner(); if (state.tab === "chats") renderChatsList(); } catch (e) {}
+  }
+  return false;
+}
+async function confirmContactKey(id) {
+  const c = state.contacts.get(id); if (!c || !c.pendingKey) return;
+  c.publicKey = c.pendingKey.key; c.pendingKey = undefined; c.rejectedKey = undefined;
+  try { Ratchet.reset(id); } catch (e) {}
+  envelopeCache.clear();
+  persistContacts();
+  etherLog("info", "[trust] ключ " + String(id).slice(0, 10) + "… подтверждён пользователем");
+  try { toast(T("toast.keyAccepted", { name: c.name || T("sys.someone") })); } catch (e) {}
+  renderKeyChangeBanner(); if (state.tab === "chats") renderChatsList();
+  const held = heldDeliveries.filter((h) => h.from === id);
+  heldDeliveries = heldDeliveries.filter((h) => h.from !== id); persistHeld();
+  for (const h of held) await handleDeliver(h, true);
+  flushPendingNoKey(id);
+  try { reauthLink(id); } catch (e) {}
+}
+function rejectContactKey(id) {
+  const c = state.contacts.get(id); if (!c || !c.pendingKey) return;
+  c.rejectedKey = c.pendingKey.key; c.pendingKey = undefined;
+  heldDeliveries = heldDeliveries.filter((h) => h.from !== id); persistHeld();
+  persistContacts();
+  etherLog("warn", "[trust] новый ключ " + String(id).slice(0, 10) + "… отклонён");
+  try { toast(T("toast.keyRejected", { name: c.name || T("sys.someone") })); } catch (e) {}
+  renderKeyChangeBanner(); if (state.tab === "chats") renderChatsList();
+}
+// Баннер в открытом чате: «ключ собеседника изменился» + сверка числа безопасности + принять / отклонить.
+function renderKeyChangeBanner() {
+  const b = $("#keychange-banner"); if (!b) return;
+  const c = state.chatId && state.contacts.get(state.chatId);
+  if (!c || !c.pendingKey) { b.classList.add("hidden"); return; }
+  const t = b.querySelector(".keychange-text");
+  if (t) t.textContent = T("chat.keyChange.text", { name: c.name || T("sys.someone") });
+  b.classList.remove("hidden");
+}
+function wireKeyChangeBanner() {
+  const b = $("#keychange-banner"); if (!b || b.dataset.wired) return; b.dataset.wired = "1";
+  const withCid = (fn) => () => { const id = state.chatId; if (id) fn(id); };
+  const verify = $("#keychange-verify-btn"), ok = $("#keychange-accept-btn"), no = $("#keychange-reject-btn");
+  if (verify) verify.addEventListener("click", withCid(async (id) => {
+    const c = state.contacts.get(id); if (!c || !c.pendingKey) return;
+    const digitsEl = $("#safety-number-digits"); if (digitsEl) digitsEl.textContent = "…";
+    const sheet = $("#safety-number-sheet"); if (sheet) sheet.classList.remove("hidden");
+    try {
+      const groups = await CryptoHelper.computeSafetyNumber(Store.myPublicKeyJwk, c.pendingKey.key);
+      if (digitsEl) digitsEl.innerHTML = groups.map((g) => `<span>${escapeHtml(g)}</span>`).join("");
+    } catch (e) { if (digitsEl) digitsEl.textContent = ""; }
+  }));
+  if (ok) ok.addEventListener("click", withCid(async (id) => {
+    const c = state.contacts.get(id);
+    if (!await confirmSheet(T("chat.keyChange.confirm", { name: (c && c.name) || T("sys.someone") }))) return;
+    confirmContactKey(id);
+  }));
+  if (no) no.addEventListener("click", withCid((id) => rejectContactKey(id)));
 }
 async function flushOutboxItem(msgId) {
   const entry = outbox.get(msgId); if (!entry) return;
   if (entry.serverAcked) { outbox.delete(msgId); persistOutbox(); return; }
   const contact = state.contacts.get(entry.to);
   if (!contact) { outbox.delete(msgId); persistOutbox(); return; }
-  if (!contact.publicKey) {
-    // Нет публичного ключа получателя — зашифровать нечем. Кладём в
+  if (!contact.publicKey || contact.pendingKey) {
+    // Нет публичного ключа получателя (или он сменился и ждёт подтверждения) — зашифровать нечем. Кладём в
     // pendingNoKey (уйдёт автоматически, когда ключ появится), НО
     // помечаем сообщение статусом "failed", а не оставляем вечный
     // "pending". Именно это было причиной «голосовые висят с крутящимся
@@ -6790,7 +6873,7 @@ async function flushOutboxItem(msgId) {
       if (m0 && m0.file) m0.file.pending = false;
     }
     markMessageAck(contact.id, msgId, "failed");
-    if (isFirstTime) toast(T("toast.waitingForKey", { name: contact.name || T("sys.someone") }));
+    if (isFirstTime) toast(T(contact.pendingKey ? "toast.waitingKeyConfirm" : "toast.waitingForKey", { name: contact.name || T("sys.someone") }));
     return;
   }
   try {
@@ -6799,7 +6882,7 @@ async function flushOutboxItem(msgId) {
       if (!full) { outbox.delete(msgId); persistOutbox(); markMessageAck(entry.to, msgId, "failed"); return; } // файл пропал из IndexedDB — отправить нечего
       entry.payload = full;
     }
-    const envelope = await encryptForContact(contact, msgId, entry.payload);
+    const envelope = await encryptForContact(contact, msgId, entry.payload, entry.forceV1);
     entry.attempts = (entry.attempts || 0) + 1;
     entry.lastAttemptAt = Date.now();
     persistOutbox();
@@ -7292,7 +7375,7 @@ function wireSignalingEvents(sig) {
       const c = state.contacts.get(u.id);
       if (c && c.managed) {
         c.online = true;
-        if (u.publicKey && keysDiffer(u.publicKey, c.publicKey)) { adoptContactKey(c, u.publicKey); persistContacts(); flushPendingNoKey(u.id); }
+        if (u.publicKey && keysDiffer(u.publicKey, c.publicKey)) { if (noteContactKey(c, u.publicKey)) { persistContacts(); flushPendingNoKey(u.id); } }
         scheduleAutoConnect(u.id);
       }
     }
@@ -7310,7 +7393,7 @@ function wireSignalingEvents(sig) {
     const c = state.contacts.get(id);
     if (c && c.managed) {
       c.online = online;
-      if (online && publicKey && keysDiffer(publicKey, c.publicKey)) { adoptContactKey(c, publicKey); persistContacts(); flushPendingNoKey(id); }
+      if (online && publicKey && keysDiffer(publicKey, c.publicKey)) { if (noteContactKey(c, publicKey)) { persistContacts(); flushPendingNoKey(id); } }
       if (online) scheduleAutoConnect(id); else clearAutoConnectTimer(id);
       if (state.chatId === id) renderChatThread();
       if (state.contactCardId === id) renderContactCard();
@@ -7438,9 +7521,16 @@ function wireSignalingEvents(sig) {
     }
   }));
   subs.push(on("deliver-ack", (ev) => {
-    const { msgId } = ev.detail;
+    const { msgId, error } = ev.detail;
     const entry = outbox.get(msgId);
     if (!entry) return;
+    if (error) {
+      // Сервер отклонил конверт (например, не понимает формат v2). Раньше это считалось успешным подтверждением — сообщение терялось молча.
+      etherLog("warn", "[mailbox] сервер отклонил конверт " + String(msgId).slice(0, 8) + "…: " + error + " — повторю прежним форматом");
+      entry.forceV1 = true; envelopeCache.delete(msgId);
+      markMessageAck(entry.to, msgId, "failed");
+      return;
+    }
     // Тот же баг, что был в flushOutboxItem (см. markMessageAck) — для
     // ГРУППОВЫХ сообщений entry.to это id участника, а не группы, и
     // сообщение лежит в списке ГРУППЫ под другим (contentId) id.
@@ -7465,9 +7555,13 @@ function wireSignalingEvents(sig) {
     outbox.delete(msgId);
     persistOutbox();
   }));
-subs.push(on("deliver", async (ev) => {
-  const { from, msgId, envelope, fromPublicKey, kind } = ev.detail;
-  sig.mailboxAck(msgId);
+subs.push(on("deliver", (ev) => handleDeliver(ev.detail, false)));
+  return () => { for (const s of subs) sig.removeEventListener(s.type, s.wrapped); };
+}
+// Входящий конверт из ящика сервера. replay=true — повторный разбор конверта, удержанного до подтверждения нового ключа контакта.
+async function handleDeliver(detail, replay) {
+  const { from, msgId, envelope, fromPublicKey, kind } = detail;
+  if (!replay && signaling) signaling.mailboxAck(msgId);
   const sender = state.contacts.get(from);
   if (sender && sender.blocked) {
     if (kind === "chat") sendAckBatch(from, [msgId], "delivered");
@@ -7487,11 +7581,16 @@ subs.push(on("deliver", async (ev) => {
   }
   let payload;
   try {
-    const theirKey = fromPublicKey || (state.contacts.get(from) || {}).publicKey;
-    if (!theirKey) throw new Error("no key");
     const c0 = state.contacts.get(from);
-    // Смена долговременного ключа собеседника: старые ratchet-сессии с ним недействительны, пользователя предупреждаем.
-    if (fromPublicKey && c0) adoptContactKey(c0, fromPublicKey);
+    // Ключ отправителя изменился: пока человек не подтвердил, конверт не расшифровываем — удерживаем (и переживаем перезапуск).
+    if (fromPublicKey && c0 && !noteContactKey(c0, fromPublicKey)) {
+      seenDeliverIds.delete(from + "|" + msgId);
+      if (c0.rejectedKey && !keysDiffer(fromPublicKey, c0.rejectedKey)) return; // ключ отклонён пользователем — молча отбрасываем
+      if (!heldDeliveries.some((h) => h.from === from && h.msgId === msgId)) { heldDeliveries.push({ from, msgId, envelope, fromPublicKey, kind, at: Date.now() }); persistHeld(); }
+      return;
+    }
+    const theirKey = (c0 && c0.publicKey) || fromPublicKey;
+    if (!theirKey) throw new Error("no key");
     if (envelope && envelope.v === 2) {
       payload = await Ratchet.decrypt({ contactId: from, myId: Store.myId, myPrivJwk: Store.myPrivateKeyJwk, theirPubJwk: theirKey }, envelope);
       markContactRatchet(c0);
@@ -7505,8 +7604,6 @@ subs.push(on("deliver", async (ev) => {
   applyIncomingPayload(from, msgId, payload, true, kind);
 
   if (kind === "chat") sendAckBatch(from, [msgId], "delivered");
-}));
-  return () => { for (const s of subs) sig.removeEventListener(s.type, s.wrapped); };
 }
 function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind) {
   const kind = (payload && payload.kind) || openKind || "chat";

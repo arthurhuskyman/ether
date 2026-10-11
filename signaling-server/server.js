@@ -983,9 +983,20 @@ function flushMailbox(id, ws) {
 // расходы шифрования), но по-прежнему далеко от MAX_PAYLOAD (8МБ) —
 // внешний предел на весь WS-фрейм остаётся дополнительной защитой.
 function isValidEnvelope(env) {
-  return env && typeof env.iv === "string" && typeof env.ct === "string"
-    && env.iv.length < 200 && env.ct.length < 3.5 * 1024 * 1024;
+  if (!env || typeof env.ct !== "string" || env.ct.length >= 3.5 * 1024 * 1024) return false;
+  // v1: {iv, ct, v?} — статический ECDH; v2: Double Ratchet {v:2, h:{d:[x,y], pn, n, i?, p?}, ct} (js/ratchet.js)
+  if (env.v === 2) {
+    const h = env.h;
+    const str = (s) => typeof s === "string" && s.length > 0 && s.length <= 100;
+    if (!h || typeof h !== "object" || !Array.isArray(h.d) || h.d.length !== 2 || !str(h.d[0]) || !str(h.d[1])) return false;
+    if (!Number.isInteger(h.pn) || !Number.isInteger(h.n) || h.pn < 0 || h.n < 0 || h.pn > 1e9 || h.n > 1e9) return false;
+    if (h.p != null && (typeof h.p !== "object" || JSON.stringify(h.p).length > 400)) return false;
+    return true;
+  }
+  return typeof env.iv === "string" && env.iv.length < 200;
 }
+// Возможности сервера, о которых он сообщает клиентам при регистрации: клиент включает новый формат только если сервер его понимает.
+const SERVER_FEATURES = ["ratchet2"];
 function shortId(s) { return String(s || "").slice(0, 10) + "…"; }
 
 // ---------- Соединения ----------
@@ -1042,7 +1053,7 @@ wss.on("connection", (ws, req) => {
         .filter((i) => i !== myId)
         .map((i) => rosterEntry(i))
         .filter(Boolean);
-      safeSend(ws, { type: "registered", id: myId, online });
+      safeSend(ws, { type: "registered", id: myId, online, features: SERVER_FEATURES });
       if (PUSH_ENABLED) safeSend(ws, { type: "vapid-key", key: VAPID_PUBLIC });
       clearThrottleForRecipient(myId);
       flushMailbox(myId, ws);

@@ -155,6 +155,7 @@ class SignalingClient extends EventTarget {
 
       if (msg.type === "registered") {
         this.registered = true;
+        this.features = Array.isArray(msg.features) ? msg.features.filter((f) => typeof f === "string").slice(0, 20) : [];
         const users = (Array.isArray(msg.online) ? msg.online : []).map(normalizeRosterEntry).filter(Boolean);
         etherLog("info", "[signaling] зарегистрирован, онлайн:", users.length);
         this.dispatchEvent(new CustomEvent("online-list", { detail: { users } }));
@@ -196,7 +197,7 @@ class SignalingClient extends EventTarget {
           },
         }));
       } else if (msg.type === "deliver-ack" && typeof msg.msgId === "string") {
-        this.dispatchEvent(new CustomEvent("deliver-ack", { detail: { msgId: msg.msgId } }));
+        this.dispatchEvent(new CustomEvent("deliver-ack", { detail: { msgId: msg.msgId, error: typeof msg.error === "string" ? msg.error : null } }));
       } else if (msg.type === "replaced") {
         etherLog("warn", "[signaling] вкладка отключена сервером — тот же id открыт в другом месте" + (msg.sameIp === true ? " (тот же адрес/сеть)" : msg.sameIp === false ? " (другой адрес)" : "") + (typeof msg.ageSec === "number" ? ", моё соединение жило " + msg.ageSec + " с" : ""));
         // Раньше здесь вручную ставилось shouldRun = false без вызова stop() —

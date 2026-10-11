@@ -572,6 +572,15 @@
         <button type="button" id="multiselect-delete-btn" class="icon-btn" aria-label="Delete"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M6 7h12l-1 14H7L6 7zm3-4h6l1 2h4v2H2V5h4l1-2z"/></svg></button>
       </div>
 
+      <div id="keychange-banner" class="keychange-banner glass hidden" role="alert">
+        <span class="keychange-text" data-i18n="chat.keyChange.text">The contact's security key has changed.</span>
+        <div class="keychange-actions">
+          <button type="button" id="keychange-verify-btn" class="btn-tertiary" data-i18n="chat.keyChange.verify">Compare</button>
+          <button type="button" id="keychange-accept-btn" class="btn-primary" data-i18n="chat.keyChange.accept">Accept</button>
+          <button type="button" id="keychange-reject-btn" class="btn-tertiary" data-i18n="chat.keyChange.reject">Reject</button>
+        </div>
+      </div>
+
       <div id="edit-banner" class="edit-banner glass hidden">
         <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z"/></svg>
         <span class="edit-banner-text" data-i18n="chat.editingLabel">Editing</span>

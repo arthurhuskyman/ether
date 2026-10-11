@@ -1568,6 +1568,10 @@ html[data-theme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); }
 
 .edit-banner { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: var(--radius-m) var(--radius-m) 0 0; border-bottom: none; color: var(--accent); font-size: var(--fs-sm); flex-shrink: 0; }
 .edit-banner-text { flex: 1; }
+.keychange-banner { display: flex; flex-direction: column; gap: 8px; padding: 10px 14px; border-radius: var(--radius-m); color: var(--text); font-size: var(--fs-sm); flex-shrink: 0; border: 1px solid var(--danger, #e5484d); }
+.keychange-banner.hidden { display: none; }
+.keychange-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.keychange-actions button { flex: 1 1 auto; min-height: 36px; }
 .reply-banner-body { flex: 1; min-width: 0; }
 .reply-banner-author { font-size: 11px; opacity: 0.75; }
 .reply-banner-text { font-size: var(--fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink-1); }
