@@ -473,6 +473,7 @@ const state = {
   _callMuteOnAnswer: false,
   _callDeadSeconds: 0,
   _lastCallFailedAt: 0,   // ← новое
+  pinReorder: false,      // режим порядка закреплённых чатов (ручки перетаскивания видны только в нём)
   _unlockLockedUntil: 0,  // до какого момента экран PIN заблокирован после неверных попыток
   chatFilter: "all", // "all" | "unread" | "groups" | "direct" — чипы-фильтры над списком чатов
   _firstRenderDone: false, // снимается через 400мс после старта — пока false, список чатов рисует skeleton вместо "пусто"
@@ -3024,6 +3025,7 @@ function setNavMode(mode) {
 }
 let __searchTab = null;
 function renderTabInner() {
+  if (state.pinReorder && (state.tab !== "chats" || state.chatId)) state.pinReorder = false;
   if (state.chatId || state.contactCardId) document.documentElement.classList.remove("inline-search-open");
   if (__searchTab !== state.tab) { if (__searchTab !== null) { try { setInlineSearchOpen(false); } catch (e) {} } __searchTab = state.tab; }
   $$(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === state.tab));
@@ -3153,6 +3155,7 @@ function formatChatListTime(ts) {
   if (d.getFullYear() === now.getFullYear()) { try { return d.toLocaleDateString(I18N.current, { day: "2-digit", month: "2-digit" }); } catch (e) { return formatDay(ts); } }
   return formatDay(ts);
 }
+function setPinReorder(on) { state.pinReorder = !!on; renderChatsList(); }
 function renderChatsList() {
   const list = $("#chats-list"), empty = $("#chats-empty"), archivedToggle = $("#chats-archived-toggle");
   if (!list) return;
@@ -3234,6 +3237,14 @@ function renderChatsList() {
   // перетаскивания на уже готовые DOM-узлы.
   const canReorderPins = state.chatFilter === "all" && !query && !state.showArchived;
   const pinnedCountTotal = items.filter((c) => c.pinned).length;
+  if (state.pinReorder && !(canReorderPins && pinnedCountTotal > 1)) state.pinReorder = false;
+  if (state.pinReorder) {
+    const bar = document.createElement("div");
+    bar.className = "chats-reorder-bar";
+    bar.innerHTML = `<span>${escapeHtml(T("chats.reorder.hint"))}</span><button type="button" class="btn-tertiary">${escapeHtml(T("chats.reorder.done"))}</button>`;
+    bar.querySelector("button").addEventListener("click", () => setPinReorder(false));
+    list.appendChild(bar);
+  }
   const pinnedPairs = [];
   let unreadHeaderShown = false;
   for (const c of items) {
@@ -3251,7 +3262,8 @@ function renderChatsList() {
     const row = document.createElement("button");
     row.type = "button";
     row.className = "chat-row flat-content" + (c.archived ? " archived" : "");
-    const badge = unread > 0 ? `<span class="unread-badge">${unread > 99 ? "99+" : unread}</span>` : "";
+    const __rowMutedForBadge = isContactMuted(c);
+    const badge = unread > 0 ? `<span class="unread-badge${__rowMutedForBadge ? " is-muted" : ""}">${unread > 99 ? "99+" : unread}</span>` : "";
     const mentionIcon = state.mentionedChats.has(c.id) ? `<span class="chat-row-mention" title="${escapeHtml(T("chats.mentioned"))}">@</span>` : "";
     // Раньше title у этих двух иконок был захардкожен на английском ("Mute"/
     // "Blocked") — единственное место в списке чатов, где подсказка не шла
@@ -3281,9 +3293,11 @@ function renderChatsList() {
     }
     // "Не доставлено" — последнее МОЁ сообщение в чате зависло в ack=failed.
     const lastMine = c.messages.length ? [...c.messages].reverse().find((m) => m.from === "me") : null;
-    const failIcon = lastMine && lastMine.ack === "failed"
-      ? `<span class="muted-icon chat-row-fail-icon" title="${escapeHtml(T("ack.failed"))}"><svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path fill="currentColor" d="M11 7h2v6h-2zm0 8h2v2h-2z"/></svg></span>`
-      : "";
+    // Иерархия строки: имя, превью, время, непрочитанное, упоминание. Закреп, mute, блок и «не доставлено» из строки убраны:
+    // закреплённые и так сверху (состояние видно в свайп-действиях), mute показывает приглушённый бейдж, «не доставлено» видно
+    // у самого сообщения в чате. Для скринридера все состояния остаются текстом.
+    const stateNotes = [c.pinned ? T("chats.pin") : "", __rowMuted ? (c.muted ? T("chat.contact.mute") : T("chat.mute.until", { time: formatChatListTime(c.muteUntil) })) : "", c.blocked ? T("chat.contact.block") : "", lastMine && lastMine.ack === "failed" ? T("ack.failed") : ""].filter(Boolean);
+    const stateSr = stateNotes.length ? `<span class="sr-only">, ${escapeHtml(stateNotes.join(", "))}</span>` : "";
 
     // Статус онлайн теперь точкой прямо на аватаре (как Signal/WhatsApp),
     // а не текстовым символом ● справа от имени. У групп точку не
@@ -3296,7 +3310,7 @@ function renderChatsList() {
     // некуда) и видимый порядок надёжен (см. canReorderPins выше). Это
     // <span>, а не <button>: row сам уже <button>, а вложенные кнопки в
     // кнопке — невалидный HTML и в некоторых браузерах теряют pointer-события.
-    const showDragHandle = c.pinned && canReorderPins && pinnedCountTotal > 1;
+    const showDragHandle = c.pinned && canReorderPins && pinnedCountTotal > 1 && state.pinReorder;
     const dragHandle = showDragHandle
       ? `<span class="chat-row-drag-handle" aria-hidden="true"><svg viewBox="0 0 12 20" width="12" height="20"><circle cx="3" cy="3" r="1.4" fill="currentColor"/><circle cx="9" cy="3" r="1.4" fill="currentColor"/><circle cx="3" cy="10" r="1.4" fill="currentColor"/><circle cx="9" cy="10" r="1.4" fill="currentColor"/><circle cx="3" cy="17" r="1.4" fill="currentColor"/><circle cx="9" cy="17" r="1.4" fill="currentColor"/></svg></span>`
       : "";
@@ -3304,10 +3318,10 @@ function renderChatsList() {
       ${avatarCircleHtml(c, null, statusDot)}
       <div class="chat-row-body">
         <div class="chat-row-top">
-          <span class="chat-row-name${unread > 0 ? " unread" : ""}">${pinIcon}${escapeHtml(c.name || T("sys.someone"))} ${muteIcon}${blockIcon}</span>
+          <span class="chat-row-name${unread > 0 ? " unread" : ""}${__rowMuted ? " is-muted" : ""}">${escapeHtml(c.name || T("sys.someone"))}${stateSr}</span>
           <span class="chat-row-time">${timeLabel}</span>
         </div>
-        <div class="chat-row-sub"><span class="chat-row-preview-text">${preview}</span>${failIcon}${mentionIcon}${badge}${dragHandle}</div>
+        <div class="chat-row-sub"><span class="chat-row-preview-text">${preview}</span>${mentionIcon}${badge}${dragHandle}</div>
       </div>`;
     // Свайп открывает фоновые действия (pin/архив слева, удалить справа)
     // — сама кнопка строки едет поверх них через translateX. Структура:
@@ -3334,7 +3348,19 @@ function renderChatsList() {
         </button>
       </div>`;
     wrapper.appendChild(row);
-    row.addEventListener("click", () => { try { closeChatSearch(); } catch (e) {} cancelVoiceRecordingIfLeavingChat(c.id); state.multiSelect = null; state.chatId = c.id; renderTab(); });
+    row.addEventListener("click", () => {
+      if (state.pinReorder) return; // в режиме порядка нажатие по строке чат не открывает
+      if (row.__longPressed) { row.__longPressed = false; return; }
+      try { closeChatSearch(); } catch (e) {} cancelVoiceRecordingIfLeavingChat(c.id); state.multiSelect = null; state.chatId = c.id; renderTab();
+    });
+    if (c.pinned && canReorderPins && pinnedCountTotal > 1 && !state.pinReorder) {
+      // долгое нажатие на закреплённый чат включает режим порядка: только тогда появляются ручки перетаскивания
+      let lpTimer = null, lpX = 0, lpY = 0;
+      const lpCancel = () => { clearTimeout(lpTimer); lpTimer = null; };
+      row.addEventListener("pointerdown", (e) => { lpX = e.clientX; lpY = e.clientY; lpCancel(); lpTimer = setTimeout(() => { row.__longPressed = true; haptic("light"); setPinReorder(true); }, 550); });
+      row.addEventListener("pointermove", (e) => { if (lpTimer && (Math.abs(e.clientX - lpX) > 8 || Math.abs(e.clientY - lpY) > 8)) lpCancel(); });
+      row.addEventListener("pointerup", lpCancel); row.addEventListener("pointercancel", lpCancel); row.addEventListener("pointerleave", lpCancel);
+    }
     attachChatRowSwipe(wrapper, row, c);
     if (showDragHandle) pinnedPairs.push({ wrapper, c });
     list.appendChild(wrapper);
@@ -4188,8 +4214,7 @@ if (m.replyTo) {
           // openMessageSheet) — там долгое нажатие ведёт прямо в старую
           // полную шторку действий, без промежуточной плывущей панели,
           // которой для этого чата всё равно было бы нечего показывать.
-          if (isGroup(c)) openMessageSheet(m.id, c.id);
-          else openQuickReactionFlyout(inner, m.id, c.id);
+          openQuickReactionFlyout(inner, m.id, c.id);
         }
         inner.classList.remove("bubble-pressing");
       }, 500);
@@ -4228,7 +4253,7 @@ if (m.replyTo) {
       // раньше "Повторить" было спрятано в шите, куда добирается
       // меньшинство пользователей; статус-иконка была мёртвым маркером.
       const retryEl = ev.target.closest(".ack-failed[data-retry]");
-      if (retryEl) { ev.stopPropagation(); openMessageSheet(m.id, c.id); return; }
+      if (retryEl) { ev.stopPropagation(); retryMessage(c.id, m.id); toast(T("toast.retrying")); return; }
       const replyQuoteEl = ev.target.closest(".bubble-reply[data-reply-to-id]");
       if (replyQuoteEl) {
         ev.stopPropagation();
@@ -4634,7 +4659,7 @@ let __kbBaseH = 0;
 // Нажатия на «+», эмодзи, камеру, скрепку, отправку и т.п. не должны убирать системную клавиатуру: кнопка перехватывает фокус у поля ввода.
 // Отменяем сдвиг фокуса на mousedown и, если фокус всё-таки потерян, возвращаем его в поле сразу после действия.
 function wireKeepKeyboard() {
-  const sel = ".chat-input-bar button:not(#chat-emoji-btn), #composer-fan button:not(#chat-emoji-btn)";
+  const sel = ".chat-input-bar button:not(#chat-emoji-btn)";
   let had = false;
   const inp = () => $("#chat-input");
   document.addEventListener("pointerdown", (e) => { had = document.activeElement === inp(); }, true);
@@ -8804,25 +8829,40 @@ function closeQuickReactionFlyout() {
 function openQuickReactionFlyout(anchorEl, msgId, contactId) {
   const el = $("#quick-reaction-flyout"); if (!el || !anchorEl) return;
   closeQuickReactionFlyout();
-  const DEFAULT_QUICK_REACTIONS = ["❤️", "👍", "👎", "😂", "😮", "😢"];
-  const recent = Store.recentReactions;
-  const quickSet = (recent.length > 0 ? recent : DEFAULT_QUICK_REACTIONS).slice(0, 6);
-  quickSet.forEach((emoji) => {
-    const b = document.createElement("button");
-    b.type = "button"; b.className = "reaction-emoji"; b.textContent = emoji;
-    b.addEventListener("click", () => {
-      closeQuickReactionFlyout();
-      toggleReaction(contactId, msgId, emoji);
-      spawnReactionBurst(anchorEl, emoji);
+  const c = state.contacts.get(contactId); if (!c) return;
+  const m = c.messages.find((x) => x.id === msgId); if (!m) return;
+  // Одна панель на долгое нажатие: ряд реакций (только в личных чатах) и ряд быстрых действий. Остальное — в «Ещё».
+  if (!isGroup(c)) {
+    const DEFAULT_QUICK_REACTIONS = ["❤️", "👍", "👎", "😂", "😮", "😢"];
+    const recent = Store.recentReactions;
+    const quickSet = (recent.length > 0 ? recent : DEFAULT_QUICK_REACTIONS).slice(0, 6);
+    const row = document.createElement("div"); row.className = "qrf-row qrf-reactions";
+    quickSet.forEach((emoji) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "reaction-emoji"; b.textContent = emoji;
+      b.addEventListener("click", () => {
+        closeQuickReactionFlyout();
+        toggleReaction(contactId, msgId, emoji);
+        spawnReactionBurst(anchorEl, emoji);
+      });
+      row.appendChild(b);
     });
-    el.appendChild(b);
-  });
-  const moreBtn = document.createElement("button");
-  moreBtn.type = "button"; moreBtn.className = "reaction-emoji reaction-more";
-  moreBtn.setAttribute("aria-label", T("chat.moreActions"));
-  moreBtn.textContent = "…";
-  moreBtn.addEventListener("click", () => { closeQuickReactionFlyout(); openMessageSheet(msgId, contactId); });
-  el.appendChild(moreBtn);
+    const plus = document.createElement("button");
+    plus.type = "button"; plus.className = "reaction-emoji reaction-expand";
+    plus.setAttribute("aria-label", T("chat.reactionMore")); plus.textContent = "+";
+    plus.addEventListener("click", () => {
+      closeQuickReactionFlyout();
+      openEmojiPicker({ closeOnPick: true, onPick: (emoji) => { recordRecentReaction(emoji); toggleReaction(contactId, msgId, emoji); } });
+    });
+    row.appendChild(plus);
+    el.appendChild(row);
+  }
+  const acts = document.createElement("div"); acts.className = "qrf-row qrf-actions";
+  const addAct = (label, fn) => { const b = document.createElement("button"); b.type = "button"; b.className = "qrf-act"; b.textContent = label; b.addEventListener("click", () => { closeQuickReactionFlyout(); fn(); }); acts.appendChild(b); };
+  addAct(T("chat.reply"), () => handleMessageAction("reply", msgId, contactId));
+  if (m.text) addAct(T("chat.copyShort"), () => handleMessageAction("copy", msgId, contactId));
+  addAct(T("chat.moreShort"), () => openMessageSheet(msgId, contactId));
+  el.appendChild(acts);
 
   // Позиционирование: по умолчанию прямо над пузырём, по центру; если
   // сверху не хватает места (сообщение у самого верха экрана) — под
@@ -8853,63 +8893,23 @@ function openMessageSheet(msgId, contactId) {
   const c = state.contacts.get(contactId); if (!c) return;
   const m = c.messages.find((x) => x.id === msgId); if (!m) return;
   const groupCtx = isGroup(c);
-  const bar = $("#reaction-bar");
-  if (bar) {
-    bar.innerHTML = "";
-    if (!groupCtx) {
-      const DEFAULT_QUICK_REACTIONS = ["❤️", "👍", "👎", "😂", "😮", "😢"];
-      const recent = Store.recentReactions;
-      const quickSet = (recent.length > 0 ? recent : DEFAULT_QUICK_REACTIONS).slice(0, 6);
-      const renderEmojiBtn = (emoji) => {
-        const b = document.createElement("button");
-        b.type = "button"; b.className = "reaction-emoji"; b.textContent = emoji;
-        b.addEventListener("click", () => { const ms = $("#message-sheet"); if (ms) ms.classList.add("hidden"); toggleReaction(contactId, msgId, emoji); });
-        return b;
-      };
-      quickSet.forEach((emoji) => bar.appendChild(renderEmojiBtn(emoji)));
-      // "+" открывает полную сетку из 110 — раньше она была видна
-      // ВСЕГДА целиком, теперь только по явному запросу.
-      const expandBtn = document.createElement("button");
-      expandBtn.type = "button"; expandBtn.className = "reaction-emoji reaction-expand";
-      expandBtn.setAttribute("aria-label", T("chat.reactionMore"));
-      expandBtn.textContent = "+";
-      expandBtn.addEventListener("click", () => {
-        // «+» открывает тот же полный пикер, что и в композере (общий набор, поиск, тон кожи) — выбранный эмодзи ставится реакцией
-        const ms = $("#message-sheet"); if (ms) ms.classList.add("hidden");
-        openEmojiPicker({ closeOnPick: true, onPick: (emoji) => { recordRecentReaction(emoji); toggleReaction(contactId, msgId, emoji); } });
-      });
-      bar.appendChild(expandBtn);
-      bar.classList.remove("reaction-bar-expanded");
-    }
-  }
+  // Реакции живут только в плавающей панели (долгое нажатие); в шторке их больше нет — раньше они дублировались и там, и там.
+  const bar = $("#reaction-bar"); if (bar) { bar.innerHTML = ""; bar.classList.add("hidden"); }
   const isOwn = m.from === "me";
   const body = $("#message-sheet-body"); if (!body) return;
-  const actions = [];
-  actions.push(`<button type="button" class="sheet-action" data-action="reply">${escapeHtml(T("chat.reply"))}</button>`);
-  // Пересылка, редактирование-с-уведомлением, "удалить у обоих" и
-  // реакции рассчитаны на одного получателя (используют тот же путь
-  // доставки, что обычные 1-к-1 сообщения) — на группу с несколькими
-  // получателями это не рассчитано, честно не предлагаем, а не ломаем
-  // тихо. Локальные действия (копировать, удалить у себя) — безопасны
-  // всегда.
-  if (true) actions.push(`<button type="button" class="sheet-action" data-action="forward">${escapeHtml(T("chat.forward"))}</button>`);
-  actions.push(`<button type="button" class="sheet-action" data-action="pin">${escapeHtml(c.pinnedMessageId === msgId ? T("chat.unpinMsg") : T("chat.pinMsg"))}</button>`);
-  actions.push(`<button type="button" class="sheet-action" data-action="favorite">${escapeHtml(m.favorite ? T("chat.unfavorite") : T("chat.favorite"))}</button>`);
-  // Перевод — чисто локальное действие (fetch на сервер, выбранный самим
-  // пользователем, никакого P2P-payload) — доступно и в группах, и для
-  // своих, и для чужих сообщений, было бы текста. Файлы/карточки контакта
-  // переводить нечего.
-  if (m.text && !m.file && !m.contactCard) actions.push(`<button type="button" class="sheet-action" data-action="translate">${escapeHtml(m.translation ? T("chat.translate.hide") : T("chat.translate"))}</button>`);
-  actions.push(`<button type="button" class="sheet-action" data-action="copy">${escapeHtml(T("chat.copy"))}</button>`);
-  actions.push(`<button type="button" class="sheet-action" data-action="select">${escapeHtml(T("chat.selectMsgs"))}</button>`);
-  if (m.ack === "failed" && isOwn && !groupCtx) actions.push(`<button type="button" class="sheet-action" data-action="retry">${escapeHtml(T("chat.retry"))}</button>`);
-  if (isOwn) {
-    if (!groupCtx && !m.file && !m.contactCard) actions.push(`<button type="button" class="sheet-action" data-action="edit">${escapeHtml(T("chat.edit"))}</button>`);
-    actions.push(`<button type="button" class="sheet-action destructive" data-action="delete-local">${escapeHtml(T("chat.delete.local"))}</button>`);
-    if (!groupCtx) actions.push(`<button type="button" class="sheet-action destructive" data-action="delete-both">${escapeHtml(T("chat.delete.both"))}</button>`);
-  } else {
-    actions.push(`<button type="button" class="sheet-action destructive" data-action="delete-local">${escapeHtml(T("chat.delete.local"))}</button>`);
-  }
+  const act = (name, label, cls) => `<button type="button" class="sheet-action${cls ? " " + cls : ""}" data-action="${name}">${escapeHtml(label)}</button>`;
+  // Уровень 2 (основные): ответить, переслать, копировать, закрепить.
+  const main = [act("reply", T("chat.reply")), act("forward", T("chat.forward")), act("copy", T("chat.copy")), act("pin", c.pinnedMessageId === msgId ? T("chat.unpinMsg") : T("chat.pinMsg"))];
+  // Уровень 3 (редкие): перевод, избранное, выбор, правка, удаление. «Повторить» — тапом по значку «не доставлено» у самого сообщения.
+  // Пересылка/правка/«удалить у всех» рассчитаны на одного получателя, поэтому в группах не предлагаются; локальные действия безопасны всегда.
+  const rare = [];
+  if (m.text && !m.file && !m.contactCard) rare.push(act("translate", m.translation ? T("chat.translate.hide") : T("chat.translate")));
+  rare.push(act("favorite", m.favorite ? T("chat.unfavorite") : T("chat.favorite")));
+  rare.push(act("select", T("chat.selectMsgs")));
+  if (isOwn && !groupCtx && !m.file && !m.contactCard) rare.push(act("edit", T("chat.edit")));
+  rare.push(act("delete-local", T("chat.delete.local"), "destructive"));
+  if (isOwn && !groupCtx) rare.push(act("delete-both", T("chat.delete.both"), "destructive"));
+  const actions = [...main, `<div class="sheet-divider" role="separator"></div>`, ...rare];
   body.innerHTML = actions.join("");
   body.querySelectorAll(".sheet-action").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -9554,33 +9554,32 @@ function wireEmojiPicker() {
     toneBtn.setAttribute("aria-expanded", open ? "true" : "false");
   });
 }
-// Кнопка «+» композера — постоянная. По нажатию вверх «выезжают» три кружка: (1) эмодзи, (2) камера, (3) скрепка;
-// «+» при этом поворачивается в «×». Любое действие, нажатие мимо, Esc, смена чата и отправка сообщения сворачивают веер.
-// Прежний экспериментальный тумблер «+» в Настройках убран: теперь так выглядит композер всегда (и в личных чатах, и в группах).
+// Кнопка «+» композера открывает компактное меню-шторку: эмодзи, камера, файл (раньше три кружка «веером» поверх ленты).
+// Любое действие, фон, Esc, смена чата и отправка сообщения закрывают меню. Кнопки действий сохранили прежние id —
+// обработчики эмодзи-пикера, камеры и выбора файла повешены на них.
 function setComposerFan(open) {
-  const form = $("#chat-form"); if (!form) return;
-  form.classList.toggle("fan-open", !!open);
+  const sheet = $("#composer-menu-sheet"); if (sheet) sheet.classList.toggle("hidden", !open);
   const plus = $("#chat-plus-btn"); if (plus) plus.setAttribute("aria-expanded", open ? "true" : "false");
-  const fan = $("#composer-fan"); if (fan) fan.setAttribute("aria-hidden", open ? "false" : "true");
 }
 function collapseComposerPlus() { setComposerFan(false); }
 function wireComposerPlusMode() {
   const plusBtn = $("#chat-plus-btn"); if (!plusBtn) return;
   plusBtn.addEventListener("click", (e) => {
     e.preventDefault();
-    const form = $("#chat-form");
-    setComposerFan(!(form && form.classList.contains("fan-open")));
+    const sheet = $("#composer-menu-sheet");
+    setComposerFan(!!(sheet && sheet.classList.contains("hidden")));
   });
-  // Выбор любого из трёх действий сворачивает веер (capture — раньше, чем сработают обработчики самих кнопок)
+  // Выбор любого из трёх действий закрывает меню (capture — раньше, чем сработают обработчики самих кнопок)
   for (const id of ["#chat-attach-btn", "#chat-emoji-btn", "#chat-camera-btn"]) {
     const btn = $(id);
     if (btn) btn.addEventListener("click", collapseComposerPlus, { capture: true });
   }
-  document.addEventListener("pointerdown", (e) => {
-    const form = $("#chat-form");
-    if (form && form.classList.contains("fan-open") && !form.contains(e.target)) collapseComposerPlus();
-  }, true);
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") collapseComposerPlus(); });
+  // aria-expanded у «+» следует за видимостью шторки, даже если её закрыли по фону или жестом
+  const sheet = $("#composer-menu-sheet");
+  if (sheet && typeof MutationObserver !== "undefined") {
+    new MutationObserver(() => plusBtn.setAttribute("aria-expanded", sheet.classList.contains("hidden") ? "false" : "true")).observe(sheet, { attributes: true, attributeFilter: ["class"] });
+  }
   const form = $("#chat-form");
   if (form) form.addEventListener("submit", collapseComposerPlus);
 }

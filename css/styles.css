@@ -575,6 +575,10 @@ html[data-scheme="light"] .glass-content {
 .call-quality-icon.quality-medium { color: #d9a52c; }
 .call-quality-icon.quality-poor { color: var(--danger); }
 .muted-icon { font-size: var(--fs-xs); margin-inline-start: 4px; }
+/* приглушённый чат: нейтральный бейдж и чуть тише имя (раньше — отдельная иконка колокольчика в строке) */
+.unread-badge.is-muted { background: var(--bg-3); color: var(--ink-1); box-shadow: none; }
+.chat-row-name.is-muted { color: var(--ink-2); }
+.chats-reorder-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); padding: var(--sp-2) var(--sp-4); margin: 0 var(--sp-3) var(--sp-2); border-radius: var(--r-md); background: var(--accent-ghost); color: var(--ink-1); font-size: var(--fs-sm); }
 
 /* --- Непрочитанный бейдж: градиент + свечение --- */
 .unread-badge {
@@ -1369,7 +1373,7 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
 }
 .system-message-time { opacity: 0.65; margin-inline-start: 6px; }
 
-.edit-banner { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: var(--radius-m) var(--radius-m) 0 0; border-bottom: none; color: var(--accent); font-size: var(--fs-sm); flex-shrink: 0; }
+.edit-banner { display: flex; align-items: center; gap: var(--sp-2); padding: 6px 12px; border-radius: var(--radius-m) var(--radius-m) 0 0; border-bottom: none; color: var(--accent); font-size: var(--fs-sm); flex-shrink: 0; }
 .edit-banner-text { flex: 1; }
 .keychange-banner { display: flex; flex-direction: column; gap: 8px; padding: 10px 14px; border-radius: var(--radius-m); color: var(--text); font-size: var(--fs-sm); flex-shrink: 0; border: 1px solid var(--danger, #e5484d); }
 .keychange-banner.hidden { display: none; }
@@ -1392,22 +1396,6 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
 /* Кнопка «+» композера и «веер» из трёх кружков. Веер выезжает вверх из «+»; «+» поворачивается в «×». */
 .chat-input-bar { position: relative; }
 .composer-plus-btn svg { transition: transform var(--motion-fast) var(--ease-spring); }
-#chat-form.fan-open .composer-plus-btn svg { transform: rotate(135deg); }
-.composer-fan { position: absolute; inset-inline-start: 8px; bottom: calc(100% + 8px); display: flex; flex-direction: column-reverse; gap: 10px; pointer-events: none; z-index: 8; }
-.fan-btn {
-  width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--glass-border); cursor: pointer;
-  display: flex; align-items: center; justify-content: center; color: #fff; background: var(--accent);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
-  opacity: 0; transform: translateY(26px) scale(0.4); pointer-events: none;
-  transition: transform var(--motion-base) var(--ease-spring), opacity var(--motion-fast) var(--ease-out);
-}
-.fan-btn:nth-child(2) { background: #e8588d; }
-.fan-btn:nth-child(3) { background: #3b9bf5; }
-#chat-form.fan-open .fan-btn { opacity: 1; transform: none; pointer-events: auto; }
-#chat-form.fan-open .fan-btn:nth-child(2) { transition-delay: 0.04s; }
-#chat-form.fan-open .fan-btn:nth-child(3) { transition-delay: 0.08s; }
-.fan-btn.hidden { display: none; }
-@media (prefers-reduced-motion: reduce) { .fan-btn, .composer-plus-btn svg { transition: none; } }
 #chat-input {
   flex: 1 1 auto;
   min-width: 0;
@@ -1711,6 +1699,12 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
   opacity: 0; transform: scale(0.85); transition: opacity var(--motion-fast) var(--ease-out), transform var(--motion-fast) var(--ease-out);
 }
 .quick-reaction-flyout.quick-reaction-flyout-show { opacity: 1; transform: scale(1); }
+.quick-reaction-flyout { flex-direction: column; align-items: stretch; gap: 4px; border-radius: var(--r-xl); }
+.quick-reaction-flyout .qrf-row { display: flex; gap: 6px; align-items: center; justify-content: center; }
+.quick-reaction-flyout .qrf-actions { border-top: 1px solid var(--line-1); padding-top: 4px; gap: 2px; }
+.quick-reaction-flyout .qrf-act { flex: 1 1 auto; border: none; background: transparent; color: var(--ink-0); font-size: var(--fs-sm); font-weight: 600; padding: 8px 10px; border-radius: var(--r-md); cursor: pointer; }
+.quick-reaction-flyout .qrf-act:active { background: var(--input-bg); }
+.sheet-divider { height: 1px; margin: 4px 4px; background: var(--line-2); flex-shrink: 0; }
 .quick-reaction-flyout .reaction-emoji { width: 38px; height: 38px; font-size: 19px; }
 .quick-reaction-flyout .reaction-emoji.reaction-more { font-size: 18px; }
 @media (prefers-reduced-motion: reduce) { .quick-reaction-flyout { transition: none; } }
@@ -2388,3 +2382,7 @@ html.egg-disco #app-shell { animation: eggDisco 1.2s linear infinite; }
 /* плашки настроек и прочие «серые» блоки — тот же стеклянный вид с оттенком, что и у списка чатов */
 .settings-category-row, .contact-gallery-item, .sheet-action, .forward-row { background: var(--card-bg), var(--card-base); border-color: var(--card-border); }
 .settings-category-row { box-shadow: var(--card-shadow); }
+.chats-reorder-bar button { color: var(--accent); font-weight: 600; flex-shrink: 0; }
+
+/* меню «+» композера */
+.composer-menu-item svg { color: var(--accent); }
