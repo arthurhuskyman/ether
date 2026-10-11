@@ -11,6 +11,7 @@ const { RTCPeerConnection } = wrtc;
 // Та же самая правка, что в test-two-clients.js — раньше полагался на
 // уже запущенный отдельно сервер на 8787. Свой порт, своя копия сервера.
 process.env.PORT = "8792";
+process.env.MAILBOX_PERSIST = "0";
 process.env.VAPID_PUBLIC = "";
 process.env.VAPID_PRIVATE = "";
 require("./server.js");

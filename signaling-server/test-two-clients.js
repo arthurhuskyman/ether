@@ -8,6 +8,7 @@ const WebSocket = require("ws");
 // npm test" из README было неверной инструкцией. Теперь поднимает
 // свой сервер на выделенном порту, как остальные самодостаточные тесты.
 process.env.PORT = "8791";
+process.env.MAILBOX_PERSIST = "0";
 process.env.VAPID_PUBLIC = "";
 process.env.VAPID_PRIVATE = "";
 require("./server.js");

@@ -1,6 +1,7 @@
 // Сервер принимает конверты Double Ratchet (v2), отклоняет заведомо кривые и объявляет features при регистрации.
 const WebSocket = require("ws");
 process.env.PORT = "8792";
+process.env.MAILBOX_PERSIST = "0";
 process.env.VAPID_PUBLIC = "";
 process.env.VAPID_PRIVATE = "";
 require("./server.js");

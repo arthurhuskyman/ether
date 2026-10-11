@@ -1,6 +1,7 @@
 // Prekey-пакеты: загрузка, выдача с расходом одноразового ключа, проверки формата, сигнал "мало ключей", отсутствие утечки секретов.
 const WebSocket = require("ws");
 process.env.PORT = "8793";
+process.env.MAILBOX_PERSIST = "0";
 process.env.VAPID_PUBLIC = "";
 process.env.VAPID_PRIVATE = "";
 require("./server.js");
