@@ -211,7 +211,7 @@ const CRITICAL_LS_KEYS = [
   "ether.callVolume", "ether.lang", "ether.recentReactions",
   "ether.chatFolders", "ether.emojiSkinTone", "ether.recentEmoji", "ether.myAvatar",
   "ether.translateEndpoint", "ether.translateApiKey",
-  "ether.readable", "ether.localAi", "ether.localAiLang", "ether.stories", "ether.quietOn", "ether.quietFrom", "ether.quietTo", "ether.wpColor1", "ether.wpColor2", "ether.chatWallpaper", "ether.voiceSpeed", "ether.deadManEnabled", "ether.deadManThresholdDays", "ether.deadManContactId", "ether.deadManLastSentAt",
+  "ether.readable", "ether.fxInit", "ether.requireVerifiedCalls", "ether.localAi", "ether.localAiLang", "ether.stories", "ether.quietOn", "ether.quietFrom", "ether.quietTo", "ether.wpColor1", "ether.wpColor2", "ether.chatWallpaper", "ether.voiceSpeed", "ether.deadManEnabled", "ether.deadManThresholdDays", "ether.deadManContactId", "ether.deadManLastSentAt",
   "ether.panicShakeEnabled", "ether.fx", "ether.sigKey", "ether.fx.aurora", "ether.keyInfo",
 ];
 
@@ -345,6 +345,8 @@ const Store = {
   set notificationsEnabled(v) { localStorage.setItem("ether.notifications", v ? "1" : "0"); scheduleIDBBackup(); },
   get storiesJson() { return localStorage.getItem("ether.stories") || "[]"; },
   set storiesJson(v) { localStorage.setItem("ether.stories", v); scheduleIDBBackup(); },
+  get requireVerifiedCalls() { return localStorage.getItem("ether.requireVerifiedCalls") === "1"; },
+  set requireVerifiedCalls(v) { localStorage.setItem("ether.requireVerifiedCalls", v ? "1" : "0"); scheduleIDBBackup(); },
   get quietOn() { return localStorage.getItem("ether.quietOn") === "1"; },
   set quietOn(v) { localStorage.setItem("ether.quietOn", v ? "1" : "0"); scheduleIDBBackup(); },
   get quietFrom() { const v = localStorage.getItem("ether.quietFrom"); return /^\d\d:\d\d$/.test(v || "") ? v : "23:00"; },
@@ -1711,7 +1713,7 @@ function initBoot() {
   // блокировки некому было бы ответить (шторка в DOM статична и есть
   // всегда, не хватало бы только обработчиков кнопок).
   wireConfirmSheet();
-  wireKeyChangeBanner();
+  wireKeyChangeBanner(); wireSafetySheet();
   wireLockScreen();
   if (Store.pinEnabled && Store.pinHash) { showLockScreen(); return; }
   bootAfterUnlock();
@@ -2777,7 +2779,7 @@ function loadContacts() {
     state.contacts.set(c.id, {
       id: c.id, name: c.name || "", raw: c.raw || "",
       managed: true, publicKey: c.publicKey || null,
-      rc: !!c.rc || undefined,
+      rc: !!c.rc || undefined, verifiedKey: c.verifiedKey || undefined,
       pendingKey: c.pendingKey && c.pendingKey.key ? { key: c.pendingKey.key, at: c.pendingKey.at || 0 } : undefined,
       rejectedKey: c.rejectedKey || undefined, authSeen: !!c.authSeen || undefined,
       online: false, status: "disconnected",
@@ -2907,7 +2909,7 @@ function persistContacts() {
   try { syncBlockedToSW(); } catch (e) {}
   __contactsPersistPending = Array.from(state.contacts.values()).filter((c) => c.managed).map((c) => ({
     id: c.id, name: c.name, raw: c.raw, publicKey: c.publicKey,
-    rc: c.rc || undefined, pendingKey: c.pendingKey || undefined, rejectedKey: c.rejectedKey || undefined, authSeen: c.authSeen || undefined,
+    rc: c.rc || undefined, verifiedKey: c.verifiedKey || undefined, pendingKey: c.pendingKey || undefined, rejectedKey: c.rejectedKey || undefined, authSeen: c.authSeen || undefined,
     messages: c.messages, lastActivity: c.lastActivity,
     archived: c.archived, muted: c.muted, muteUntil: c.muteUntil || undefined, blocked: c.blocked, vibrateOnly: c.vibrateOnly || undefined,
     pinned: c.pinned || undefined, pinnedMessageId: c.pinnedMessageId || undefined,
@@ -3428,7 +3430,7 @@ function renderChatsList() {
     const blockIcon = c.blocked ? `<span class="muted-icon" title="${escapeHtml(T("chat.contact.block"))}"><svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><line x1="6" y1="18" x2="18" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>` : "";
     const pinIcon = c.pinned ? `<span class="muted-icon" title="${escapeHtml(T("chats.pin"))}">${Icons.html("pin", 13)}</span>` : "";
     let preview = last
-      ? (last.from === "system" && last.textKey ? escapeHtml(renderSystemMessageText(last)) : last.file ? escapeHtml(T("chat.file.preview." + last.file.kind)) : (last.poll ? escapeHtml(truncate(T("chat.poll.preview", { q: last.text }), 42)) : last.board ? escapeHtml(truncate(T("chat.board.preview", { title: last.text }), 42)) : last.contactCard ? escapeHtml(T("chat.contactCard.preview", { name: last.contactCard.name || T("sys.someone") })) : escapeHtml(truncate(last.text, 42))))
+      ? (last.from === "system" && last.textKey ? escapeHtml(renderSystemMessageText(last)) : last.file ? escapeHtml(T("chat.file.preview." + last.file.kind)) : (last.poll ? escapeHtml(truncate(T("chat.poll.preview", { q: last.text }), 42)) : last.note ? escapeHtml(truncate(T("chat.note.preview", { title: last.text }), 42)) : last.board ? escapeHtml(truncate(T("chat.board.preview", { title: last.text }), 42)) : last.contactCard ? escapeHtml(T("chat.contactCard.preview", { name: last.contactCard.name || T("sys.someone") })) : escapeHtml(truncate(last.text, 42))))
       : escapeHtml(contactStatusLabel(c));
     if (query && last && (last.text || "").toLowerCase().includes(query)) preview = highlightRaw(escapeHtml(truncate(last.text, 42)), state.searchQuery);
     // "Печатает…" перекрывает обычное превью — раньше это было видно
@@ -3983,20 +3985,7 @@ function wireContactCard() {
     openForwardSheet((toId) => forwardContact(fromId, toId));
   });
   const safetyBtn = $("#contact-safety-btn");
-  if (safetyBtn) safetyBtn.addEventListener("click", async () => {
-    const cid = state.contactCardId; const c = cid && state.contacts.get(cid); if (!c) return;
-    if (!c.publicKey || !Store.myPublicKeyJwk) { toast(T("toast.safetyNumberNoKey")); return; }
-    const digitsEl = $("#safety-number-digits");
-    if (digitsEl) digitsEl.textContent = "…";
-    const sheet = $("#safety-number-sheet"); if (sheet) sheet.classList.remove("hidden");
-    try {
-      const groups = await CryptoHelper.computeSafetyNumber(Store.myPublicKeyJwk, c.publicKey);
-      if (digitsEl) digitsEl.innerHTML = groups.map((g) => `<span>${escapeHtml(g)}</span>`).join("");
-    } catch (e) {
-      if (digitsEl) digitsEl.textContent = "";
-      toast(T("toast.safetyNumberNoKey"));
-    }
-  });
+  if (safetyBtn) safetyBtn.addEventListener("click", () => { const cid = state.contactCardId; if (cid) openSafetySheet(cid); });
   const clear = $("#contact-clear-btn");
   if (clear) clear.addEventListener("click", async () => {
     const c = state.contacts.get(state.contactCardId); if (!c) return;
@@ -4101,10 +4090,10 @@ function renderChatThreadInner() {
     }
     __lastRenderedChatId = state.chatId;
   }
-  if (c.messages.some((m) => m.ttl && Date.now() > m.ts + m.ttl)) {
-    const expired = c.messages.filter((m) => m.ttl && Date.now() > m.ts + m.ttl);
+  if (c.messages.some((m) => isMsgExpired(m))) {
+    const expired = c.messages.filter((m) => isMsgExpired(m));
     cleanupExpiredFileBlobs(expired);
-    c.messages = c.messages.filter((m) => !(m.ttl && Date.now() > m.ts + m.ttl));
+    c.messages = c.messages.filter((m) => !isMsgExpired(m));
     persistContacts();
   }
   if (isGroup(c)) {
@@ -4176,6 +4165,19 @@ function renderChatThreadInner() {
 
   const badge = $("#chat-transport-badge");
   const link = (mesh && !isGroup(c)) ? mesh.get(c.id) : null;
+  { // Доверие к собеседнику: ключ проверен вами / канал подтверждён его ключом / ключ сменился
+    const tb = $("#chat-trust-badge");
+    if (tb) {
+      let kind = "", label = "";
+      if (isGroup(c) || c.isSelf) kind = "";
+      else if (c.pendingKey) { kind = "warn"; label = T("trust.changed"); }
+      else if (isContactVerified(c)) { kind = "verified"; label = T("trust.verified"); }
+      else if (link && link.authState === "ok") { kind = "channel"; label = T("trust.channel"); }
+      tb.className = "trust-badge" + (kind ? " is-" + kind : " hidden");
+      tb.innerHTML = kind ? Icons.html(kind === "warn" ? "warning" : "shield", 14) : "";
+      tb.setAttribute("aria-label", label); tb.title = label;
+    }
+  }
   if (badge) {
     // Три SVG-иконки вместо текстовых P2P / S / …: пользователю
     // непонятны эти аббревиатуры, а две встречные стрелки / облако /
@@ -4354,7 +4356,7 @@ function renderChatThreadInner() {
     // композитинг (20+ blur-слоёв).
     inner.className = "bubble" + (m.mentionMe ? " bubble-mentioned" : "");
     inner.setAttribute("data-msg-id", m.id); // для прокрутки к оригиналу по тапу на цитате ответа
-    const body = m.file ? fileBubbleHtml(m.id, m.file) : m.poll ? pollBubbleHtml(c, m) : m.board ? boardBubbleHtml(m) : (m.contactCard ? contactCardBubbleHtml(m.contactCard) : linkifyAndHighlight(m.text, q));
+    const body = m.file ? fileBubbleHtml(m.id, m.file) : m.poll ? pollBubbleHtml(c, m) : m.board ? boardBubbleHtml(m) : m.note ? noteBubbleHtml(m) : (m.contactCard ? contactCardBubbleHtml(m.contactCard) : linkifyAndHighlight(m.text, q));
     const isFirstOfGroupBlock = !prevMsg || prevMsg.fromId !== m.fromId || prevMsg.from !== "them";
     const senderLabel = (isGroup(c) && m.from === "them" && m.fromId && isFirstOfGroupBlock)
       ? `<div class="bubble-sender">${escapeHtml(m.fromName || T("sys.someone"))}</div>` : "";
@@ -4450,7 +4452,7 @@ if (m.replyTo) {
       if (askEl) { ev.stopPropagation(); linkPreviewAllowed.add(askEl.getAttribute("data-preview-ask")); renderChatThread(); return; }
       const threadEl = ev.target.closest("[data-thread]");
       if (threadEl) { ev.stopPropagation(); openThread(c.id, threadEl.getAttribute("data-thread")); return; }
-      const richEl = ev.target.closest("[data-poll-opt], [data-poll-close], [data-board-act]");
+      const richEl = ev.target.closest("[data-poll-opt], [data-poll-close], [data-board-act], [data-note-edit]");
       if (richEl) { ev.stopPropagation(); handleRichClick(c, m, richEl); return; }
       const addBtn = ev.target.closest(".contact-card-add-btn");
       if (addBtn) {
@@ -4826,7 +4828,7 @@ function updateScrollBottomButton() {
 }
 function markThreadRead(c) {
   const toAck = [];
-  for (const m of c.messages) if (m.from === "them" && !m.readAckSent) { m.readAckSent = true; toAck.push(m); }
+  for (const m of c.messages) if (m.from === "them" && !m.readAckSent) { m.readAckSent = true; startExpiryOnRead(m); toAck.push(m); }
   state.mentionedChats.delete(c.id); // весь тред помечен прочитанным выше — упоминания в нём больше не "непрочитанные"
   if (toAck.length === 0) return;
   persistContacts();
@@ -5116,7 +5118,7 @@ async function commitEdit(contactId, msgId, newText) {
   if (state.chatId === contactId) renderChatThread();
   const actionId = crypto.randomUUID();
   const payload = { kind: "edit", id: msgId, text: newText, ts: m.ts };
-  await trySendOrQueue(c, actionId, payload);
+  await dispatchRich(c, payload); // личный чат — как раньше; группа — каждому участнику с groupId
 }
 function deleteMessageLocal(contactId, msgId, batch) {
   const c = state.contacts.get(contactId); if (!c) return;
@@ -5137,7 +5139,7 @@ async function deleteMessageForBoth(contactId, msgId) {
   deleteMessageLocal(contactId, msgId);
   const actionId = crypto.randomUUID();
   const payload = { kind: "delete", id: msgId, ts: Date.now() };
-  await trySendOrQueue(c, actionId, payload);
+  await dispatchRich(c, payload);
 }
 // Пересылка контакта другому контакту — карточка со своим видом в
 // пузыре сообщения (имя + кнопка "Добавить"), не обычный текст.
@@ -5359,6 +5361,23 @@ async function createBoard(contactId, title, colKeys) {
   await dispatchRich(c, payload, msgId);
   return true;
 }
+async function createNote(contactId, title) {
+  const c = state.contacts.get(contactId); if (!c) return false;
+  if (c.blocked) { toast(T("toast.blocked")); return false; }
+  if (isGroup(c) && !isGroupWriteAllowed(c, Store.myId)) { toast(T("toast.groupWriteRestricted")); return false; }
+  const note = EtherRich.sanitizeNote({ title: title || T("chat.note.defaultTitle"), text: "" });
+  const msgId = crypto.randomUUID(), ts = Date.now();
+  pushRichMessage(c, { id: msgId, from: "me", text: note.title, ts, ack: "sent", serverAcked: false, note });
+  await dispatchRich(c, { kind: "note", id: msgId, ts, note: { title: note.title, text: "" } }, msgId);
+  return true;
+}
+async function noteOp(contactId, msgId, text) {
+  const c = state.contacts.get(contactId); const m = c && c.messages.find((x) => x.id === msgId); if (!m || !m.note) return;
+  const ts = Date.now();
+  if (!EtherRich.applyNoteOp(m, { t: "set", text }, ts)) return;
+  persistContacts(); if (state.chatId === contactId) renderChatThread();
+  await dispatchRich(c, { kind: "note-op", id: msgId, op: { t: "set", text: m.note.text }, ts });
+}
 async function boardOp(contactId, msgId, op) {
   const c = state.contacts.get(contactId); const m = c && c.messages.find((x) => x.id === msgId); if (!m || !m.board) return;
   const ts = Date.now();
@@ -5378,7 +5397,7 @@ function richContainer(from, payload, create) {
 }
 function applyIncomingRich(from, envelopeMsgId, payload) {
   const kind = payload.kind;
-  const create = kind === "poll" || kind === "board";
+  const create = kind === "poll" || kind === "board" || kind === "note";
   const c = richContainer(from, payload, create); if (!c) return;
   if (create) {
     if (c.messages.some((x) => x.id === payload.id) || typeof payload.id !== "string") return;
@@ -5386,11 +5405,12 @@ function applyIncomingRich(from, envelopeMsgId, payload) {
     const rec = { id: payload.id, from: "them", text: "", ts: payload.ts || Date.now(), readAckSent: false, deliveryId: envelopeMsgId };
     if (payload.groupId) { rec.fromId = from; rec.fromName = payload.senderName || (state.contacts.get(from) && state.contacts.get(from).name) || T("sys.someone"); }
     if (kind === "poll") { const poll = EtherRich.sanitizePoll(payload.poll); if (!poll) return; rec.poll = poll; rec.pollVotes = {}; rec.text = poll.q; }
+    else if (kind === "note") { const note = EtherRich.sanitizeNote(payload.note); if (!note) return; rec.note = note; rec.text = note.title; if (payload.note && payload.note.text) { EtherRich.applyNoteOp(rec, { t: "set", text: payload.note.text }, rec.ts); } }
     else { const board = EtherRich.sanitizeBoard(payload.board); if (!board) return; rec.board = board; rec.text = board.title; }
     if (payload.ttl) rec.ttl = payload.ttl;
     c.messages.push(rec); trimMessages(c); c.lastActivity = Date.now(); persistContacts();
     const routeId = c.id;
-    const preview = T(kind === "poll" ? "chat.poll.preview" : "chat.board.preview", kind === "poll" ? { q: rec.text } : { title: rec.text });
+    const preview = T(kind === "poll" ? "chat.poll.preview" : kind === "note" ? "chat.note.preview" : "chat.board.preview", kind === "poll" ? { q: rec.text } : { title: rec.text });
     if (state.chatId === routeId) { renderChatThread(); playMessageSound(routeId); vibrate([80, 40, 80]); announceToScreenReader(T("sr.newMessage", { name: rec.fromName || c.name, text: truncate(preview, 80) })); }
     else {
       toast(`${c.name}: ${truncate(preview, 40)}`);
@@ -5405,6 +5425,7 @@ function applyIncomingRich(from, envelopeMsgId, payload) {
   let changed = false;
   if (kind === "poll-vote") changed = EtherRich.applyVote(m, from, payload.opts, Math.min(Number(payload.ts) || Date.now(), Date.now()));
   else if (kind === "poll-close") { const authorId = c.isGroup ? m.fromId : c.id; changed = m.from === "them" && authorId === from && EtherRich.closePoll(m); }
+  else if (kind === "note-op") changed = !!payload.op && EtherRich.applyNoteOp(m, payload.op, Math.min(Number(payload.ts) || Date.now(), Date.now() + 60000));
   else if (kind === "board-op") changed = EtherRich.applyBoardOp(m, payload.op, Math.min(Number(payload.ts) || Date.now(), Date.now() + 60000));
   if (!changed) return;
   persistContacts();
@@ -5443,6 +5464,10 @@ function pollBubbleHtml(c, m) {
     + (closed ? `<span class="poll-closed">${escapeHtml(T("chat.poll.closed"))}</span>` : (m.from === "me" ? `<button type="button" class="poll-close-btn" data-poll-close="1">${escapeHtml(T("chat.poll.close"))}</button>` : ""));
   return `<div class="poll-bubble${closed ? " is-closed" : ""}"><div class="poll-q">${Icons.html("poll", 16)}<span>${escapeHtml(m.poll.q)}</span></div><div class="poll-opts" role="${m.poll.multi ? "group" : "radiogroup"}" aria-label="${escapeHtml(m.poll.q)}">${opts}</div><div class="poll-foot">${foot}</div></div>`;
 }
+function noteBubbleHtml(m) {
+  const t = m.note.text;
+  return `<div class="note-bubble"><div class="note-title">${Icons.html("file", 16)}<span>${escapeHtml(m.note.title)}</span></div><div class="note-text${t ? "" : " is-empty"}">${t ? escapeHtml(t) : escapeHtml(T("chat.note.empty"))}</div><button type="button" class="note-edit-btn" data-note-edit="1">${Icons.html("edit", 14)}<span>${escapeHtml(T("chat.note.edit"))}</span></button></div>`;
+}
 function boardBubbleHtml(m) {
   const b = m.board;
   const cols = b.cols.map((col, ci) => {
@@ -5457,6 +5482,7 @@ function boardBubbleHtml(m) {
 function handleRichClick(c, m, el) {
   if (el.hasAttribute("data-poll-opt")) { votePoll(c.id, m.id, el.getAttribute("data-poll-opt")); return; }
   if (el.hasAttribute("data-poll-close")) { closePollMsg(c.id, m.id); return; }
+  if (el.hasAttribute("data-note-edit")) { openNoteSheet(c.id, m.id); return; }
   const act = el.getAttribute("data-board-act");
   const cardEl = el.closest("[data-card]"), cardId = cardEl && cardEl.getAttribute("data-card");
   const cols = m.board.cols.map((x) => x.id);
@@ -5493,6 +5519,14 @@ function submitTextSheet() {
   sheet.classList.add("hidden");
   if (cb) cb(v);
 }
+let __noteTarget = null;
+function openNoteSheet(cid, msgId) {
+  const c = state.contacts.get(cid), m = c && c.messages.find((x) => x.id === msgId); if (!m || !m.note) return;
+  const sheet = $("#note-sheet"), ta = $("#note-input"); if (!sheet || !ta) return;
+  __noteTarget = { cid, msgId };
+  $("#note-sheet-title").textContent = m.note.title; ta.value = m.note.text; ta.maxLength = EtherRich.NOTE_MAX;
+  sheet.classList.remove("hidden"); setTimeout(() => { try { ta.focus(); } catch (e) {} }, 60);
+}
 function openPollSheet() {
   const sheet = $("#poll-sheet"); if (!sheet) return;
   $("#poll-q-input").value = ""; $("#poll-multi-input").checked = false; $("#poll-public-input").checked = false; $("#poll-timer-input").value = "0";
@@ -5514,6 +5548,8 @@ function wireRichSheets() {
   bind("#chat-poll-btn", () => { collapseComposerPlus(); openPollSheet(); });
   bind("#chat-board-btn", () => { collapseComposerPlus(); openTextSheet({ title: T("chat.board.name"), value: T("chat.board.defaultTitle"), onOk: (title) => { if (state.chatId) createBoard(state.chatId, title); } }); });
   bind("#chat-list-btn", () => { collapseComposerPlus(); openTextSheet({ title: T("chat.list.name"), value: T("chat.list.defaultTitle"), onOk: (title) => { if (state.chatId) createBoard(state.chatId, title, ["todo", "done"]); } }); });
+  bind("#chat-note-btn", () => { collapseComposerPlus(); openTextSheet({ title: T("chat.note.name"), value: T("chat.note.defaultTitle"), onOk: (title) => { if (state.chatId) createNote(state.chatId, title); } }); });
+  bind("#note-save-btn", () => { const t = __noteTarget; if (!t) return; $("#note-sheet").classList.add("hidden"); noteOp(t.cid, t.msgId, $("#note-input").value); __noteTarget = null; });
   bind("#poll-add-opt-btn", addPollOptionInput);
   bind("#poll-create-btn", async () => {
     const q = $("#poll-q-input").value.trim();
@@ -6867,14 +6903,26 @@ function updateSendVsMic() {
   // скрыта, если писать в группу запрещено ("только админы").
   if (micBtn) micBtn.classList.toggle("hidden", hasText || writeBlocked);
 }
+// Исчезающие сообщения: таймер идёт от ПРОЧТЕНИЯ (как в Signal), а не от отправки — иначе непрочитанное успевало пропасть, так и не увидев.
+// expAt ставится в момент прочтения (входящее — когда вы его увидели; исходящее — когда собеседник подтвердил «прочитано»).
+// Непрочитанное хранится не дольше 30 суток. Старые сообщения без expAt, уже прочитанные, живут по прежнему правилу (от отправки).
+const UNREAD_TTL_CAP_MS = 30 * 24 * 3600e3;
+function msgExpiresAt(m) {
+  if (!m || !m.ttl) return Infinity;
+  if (m.expAt) return m.expAt;
+  const read = m.from === "them" ? !!m.readAckSent : m.ack === "read";
+  return read ? m.ts + m.ttl : m.ts + Math.max(m.ttl, UNREAD_TTL_CAP_MS);
+}
+function isMsgExpired(m, now) { return (now || Date.now()) > msgExpiresAt(m); }
+function startExpiryOnRead(m) { if (m && m.ttl && !m.expAt) m.expAt = Date.now() + m.ttl; }
 function sweepExpiredMessages() {
   const now = Date.now();
   let anyChanged = false;
   for (const c of state.contacts.values()) {
-    const expired = c.messages.filter((m) => m.ttl && now > m.ts + m.ttl);
+    const expired = c.messages.filter((m) => isMsgExpired(m, now));
     if (expired.length === 0) continue;
     cleanupExpiredFileBlobs(expired);
-    c.messages = c.messages.filter((m) => !(m.ttl && now > m.ts + m.ttl));
+    c.messages = c.messages.filter((m) => !isMsgExpired(m, now));
     anyChanged = true;
   }
   if (!anyChanged) return;
@@ -7428,7 +7476,7 @@ async function trySendOrQueue(contact, msgId, payloadObj) {
   // считается мгновенно доставленным и прочитанным.
   if (contact.isSelf) {
     const mSelf = contact.messages.find((x) => x.id === msgId);
-    if (mSelf) { mSelf.ack = "read"; mSelf.serverAcked = true; }
+    if (mSelf) { mSelf.ack = "read"; mSelf.serverAcked = true; startExpiryOnRead(mSelf); }
     if (contact.isDemo) demoOnSend(contact, payloadObj);
     return;
   }
@@ -7590,6 +7638,13 @@ function persistHeld() {
   try { localStorage.setItem("ether.heldDeliveries", JSON.stringify(heldDeliveries)); } catch (e) { handlePersistError(e, "heldDeliveries"); }
 }
 // true — ключ можно использовать прямо сейчас; false — он ждёт подтверждения (или отклонён).
+// «Проверен» — вы сверили число безопасности (цифры или QR) именно с ТЕКУЩИМ ключом; при смене ключа отметка пропадает сама.
+function isContactVerified(c) { return !!(c && c.verifiedKey && c.publicKey && !keysDiffer(c.verifiedKey, c.publicKey)); }
+function setContactVerified(id, on) {
+  const c = state.contacts.get(id); if (!c || !c.publicKey) return;
+  c.verifiedKey = on ? c.publicKey : undefined; persistContacts();
+  try { if (state.chatId === id) renderChatThread(); if (state.contactCardId === id) renderContactCard(); } catch (e) {}
+}
 function noteContactKey(c, newKey) {
   if (!newKey) return !c.pendingKey;
   if (!c.publicKey) { c.publicKey = newKey; return true; }
@@ -7603,6 +7658,8 @@ function noteContactKey(c, newKey) {
     persistContacts();
     etherLog("warn", "[trust] ключ " + String(c.id).slice(0, 10) + "… изменился — нужно подтверждение");
     try { toast(T("toast.contactKeyChanged", { name: c.name || T("sys.someone") })); } catch (e) {}
+    // Ключ собеседника сменился — это важно, даже если приложение свёрнуто: системное уведомление (если разрешены)
+    try { if (Store.notificationsEnabled) showNotification(T("notif.keyChanged.title"), T("notif.keyChanged.body", { name: c.name || T("sys.someone") }), { tag: "ether-key-" + c.id, contactId: c.id, kind: "message", force: false }); } catch (e) {}
     try { renderKeyChangeBanner(); if (state.tab === "chats") renderChatsList(); } catch (e) {}
   }
   return false;
@@ -7640,19 +7697,54 @@ function renderKeyChangeBanner() {
   if (t) t.textContent = T("chat.keyChange.text", { name: c.name || T("sys.someone") });
   b.classList.remove("hidden");
 }
+// Число безопасности: цифры + QR (его можно показать собеседнику или отсканировать его QR — совпадение ставит отметку «проверен»)
+let __safetyCtx = null; // { id, key, digits }
+async function openSafetySheet(contactId, keyOverride) {
+  const c = state.contacts.get(contactId); if (!c) return;
+  const key = keyOverride || c.publicKey;
+  if (!key || !Store.myPublicKeyJwk) { toast(T("toast.safetyNumberNoKey")); return; }
+  const digitsEl = $("#safety-number-digits"); if (digitsEl) digitsEl.textContent = "…";
+  const sheet = $("#safety-number-sheet"); if (sheet) sheet.classList.remove("hidden");
+  __safetyCtx = { id: contactId, key, digits: "", pending: !!keyOverride };
+  try {
+    const groups = await CryptoHelper.computeSafetyNumber(Store.myPublicKeyJwk, key);
+    __safetyCtx.digits = groups.join("");
+    if (digitsEl) digitsEl.innerHTML = groups.map((g) => `<span>${escapeHtml(g)}</span>`).join("");
+    const cv = $("#safety-qr-canvas"); if (cv) { try { renderQrToCanvas(cv, "ether://verify?n=" + __safetyCtx.digits); } catch (e) {} }
+  } catch (e) { if (digitsEl) digitsEl.textContent = ""; toast(T("toast.safetyNumberNoKey")); }
+  refreshSafetyVerifyUi();
+}
+function refreshSafetyVerifyUi() {
+  const ctx = __safetyCtx, c = ctx && state.contacts.get(ctx.id);
+  const st = $("#safety-verified-state"), btn = $("#safety-mark-btn"), scan = $("#safety-scan-btn");
+  if (!c || !st) return;
+  const verified = !ctx.pending && isContactVerified(c);
+  st.textContent = verified ? T("safety.verified") : T("safety.unverified");
+  st.classList.toggle("is-ok", verified);
+  if (btn) { btn.textContent = T(verified ? "safety.unmark" : "safety.mark"); btn.classList.toggle("hidden", !!ctx.pending); }
+  if (scan) scan.classList.toggle("hidden", false);
+}
+function onSafetyQrScanned(data) {
+  const ctx = __safetyCtx; if (!ctx || !ctx.digits) return false;
+  if (typeof data !== "string" || data.indexOf("ether://verify?n=") !== 0) return false;
+  const theirs = data.slice("ether://verify?n=".length);
+  if (theirs === ctx.digits) {
+    if (!ctx.pending) setContactVerified(ctx.id, true);
+    toast(T("safety.match")); refreshSafetyVerifyUi();
+  } else toast(T("safety.mismatch"));
+  return true;
+}
+function wireSafetySheet() {
+  const mark = $("#safety-mark-btn");
+  if (mark && !mark.dataset.wired) { mark.dataset.wired = "1"; mark.addEventListener("click", () => { const ctx = __safetyCtx, c = ctx && state.contacts.get(ctx.id); if (!c || ctx.pending) return; setContactVerified(ctx.id, !isContactVerified(c)); refreshSafetyVerifyUi(); }); }
+  const scan = $("#safety-scan-btn");
+  if (scan && !scan.dataset.wired) { scan.dataset.wired = "1"; scan.addEventListener("click", () => { qrScanVerifyMode = true; startQrScan(); }); }
+}
 function wireKeyChangeBanner() {
   const b = $("#keychange-banner"); if (!b || b.dataset.wired) return; b.dataset.wired = "1";
   const withCid = (fn) => () => { const id = state.chatId; if (id) fn(id); };
   const verify = $("#keychange-verify-btn"), ok = $("#keychange-accept-btn"), no = $("#keychange-reject-btn");
-  if (verify) verify.addEventListener("click", withCid(async (id) => {
-    const c = state.contacts.get(id); if (!c || !c.pendingKey) return;
-    const digitsEl = $("#safety-number-digits"); if (digitsEl) digitsEl.textContent = "…";
-    const sheet = $("#safety-number-sheet"); if (sheet) sheet.classList.remove("hidden");
-    try {
-      const groups = await CryptoHelper.computeSafetyNumber(Store.myPublicKeyJwk, c.pendingKey.key);
-      if (digitsEl) digitsEl.innerHTML = groups.map((g) => `<span>${escapeHtml(g)}</span>`).join("");
-    } catch (e) { if (digitsEl) digitsEl.textContent = ""; }
-  }));
+  if (verify) verify.addEventListener("click", withCid((id) => { const c = state.contacts.get(id); if (c && c.pendingKey) openSafetySheet(id, c.pendingKey.key); }));
   if (ok) ok.addEventListener("click", withCid(async (id) => {
     const c = state.contacts.get(id);
     if (!await confirmSheet(T("chat.keyChange.confirm", { name: (c && c.name) || T("sys.someone") }))) return;
@@ -7868,6 +7960,7 @@ function markMessageAck(contactId, msgId, ack) {
 
   if (targetMsg && ((rank[ack] ?? 0) >= (rank[targetMsg.ack] ?? 0) || ack === "failed")) {
     targetMsg.ack = ack;
+    if (ack === "read") startExpiryOnRead(targetMsg);
     persistContacts();
     if (ownerChat && state.chatId === ownerChat.id) renderChatThread();
   }
@@ -7967,10 +8060,11 @@ async function toggleReaction(contactId, msgId, emoji) {
   if (state.chatId === contactId) renderChatThread();
   const actionId = crypto.randomUUID();
   const payload = { kind: "reaction", id: msgId, emoji, remove, ts: Date.now() };
-  await trySendOrQueue(c, actionId, payload);
+  await dispatchRich(c, payload);
 }
 function applyReaction(contactId, payload) {
-  const c = ensureContactEntry(contactId, null);
+  const c = resolveEditDeleteTarget(contactId, payload); // группа (отправитель — её участник) или личный чат
+  if (!c) return;
   const m = c.messages.find((x) => x.id === payload.id); if (!m) return;
   if (!m.reactions || typeof m.reactions !== "object") m.reactions = {};
   if (!Array.isArray(m.reactions[payload.emoji])) m.reactions[payload.emoji] = [];
@@ -7978,7 +8072,7 @@ function applyReaction(contactId, payload) {
   if (payload.remove) { if (idx >= 0) m.reactions[payload.emoji].splice(idx, 1); if (m.reactions[payload.emoji].length === 0) delete m.reactions[payload.emoji]; }
   else { if (idx < 0) m.reactions[payload.emoji].push(contactId); }
   persistContacts();
-  if (state.chatId === contactId) renderChatThread();
+  if (state.chatId === c.id) renderChatThread();
 }
 
 // =====================================================================
@@ -8771,7 +8865,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     }
   } else if (kind === "story") {
     receiveStory(from, payload);
-  } else if (kind === "poll" || kind === "board" || kind === "poll-vote" || kind === "poll-close" || kind === "board-op") {
+  } else if (kind === "poll" || kind === "board" || kind === "note" || kind === "poll-vote" || kind === "poll-close" || kind === "board-op" || kind === "note-op") {
     applyIncomingRich(from, envelopeMsgId, payload);
   } else if (kind === "reaction") {
     applyReaction(from, payload);
@@ -9098,7 +9192,7 @@ function parseQrAddPayload(text) {
     return { id, name: qs.get("name") || "" };
   } catch (e) { return null; }
 }
-let qrScanStream = null, qrScanRafId = null, qrScanCanvas = null;
+let qrScanStream = null, qrScanRafId = null, qrScanCanvas = null, qrScanVerifyMode = false;
 async function startQrScan() {
   const sheet = $("#scan-qr-sheet"); if (sheet) sheet.classList.remove("hidden");
   const video = $("#qr-scan-video");
@@ -9130,6 +9224,12 @@ async function startQrScan() {
       if (imageData) {
         const result = jsQR(imageData.data, imageData.width, imageData.height);
         if (result && result.data) {
+          if (qrScanVerifyMode && String(result.data).indexOf("ether://verify?n=") === 0) {
+            stopQrScan(); qrScanVerifyMode = false;
+            if (sheet) sheet.classList.add("hidden");
+            onSafetyQrScanned(result.data);
+            return;
+          }
           const parsed = parseQrAddPayload(result.data);
           if (parsed) {
             stopQrScan();
@@ -9153,6 +9253,7 @@ async function startQrScan() {
   qrScanRafId = requestAnimationFrame(tick);
 }
 function stopQrScan() {
+  qrScanVerifyMode = false;
   if (qrScanRafId) { cancelAnimationFrame(qrScanRafId); qrScanRafId = null; }
   if (qrScanStream) { qrScanStream.getTracks().forEach((t) => t.stop()); qrScanStream = null; }
   const video = $("#qr-scan-video"); if (video) video.srcObject = null;
@@ -9703,14 +9804,14 @@ function openMessageSheet(msgId, contactId) {
   // Уровень 3 (редкие): перевод, избранное, выбор, правка, удаление. «Повторить» — тапом по значку «не доставлено» у самого сообщения.
   // Пересылка/правка/«удалить у всех» рассчитаны на одного получателя, поэтому в группах не предлагаются; локальные действия безопасны всегда.
   const rare = [];
-  if (m.text && !m.file && !m.contactCard && !m.poll && !m.board) rare.push(act("translate", m.translation ? T("chat.translate.hide") : T("chat.translate")));
+  if (m.text && !m.file && !m.contactCard && !m.poll && !m.board && !m.note) rare.push(act("translate", m.translation ? T("chat.translate.hide") : T("chat.translate")));
   rare.push(act("favorite", m.favorite ? T("chat.unfavorite") : T("chat.favorite")));
   rare.push(act("thread", T("chat.thread.open")));
   if (typeof LocalAI !== "undefined" && messageSummarySource(m).length >= 200) rare.push(act("summary", T("ai.summary")));
   rare.push(act("select", T("chat.selectMsgs")));
-  if (isOwn && !groupCtx && !m.file && !m.contactCard && !m.poll && !m.board) rare.push(act("edit", T("chat.edit")));
+  if (isOwn && !m.file && !m.contactCard && !m.poll && !m.board && !m.note) rare.push(act("edit", T("chat.edit")));
   rare.push(act("delete-local", T("chat.delete.local"), "destructive"));
-  if (isOwn && !groupCtx) rare.push(act("delete-both", T("chat.delete.both"), "destructive"));
+  if (isOwn) rare.push(act("delete-both", T("chat.delete.both"), "destructive"));
   const actions = [...main, `<div class="sheet-divider" role="separator"></div>`, ...rare];
   body.innerHTML = actions.join("");
   body.querySelectorAll(".sheet-action").forEach((btn) => {
@@ -10692,6 +10793,12 @@ async function beginCall(id, withVideo) {
   if (c.blocked) { toast(T("toast.blocked")); return; }
   if (state.callId && state.callId !== id) { toast(T("toast.alreadyInCall")); return; }
   if (state.callId === id) { openCallScreen(id, state.callPhase || "calling"); return; }
+  // Ключ собеседника сменился и не подтверждён — звонок небезопасен всегда; режим «только с проверенными» — по настройке
+  if (c.pendingKey) { toast(T("call.keyChanged", { name: c.name || T("sys.someone") })); return; }
+  if (Store.requireVerifiedCalls && !isContactVerified(c)) {
+    if (await confirmSheet(T("call.needVerify", { name: c.name || T("sys.someone") }))) openSafetySheet(id);
+    return;
+  }
 
   // Debounce: не даём запустить новый звонок в течение 1.5с после
   // предыдущего провала — иначе пользователь, быстро тапая «Позвонить»,
@@ -11310,8 +11417,19 @@ function systemMessageForCall(rec, reason) {
   return null;
 }
 
+// Голосовая почта: исходящий звонок не дозвонился (отклонён, занято, нет ответа) — предлагаем сразу оставить голосовое сообщение;
+// оно доставится обычным путём, в том числе офлайн.
+async function offerVoicemail(contactId) {
+  const c = state.contacts.get(contactId);
+  if (!c || c.isGroup || c.isSelf || c.blocked) return;
+  if (!(await confirmSheet(T("call.voicemail.ask", { name: c.name || T("sys.someone") })))) return;
+  state.tab = "chats"; state.chatId = contactId; state.contactCardId = null; renderTab();
+  setTimeout(() => { try { startVoiceRecording(); } catch (e) {} }, 150);
+}
 function closeCallScreen(reason) {
   const rec = state.currentCallRecord;
+  const voicemailFor = rec && rec.direction === "out" && ["declined", "busy", "missed", "failed"].includes(reason) && !rec.answeredAt ? rec.contactId : null;
+  if (voicemailFor) setTimeout(() => offerVoicemail(voicemailFor), 700);
   clearInterval(callTimerInterval); callTimerInterval = null;
   const qIcon = $("#call-quality-icon"); if (qIcon) qIcon.classList.add("hidden");
   state._callDeadSeconds = 0;
@@ -11579,6 +11697,8 @@ function wireCallScreen() {
 }
 
 async function acceptCall(withMute) {
+  { const ci = state.callId && state.contacts.get(state.callId);
+    if (ci && Store.requireVerifiedCalls && !isContactVerified(ci)) { toast(T("call.needVerifyIncoming", { name: ci.name || T("sys.someone") })); return; } }
   if (state._callUserAccepted) return;
   if (state._callAcceptInFlight) return;
   const cid = state.callId;
@@ -12105,6 +12225,8 @@ function wireSettingsScreen() {
   if (lsv) lsv.addEventListener("change", (e) => { Store.lastSeenVisible = e.target.checked; });
   const pv = $("#settings-presence");
   if (pv) pv.addEventListener("change", (e) => { Store.presenceVisible = e.target.checked; });
+  const rvc = $("#settings-require-verified");
+  if (rvc) { rvc.checked = Store.requireVerifiedCalls; rvc.addEventListener("change", () => { Store.requireVerifiedCalls = rvc.checked; }); }
   const qOn = $("#settings-quiet-on"), qFrom = $("#settings-quiet-from"), qTo = $("#settings-quiet-to"), qRow = $("#settings-quiet-times");
   const syncQuiet = () => { if (qRow) qRow.classList.toggle("hidden", !Store.quietOn); };
   if (qOn) { qOn.checked = Store.quietOn; qOn.addEventListener("change", () => { Store.quietOn = qOn.checked; syncQuiet(); }); }
@@ -12985,6 +13107,15 @@ function buildDiagnosticsText() {
     const ki = JSON.parse(localStorage.getItem("ether.keyInfo") || "null");
     const seed = typeof fxSeed === "function" ? fxSeed("sigil|" + fxMyKeyString())().toString(16).padStart(8, "0") : "—";
     lines.push("Keys: rune-seed " + seed + (ki ? ", создана " + new Date(ki.at).toLocaleString(I18N.current) + ", создана раз: " + ki.count + (ki.existing ? " (поверх существующего профиля)" : "") : ", создана до V.62.0.4"));
+  } catch (e) {}
+  try {
+    const rows = [];
+    for (const c of state.contacts.values()) {
+      if (c.isGroup || c.isSelf || !c.managed) continue;
+      const l = mesh && mesh.get(c.id);
+      rows.push("  " + String(c.id).slice(0, 10) + "… rc=" + (c.rc ? 1 : 0) + " ratchet: " + (typeof Ratchet !== "undefined" ? Ratchet.info(c.id) : "—") + " | key: " + (c.pendingKey ? "ждёт подтверждения" : isContactVerified(c) ? "проверен" : "TOFU") + " | канал: " + (l ? (l.authState || "—") : "нет линка"));
+    }
+    lines.push("Ratchet/trust (" + rows.length + "):"); for (const r of rows.slice(0, 40)) lines.push(r);
   } catch (e) {}
   lines.push("Signaling: " + effectiveSignalingUrl());
   lines.push("Status: " + (signaling ? (signaling.connected ? "on" : "off") : "—"));

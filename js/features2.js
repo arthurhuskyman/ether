@@ -882,3 +882,14 @@ function fx2Init() {
   } catch (e) {}
 }
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", fx2Init); else fx2Init();
+
+// Слой «удовольствия» (декоративные эффекты) у НОВОГО профиля выключен: он ещё не выбирал стиль и не видел интерфейс без украшений.
+// «Новый» — когда имени ещё нет (онбординг не пройден) и ни разу не открывались настройки эффектов. Существующие пользователи не меняются.
+(function fxFirstRunCalm() {
+  try {
+    if (localStorage.getItem("ether.fxInit")) return;
+    const fresh = !localStorage.getItem("ether.name") && !localStorage.getItem(FX_KEY);
+    localStorage.setItem("ether.fxInit", "1");
+    if (fresh) fxApplyPreset("calm");
+  } catch (e) {}
+})();

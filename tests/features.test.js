@@ -223,7 +223,7 @@ test("Голосовые: стиль кассета/пластинка чере�
 
 test("Сгорание: fade/пепел анимируют исчезающее сообщение и затем удаляют; без дымного следа", async () => {
   const a = await chatApp();
-  a.run(`FX.set("burn", "ash"); state.contacts.get("alice").messages.push({id:"b1", from:"them", text:"секрет", ts:Date.now(), ttl:60000});`);
+  a.run(`FX.set("burn", "ash"); state.contacts.get("alice").messages.push({id:"b1", from:"them", text:"секрет", ts:Date.now(), ttl:60000, readAckSent:true});`);
   openChat(a);
   a.run(`state.contacts.get("alice").messages[0].ts = Date.now() - 120000; sweepExpiredMessages()`);
   const row = a.document.querySelector('[data-msg-id="b1"]').closest(".bubble-row");
@@ -232,7 +232,7 @@ test("Сгорание: fade/пепел анимируют исчезающее 
   assert.doesNotMatch(a.document.documentElement.outerHTML, /fx-smoke/);
   await tick(1000);
   assert.equal(a.run(`state.contacts.get("alice").messages.length`), 0);
-  a.run(`FX.set("burn", "off"); state.contacts.get("alice").messages.push({id:"b2", from:"them", text:"x", ts:Date.now()-5000, ttl:1000}); sweepExpiredMessages()`);
+  a.run(`FX.set("burn", "off"); state.contacts.get("alice").messages.push({id:"b2", from:"them", text:"x", ts:Date.now()-5000, ttl:1000, readAckSent:true}); sweepExpiredMessages()`);
   assert.equal(a.run(`state.contacts.get("alice").messages.length`), 0, "при выключенном эффекте удаление мгновенное");
   a.close();
 });

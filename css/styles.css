@@ -2604,3 +2604,20 @@ html.theme-fading, html.theme-fading *, html.theme-fading *::before, html.theme-
 .storage-row > span, .storage-row > b { position: relative; z-index: 1; }
 .link-preview-ask { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; padding: 4px 10px; min-height: 32px; border-radius: 999px; border: 1px solid color-mix(in srgb, currentColor 25%, transparent); background: transparent; color: inherit; font: inherit; font-size: var(--t-meta, 12px); cursor: pointer; position: relative; }
 .link-preview-ask::after { content: ""; position: absolute; inset: -6px; }
+.note-bubble { min-width: 220px; }
+.note-title { display: flex; gap: 8px; align-items: center; font-weight: 600; margin-bottom: 6px; }
+.note-text { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 14em; overflow: auto; }
+.note-text.is-empty { opacity: .6; font-style: italic; }
+.note-edit-btn { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; padding: 4px 12px; min-height: 32px; border-radius: 999px; border: 1px solid color-mix(in srgb, currentColor 25%, transparent); background: transparent; color: inherit; font: inherit; font-size: var(--t-meta, 12px); cursor: pointer; position: relative; }
+.note-edit-btn::after { content: ""; position: absolute; inset: -6px; }
+.note-input { min-height: 160px; resize: vertical; }
+
+/* Доверие к собеседнику */
+.trust-badge { display: inline-flex; align-items: center; margin-inline-start: 6px; vertical-align: middle; }
+.trust-badge.hidden { display: none; }
+.trust-badge.is-verified { color: var(--success, #2fb26a); }
+.trust-badge.is-channel { color: var(--accent); }
+.trust-badge.is-warn { color: var(--danger, #e5484d); }
+.safety-qr-canvas { display: block; margin: 12px auto; border-radius: var(--radius-s, 8px); width: 180px; height: 180px; }
+.safety-verified-state { text-align: center; opacity: .85; }
+.safety-verified-state.is-ok { color: var(--success, #2fb26a); opacity: 1; font-weight: 600; }

@@ -106,7 +106,23 @@
     if (changed) m.rv = (m.rv || 0) + 1;
     return changed;
   }
-  const api = { LIM, isClosed, sanitizePoll, applyVote, tally, closePoll, sanitizeBoard, applyBoardOp };
+  // Общая заметка: один текст, правит любой участник чата; побеждает последняя правка по времени автора (сходится при любом порядке доставки)
+  const NOTE_MAX = 4000;
+  function sanitizeNote(n) {
+    if (!n || typeof n !== "object") return null;
+    const title = str(n.title, LIM.title) || "Note";
+    const text = typeof n.text === "string" ? n.text.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "").slice(0, NOTE_MAX) : "";
+    return { title, text, tu: 0 };
+  }
+  function applyNoteOp(m, op, ts) {
+    if (!m || !m.note || !op || op.t !== "set" || typeof op.text !== "string") return false;
+    ts = Number(ts) || 0;
+    const text = op.text.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "").slice(0, NOTE_MAX);
+    if (ts < (m.note.tu || 0) || (m.note.text === text && ts <= (m.note.tu || 0))) return false;
+    m.note.text = text; m.note.tu = ts; m.rv = (m.rv || 0) + 1;
+    return true;
+  }
+  const api = { NOTE_MAX, sanitizeNote, applyNoteOp, LIM, isClosed, sanitizePoll, applyVote, tally, closePoll, sanitizeBoard, applyBoardOp };
   root.EtherRich = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

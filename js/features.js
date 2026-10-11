@@ -430,7 +430,7 @@ sweepExpiredMessages = function () {
     const mode = FX.get("burn");
     if (mode !== "off" && !fxBurning && state.chatId) {
       const c = state.contacts.get(state.chatId); const now = Date.now();
-      const exp = c ? c.messages.filter((m) => m.ttl && now > m.ts + m.ttl) : [];
+      const exp = c ? c.messages.filter((m) => isMsgExpired(m, now)) : [];
       const els = exp.map((m) => document.querySelector(`[data-msg-id="${fxEsc(m.id)}"]`)).filter(Boolean).map((e) => e.closest(".bubble-row")).filter(Boolean);
       if (els.length) {
         fxBurning = true;
