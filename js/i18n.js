@@ -139,13 +139,32 @@
     });
   }
 
+  // Русская типографика: короткие слова (предлоги, союзы, частицы) не отрываются от следующего слова, число — от единицы
+  function ruTypography(str) {
+    return str
+      .replace(/(^|[\s(«"])(в|во|и|а|но|к|ко|с|со|у|о|об|на|за|из|от|до|по|не|ни|же|ли|бы)\s+(?=[^\s<])/gi, "$1$2\u00A0")
+      .replace(/(\d)\s+(?=(?:мин|ч|сек|дн|л|шт|КБ|МБ|ГБ|%)(?:[.\s,)]|$))/g, "$1\u00A0");
+  }
+
   function t(key, params) {
     const primary = dictFor(current);
     const fallback = dictFor(DEFAULT_LANG);
-    let text = primary[key];
+    let text;
+    // Множественные формы: если в параметрах есть число n и в словаре есть key.one / key.few / key.many / key.other — берём нужную
+    // (для ru это 1 участник / 2 участника / 5 участников); без таких ключей работает обычная строка.
+    if (params && typeof params.n === "number" && typeof Intl !== "undefined" && Intl.PluralRules) {
+      let cat; try { cat = new Intl.PluralRules(current).select(params.n); } catch (e) {}
+      if (cat) {
+        const k = key + "." + cat;
+        if (typeof primary[k] === "string") text = primary[k];
+        else if (typeof primary[key + ".other"] === "string") text = primary[key + ".other"];
+      }
+    }
+    if (typeof text !== "string") text = primary[key];
     if (typeof text !== "string") text = fallback[key];
     if (typeof text !== "string") return key;
-    return interpolate(text, params);
+    const out = interpolate(text, params);
+    return current === "ru" ? ruTypography(out) : out;
   }
 
   // ---------- применение языка к DOM ----------

@@ -247,6 +247,7 @@
         <h2 data-i18n="chats.empty.title">No one is online yet</h2>
         <p data-i18n="chats.empty.sub">Open the Contacts tab to add your first peer.</p>
       </div>
+      <div id="stories-row" class="stories-row hidden" role="list"></div>
       <div id="chats-list" class="chats-list"></div>
       <div id="chats-archived-toggle" class="link-toggle-wrap hidden">
         <button type="button" id="toggle-archived" class="link-toggle" data-i18n="chats.archive.show">Show archive</button>
@@ -266,6 +267,8 @@
           </svg>
         </div>
         <h2 data-i18n="calls.empty.title">No calls yet</h2>
+        <p class="muted fine" data-i18n="calls.empty.sub">Your calls will appear here. Pick a contact to make the first one.</p>
+        <button type="button" id="calls-empty-btn" class="btn-secondary" data-i18n="calls.empty.action">Open contacts</button>
       </div>
       <div id="calls-list" class="calls-list"></div>
     </section>
@@ -292,6 +295,7 @@
             </svg>
           </div>
           <p class="muted fine" data-i18n="connect.empty">No contacts yet.</p>
+          <div class="first-run-actions"><button type="button" id="contacts-empty-scan" class="btn-secondary" data-i18n="connect.qr.scan">Scan QR</button><button type="button" id="contacts-empty-invite" class="btn-secondary" data-i18n="contacts.empty.add">Add by ID</button></div>
         </div>
         <button type="button" id="new-group-btn" class="btn-secondary" data-i18n="group.new">New group</button>
       </div>
@@ -400,13 +404,16 @@
         <div class="settings-row column"><span class="settings-group-title" data-i18n="settings.privacy.title">Privacy</span></div>
         <label class="settings-row"><span data-i18n="settings.privacy.receipts">Show that I've read messages</span><input id="settings-receipts" type="checkbox" class="switch" /></label>
         <label class="settings-row"><span data-i18n="settings.privacy.lastSeen">Show my last seen time</span><input id="settings-last-seen" type="checkbox" class="switch" /></label>
+        <p class="fine muted settings-hint" data-i18n="settings.privacy.lastSeen.hint">Contacts see when you were last online. Turn off to hide it (you also won't see theirs).</p>
         <label class="settings-row"><span data-i18n="settings.privacy.presence">Show that I'm online</span><input id="settings-presence" type="checkbox" class="switch" /></label>
+        <p class="fine muted settings-hint" data-i18n="settings.privacy.presence.hint">Contacts see a green dot when the app is open.</p>
         <div class="settings-row column"><span class="fine muted" data-i18n="settings.privacy.note">These are symmetric: if you turn one off, you also stop seeing that information from your contacts.</span></div>
       </div>
       <div class="settings-group flat-content" data-settings-category="notifications">
         <button type="button" id="settings-blocked-btn" class="settings-row link-row"><span data-i18n="settings.blocked">Blocked contacts</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
         <label class="settings-row"><span data-i18n="settings.notifications">Notifications for messages and calls</span><input id="settings-notifications" type="checkbox" class="switch" /></label>
         <label class="settings-row"><span data-i18n="settings.hideNotifContent">Hide message content</span><input id="settings-hide-notif" type="checkbox" class="switch" /></label>
+        <p class="fine muted settings-hint" data-i18n="settings.hideNotifContent.hint">Notifications show only the sender's name, not the message text.</p>
         <label class="settings-row"><span data-i18n="settings.linkPreviews">Link previews</span><input id="settings-link-previews" type="checkbox" class="switch" /></label>
         <p class="fine muted" style="padding:0 4px 6px;" data-i18n="settings.linkPreviews.disclaimer">To show a preview, the signaling server briefly fetches the link on your behalf — it sees which link, not the message.</p>
         <div class="settings-row column">
@@ -416,6 +423,9 @@
           <p class="fine muted" style="margin:4px 0 0;" data-i18n="settings.translateServer.disclaimer">Empty by default — translating a message sends its text in the open to this server, so pick one you trust. Without one set, "Translate" in a message's menu just explains that.</p>
         </div>
         <label class="settings-row"><span data-i18n="settings.sounds">Sound and vibration</span><input id="settings-sounds" type="checkbox" class="switch" /></label>
+        <label class="settings-row"><span data-i18n="settings.quiet">Quiet hours</span><input id="settings-quiet-on" type="checkbox" class="switch" /></label>
+        <div id="settings-quiet-times" class="settings-row hidden"><span data-i18n="settings.quiet.range">From – to</span><span class="wp-color-pair"><input id="settings-quiet-from" type="time" aria-label="From" /><input id="settings-quiet-to" type="time" aria-label="To" /></span></div>
+        <p class="fine muted" style="padding:0 4px 6px;" data-i18n="settings.quiet.hint">At these hours messages arrive without sound or vibration. Calls still ring.</p>
         <label class="settings-row"><span data-i18n="settings.ringtone">Ringtone</span>
           <select id="settings-ringtone" class="settings-select">
             <option value="ring-classic" data-i18n="settings.ringtone.classic">Classic</option>
@@ -459,8 +469,10 @@
           </div>
         </div>
         <label class="settings-row"><span data-i18n="settings.readable">Easy-reading mode</span><input id="settings-readable-mode" type="checkbox" class="switch" /></label>
+        <p class="fine muted settings-hint" data-i18n="settings.readable.hint">Larger text, stronger contrast, no decorative effects.</p>
         <p class="fine muted" style="margin:0 0 10px;" data-i18n="settings.readable.explain">Wider letter and word spacing, taller lines, left-aligned text — easier for dyslexia and tired eyes.</p>
         <label class="settings-row"><span data-i18n="settings.calmMode">Calm mode</span><input id="settings-calm-mode" type="checkbox" class="switch" /></label>
+        <p class="fine muted settings-hint" data-i18n="settings.calmMode.hint">Stops background animation and reduces blur — easier on the eyes and battery.</p>
         <p class="fine muted" style="margin:0 0 10px;" data-i18n="settings.calmMode.explain">Turns off the animated background and lowers blur — for a quieter, more focused interface.</p>
         <label class="settings-row"><span data-i18n="settings.bubbleSize">Message bubble size</span>
           <select id="settings-bubble-size" class="settings-select">
@@ -482,9 +494,17 @@
             <option value="dots" data-i18n="settings.wallpaper.dots">Dots</option>
             <option value="grid" data-i18n="settings.wallpaper.grid">Grid</option>
             <option value="gradient" data-i18n="settings.wallpaper.gradient">Gradient</option>
+            <option value="aurora" data-i18n="settings.wallpaper.aurora">Aurora</option>
+            <option value="sunset" data-i18n="settings.wallpaper.sunset">Sunset</option>
+            <option value="ocean" data-i18n="settings.wallpaper.ocean">Ocean</option>
+            <option value="forest" data-i18n="settings.wallpaper.forest">Forest</option>
+            <option value="paper" data-i18n="settings.wallpaper.paper">Paper</option>
+            <option value="custom" data-i18n="settings.wallpaper.custom">Custom gradient</option>
           </select>
         </label>
+        <div id="settings-wallpaper-colors" class="settings-row hidden"><span data-i18n="settings.wallpaper.colors">Gradient colors</span><span class="wp-color-pair"><input id="settings-wp-color1" type="color" aria-label="Color 1" /><input id="settings-wp-color2" type="color" aria-label="Color 2" /></span></div>
         <label class="settings-row"><span data-i18n="settings.autoEmoji">Replace :) with emoji</span><input id="settings-auto-emoji" type="checkbox" class="switch" /></label>
+        <p class="fine muted settings-hint" data-i18n="settings.autoEmoji.hint">Typing :) or <3 turns into an emoji as you send.</p>
         <!-- V.51.0.0: раздел 6 роадмапа — переключаемый эксперимент, а не
              тихая замена трёх кнопок композера одной "+". Выкл. по
              умолчанию. -->
@@ -833,9 +853,41 @@
       <button type="button" id="chat-camera-btn" class="sheet-action composer-menu-item"><svg data-icon="camera" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg><span data-i18n="chat.camera">Camera</span></button>
       <button type="button" id="chat-poll-btn" class="sheet-action composer-menu-item"><svg data-icon="poll" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg><span data-i18n="chat.menu.poll">Poll</span></button>
       <button type="button" id="chat-board-btn" class="sheet-action composer-menu-item"><svg data-icon="board" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg><span data-i18n="chat.menu.board">Board</span></button>
+      <button type="button" id="chat-list-btn" class="sheet-action composer-menu-item"><svg data-icon="check" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg><span data-i18n="chat.menu.list">Checklist</span></button>
       <button type="button" id="chat-attach-btn" class="sheet-action composer-menu-item"><svg data-icon="paperclip" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg><span data-i18n="chat.attach">Attach</span></button>
     </div>
     <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="composer-menu-sheet" data-i18n="sys.cancel">Cancel</button>
+  </div>
+</div>
+
+<div id="story-sheet" class="sheet hidden" role="dialog" aria-modal="true" aria-labelledby="story-sheet-title">
+  <div class="sheet-backdrop"></div>
+  <div class="sheet-panel glass-content">
+    <div class="sheet-handle"></div>
+    <h3 id="story-sheet-title" class="sheet-title" data-i18n="stories.new">New story</h3>
+    <textarea id="story-input" class="rich-input" rows="3" maxlength="280" data-i18n-ph="stories.placeholder" placeholder="What's on your mind?"></textarea>
+    <div id="story-swatches" class="story-swatches" role="group"></div>
+    <p class="fine muted" data-i18n="stories.hint">Visible to your contacts for 24 hours. Delivered end-to-end encrypted.</p>
+    <button type="button" id="story-publish-btn" class="btn-primary" data-i18n="stories.publish">Publish</button>
+    <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="story-sheet" data-i18n="sys.cancel">Cancel</button>
+  </div>
+</div>
+
+<div id="story-viewer" class="story-viewer hidden" role="dialog" aria-modal="true" aria-label="Story">
+  <div id="story-bars" class="story-bars"></div>
+  <div class="story-top"><b id="story-who"></b><span id="story-time"></span>
+    <button type="button" id="story-delete-btn" class="icon-btn hidden" aria-label="Delete" data-i18n-aria="stories.delete"><svg data-icon="trash" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"></svg></button>
+    <button type="button" id="story-close-btn" class="icon-btn" aria-label="Close" data-i18n-aria="sys.close"><svg data-icon="x" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg></button></div>
+  <div id="story-text" class="story-text"></div>
+</div>
+
+<div id="thread-sheet" class="sheet hidden" role="dialog" aria-modal="true" aria-labelledby="thread-sheet-title">
+  <div class="sheet-backdrop"></div>
+  <div class="sheet-panel glass-content">
+    <div class="sheet-handle"></div>
+    <div class="thread-head"><h3 id="thread-sheet-title" class="sheet-title" data-i18n="chat.thread.title">Thread</h3><button type="button" id="thread-close-btn" class="icon-btn" aria-label="Close" data-i18n-aria="sys.close"><svg data-icon="x" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"></svg></button></div>
+    <div id="thread-list" class="thread-list" aria-live="polite"></div>
+    <div class="thread-compose"><input id="thread-input" type="text" class="rich-input" maxlength="4000" autocomplete="off" placeholder="Reply in thread" data-i18n-ph="chat.thread.placeholder" /><button type="button" id="thread-send-btn" class="send-btn" aria-label="Send" data-i18n-aria="chat.thread.send"><svg data-icon="send" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"></svg></button></div>
   </div>
 </div>
 
@@ -848,6 +900,9 @@
     <div id="poll-opts-list" class="poll-opts-list"></div>
     <button type="button" id="poll-add-opt-btn" class="btn-tertiary"><span data-i18n="chat.poll.addOption">Add option</span></button>
     <label class="rich-check"><input id="poll-multi-input" type="checkbox" /> <span data-i18n="chat.poll.multi">Allow multiple answers</span></label>
+    <label class="rich-check"><input id="poll-public-input" type="checkbox" /> <span data-i18n="chat.poll.public">Show who voted</span></label>
+    <label class="rich-check"><span data-i18n="chat.poll.timer">Close automatically</span>
+      <select id="poll-timer-input" class="settings-select"><option value="0" data-i18n="chat.poll.timer.none">Never</option><option value="1" data-i18n="chat.poll.timer.1h">in 1 hour</option><option value="24" data-i18n="chat.poll.timer.24h">in 24 hours</option><option value="168" data-i18n="chat.poll.timer.7d">in 7 days</option></select></label>
     <button type="button" id="poll-create-btn" class="btn-primary" data-i18n="chat.poll.create">Create poll</button>
     <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="poll-sheet" data-i18n="sys.cancel">Cancel</button>
   </div>

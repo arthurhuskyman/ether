@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.66.0.0";
+const APP_VERSION = "V.67.0.0";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 // Сервер перевода по умолчанию (LibreTranslate-совместимый). Официальный публичный инстанс обычно
@@ -211,7 +211,7 @@ const CRITICAL_LS_KEYS = [
   "ether.callVolume", "ether.lang", "ether.recentReactions",
   "ether.chatFolders", "ether.emojiSkinTone", "ether.recentEmoji", "ether.myAvatar",
   "ether.translateEndpoint", "ether.translateApiKey",
-  "ether.readable", "ether.deadManEnabled", "ether.deadManThresholdDays", "ether.deadManContactId", "ether.deadManLastSentAt",
+  "ether.readable", "ether.stories", "ether.quietOn", "ether.quietFrom", "ether.quietTo", "ether.wpColor1", "ether.wpColor2", "ether.chatWallpaper", "ether.voiceSpeed", "ether.deadManEnabled", "ether.deadManThresholdDays", "ether.deadManContactId", "ether.deadManLastSentAt",
   "ether.panicShakeEnabled", "ether.fx", "ether.sigKey", "ether.fx.aurora", "ether.keyInfo",
 ];
 
@@ -338,6 +338,14 @@ const Store = {
   set pinEnabled(v) { localStorage.setItem("ether.pinEnabled", v ? "1" : "0"); scheduleIDBBackup(); },
   get notificationsEnabled() { return localStorage.getItem("ether.notifications") === "1"; },
   set notificationsEnabled(v) { localStorage.setItem("ether.notifications", v ? "1" : "0"); scheduleIDBBackup(); },
+  get storiesJson() { return localStorage.getItem("ether.stories") || "[]"; },
+  set storiesJson(v) { localStorage.setItem("ether.stories", v); scheduleIDBBackup(); },
+  get quietOn() { return localStorage.getItem("ether.quietOn") === "1"; },
+  set quietOn(v) { localStorage.setItem("ether.quietOn", v ? "1" : "0"); scheduleIDBBackup(); },
+  get quietFrom() { const v = localStorage.getItem("ether.quietFrom"); return /^\d\d:\d\d$/.test(v || "") ? v : "23:00"; },
+  set quietFrom(v) { if (/^\d\d:\d\d$/.test(v)) { localStorage.setItem("ether.quietFrom", v); scheduleIDBBackup(); } },
+  get quietTo() { const v = localStorage.getItem("ether.quietTo"); return /^\d\d:\d\d$/.test(v || "") ? v : "07:00"; },
+  set quietTo(v) { if (/^\d\d:\d\d$/.test(v)) { localStorage.setItem("ether.quietTo", v); scheduleIDBBackup(); } },
   get soundsEnabled() { return localStorage.getItem("ether.sounds") !== "0"; },
   set soundsEnabled(v) { localStorage.setItem("ether.sounds", v ? "1" : "0"); scheduleIDBBackup(); },
   get ringtone() { return localStorage.getItem("ether.ringtone") || "ring-classic"; },
@@ -402,6 +410,10 @@ const Store = {
   set hideNotifContent(v) { localStorage.setItem("ether.hideNotifContent", v ? "1" : "0"); },
   get chatWallpaper() { return localStorage.getItem("ether.chatWallpaper") || "none"; },
   set chatWallpaper(v) { localStorage.setItem("ether.chatWallpaper", v); scheduleIDBBackup(); },
+  get wallpaperColor1() { const v = localStorage.getItem("ether.wpColor1"); return /^#[0-9a-f]{6}$/i.test(v || "") ? v : "#6d5dfc"; },
+  set wallpaperColor1(v) { if (/^#[0-9a-f]{6}$/i.test(v)) { localStorage.setItem("ether.wpColor1", v); scheduleIDBBackup(); } },
+  get wallpaperColor2() { const v = localStorage.getItem("ether.wpColor2"); return /^#[0-9a-f]{6}$/i.test(v || "") ? v : "#ff7ab6"; },
+  set wallpaperColor2(v) { if (/^#[0-9a-f]{6}$/i.test(v)) { localStorage.setItem("ether.wpColor2", v); scheduleIDBBackup(); } },
   get bubbleSize() { return localStorage.getItem("ether.bubbleSize") || "normal"; },
   set bubbleSize(v) { localStorage.setItem("ether.bubbleSize", v); scheduleIDBBackup(); },
   // Отдельно от bubbleSize: тот меняет только размер/паддинг ПУЗЫРЕЙ
@@ -472,6 +484,7 @@ const state = {
   scheduledMessages: [],
   folders: [], // раздел 4 роадмапа: кастомные папки чатов {id, name, contactIds[]}
   typingTimers: new Map(),
+  threadRoot: null,
   typingSendingState: new Map(),
   unlockAttempts: 0,
   _callUserAccepted: false,
@@ -1129,11 +1142,18 @@ function applyGlassAlpha(v) {
   if (label) label.textContent = Math.round(transparency * 100) + "%";
 }
 
+let __themeApplied = false, __themeFadeTimer = null;
 function applyTheme(theme) {
   // OLED — отдельная тема для выбора пользователем (настоящий чёрный фон
   // экономит заряд на AMOLED-экранах), но на уровне CSS-переменных она
   // работает как тёмная: html[data-theme="oled"] переопределяет только
   // --bg-0/--bg-1 в styles.css, остального (акценты, текст) не трогает.
+  // Плавная смена темы: на 300 мс включаем переходы цветов (на первой установке при запуске — без них)
+  if (__themeApplied && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const root = document.documentElement; root.classList.add("theme-fading");
+    clearTimeout(__themeFadeTimer); __themeFadeTimer = setTimeout(() => root.classList.remove("theme-fading"), 340);
+  }
+  __themeApplied = true;
   document.documentElement.dataset.theme = theme;
   __isLightCache = null; // инвалидируем кэш — тема поменялась
   const isLight = theme === "light" || (theme === "auto" && window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches);
@@ -1146,7 +1166,10 @@ function applyTheme(theme) {
 }
 function applyChatAppearancePrefs() {
   const messages = $("#chat-messages");
-  if (messages) messages.dataset.wallpaper = Store.chatWallpaper || "none";
+  if (messages) {
+    messages.dataset.wallpaper = Store.chatWallpaper || "none";
+    messages.style.setProperty("--wp1", Store.wallpaperColor1); messages.style.setProperty("--wp2", Store.wallpaperColor2);
+  }
   document.documentElement.dataset.bubbleSize = Store.bubbleSize || "normal";
   document.documentElement.dataset.fontSize = Store.fontSize || "normal";
   document.documentElement.dataset.readable = Store.readableMode ? "1" : "0";
@@ -1329,8 +1352,17 @@ function ensureAudioCtx() {
   if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {});
   return ctx;
 }
+// «Тихие часы»: в заданный интервал (может переходить через полночь) сообщения приходят без звука и вибрации; звонки звонят как обычно
+function quietNow(date) {
+  if (!Store.quietOn) return false;
+  const d = date || new Date(), cur = d.getHours() * 60 + d.getMinutes();
+  const mins = (hhmm) => { const [h, m] = hhmm.split(":").map(Number); return h * 60 + m; };
+  const a = mins(Store.quietFrom), b = mins(Store.quietTo);
+  if (a === b) return false;
+  return a < b ? (cur >= a && cur < b) : (cur >= a || cur < b);
+}
 function playMessageSound(contactId) {
-  if (!Store.soundsEnabled) return;
+  if (!Store.soundsEnabled || quietNow()) return;
   const style = messageSoundStyleForContact(contactId);
   // Гибридная схема: в foreground (приложение видно) играем через Web Audio
   // — быстро, точно, не зависит от разблокировки пула. В background — через
@@ -1426,7 +1458,7 @@ function playOutgoingSound() {
   } catch (e) {}
 }
 function vibrate(pattern) {
-  if (!Store.soundsEnabled) return;
+  if (!Store.soundsEnabled || quietNow()) return;
   if (navigator.vibrate) {
     try { navigator.vibrate(pattern); } catch (e) {}
   }
@@ -2572,7 +2604,7 @@ function showNotification(title, body, opts) {
     kind: opts.kind || "message",
     // Per-contact "только вибрация" (opts.forceSilent) перебивает общий
     // звуковой тоггл — специфичнее настройка должна выигрывать у общей.
-    silent: opts.forceSilent || !Store.soundsEnabled,
+    silent: opts.forceSilent || !Store.soundsEnabled || (opts.kind !== "call" && quietNow()),
   };
   // P2.37 (урезанный вариант) — настоящего инлайн-ответа (текстовое поле
   // прямо в уведомлении) в вебе не существует — это нативный API
@@ -3242,6 +3274,7 @@ function renderChatsList() {
   const list = $("#chats-list"), empty = $("#chats-empty"), archivedToggle = $("#chats-archived-toggle");
   if (!list) return;
   list.innerHTML = "";
+  try { renderStoriesRow(); } catch (e) {}
   const query = state.searchQuery.toLowerCase();
   const all = Array.from(state.contacts.values());
   // Холодный старт: пока не прошло ~400мс с запуска (см. startApp), и
@@ -3269,6 +3302,16 @@ function renderChatsList() {
     ? visible.filter((c) => (c.name || "").toLowerCase().includes(query) || c.messages.some((m) => (m.text || "").toLowerCase().includes(query) || (m.file && m.file.name || "").toLowerCase().includes(query) || (m.contactCard && m.contactCard.name || "").toLowerCase().includes(query)))
     : visible;
   if (filtered.length === 0) {
+    // Поиск или фильтр ничего не нашли — объясняем и даём выход, а не пустой экран
+    if (query.length > 0 || state.chatFilter !== "all") {
+      const nb = document.createElement("div"); nb.className = "empty-inline";
+      nb.innerHTML = `${Icons.html("search", 28)}<p>${escapeHtml(T(query ? "chats.noResults" : "chats.noInFilter"))}</p><button type="button" class="btn-secondary">${escapeHtml(T(query ? "chats.clearSearch" : "chats.showAll"))}</button>`;
+      nb.querySelector("button").addEventListener("click", () => {
+        if (query) { state.searchQuery = ""; const si = $("#global-search"); if (si) si.value = ""; } else state.chatFilter = "all";
+        renderChatsList();
+      });
+      list.appendChild(nb);
+    }
     if (empty) empty.classList.toggle("hidden", query.length > 0 || state.chatFilter !== "all");
     if (archivedToggle) archivedToggle.classList.toggle("hidden", !withArchived);
     return;
@@ -3973,7 +4016,8 @@ function ackGlyph(ack) {
 const NEAR_BOTTOM_PX = 80;
 function isNearBottom(el) { if (!el) return true; return el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX; }
 
-function renderChatThread() { try { renderKeyChangeBanner(); renderChatThreadInner(); } catch (e) { __lastChatSig = ""; etherLog("error", "[renderChatThread]", String(e)); const w = $("#chat-messages"); if (w) w.innerHTML = `<div class="empty-state"><p>Error.</p></div>`; } }
+function renderChatHeaderSoft() { renderChatThreadInner(); } // шапка обновляется до проверки «подписи» ленты, поэтому ленту это не перестраивает
+function renderChatThread() { try { renderKeyChangeBanner(); renderChatThreadInner(); if (state.threadRoot) renderThreadSheet(); } catch (e) { __lastChatSig = ""; etherLog("error", "[renderChatThread]", String(e)); const w = $("#chat-messages"); if (w) w.innerHTML = `<div class="empty-state"><p>Error.</p></div>`; } }
 
 let __lastChatSig = "";
 const __renderedAck = new Map(); // id сообщения -> статус доставки на прошлой отрисовке (для анимации смены)
@@ -4047,8 +4091,10 @@ function renderChatThreadInner() {
   if (statusEl) {
     if (isGroup(c)) { statusEl.textContent = T("group.memberCount", { n: c.members.length }); statusEl.classList.remove("typing"); }
     else if (typing) {
-      statusEl.innerHTML = `<span class="typing-dots" aria-label="${escapeHtml(T("chat.typing"))}"><span></span><span></span><span></span></span>`;
-      statusEl.classList.add("typing");
+      // Оба печатают одновременно — отдельная подпись (общее «присутствие» в разговоре)
+      const both = !!state.typingSendingState.get(c.id);
+      statusEl.innerHTML = `<span class="typing-dots" aria-label="${escapeHtml(T(both ? "chat.typingBoth" : "chat.typing"))}"><span></span><span></span><span></span></span>` + (both ? `<span class="typing-both">${escapeHtml(T("chat.typingBoth"))}</span>` : "");
+      statusEl.classList.add("typing"); statusEl.classList.toggle("typing-both-on", both);
     } else {
       statusEl.textContent = contactStatusLabel(c);
       statusEl.classList.remove("typing");
@@ -4173,6 +4219,9 @@ function renderChatThreadInner() {
   const frag = document.createDocumentFragment();
   let lastDay = "";
   const urlsToFetch = new Set();
+  // Сколько ответов у каждого сообщения — для плашки «N ответов» (вход в тред)
+  const replyCounts = new Map();
+  for (const mm of c.messages) { const rid = mm.replyTo && (mm.replyTo.id || mm.replyTo.msgId); if (rid) replyCounts.set(rid, (replyCounts.get(rid) || 0) + 1); }
   let prevMsg = null;
   const unreadAnchorId = unreadDividerFor.get(c.id);
   let unreadDividerEl = null;
@@ -4314,7 +4363,8 @@ if (m.replyTo) {
     const translationHtml = (m.translation && m.translation.text)
       ? `<div class="bubble-translation"><span class="bubble-translation-label">${escapeHtml(T("chat.translated"))}</span> ${linkifyAndHighlight(m.translation.text, q)}</div>` : "";
     if (typeof m.text === "string" && (m.text.length > 140 || (m.text.match(/\n/g) || []).length >= 3)) inner.classList.add("bubble-long");
-    inner.innerHTML = `${senderLabel}${fwdMark}${replyHtml}${body}${translationHtml}${previewSlotHtml}<span class="bubble-time">${ttlMark}${favMark}${formatTime(m.ts)}${editedMark}${tick}</span>${reactionsHtml}`;
+    const threadChip = replyCounts.get(m.id) ? `<button type="button" class="thread-chip" data-thread="${escapeHtml(m.id)}">${Icons.html("chat", 13)}<span>${escapeHtml(T("chat.thread.replies", { n: replyCounts.get(m.id) }))}</span></button>` : "";
+    inner.innerHTML = `${senderLabel}${fwdMark}${replyHtml}${body}${threadChip}${translationHtml}${previewSlotHtml}<span class="bubble-time">${ttlMark}${favMark}${formatTime(m.ts)}${editedMark}${tick}</span>${reactionsHtml}`;
     // Долгое нажатие — открывает обычное меню действий (ответить/
     // переслать/удалить), для ЛЮБОГО типа сообщения, как в большинстве
     // мессенджеров. Обычный тап при этом делает контентно-зависимое
@@ -4366,6 +4416,8 @@ if (m.replyTo) {
     inner.addEventListener("click", (ev) => {
       if (longPressFired) { longPressFired = false; return; } // меню уже открыто долгим нажатием — не открываем ещё и обычное действие следом
       if (state.multiSelect) { ev.stopPropagation(); toggleMultiSelectMsg(m.id); return; }
+      const threadEl = ev.target.closest("[data-thread]");
+      if (threadEl) { ev.stopPropagation(); openThread(c.id, threadEl.getAttribute("data-thread")); return; }
       const richEl = ev.target.closest("[data-poll-opt], [data-poll-close], [data-board-act]");
       if (richEl) { ev.stopPropagation(); handleRichClick(c, m, richEl); return; }
       const addBtn = ev.target.closest(".contact-card-add-btn");
@@ -5057,6 +5109,158 @@ async function deleteMessageForBoth(contactId, msgId) {
 }
 // Пересылка контакта другому контакту — карточка со своим видом в
 // пузыре сообщения (имя + кнопка "Добавить"), не обычный текст.
+// ===== Истории: короткая текстовая история на 24 часа для всех контактов (сквозное шифрование — тот же канал, что у сообщений) =====
+const STORY_TTL_MS = 24 * 3600e3, STORY_MAX_LEN = 280, STORY_BG_COUNT = 6;
+let storiesList = null; // [{ id, owner ("me" или id контакта), text, bg, ts, seen }]
+function loadStories() {
+  if (storiesList) return storiesList;
+  try { storiesList = (JSON.parse(Store.storiesJson) || []).filter((x) => x && typeof x.id === "string" && typeof x.text === "string"); } catch (e) { storiesList = []; }
+  return storiesList;
+}
+function pruneStories() {
+  const list = loadStories(), now = Date.now(), n = list.length;
+  storiesList = list.filter((x) => now - x.ts < STORY_TTL_MS && x.ts <= now + 60000);
+  if (storiesList.length !== n) persistStories();
+  return storiesList;
+}
+function persistStories() { try { Store.storiesJson = JSON.stringify(loadStories().slice(-300)); } catch (e) { handlePersistError(e, "stories"); } }
+async function publishStory(text, bg) {
+  text = String(text || "").trim().slice(0, STORY_MAX_LEN); if (!text) return false;
+  bg = Math.max(0, Math.min(STORY_BG_COUNT - 1, bg | 0));
+  const id = crypto.randomUUID(), ts = Date.now();
+  loadStories().push({ id, owner: "me", text, bg, ts, seen: true }); persistStories();
+  const targets = Array.from(state.contacts.values()).filter((c) => c.managed && !c.isGroup && !c.isSelf && !c.blocked && c.publicKey); // без ключа не шлём: иначе тост «ждём ключ» на каждого
+  for (const c of targets) await trySendOrQueue(c, crypto.randomUUID(), { kind: "story", id, text, bg, ts });
+  renderStoriesRow();
+  return true;
+}
+function receiveStory(from, payload) {
+  const c = state.contacts.get(from); if (!c || c.blocked || c.isGroup) return;
+  const text = typeof payload.text === "string" ? payload.text.trim().slice(0, STORY_MAX_LEN) : ""; if (!text || typeof payload.id !== "string") return;
+  const ts = Math.min(Number(payload.ts) || Date.now(), Date.now());
+  if (Date.now() - ts >= STORY_TTL_MS) return;
+  const list = loadStories(); if (list.some((x) => x.id === payload.id)) return;
+  list.push({ id: payload.id, owner: from, text, bg: Math.max(0, Math.min(STORY_BG_COUNT - 1, payload.bg | 0)), ts, seen: false });
+  persistStories();
+  if (state.tab === "chats" && !state.chatId) renderStoriesRow();
+}
+function renderStoriesRow() {
+  const row = $("#stories-row"); if (!row) return;
+  const list = pruneStories();
+  const owners = [];
+  for (const st of list) if (st.owner !== "me" && !owners.includes(st.owner) && state.contacts.has(st.owner)) owners.push(st.owner);
+  const hasMine = list.some((x) => x.owner === "me");
+  if (!owners.length && !hasMine && !Array.from(state.contacts.values()).some((c) => c.managed && !c.isSelf && !c.isGroup)) { row.classList.add("hidden"); row.innerHTML = ""; return; }
+  row.classList.remove("hidden");
+  const bubble = (id, name, ring, inner, label) => `<button type="button" class="story-item${ring}" data-story-owner="${escapeHtml(id)}" aria-label="${escapeHtml(label)}"><span class="story-ring">${inner}</span><span class="story-name">${escapeHtml(name)}</span></button>`;
+  let html = bubble("__new__", hasMine ? T("stories.mine") : T("stories.add"), hasMine ? " is-mine" : " is-add", `<span class="story-plus">${Icons.html("plus", 20)}</span>`, T("stories.add"));
+  for (const id of owners) {
+    const c = state.contacts.get(id), unseen = list.some((x) => x.owner === id && !x.seen);
+    html += bubble(id, c.name || T("sys.someone"), unseen ? " is-unseen" : "", avatarCircleHtml(c, null, ""), T("stories.of", { name: c.name || "" }));
+  }
+  row.innerHTML = html;
+  row.querySelectorAll(".story-item").forEach((b) => b.addEventListener("click", () => {
+    const owner = b.getAttribute("data-story-owner");
+    if (owner === "__new__") { if (hasMine && list.some((x) => x.owner === "me")) openStoryViewer("me"); else openStoryComposer(); }
+    else openStoryViewer(owner);
+  }));
+}
+let __storyViewer = null;
+function openStoryViewer(owner) {
+  const items = pruneStories().filter((x) => x.owner === owner).sort((a, b) => a.ts - b.ts);
+  const ov = $("#story-viewer"); if (!ov || !items.length) { if (owner === "me") openStoryComposer(); return; }
+  __storyViewer = { owner, items, i: Math.max(0, items.findIndex((x) => !x.seen)) , timer: null };
+  ov.classList.remove("hidden"); showStory();
+}
+function showStory() {
+  const v = __storyViewer, ov = $("#story-viewer"); if (!v || !ov) return;
+  clearTimeout(v.timer);
+  if (v.i >= v.items.length) { closeStoryViewer(); return; }
+  const st = v.items[v.i]; st.seen = true; persistStories();
+  const c = state.contacts.get(st.owner);
+  ov.className = "story-viewer story-bg-" + st.bg;
+  $("#story-text").textContent = st.text;
+  $("#story-who").textContent = st.owner === "me" ? T("stories.mine") : ((c && c.name) || T("sys.someone"));
+  $("#story-time").textContent = formatTime(st.ts);
+  $("#story-bars").innerHTML = v.items.map((_, k) => `<span class="${k < v.i ? "done" : k === v.i ? "cur" : ""}"></span>`).join("");
+  $("#story-delete-btn").classList.toggle("hidden", st.owner !== "me");
+  v.timer = setTimeout(() => { v.i++; showStory(); }, 6000);
+}
+function closeStoryViewer() {
+  if (__storyViewer) clearTimeout(__storyViewer.timer); __storyViewer = null;
+  const ov = $("#story-viewer"); if (ov) ov.classList.add("hidden");
+  renderStoriesRow();
+}
+function openStoryComposer() {
+  const sheet = $("#story-sheet"); if (!sheet) return;
+  $("#story-input").value = ""; sheet.dataset.bg = "0";
+  $$("#story-swatches .story-swatch").forEach((b, i) => b.classList.toggle("on", i === 0));
+  sheet.classList.remove("hidden"); setTimeout(() => { try { $("#story-input").focus(); } catch (e) {} }, 60);
+}
+function wireStories() {
+  const sw = $("#story-swatches");
+  if (sw && !sw.children.length) {
+    for (let i = 0; i < STORY_BG_COUNT; i++) { const b = document.createElement("button"); b.type = "button"; b.className = "story-swatch story-bg-" + i + (i === 0 ? " on" : ""); b.setAttribute("aria-label", "#" + (i + 1)); b.addEventListener("click", () => { $("#story-sheet").dataset.bg = String(i); $$("#story-swatches .story-swatch").forEach((x, k) => x.classList.toggle("on", k === i)); }); sw.appendChild(b); }
+  }
+  const pub = $("#story-publish-btn");
+  if (pub) pub.addEventListener("click", async () => { if (await publishStory($("#story-input").value, parseInt($("#story-sheet").dataset.bg, 10) || 0)) $("#story-sheet").classList.add("hidden"); });
+  const ov = $("#story-viewer");
+  if (ov) {
+    ov.addEventListener("click", (e) => { if (e.target.closest("#story-close-btn") || e.target.closest("#story-delete-btn")) return; if (__storyViewer) { __storyViewer.i++; showStory(); } });
+    $("#story-close-btn").addEventListener("click", (e) => { e.stopPropagation(); closeStoryViewer(); });
+    $("#story-delete-btn").addEventListener("click", (e) => {
+      e.stopPropagation(); const v = __storyViewer; if (!v) return;
+      const st = v.items[v.i]; storiesList = loadStories().filter((x) => x.id !== st.id); persistStories(); closeStoryViewer();
+    });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape" && __storyViewer) closeStoryViewer(); });
+  }
+}
+// ===== Треды: ветка ответов на сообщение (поверх обычных ответов replyTo) =====
+function threadMessages(c, rootId) {
+  const root = c.messages.find((m) => m.id === rootId); if (!root) return null;
+  const out = [root], seen = new Set([rootId]);
+  for (let i = 0; i < out.length; i++) {
+    for (const m of c.messages) {
+      const rid = m.replyTo && (m.replyTo.id || m.replyTo.msgId);
+      if (rid === out[i].id && !seen.has(m.id)) { seen.add(m.id); out.push(m); }
+    }
+  }
+  return out;
+}
+function openThread(contactId, rootId) {
+  const c = state.contacts.get(contactId); if (!c || !threadMessages(c, rootId)) return;
+  state.threadRoot = { cid: contactId, rootId };
+  const sheet = $("#thread-sheet"); if (!sheet) return;
+  renderThreadSheet(); sheet.classList.remove("hidden");
+}
+function closeThreadSheet() { state.threadRoot = null; const sheet = $("#thread-sheet"); if (sheet) sheet.classList.add("hidden"); }
+function renderThreadSheet() {
+  const tr = state.threadRoot, list = $("#thread-list"); if (!tr || !list) return;
+  const c = state.contacts.get(tr.cid), msgs = c && threadMessages(c, tr.rootId);
+  if (!msgs) { closeThreadSheet(); return; }
+  const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 40;
+  list.innerHTML = msgs.map((m, i) => {
+    const who = m.from === "me" ? T("chat.poll.you") : (m.fromName || c.name || T("sys.someone"));
+    const text = m.text ? escapeHtml(m.text) : escapeHtml(T("chat.thread.attachment"));
+    return `<div class="thread-msg${i === 0 ? " is-root" : ""}${m.from === "me" ? " mine" : ""}"><div class="thread-msg-h"><b>${escapeHtml(who)}</b><span>${escapeHtml(formatTime(m.ts))}</span></div><div class="thread-msg-t">${text}</div></div>`;
+  }).join("");
+  if (atBottom || list.dataset.fresh !== tr.rootId) { list.scrollTop = list.scrollHeight; list.dataset.fresh = tr.rootId; }
+}
+function sendThreadReply() {
+  const tr = state.threadRoot, input = $("#thread-input"); if (!tr || !input) return;
+  const text = input.value.trim(); if (!text) return;
+  const c = state.contacts.get(tr.cid), root = c && c.messages.find((m) => m.id === tr.rootId); if (!root) return;
+  input.value = "";
+  const rt = { msgId: root.id, text: root.text || T("chat.thread.attachment"), authorName: root.from === "me" ? (Store.name || "") : (root.fromName || c.name || "") };
+  if (isGroup(c)) sendGroupMessage(c.id, text, rt); else sendChatMessage(c.id, text, rt);
+}
+function wireThreadSheet() {
+  const btn = $("#thread-send-btn"); if (btn) btn.addEventListener("click", sendThreadReply);
+  const inp = $("#thread-input"); if (inp) inp.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendThreadReply(); } });
+  const close = $("#thread-close-btn"); if (close) close.addEventListener("click", closeThreadSheet);
+  const sheet = $("#thread-sheet");
+  if (sheet && typeof MutationObserver !== "undefined") new MutationObserver(() => { if (sheet.classList.contains("hidden")) state.threadRoot = null; }).observe(sheet, { attributes: true, attributeFilter: ["class"] });
+}
 // ===== Опросы и доски (логика — js/rich.js) =====
 async function dispatchRich(c, payload, ackMsgId) {
   if (c.isSelf) { if (c.isDemo) demoOnSend(c, payload); return; }
@@ -5080,22 +5284,22 @@ function pushRichMessage(c, rec) {
   if (state.tab === "chats") renderChatsList();
   playOutgoingSound(); haptic("light");
 }
-async function createPoll(contactId, q, optTexts, multi) {
+async function createPoll(contactId, q, optTexts, multi, extra) {
   const c = state.contacts.get(contactId); if (!c) return false;
   if (c.blocked) { toast(T("toast.blocked")); return false; }
   if (isGroup(c) && !isGroupWriteAllowed(c, Store.myId)) { toast(T("toast.groupWriteRestricted")); return false; }
-  const poll = EtherRich.sanitizePoll({ q, multi, opts: optTexts.map((t, i) => ({ id: "o" + (i + 1), t })) });
+  const poll = EtherRich.sanitizePoll({ q, multi, pub: extra && extra.pub, closeAt: extra && extra.closeAt, opts: optTexts.map((t, i) => ({ id: "o" + (i + 1), t })) });
   if (!poll) { toast(T("chat.poll.needTwo")); return false; }
   const msgId = crypto.randomUUID(), ts = Date.now();
   const rec = { id: msgId, from: "me", text: poll.q, ts, ack: "sent", serverAcked: false, poll, pollVotes: {} };
   pushRichMessage(c, rec);
-  const payload = { kind: "poll", id: msgId, ts, poll: { q: poll.q, multi: poll.multi, opts: poll.opts } };
+  const payload = { kind: "poll", id: msgId, ts, poll: { q: poll.q, multi: poll.multi, opts: poll.opts, pub: poll.pub, closeAt: poll.closeAt } };
   if (rec.ttl) payload.ttl = rec.ttl;
   await dispatchRich(c, payload, msgId);
   return true;
 }
 async function votePoll(contactId, msgId, optId) {
-  const c = state.contacts.get(contactId); const m = c && c.messages.find((x) => x.id === msgId); if (!m || !m.poll || m.poll.closed) return;
+  const c = state.contacts.get(contactId); const m = c && c.messages.find((x) => x.id === msgId); if (!m || !m.poll || EtherRich.isClosed(m)) return;
   const cur = (m.pollVotes && m.pollVotes[Store.myId]) || [];
   let next;
   if (m.poll.multi) next = cur.includes(optId) ? cur.filter((x) => x !== optId) : cur.concat(optId);
@@ -5111,11 +5315,11 @@ async function closePollMsg(contactId, msgId) {
   persistContacts(); if (state.chatId === contactId) renderChatThread();
   await dispatchRich(c, { kind: "poll-close", id: msgId, ts: Date.now() });
 }
-async function createBoard(contactId, title) {
+async function createBoard(contactId, title, colKeys) {
   const c = state.contacts.get(contactId); if (!c) return false;
   if (c.blocked) { toast(T("toast.blocked")); return false; }
   if (isGroup(c) && !isGroupWriteAllowed(c, Store.myId)) { toast(T("toast.groupWriteRestricted")); return false; }
-  const board = EtherRich.sanitizeBoard({ title: title || T("chat.board.defaultTitle"), cols: [{ id: "todo", t: T("chat.board.col1") }, { id: "doing", t: T("chat.board.col2") }, { id: "done", t: T("chat.board.col3") }] });
+  const board = EtherRich.sanitizeBoard({ title: title || T("chat.board.defaultTitle"), cols: (colKeys || ["todo", "doing", "done"]).map((id) => ({ id, t: T("chat.board.col" + ({ todo: 1, doing: 2, done: 3 })[id]) })) });
   if (!board) return false;
   const msgId = crypto.randomUUID(), ts = Date.now();
   pushRichMessage(c, { id: msgId, from: "me", text: board.title, ts, ack: "sent", serverAcked: false, board });
@@ -5167,29 +5371,45 @@ function applyIncomingRich(from, envelopeMsgId, payload) {
   }
   const m = c.messages.find((x) => x.id === payload.id); if (!m) return;
   let changed = false;
-  if (kind === "poll-vote") changed = EtherRich.applyVote(m, from, payload.opts);
+  if (kind === "poll-vote") changed = EtherRich.applyVote(m, from, payload.opts, Math.min(Number(payload.ts) || Date.now(), Date.now()));
   else if (kind === "poll-close") { const authorId = c.isGroup ? m.fromId : c.id; changed = m.from === "them" && authorId === from && EtherRich.closePoll(m); }
   else if (kind === "board-op") changed = EtherRich.applyBoardOp(m, payload.op, Math.min(Number(payload.ts) || Date.now(), Date.now() + 60000));
   if (!changed) return;
   persistContacts();
   if (state.chatId === c.id) renderChatThread();
 }
+function pollVoterName(c, id) {
+  if (id === Store.myId) return T("chat.poll.you");
+  if (c.isGroup) { const mem = c.members.find((x) => x.id === id); if (mem && mem.name) return mem.name; }
+  const k = state.contacts.get(id); return (k && k.name) || (id === c.id && c.name) || T("sys.someone");
+}
+const __pollTimers = new Map();
 function pollBubbleHtml(c, m) {
   const t = EtherRich.tally(m), me = (m.pollVotes && m.pollVotes[Store.myId]) || [];
+  const closed = EtherRich.isClosed(m);
   const max = Math.max(1, ...Object.values(t.counts));
+  // Автозакрытие: один таймер на опрос — перерисовать чат в момент закрытия
+  if (m.poll.closeAt && !m.poll.closed && !closed && !__pollTimers.has(m.id)) {
+    __pollTimers.set(m.id, setTimeout(() => { __pollTimers.delete(m.id); if (state.chatId === c.id) renderChatThread(); }, Math.min(2147483000, m.poll.closeAt - Date.now() + 300)));
+  }
   const opts = m.poll.opts.map((o) => {
     const n = t.counts[o.id] || 0, mine = me.includes(o.id);
     const pct = t.voters ? Math.round((n / t.voters) * 100) : 0;
-    return `<button type="button" class="poll-opt${mine ? " is-mine" : ""}" data-poll-opt="${escapeHtml(o.id)}" role="${m.poll.multi ? "checkbox" : "radio"}" aria-checked="${mine}"${m.poll.closed ? " disabled" : ""}>
+    const who = m.poll.pub && n ? `<span class="poll-opt-who">${escapeHtml(Object.entries(m.pollVotes || {}).filter(([, v]) => Array.isArray(v) && v.includes(o.id)).map(([id]) => pollVoterName(c, id)).join(", "))}</span>` : "";
+    return `<button type="button" class="poll-opt${mine ? " is-mine" : ""}" data-poll-opt="${escapeHtml(o.id)}" role="${m.poll.multi ? "checkbox" : "radio"}" aria-checked="${mine}"${closed ? " disabled" : ""}>
       <span class="poll-opt-bar" style="width:${(n / max * 100).toFixed(0)}%"></span>
       <span class="poll-opt-mark">${mine ? Icons.html("check", 14) : ""}</span>
-      <span class="poll-opt-text">${escapeHtml(o.t)}</span>
+      <span class="poll-opt-text">${escapeHtml(o.t)}${who}</span>
       <span class="poll-opt-count">${n ? pct + "%" : ""}</span>
     </button>`;
   }).join("");
-  const foot = `<span>${escapeHtml(T("chat.poll.votes", { n: t.voters }))}${m.poll.multi ? " · " + escapeHtml(T("chat.poll.multiHint")) : ""}</span>`
-    + (m.poll.closed ? `<span class="poll-closed">${escapeHtml(T("chat.poll.closed"))}</span>` : (m.from === "me" ? `<button type="button" class="poll-close-btn" data-poll-close="1">${escapeHtml(T("chat.poll.close"))}</button>` : ""));
-  return `<div class="poll-bubble${m.poll.closed ? " is-closed" : ""}"><div class="poll-q">${Icons.html("poll", 16)}<span>${escapeHtml(m.poll.q)}</span></div><div class="poll-opts" role="${m.poll.multi ? "group" : "radiogroup"}" aria-label="${escapeHtml(m.poll.q)}">${opts}</div><div class="poll-foot">${foot}</div></div>`;
+  const bits = [T("chat.poll.votes", { n: t.voters })];
+  if (m.poll.multi) bits.push(T("chat.poll.multiHint"));
+  if (m.poll.pub) bits.push(T("chat.poll.publicHint"));
+  if (m.poll.closeAt && !closed) bits.push(T("chat.poll.until", { time: formatTime(m.poll.closeAt) }));
+  const foot = `<span>${escapeHtml(bits.join(" · "))}</span>`
+    + (closed ? `<span class="poll-closed">${escapeHtml(T("chat.poll.closed"))}</span>` : (m.from === "me" ? `<button type="button" class="poll-close-btn" data-poll-close="1">${escapeHtml(T("chat.poll.close"))}</button>` : ""));
+  return `<div class="poll-bubble${closed ? " is-closed" : ""}"><div class="poll-q">${Icons.html("poll", 16)}<span>${escapeHtml(m.poll.q)}</span></div><div class="poll-opts" role="${m.poll.multi ? "group" : "radiogroup"}" aria-label="${escapeHtml(m.poll.q)}">${opts}</div><div class="poll-foot">${foot}</div></div>`;
 }
 function boardBubbleHtml(m) {
   const b = m.board;
@@ -5198,7 +5418,7 @@ function boardBubbleHtml(m) {
       + (ci > 0 ? `<button type="button" data-board-act="left" aria-label="${escapeHtml(T("chat.board.moveLeft"))}">${Icons.html("chevron-left", 14)}</button>` : "")
       + (ci < b.cols.length - 1 ? `<button type="button" data-board-act="right" aria-label="${escapeHtml(T("chat.board.moveRight"))}">${Icons.html("chevron-right", 14)}</button>` : "")
       + `<button type="button" data-board-act="del" aria-label="${escapeHtml(T("chat.board.delete"))}">${Icons.html("x", 14)}</button></span></div>`).join("");
-    return `<div class="board-col" data-col="${escapeHtml(col.id)}"><div class="board-col-h">${escapeHtml(col.t)}<span class="board-col-n">${b.cards.filter((k) => k.col === col.id).length}</span></div>${cards}<button type="button" class="board-add" data-board-act="add" data-col="${escapeHtml(col.id)}">${Icons.html("plus", 14)}<span>${escapeHtml(T("chat.board.addCard"))}</span></button></div>`;
+    return `<div class="board-col" data-col="${escapeHtml(col.id)}"><div class="board-col-h"><span class="board-col-name" data-board-act="colname" data-col="${escapeHtml(col.id)}" tabindex="0" role="button">${escapeHtml(col.t)}</span><span class="board-col-n">${b.cards.filter((k) => k.col === col.id).length}</span></div>${cards}<button type="button" class="board-add" data-board-act="add" data-col="${escapeHtml(col.id)}">${Icons.html("plus", 14)}<span>${escapeHtml(T("chat.board.addCard"))}</span></button></div>`;
   }).join("");
   return `<div class="board-bubble"><div class="board-title">${Icons.html("board", 16)}<span>${escapeHtml(b.title)}</span></div><div class="board-cols">${cols}</div></div>`;
 }
@@ -5212,6 +5432,9 @@ function handleRichClick(c, m, el) {
   if (act === "add") {
     const col = el.getAttribute("data-col");
     openTextSheet({ title: T("chat.board.addCard"), placeholder: T("chat.board.cardText"), onOk: (text) => boardOp(c.id, m.id, { t: "add", card: { id: crypto.randomUUID(), t: text, col } }) });
+  } else if (act === "colname") {
+    const col = el.getAttribute("data-col"), cur = m.board.cols.find((x) => x.id === col);
+    if (cur) openTextSheet({ title: T("chat.board.renameCol"), value: cur.t, placeholder: T("chat.board.colName"), onOk: (name) => boardOp(c.id, m.id, { t: "colname", col, name }) });
   } else if (act === "edit" && card) {
     openTextSheet({ title: T("chat.edit"), value: card.t, placeholder: T("chat.board.cardText"), onOk: (text) => boardOp(c.id, m.id, { t: "edit", id: card.id, text }) });
   } else if ((act === "left" || act === "right") && card) {
@@ -5240,7 +5463,7 @@ function submitTextSheet() {
 }
 function openPollSheet() {
   const sheet = $("#poll-sheet"); if (!sheet) return;
-  $("#poll-q-input").value = ""; $("#poll-multi-input").checked = false;
+  $("#poll-q-input").value = ""; $("#poll-multi-input").checked = false; $("#poll-public-input").checked = false; $("#poll-timer-input").value = "0";
   const list = $("#poll-opts-list"); list.innerHTML = "";
   for (let i = 0; i < 2; i++) addPollOptionInput();
   sheet.classList.remove("hidden");
@@ -5258,12 +5481,15 @@ function wireRichSheets() {
   const bind = (id, fn) => { const el = $(id); if (el) el.addEventListener("click", fn); };
   bind("#chat-poll-btn", () => { collapseComposerPlus(); openPollSheet(); });
   bind("#chat-board-btn", () => { collapseComposerPlus(); openTextSheet({ title: T("chat.board.name"), value: T("chat.board.defaultTitle"), onOk: (title) => { if (state.chatId) createBoard(state.chatId, title); } }); });
+  bind("#chat-list-btn", () => { collapseComposerPlus(); openTextSheet({ title: T("chat.list.name"), value: T("chat.list.defaultTitle"), onOk: (title) => { if (state.chatId) createBoard(state.chatId, title, ["todo", "done"]); } }); });
   bind("#poll-add-opt-btn", addPollOptionInput);
   bind("#poll-create-btn", async () => {
     const q = $("#poll-q-input").value.trim();
     const opts = Array.from($$("#poll-opts-list .poll-opt-input")).map((i) => i.value.trim()).filter(Boolean);
     if (!state.chatId) return;
-    if (await createPoll(state.chatId, q, opts, $("#poll-multi-input").checked)) $("#poll-sheet").classList.add("hidden");
+    const hrs = parseFloat($("#poll-timer-input").value) || 0;
+    const extra = { pub: $("#poll-public-input").checked, closeAt: hrs ? Date.now() + hrs * 3600e3 : undefined };
+    if (await createPoll(state.chatId, q, opts, $("#poll-multi-input").checked, extra)) $("#poll-sheet").classList.add("hidden");
   });
   bind("#text-sheet-ok", submitTextSheet);
   const ti = $("#text-sheet-input"); if (ti) ti.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); submitTextSheet(); } });
@@ -6525,6 +6751,15 @@ function hydrateFileSlots(root) {
       audio.onpause = () => setUi(false);
       audio.onended = () => {
         setUi(false);
+        // Стопкой: после входящего голосового само запускается следующее входящее ниже по ленте
+        try {
+          if (el.closest(".bubble-row") && !el.closest(".bubble-row.mine")) {
+            const all = Array.from(document.querySelectorAll("#chat-messages .bubble-row:not(.mine) .voice-bubble"));
+            const next = all[all.indexOf(el) + 1];
+            const nb = next && next.querySelector(".voice-play-btn:not([disabled])");
+            if (nb) setTimeout(() => nb.click(), 250);
+          }
+        } catch (e) {}
         try { audio.currentTime = 0; } catch (e) {} // следующее прослушивание — всегда с начала
         if (fill) fill.style.width = "0%";
         paintWave(0);
@@ -7613,6 +7848,7 @@ function sendTypingStart(contactId) {
   if (state.typingSendingState.get(contactId)) return;
   state.typingSendingState.set(contactId, true);
   const c = state.contacts.get(contactId); if (!c) return;
+  if (state.typingTimers.has(contactId) && state.chatId === contactId) { try { renderChatHeaderSoft(); } catch (e) {} }
   const link = mesh.get(contactId);
   // Typing — временный статус. Если P2P-связи нет, отправлять его через
   // сервер (в офлайн-очередь mailbox) смысла нет: получатель получит
@@ -7628,6 +7864,7 @@ function sendTypingStop(contactId) {
   if (!state.typingSendingState.get(contactId)) return;
   state.typingSendingState.delete(contactId);
   const c = state.contacts.get(contactId); if (!c) return;
+  if (state.typingTimers.has(contactId) && state.chatId === contactId) { try { renderChatHeaderSoft(); } catch (e) {} }
   const link = mesh.get(contactId);
   if (link && (link.status === "connected" || link.status === "in-call")) {
     link.send({ kind: "typing", active: false });
@@ -8476,6 +8713,8 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
       }
       if (state.chatId === from || state.tab === "chats") renderTab();
     }
+  } else if (kind === "story") {
+    receiveStory(from, payload);
   } else if (kind === "poll" || kind === "board" || kind === "poll-vote" || kind === "poll-close" || kind === "board-op") {
     applyIncomingRich(from, envelopeMsgId, payload);
   } else if (kind === "reaction") {
@@ -9410,6 +9649,7 @@ function openMessageSheet(msgId, contactId) {
   const rare = [];
   if (m.text && !m.file && !m.contactCard && !m.poll && !m.board) rare.push(act("translate", m.translation ? T("chat.translate.hide") : T("chat.translate")));
   rare.push(act("favorite", m.favorite ? T("chat.unfavorite") : T("chat.favorite")));
+  rare.push(act("thread", T("chat.thread.open")));
   rare.push(act("select", T("chat.selectMsgs")));
   if (isOwn && !groupCtx && !m.file && !m.contactCard && !m.poll && !m.board) rare.push(act("edit", T("chat.edit")));
   rare.push(act("delete-local", T("chat.delete.local"), "destructive"));
@@ -9429,6 +9669,7 @@ async function handleMessageAction(action, msgId, contactId) {
   const c = state.contacts.get(contactId); if (!c) return;
   const m = c.messages.find((x) => x.id === msgId); if (!m) return;
   if (action === "copy") { copyText(m.text || "", T("toast.msgCopied")); flashCopiedBubble(msgId); }
+  else if (action === "thread") openThread(contactId, msgId);
   else if (action === "edit") startEditing(msgId);
   else if (action === "delete-local") deleteMessageLocal(contactId, msgId);
   else if (action === "delete-both") {
@@ -11791,6 +12032,12 @@ function wireSettingsScreen() {
   if (lsv) lsv.addEventListener("change", (e) => { Store.lastSeenVisible = e.target.checked; });
   const pv = $("#settings-presence");
   if (pv) pv.addEventListener("change", (e) => { Store.presenceVisible = e.target.checked; });
+  const qOn = $("#settings-quiet-on"), qFrom = $("#settings-quiet-from"), qTo = $("#settings-quiet-to"), qRow = $("#settings-quiet-times");
+  const syncQuiet = () => { if (qRow) qRow.classList.toggle("hidden", !Store.quietOn); };
+  if (qOn) { qOn.checked = Store.quietOn; qOn.addEventListener("change", () => { Store.quietOn = qOn.checked; syncQuiet(); }); }
+  if (qFrom) { qFrom.value = Store.quietFrom; qFrom.addEventListener("change", () => { Store.quietFrom = qFrom.value; }); }
+  if (qTo) { qTo.value = Store.quietTo; qTo.addEventListener("change", () => { Store.quietTo = qTo.value; }); }
+  syncQuiet();
   const sounds = $("#settings-sounds");
   if (sounds) sounds.addEventListener("change", (e) => {
     Store.soundsEnabled = e.target.checked;
@@ -11917,7 +12164,11 @@ function wireSettingsScreen() {
   const fontSizeSel = $("#settings-font-size");
   if (fontSizeSel) { fontSizeSel.value = Store.fontSize; fontSizeSel.addEventListener("change", () => { Store.fontSize = fontSizeSel.value; applyChatAppearancePrefs(); }); }
   const wallpaperSel = $("#settings-wallpaper");
-  if (wallpaperSel) { wallpaperSel.value = Store.chatWallpaper; wallpaperSel.addEventListener("change", () => { Store.chatWallpaper = wallpaperSel.value; applyChatAppearancePrefs(); }); }
+  const wpColors = $("#settings-wallpaper-colors"), wpC1 = $("#settings-wp-color1"), wpC2 = $("#settings-wp-color2");
+  const syncWpColors = () => { if (wpColors) wpColors.classList.toggle("hidden", Store.chatWallpaper !== "custom"); };
+  if (wpC1) { wpC1.value = Store.wallpaperColor1; wpC1.addEventListener("input", () => { Store.wallpaperColor1 = wpC1.value; applyChatAppearancePrefs(); }); }
+  if (wpC2) { wpC2.value = Store.wallpaperColor2; wpC2.addEventListener("input", () => { Store.wallpaperColor2 = wpC2.value; applyChatAppearancePrefs(); }); }
+  if (wallpaperSel) { wallpaperSel.value = Store.chatWallpaper; syncWpColors(); wallpaperSel.addEventListener("change", () => { Store.chatWallpaper = wallpaperSel.value; syncWpColors(); applyChatAppearancePrefs(); }); }
 }
 
 // =====================================================================
@@ -13218,6 +13469,11 @@ if (cameraInput) {
   }
   wireMentionAutocomplete();
   wireRichSheets();
+  wireThreadSheet();
+  wireStories();
+  { const cb = $("#calls-empty-btn"); if (cb) cb.addEventListener("click", () => { state.tab = "connect"; state.chatId = null; renderTab(); }); }
+  { const sb = $("#contacts-empty-scan"); if (sb) sb.addEventListener("click", () => { const b = $("#scan-qr-btn"); if (b) b.click(); }); }
+  { const ib = $("#contacts-empty-invite"); if (ib) ib.addEventListener("click", () => { const t = $("#add-contact-card"); if (t && t.scrollIntoView) t.scrollIntoView({ behavior: "smooth", block: "start" }); }); }
   const micBtn = $("#voice-record-btn");
   if (micBtn) micBtn.addEventListener("click", () => { startVoiceRecording(); });
   const voiceCancelBtn = $("#voice-cancel-btn");

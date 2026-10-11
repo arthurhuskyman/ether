@@ -19,11 +19,17 @@
       seen.add(id); opts.push({ id, t });
     }
     if (opts.length < 2) return null;
-    return { q, opts, multi: !!p.multi, closed: false };
+    const out = { q, opts, multi: !!p.multi, closed: false };
+    if (p.pub) out.pub = true; // публичный: видно, кто как проголосовал
+    const ca = Number(p.closeAt);
+    if (isFinite(ca) && ca > 0 && ca <= Date.now() + 8 * 864e5) out.closeAt = Math.round(ca); // автозакрытие по времени (до 7 дней)
+    return out;
   }
   // optIds — полный набор выбранных пунктов этого человека (пустой — снять голос). Возвращает true, если что-то изменилось.
-  function applyVote(m, voterId, optIds) {
-    if (!m || !m.poll || m.poll.closed || !idOk(voterId) && typeof voterId !== "string") return false;
+  // at — когда голос подан (для запоздавших офлайн-доставок): после времени автозакрытия голоса не принимаются
+  function isClosed(m, at) { return !!(m && m.poll && (m.poll.closed || (m.poll.closeAt && (at || Date.now()) >= m.poll.closeAt))); }
+  function applyVote(m, voterId, optIds, at) {
+    if (!m || !m.poll || isClosed(m, at) || typeof voterId !== "string" || !voterId) return false;
     if (!Array.isArray(optIds)) return false;
     const valid = new Set(m.poll.opts.map((o) => o.id));
     let ids = Array.from(new Set(optIds.filter((x) => valid.has(x))));
@@ -85,6 +91,10 @@
     } else if (op.t === "edit") {
       const c = find(op.id); if (!c) { stash(op.id, { t: "edit", text: op.text, ts }); return false; }
       changed = setText(c, op.text, ts);
+    } else if (op.t === "colname") {
+      const col = b.cols.find((x) => x.id === op.col), name = str(op.name, LIM.col);
+      if (!col || !name || ts < (col.tn || 0) || col.t === name && ts <= (col.tn || 0)) return false;
+      col.t = name; col.tn = ts; changed = true;
     } else if (op.t === "del") {
       if (!idOk(op.id)) return false;
       const i = b.cards.findIndex((c) => c.id === op.id);
@@ -96,7 +106,7 @@
     if (changed) m.rv = (m.rv || 0) + 1;
     return changed;
   }
-  const api = { LIM, sanitizePoll, applyVote, tally, closePoll, sanitizeBoard, applyBoardOp };
+  const api = { LIM, isClosed, sanitizePoll, applyVote, tally, closePoll, sanitizeBoard, applyBoardOp };
   root.EtherRich = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

@@ -256,7 +256,7 @@
 
 ## Разработка, тесты, версии, деплой
 
-- **Клиентские тесты:** `cd tests && npm install && npm test` (jsdom + `fake-indexeddb` + реальный WebRTC через `@roamhq/wrtc`; профили iOS, Android, десктоп). Сейчас 303 теста, весь прогон занимает несколько минут. Покрытие: `npm run coverage` (c8).
+- **Клиентские тесты:** `cd tests && npm install && npm test` (jsdom + `fake-indexeddb` + реальный WebRTC через `@roamhq/wrtc`; профили iOS, Android, десктоп). Сейчас 311 тестов, весь прогон занимает несколько минут. Покрытие: `npm run coverage` (c8).
 - **Тесты сервера:** `cd signaling-server && npm test` (цепочка скриптов `test-*.js`: два клиента, WebRTC, шифрование, ссылочное превью, файлы, видеозвонок, relay и др.).
 - **Версии:** файл `VERSION`, `APP_VERSION` в `js/app.js` и `CACHE_VERSION` в `sw.js` поднимаются вместе. Правило: мелкие правки и документация — второе число (`V.X.Y → V.X.(Y+1)`), новые функции и крупные переделки — первое (`V.X.Y → V.(X+1).0`).
 - **Деплой:** фронтенд — публикация ветки `main` на GitHub Pages; сервер — Render (автодеплой по `render.yaml`). Новый service worker не активируется сам: клиент ждёт сообщения `SKIP_WAITING` от страницы.
