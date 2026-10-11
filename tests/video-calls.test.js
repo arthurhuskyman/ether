@@ -294,3 +294,24 @@ test("ЭХО: переход аудио→видео не создаёт вто�
   assert.equal(p.events.A.filter((e) => e === "audio").length, 1, "аудиотрек собеседника объявлен один раз");
   p.close();
 });
+
+test("аутентификация канала: отпечатки DTLS читаются из SDP и сходятся крест-накрест; шлюз пропускает только служебное", async () => {
+  const p = await pair();
+  const fa = p.A.fingerprints(), fb = p.B.fingerprints();
+  assert.match(fa.local || "", /^sha-256 [0-9a-f:]+$/);
+  assert.equal(fa.local, fb.remote);
+  assert.equal(fa.remote, fb.local);
+  assert.notEqual(fa.local, fa.remote);
+  const got = []; p.B.addEventListener("app-message", (ev) => got.push(ev.detail.kind));
+  p.A.authGate = "pending";
+  assert.equal(p.A.send({ kind: "chat", text: "x" }), false);
+  assert.equal(p.A.send({ kind: "call-state", state: "ringing" }), true);
+  assert.equal(p.A.send({ kind: "auth", s: 1, n: "n" }), true);
+  p.A.authGate = "closed";
+  assert.equal(p.A.send({ kind: "call-state", state: "ringing" }), false);
+  p.A.authGate = null;
+  assert.equal(p.A.send({ kind: "chat", text: "y" }), true);
+  await sleep(300);
+  assert.deepEqual(got.filter((k) => k !== "ping"), ["call-state", "auth", "chat"]);
+  p.close();
+});

@@ -350,6 +350,7 @@ window.__LANG_DICTS["en"] = {
     "toast.keyRejected": "New key of {name} rejected",
     "toast.waitingKeyConfirm": "The key of {name} changed. The message will be sent after you confirm it.",
     "toast.contactKeyChanged": "{name}'s security key has changed. Open the chat to compare and confirm it.",
+    "toast.linkAuthFailed": "The direct connection with {name} failed the identity check and was closed. This can happen after they reinstall the app; otherwise someone may be interfering.",
     "toast.keysRegenerated": "Encryption keys were re-created on this device: your sigil has changed. Compare it with your contacts.",
     "toast.saved": "Saved",
     "toast.pinOn": "PIN enabled",

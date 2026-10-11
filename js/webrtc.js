@@ -224,6 +224,9 @@ function classifyCandidate(candidateStr) {
   return m ? m[1] : "unknown";
 }
 
+// Служебные виды сообщений, которым разрешено идти по каналу ещё до завершения аутентификации (не содержат переписки).
+const AUTH_PASS_KINDS = new Set(["auth", "ping", "pong", "sdp", "call-state"]);
+
 class PeerLink extends EventTarget {
   constructor({ id, localName, remoteName = "", role }) {
     super();
@@ -477,6 +480,12 @@ class PeerLink extends EventTarget {
     }
   }
 
+  // Отпечатки DTLS-сертификатов (свой и собеседника) из SDP — для привязки канала к ключам личности.
+  fingerprints() {
+    const f = (d) => { const m = d && d.sdp ? /a=fingerprint:(\S+)\s+([0-9A-Fa-f:]+)/.exec(d.sdp) : null; return m ? (m[1] + " " + m[2]).toLowerCase() : null; };
+    return { local: f(this.pc.currentLocalDescription || this.pc.localDescription), remote: f(this.pc.currentRemoteDescription || this.pc.remoteDescription) };
+  }
+
   // Битрейт/приоритет отправителей: по умолчанию браузер стартует с низкого битрейта и сам режет разрешение —
   // «картинка мылит, звук с артефактами». Вызывается после каждого согласования и добавления трека.
   async _tuneSenders() {
@@ -560,6 +569,7 @@ class PeerLink extends EventTarget {
     this.dc.addEventListener("open", () => {
       this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "dataChannel open");
       if (this.status !== "in-call") this._setStatus("connected");
+      this.dispatchEvent(new CustomEvent("dc-open")); // канал данных реально готов (статус connected приходит раньше) — отсюда начинается проверка подлинности
       clearInterval(this._pingTimer);
       this._lastPongAt = Date.now();
       this._pingTimer = setInterval(() => {
@@ -605,7 +615,11 @@ class PeerLink extends EventTarget {
     });
   }
 
+  // Шлюз аутентификации канала (см. linkauth.js): пока идёт взаимная проверка, наружу уходят только служебные сообщения;
+  // остальное отклоняется (send вернёт false), и приложение отправит это обычным офлайн-путём или повторит позже.
   send(payload) {
+    if (this.authGate === "closed") return false;
+    if (this.authGate === "pending" && !(payload && AUTH_PASS_KINDS.has(payload.kind))) return false;
     if (this.dc && this.dc.readyState === "open") {
       try { this.dc.send(JSON.stringify(payload)); return true; }
       catch (e) { return false; }
@@ -1351,6 +1365,9 @@ class MeshManager extends EventTarget {
     });
     link.addEventListener("app-message", (ev) => {
       this.dispatchEvent(new CustomEvent("message", { detail: { id: link.id, payload: ev.detail } }));
+    });
+    link.addEventListener("dc-open", () => {
+      this.dispatchEvent(new CustomEvent("link-dc-open", { detail: { id: link.id } }));
     });
     link.addEventListener("caps", (ev) => {
       this.dispatchEvent(new CustomEvent("link-caps", { detail: { id: link.id, ...ev.detail } }));

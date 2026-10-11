@@ -20,6 +20,7 @@ const SHELL_FILES = [
   "./js/signaling-client.js",
   "./js/crypto-helper.js",
   "./js/ratchet.js",
+  "./js/linkauth.js",
   "./js/crypto-worker.js",
   "./js/vendor/qrcode-generator.js",
   "./js/vendor/qrcode-generator-utf8.js",

@@ -7558,6 +7558,80 @@ function wireSignalingEvents(sig) {
 subs.push(on("deliver", (ev) => handleDeliver(ev.detail, false)));
   return () => { for (const s of subs) sig.removeEventListener(s.type, s.wrapped); };
 }
+// ---- Аутентификация P2P-канала (js/linkauth.js) ----
+// После открытия канала стороны обмениваются нонсами и тегами, привязанными к DTLS-отпечаткам и общему секрету личностей.
+// Пока идёт проверка, канал "закрыт на шлюз" (PeerLink.authGate): исходящее отклоняется, входящее копится и разбирается после успеха.
+const AUTH_PASS = new Set(["auth", "ping", "pong", "sdp", "call-state"]);
+const AUTH_TIMEOUT_MS = 6000;
+const authToastAt = new Map();
+function startLinkAuth(id) {
+  const link = mesh.get(id), c = state.contacts.get(id);
+  if (!link || link._authStarted) return;
+  if (!link.dc || link.dc.readyState !== "open") return; // статус connected приходит раньше открытия канала данных — стартуем по dc-open
+  if (!c || isGroup(c) || !c.publicKey || !Store.myPrivateKeyJwk || typeof LinkAuth === "undefined") { link.authGate = null; return; }
+  link._authStarted = true; link.authGate = "pending"; link.authState = "pending";
+  link._authBuf = []; link._myNonce = LinkAuth.nonce(); link._peerNonce = null; link._peerTag = null; link._tagSent = false;
+  link.send({ kind: "auth", s: 1, n: link._myNonce });
+  clearTimeout(link._authTimer);
+  link._authTimer = setTimeout(() => authTimeout(id, link), AUTH_TIMEOUT_MS);
+}
+function reauthLink(id) {
+  const link = mesh.get(id); if (!link || !(link.status === "connected" || link.status === "in-call")) return;
+  link._authStarted = false; startLinkAuth(id);
+}
+async function onAuthMessage(id, link, p) {
+  if (!link._authStarted) startLinkAuth(id);
+  if (!link._authStarted || link.authGate !== "pending") return;
+  if (p.s === 1 && typeof p.n === "string" && p.n.length <= 64 && !link._peerNonce) link._peerNonce = p.n;
+  else if (p.s === 2 && typeof p.t === "string" && p.t.length <= 128 && !link._peerTag) link._peerTag = p.t;
+  else return;
+  try { await progressAuth(id, link); } catch (e) { etherLog("warn", "[auth] ошибка проверки:", String(e)); }
+}
+async function progressAuth(id, link) {
+  const c = state.contacts.get(id);
+  if (!c || link.authGate !== "pending" || !link._peerNonce) return;
+  const fp = link.fingerprints();
+  if (!fp.local || !fp.remote) { etherLog("warn", "[auth] нет отпечатков DTLS в SDP — проверка невозможна"); finishAuth(id, link, "unverified"); return; }
+  const key = await LinkAuth.secret(Store.myPrivateKeyJwk, c.publicKey, Store.myId, id);
+  if (!link._tagSent) {
+    link._tagSent = true;
+    link.send({ kind: "auth", s: 2, t: await LinkAuth.tag(key, Store.myId, id, link._myNonce, link._peerNonce, fp.local, fp.remote) });
+  }
+  if (link._peerTag) {
+    const ok = await LinkAuth.verify(key, link._peerTag, id, Store.myId, link._peerNonce, link._myNonce, fp.local, fp.remote);
+    finishAuth(id, link, ok ? "ok" : "fail");
+  }
+}
+function authTimeout(id, link) {
+  if (link.authGate !== "pending") return;
+  const c = state.contacts.get(id);
+  // Раньше этот собеседник проходил проверку, а теперь молчит — похоже на отключение проверки "по дороге", не пускаем
+  finishAuth(id, link, c && c.authSeen ? "fail" : "unverified");
+}
+function finishAuth(id, link, result) {
+  if (link.authGate !== "pending") return;
+  clearTimeout(link._authTimer);
+  const c = state.contacts.get(id);
+  link.authState = result;
+  if (result === "fail") {
+    link.authGate = "closed"; link._authBuf = [];
+    etherLog("warn", "[auth] канал с " + String(id).slice(0, 10) + "… НЕ прошёл проверку — закрываю");
+    const last = authToastAt.get(id) || 0;
+    if (c && !c.pendingKey && Date.now() - last > 600000) { authToastAt.set(id, Date.now()); try { toast(T("toast.linkAuthFailed", { name: c.name || T("sys.someone") })); } catch (e) {} }
+    try { mesh.remove(id); } catch (e) {}
+    return;
+  }
+  if (result === "ok" && c && !c.authSeen) { c.authSeen = true; persistContacts(); }
+  etherLog("info", "[auth] " + String(id).slice(0, 10) + "… " + (result === "ok" ? "канал подтверждён" : "собеседник не поддерживает проверку (канал без подтверждения)"));
+  link.authGate = null;
+  const buf = link._authBuf || []; link._authBuf = [];
+  // То, что не ушло, пока канал был на шлюзе, и накопленное входящее
+  try { sendPrivacyPrefsTo(id); } catch (e) {}
+  try { for (const g of state.contacts.values()) if (g.isGroup && g.members.some((m) => m.id === id)) sendGroupRosterTo(g, id); } catch (e) {}
+  for (const payload of buf) mesh.dispatchEvent(new CustomEvent("message", { detail: { id, payload } }));
+  try { flushOutbox(); } catch (e) {}
+  if (state.chatId === id) renderChatThread();
+}
 // Входящий конверт из ящика сервера. replay=true — повторный разбор конверта, удержанного до подтверждения нового ключа контакта.
 async function handleDeliver(detail, replay) {
   const { from, msgId, envelope, fromPublicKey, kind } = detail;
@@ -12309,6 +12383,7 @@ function wireMeshEvents() {
       attemptConnect(rid, true).catch(() => {});
     }, 400);
   });
+  mesh.addEventListener("link-dc-open", (ev) => { try { startLinkAuth(ev.detail.id); } catch (e) { etherLog("warn", "[auth] старт проверки:", String(e)); } });
   mesh.addEventListener("link-caps", (ev) => {
     const c = state.contacts.get(ev.detail.id);
     if (c && ev.detail.rc) markContactRatchet(c);
@@ -12320,7 +12395,7 @@ function wireMeshEvents() {
       const wasConnected = c.status === "connected" || c.status === "in-call";
       c.status = status;
       etherLog("info", "[link] " + String(id).slice(0, 10) + "…", "status=" + status);
-      if (status === "connected" || status === "in-call") connectFails.delete(id);
+      if (status === "connected" || status === "in-call") { connectFails.delete(id); startLinkAuth(id); }
       if (status === "connected" && !wasConnected) {
         const link = mesh.get(id);
         if (link && link.remoteName) c.name = link.remoteName;
@@ -12410,6 +12485,12 @@ function wireMeshEvents() {
       const { id, payload } = ev.detail;
       const c = state.contacts.get(id); if (!c) return;
       if (c.blocked) return;
+      { // шлюз аутентификации канала
+        const lk = mesh.get(id);
+        if (payload && payload.kind === "auth") { if (lk) onAuthMessage(id, lk, payload); return; }
+        if (lk && lk.authGate === "closed") return;
+        if (lk && lk.authGate === "pending" && !AUTH_PASS.has(payload && payload.kind)) { if (lk._authBuf && lk._authBuf.length < 100) lk._authBuf.push(payload); return; }
+      }
 if (payload && typeof payload.kind === "string" && payload.kind.indexOf("fx") === 0) { if (typeof handleFxPayload === "function") handleFxPayload(id, payload); return; }
 if (payload && payload.kind === "gcall") { if (typeof handleGroupCallPayload === "function") handleGroupCallPayload(id, payload); return; }
 if (payload && payload.kind === "call-state") {
