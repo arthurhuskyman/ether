@@ -11,10 +11,14 @@ const wrtc = require("@roamhq/wrtc");
 const ROOT = path.resolve(__dirname, "..");
 
 const APPS = [];
+const READY = []; // promise «окно догрузилось и boot отработал» для каждого окна, включая те, чей ready тест не ждал
 const PCS = []; // настоящие RTCPeerConnection держат процесс живым — закрываем в closeAll()
 // Окна закрываем только после того, как отработал их асинхронный boot
 // (DOMContentLoaded → initBoot), иначе он падает на уже исчезнувшем document.
 async function closeAll() {
+  // Под нагрузкой (параллельный прогон) boot окна мог ещё не закончиться — закрытие посреди него давало
+  // «Cannot read properties of undefined (reading 'getElementById')» и случайно валило набор.
+  await Promise.all(READY.splice(0).map((p) => Promise.race([p, new Promise((r) => setTimeout(r, 8000))])));
   await new Promise((r) => setTimeout(r, 300));
   for (const pc of PCS.splice(0)) { try { pc.close(); } catch (e) {} }
   for (const d of APPS.splice(0)) { try { d.window.close(); } catch (e) {} }
@@ -131,7 +135,7 @@ function createApp(opts = {}) {
   const run = (code) => new vm.Script(code, { filename: "test-eval.js" }).runInContext(ctx);
   const app = { dom, window: dom.window, document: dom.window.document, run, errors, fetchLog, close() { /* окно закрывается в closeAll() в конце файла — иначе отложенные таймеры падают на уже закрытом window */ } };
   app.ready = new Promise((r) => { const done = () => setTimeout(r, 400); if (dom.window.document.readyState === "complete") done(); else dom.window.addEventListener("load", done); });
-  APPS.push(dom);
+  APPS.push(dom); READY.push(app.ready);
   return app;
 }
 // Создаёт окно и дожидается, пока приложение реально стартует (startApp).

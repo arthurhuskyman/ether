@@ -15,6 +15,13 @@
       document.documentElement.lang = l;
       document.documentElement.dir = ["ar", "fa", "ur", "he"].indexOf(l) !== -1 ? "rtl" : "ltr";
     } catch (e) {}
+    // Тема до первой отрисовки: data-theme (oled/aurora) и data-scheme (light|dark — то, на что опирается светлая палитра).
+    try {
+      var t = localStorage.getItem("ether.theme") || "auto";
+      var light = t === "light" || (t === "auto" && window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches);
+      document.documentElement.dataset.theme = t;
+      document.documentElement.dataset.scheme = light ? "light" : "dark";
+    } catch (e) {}
   })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
@@ -38,6 +45,7 @@
 <meta name="apple-mobile-web-app-title" content="Ether" />
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
 <link rel="icon" href="icons/favicon-32.png" sizes="32x32" />
+<link rel="stylesheet" href="css/tokens.css" />
 <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>

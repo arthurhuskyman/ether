@@ -1,0 +1,262 @@
+/* ============================================================
+   Дизайн-токены Ether — единственное место, где живут значения.
+   Уровни:
+     1. primitives — числа без смысла: шкалы отступов, радиусов, движения, типографики
+     2. semantic   — смысл: фон, текст, акцент, состояния (меняется по теме)
+     3. component  — токены конкретных компонентов (пузырь, карточка, список)
+     4. overrides  — темы (oled, light, aurora), размер шрифта
+
+   Светлая палитра описана ОДИН раз: html[data-scheme="light"]. Атрибут data-scheme
+   ставит JS (applyTheme) и ранний скрипт в <head>: "light" для темы light и для auto
+   при светлой системе, иначе "dark". Раньше светлая палитра дублировалась в
+   @media (prefers-color-scheme) на каждую группу переменных.
+   ============================================================ */
+
+/* ============================ 1. PRIMITIVES ============================ */
+:root {
+  /* Отступы — кратны 4. Любое исключение объясняется комментарием на месте. */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+
+  /* Радиусы — четыре ступени и пилюля. Мелкие (1–4px) — только для полосок и индикаторов. */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 24px;
+  --r-pill: 999px;
+
+  /* Движение — четыре длительности и три кривые.
+     UI-анимации не длиннее --motion-slow; декоративный слой эффектов (easter/fx) — исключение. */
+  --motion-instant: 100ms;
+  --motion-fast: 200ms;
+  --motion-base: 300ms;
+  --motion-slow: 500ms;
+  --ease-out: cubic-bezier(0.2, 0.9, 0.3, 1);     /* по умолчанию: появление и отклик */
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);          /* исчезновение */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1); /* нажатия и «упругие» появления */
+
+  /* Интерфейсная типографика — модульная шкала 1.25 (подписи, кнопки, элементы управления) */
+  --fs-xs: 11px;
+  --fs-sm: 13px;
+  --fs-base: 15px;
+  --fs-md: 17px;
+  --fs-lg: 22px;
+  --fs-xl: 28px;
+  --fs-2xl: 34px;
+
+  /* Типографика КОНТЕНТА — отдельная шкала, чтобы заголовок, тело и метаданные заметно различались.
+     Множитель --ui-scale задаёт «Размер шрифта» из настроек. */
+  --ui-scale: 1;
+  --t-display: clamp(calc(26px * var(--ui-scale)), 7.2vw, calc(34px * var(--ui-scale)));
+  --t-title: clamp(calc(19px * var(--ui-scale)), 5.4vw, calc(22px * var(--ui-scale)));
+  --t-body: clamp(calc(15px * var(--ui-scale)), 4.2vw, calc(17px * var(--ui-scale)));
+  --t-caption: clamp(calc(12px * var(--ui-scale)), 3.4vw, calc(14px * var(--ui-scale)));
+  --t-meta: clamp(calc(11px * var(--ui-scale)), 3.1vw, calc(12px * var(--ui-scale)));
+
+  --tr-tight: -0.025em;
+  --tr-normal: 0;
+  --tr-loose: 0.01em;
+  --lh-tight: 1.15;
+  --lh-normal: 1.35;
+  --lh-relaxed: 1.55;
+}
+
+/* ============================= 2. SEMANTIC ============================= */
+:root {
+  /* --- Шкала фона (тёплый нейтральный, не стерильный) --- */
+  --bg-0: #08080a;                       /* канвас */
+  --bg-1: #0f0f12;                       /* панели поверх канваса */
+  --bg-2: #17171c;                       /* карточки, инпуты, матовые пузыри */
+  --bg-3: #1f1f26;                       /* hover / selected */
+
+  /* --- Границы — почти невидимые --- */
+  --line-1: rgba(255, 255, 255, 0.07);   /* 0.05 терялась на OLED — минимум 0.07 */
+  --line-2: rgba(255, 255, 255, 0.11);
+
+  /* --- Текст — три уровня + сильный акцент.
+     ink-3 не опускаем ниже 0.48: при 0.45 контраст к --bg-0 падает под WCAG AA (4.5:1). --- */
+  --ink-0: #ffffff;                      /* заголовки, сильный акцент */
+  --ink-1: rgba(255, 255, 255, 0.88);    /* основной текст  (--text-primary) */
+  --ink-2: rgba(255, 255, 255, 0.64);    /* метаданные      (--text-secondary) */
+  --ink-3: rgba(255, 255, 255, 0.48);    /* подписи, placeholder (--text-tertiary), ≈4.97:1 */
+  --text-strong: var(--ink-0);
+  --text-primary: var(--ink-1);
+  --text-secondary: var(--ink-2);
+  --text-tertiary: var(--ink-3);
+
+  /* --- Акцент — только интерактив: кнопки, активные элементы --- */
+  --accent: #8a6dff;
+  --accent-hi: #a08aff;
+  --accent-lo: #6a4de0;
+  --accent-ghost: rgba(138, 109, 255, 0.12);
+  --text-link: #b3a2ff;                  /* ссылки светлее акцента: на тёмном фоне читаются лучше */
+
+  /* --- Семантика состояний + мягкие фоны для бейджей --- */
+  --success: #4cd964;
+  --danger: #ff453a;
+  --warning: #ffb340;
+  --success-soft: rgba(76, 217, 100, 0.16);
+  --danger-soft: rgba(255, 69, 58, 0.16);
+  --warning-soft: rgba(255, 179, 64, 0.16);
+  --green: var(--success);
+  --red: var(--danger);
+  --orange: var(--warning);
+
+  /* --- Стекло — 3 градации от одной базовой alpha --- */
+  --glass-tint: 22, 22, 28;
+  --glass-alpha: 0.55;                   /* управляется ползунком в настройках */
+  --glass-blur: 20px;
+  --glass-border: rgba(255, 255, 255, 0.10);
+  --glass-thin: rgba(var(--glass-tint), calc(var(--glass-alpha) * 0.7));
+  --glass-regular: rgba(var(--glass-tint), var(--glass-alpha));
+  --glass-thick: rgba(var(--glass-tint), calc(var(--glass-alpha) + 0.2));
+
+  /* --- Радиусы под прежними именами (теперь на новой шкале) --- */
+  --radius-xl: var(--r-xl);
+  --radius-l: var(--r-lg);
+  --radius-m: var(--r-md);
+  --radius-s: var(--r-sm);
+
+  /* --- Кривые под прежними именами --- */
+  --spring-snappy: var(--ease-out);
+  --spring-smooth: var(--ease-out);
+  --spring-bouncy: var(--ease-spring);
+
+  /* --- Legacy-алиасы: сохранены для существующих селекторов --- */
+  --bg: var(--bg-0);
+  --bg-elevated: var(--bg-1);
+  --ink: var(--ink-0);
+  --ink-dim: var(--ink-1);
+  --ink-faint: var(--ink-2);
+  --accent-2: var(--accent-lo);
+  --hairline: var(--line-1);
+  --content-bg: var(--glass-thin);
+  --content-border: var(--glass-border);
+  --input-bg: rgba(255, 255, 255, 0.08);
+  --input-border: var(--line-2);
+  --text-shadow-on-glass: 0 1px 3px rgba(0, 0, 0, 0.55), 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+/* ============================= 3. COMPONENT ============================ */
+:root {
+  /* пузыри: свой цвет, а не общий акцент */
+  --bubble-mine-bg: linear-gradient(160deg, var(--accent), var(--accent-lo));
+  --bubble-mine-ink: #fff;
+  --bubble-theirs-bg: var(--bg-2);
+  --bubble-theirs-ink: var(--ink-0);
+
+  /* карточки «стекло с оттенком» */
+  --card-base: rgba(34, 26, 70, 0.55);
+  --card-bg: linear-gradient(135deg, rgba(160, 132, 255, 0.20), rgba(86, 170, 255, 0.10) 62%, rgba(255, 255, 255, 0.05));
+  --card-border: rgba(196, 178, 255, 0.22);
+  --card-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 8px 26px rgba(14, 8, 48, 0.38);
+
+  /* выпадающие списки <select> */
+  --select-popup-bg: #1c1c22;
+  --select-popup-ink: #f2f2f7;
+}
+
+/* ============================= 4. OVERRIDES ============================ */
+/* Глобальный размер шрифта (Settings → Appearance): множитель для контентной шкалы
+   и пересчёт интерфейсной (она задана обычными px). */
+html[data-font-size="compact"] {
+  --ui-scale: 0.94;
+  --fs-xs: 10px; --fs-sm: 12px; --fs-base: 14px; --fs-md: 15px;
+  --fs-lg: 20px; --fs-xl: 25px; --fs-2xl: 30px;
+}
+html[data-font-size="large"] {
+  --ui-scale: 1.13;
+  --fs-xs: 12px; --fs-sm: 15px; --fs-base: 17px; --fs-md: 19px;
+  --fs-lg: 25px; --fs-xl: 32px; --fs-2xl: 39px;
+}
+
+/* OLED: настоящий чёрный канвас/панели (экономия заряда на AMOLED), остальное как у тёмной. */
+html[data-theme="oled"] {
+  --bg-0: #000000;
+  --bg-1: #000000;
+  --bg-2: #0c0c0f;
+  --bg-3: #151519;
+  --line-1: rgba(255, 255, 255, 0.09);   /* на чистом чёрном разделители должны быть заметны */
+  --line-2: rgba(255, 255, 255, 0.14);
+  --card-base: rgba(26, 20, 52, 0.7);
+  --select-popup-bg: #0e0e10;
+}
+
+/* Светлая палитра — НЕ инверсия, а своя. Единственное описание: тема light и auto при светлой системе. */
+html[data-scheme="light"] {
+  --bg-0: #fafafc;
+  --bg-1: #ffffff;
+  --bg-2: #f2f2f5;
+  --bg-3: #e8e8ed;
+
+  --line-1: rgba(0, 0, 0, 0.06);
+  --line-2: rgba(0, 0, 0, 0.10);
+
+  /* порядок уровней: primary > secondary > tertiary (раньше ink-3 был темнее ink-2 — инверсия) */
+  --ink-0: #0a0a0f;
+  --ink-1: rgba(10, 10, 15, 0.86);
+  --ink-2: rgba(10, 10, 15, 0.66);
+  --ink-3: rgba(10, 10, 15, 0.58);       /* ≈4.8:1 к --bg-0 */
+
+  --accent: #6446c9;
+  --accent-hi: #7355d6;
+  --accent-lo: #4f34ab;
+  --accent-ghost: rgba(100, 70, 201, 0.10);
+  --text-link: #5a3fd1;
+
+  --success: #2fa84f;
+  --danger: #d93a30;
+  --warning: #d98700;
+  --success-soft: rgba(47, 168, 79, 0.14);
+  --danger-soft: rgba(217, 58, 48, 0.12);
+  --warning-soft: rgba(217, 135, 0, 0.14);
+
+  --glass-tint: 255, 255, 255;
+  --glass-border: rgba(0, 0, 0, 0.06);
+
+  --input-bg: rgba(0, 0, 0, 0.04);
+  --input-border: var(--line-2);
+  --text-shadow-on-glass: 0 1px 2px rgba(255, 255, 255, 0.6);
+
+  --card-base: rgba(255, 255, 255, 0.72);
+  --card-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(238, 232, 255, 0.78) 60%, rgba(226, 238, 255, 0.7));
+  --card-border: rgba(110, 90, 220, 0.18);
+  --card-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 8px 24px rgba(70, 50, 150, 0.12);
+
+  --select-popup-bg: #ffffff;
+  --select-popup-ink: #1c1c1e;
+}
+
+/* Aurora: холодный синий, для ночного использования */
+html[data-theme="aurora"] {
+  --bg-0: #05080d;
+  --bg-1: #0a1016;
+  --bg-2: #101820;
+  --bg-3: #172030;
+
+  --line-1: rgba(150, 200, 255, 0.08);
+  --line-2: rgba(150, 200, 255, 0.12);
+
+  --accent: #5ab8ff;
+  --accent-hi: #7ecbff;
+  --accent-lo: #3a90e0;
+  --accent-ghost: rgba(90, 184, 255, 0.12);
+  --text-link: #8fd0ff;
+
+  --glass-tint: 10, 16, 22;
+}
+
+/* Движение по запросу системы: все токены длительности схлопываются, поэтому любая анимация на токенах гаснет сама. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-instant: 1ms;
+    --motion-fast: 1ms;
+    --motion-base: 1ms;
+    --motion-slow: 1ms;
+  }
+}

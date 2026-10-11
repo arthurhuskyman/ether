@@ -1128,6 +1128,7 @@ function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
   __isLightCache = null; // инвалидируем кэш — тема поменялась
   const isLight = theme === "light" || (theme === "auto" && window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches);
+  document.documentElement.dataset.scheme = isLight ? "light" : "dark"; // CSS опирается на data-scheme, а не на media-дубли
   const meta = document.querySelector('meta[name="theme-color"]');
   // Обновлено под новую палитру: --bg-0 тёмный и --bg-0 светлый
   // совпадают с meta[theme-color] — статус-бар iOS теперь всегда
@@ -4158,6 +4159,7 @@ if (m.replyTo) {
     // то, во что это превратил сторонний сервер перевода.
     const translationHtml = (m.translation && m.translation.text)
       ? `<div class="bubble-translation"><span class="bubble-translation-label">${escapeHtml(T("chat.translated"))}</span> ${linkifyAndHighlight(m.translation.text, q)}</div>` : "";
+    if (typeof m.text === "string" && (m.text.length > 140 || (m.text.match(/\n/g) || []).length >= 3)) inner.classList.add("bubble-long");
     inner.innerHTML = `${senderLabel}${fwdMark}${replyHtml}${body}${translationHtml}${previewSlotHtml}<span class="bubble-time">${ttlMark}${favMark}${formatTime(m.ts)}${editedMark}${tick}</span>${reactionsHtml}`;
     // Долгое нажатие — открывает обычное меню действий (ответить/
     // переслать/удалить), для ЛЮБОГО типа сообщения, как в большинстве
