@@ -725,6 +725,64 @@ const wss = new WebSocketServer({ server: httpServer, maxPayload: MAX_PAYLOAD })
 
 const clients = new Map();
 const mailbox = new Map();
+
+// ---------- Постоянный ящик (A4) ----------
+// Недоставленные конверты (они уже зашифрованы end-to-end, сервер их прочитать не может) сохраняются на диск и переживают перезапуск.
+// Путь — MAILBOX_FILE (по умолчанию рядом с сервером или в DATA_DIR). ВАЖНО: на бесплатном Render диск эфемерный — файл пропадает при
+// каждом деплое/засыпании; чтобы ящик реально переживал перезапуски, подключите Persistent Disk и укажите DATA_DIR (или MAILBOX_FILE) на него.
+// MAILBOX_PERSIST=0 отключает запись. Текст хранится не дольше MAILBOX_TEXT_TTL_MS (14 суток), файлы — MAILBOX_FILE_TTL_MS (48 ч).
+const MAILBOX_FILE = process.env.MAILBOX_FILE || path.join(process.env.DATA_DIR || __dirname, ".ether-mailbox.json");
+const MAILBOX_PERSIST = process.env.MAILBOX_PERSIST !== "0";
+const MAILBOX_TEXT_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+const MAILBOX_PERSIST_MAX_BYTES = 150 * 1024 * 1024;
+function mailboxEntryExpired(entry, now) {
+  const ttl = entry && entry.kind && entry.kind !== "chat" ? MAILBOX_FILE_TTL_MS : MAILBOX_TEXT_TTL_MS;
+  return !entry || typeof entry.ts !== "number" || now - entry.ts > ttl;
+}
+function loadMailbox() {
+  if (!MAILBOX_PERSIST) return 0;
+  try {
+    if (!fs.existsSync(MAILBOX_FILE)) return 0;
+    const data = JSON.parse(fs.readFileSync(MAILBOX_FILE, "utf8"));
+    if (!data || data.v !== 1 || !Array.isArray(data.boxes)) return 0;
+    const now = Date.now(); let n = 0;
+    for (const [id, entries] of data.boxes) {
+      if (typeof id !== "string" || !Array.isArray(entries)) continue;
+      const box = new Map();
+      for (const [msgId, entry] of entries) { if (typeof msgId === "string" && !mailboxEntryExpired(entry, now)) { box.set(msgId, entry); n++; } }
+      if (box.size) mailbox.set(id, box);
+    }
+    console.log("[mailbox] восстановлено записей: " + n);
+    return n;
+  } catch (e) { console.warn("[mailbox] не удалось прочитать файл ящика:", e.message); return 0; }
+}
+function saveMailbox() {
+  if (!MAILBOX_PERSIST) return;
+  try {
+    const now = Date.now(); let boxes = [];
+    for (const [id, box] of mailbox) {
+      const entries = [];
+      for (const [msgId, entry] of box) if (!mailboxEntryExpired(entry, now)) entries.push([msgId, entry]);
+      if (entries.length) boxes.push([id, entries]);
+    }
+    let json = JSON.stringify({ v: 1, boxes });
+    if (json.length > MAILBOX_PERSIST_MAX_BYTES) { // слишком много — на диск только текст (файлы остаются в памяти)
+      boxes = boxes.map(([id, es]) => [id, es.filter(([, e]) => !e.kind || e.kind === "chat")]).filter(([, es]) => es.length);
+      json = JSON.stringify({ v: 1, boxes });
+    }
+    const tmp = MAILBOX_FILE + ".tmp";
+    fs.writeFileSync(tmp, json, { mode: 0o600 });
+    fs.renameSync(tmp, MAILBOX_FILE); // атомарно: обрыв посреди записи не портит прежний файл
+  } catch (e) { console.warn("[mailbox] не удалось сохранить ящик:", e.message); }
+}
+let mailboxDirty = false, mailboxTimer = null;
+function scheduleMailboxSave() {
+  if (!MAILBOX_PERSIST) return;
+  mailboxDirty = true;
+  if (mailboxTimer) return;
+  mailboxTimer = setTimeout(() => { mailboxTimer = null; if (mailboxDirty) { mailboxDirty = false; saveMailbox(); } }, 2000);
+}
+loadMailbox();
 const pushSubs = new Map();
 const pushThrottle = new Map();
 
@@ -774,6 +832,7 @@ function schedulePushSubsSave() {
   }, 2000);
 }
 const pushSubHits = new Map();
+const watchHits = new Map();
 loadPushSubs();
 
 // ---------- Базовая отправка push ----------
@@ -949,11 +1008,24 @@ function rosterEntry(id) {
   const c = clients.get(id);
   return c ? { id, name: c.name || "", visible: c.visible !== false, publicKey: c.publicKey || null } : null;
 }
+// Кто кого видит в списке «онлайн» (A3). Раньше каждый зарегистрировавшийся получал ВСЕХ: id (хэш телефона/почты без соли — перебирается
+// за минуты), имена и ключи — в том числе скрытых («не показывать меня»). Теперь клиент присылает watch — список id своих контактов, и видит
+// только их плюс тех, кто сам согласился быть видимым. Старые клиенты (без watch) пока видят всех; STRICT_ROSTER=1 закрывает и это —
+// включайте, когда клиенты обновились (иначе у старых скрытые контакты будут казаться офлайн).
+const STRICT_ROSTER = process.env.STRICT_ROSTER === "1";
+const WATCH_MAX = 2000;
+function canSeePresence(viewer, targetId, targetVisible) {
+  if (viewer.watch) return viewer.watch.has(targetId) || targetVisible !== false;
+  return STRICT_ROSTER ? targetVisible !== false : true;
+}
 function broadcastPresence(id, online, extra = {}) {
-  const entry = online ? rosterEntry(id) : { id, name: "", visible: true, publicKey: null };
+  const entry = online ? rosterEntry(id) : { id, name: "", visible: extra.wasVisible !== false, publicKey: null };
+  const { wasVisible, ...rest } = extra;
+  const visible = entry ? entry.visible : true;
   for (const [otherId, c] of clients) {
     if (otherId === id) continue;
-    safeSend(c.ws, { type: "presence", id, online, ...entry, ...extra });
+    if (!canSeePresence(c, id, visible)) continue;
+    safeSend(c.ws, { type: "presence", id, online, ...entry, ...rest });
   }
 }
 function flushMailbox(id, ws) {
@@ -996,7 +1068,7 @@ function isValidEnvelope(env) {
   return typeof env.iv === "string" && env.iv.length < 200;
 }
 // Возможности сервера, о которых он сообщает клиентам при регистрации: клиент включает новый формат только если сервер его понимает.
-const SERVER_FEATURES = ["ratchet2", "prekeys"];
+const SERVER_FEATURES = ["ratchet2", "prekeys", "watch"];
 
 // ---------- Prekey-пакеты для начала Double Ratchet (3DH/4DH) ----------
 // Клиент заранее выкладывает подписанный-по-смыслу prekey (spk, меняется раз в неделю) и пачку одноразовых (opks).
@@ -1044,13 +1116,15 @@ wss.on("connection", (ws, req) => {
         return;
       }
       if (clients.has(msg.id) && clients.get(msg.id).ws !== ws) {
+        let oldVisible = true;
         try {
           const old = clients.get(msg.id);
+          oldVisible = old.visible;
           // Для диагностики: с какого адреса пришла «замена» и совпадает ли он со старым соединением (то же устройство/сеть)
           safeSend(old.ws, { type: "replaced", sameIp: old.ip === clientIp, ageSec: Math.round((Date.now() - (old.since || Date.now())) / 1000) });
           old.ws.close();
         } catch (e) {}
-        broadcastPresence(msg.id, false);
+        broadcastPresence(msg.id, false, { wasVisible: oldVisible });
       }
       myId = msg.id;
       ws._etherId = myId;
@@ -1060,17 +1134,31 @@ wss.on("connection", (ws, req) => {
         name: String(msg.name || "").slice(0, 60),
         visible: msg.visible !== false,
         publicKey: msg.publicKey || null,
+        // Новый клиент передаёт список контактов уже при регистрации — первый ростер сразу урезан (иначе до отдельного watch он бы получил всех)
+        watch: Array.isArray(msg.watch) ? new Set(msg.watch.filter((x) => typeof x === "string" && x.length > 0 && x.length <= 128).slice(0, WATCH_MAX)) : null,
       });
       console.log("[reg] " + shortId(myId) + " visible=" + (msg.visible !== false) + " clients=" + clients.size);
+      const me0 = clients.get(myId);
       const online = Array.from(clients.keys())
         .filter((i) => i !== myId)
         .map((i) => rosterEntry(i))
-        .filter(Boolean);
+        .filter((e) => e && canSeePresence(me0, e.id, e.visible));
       safeSend(ws, { type: "registered", id: myId, online, features: SERVER_FEATURES, prekeyCount: prekeyCount(myId) });
       if (PUSH_ENABLED) safeSend(ws, { type: "vapid-key", key: VAPID_PUBLIC });
       clearThrottleForRecipient(myId);
       flushMailbox(myId, ws);
       broadcastPresence(myId, true);
+      return;
+    }
+
+    // watch: «следите за этими контактами» — заменяет весь список; в ответ — те из них, кто сейчас онлайн
+    if (msg.type === "watch" && myId) {
+      if (!wsRateLimitOk(watchHits, myId, 20)) return;
+      const me = clients.get(myId); if (!me) return;
+      const ids = Array.isArray(msg.ids) ? msg.ids.filter((x) => typeof x === "string" && x.length > 0 && x.length <= 128).slice(0, WATCH_MAX) : [];
+      me.watch = new Set(ids);
+      const online = ids.filter((i) => i !== myId).map((i) => rosterEntry(i)).filter(Boolean);
+      safeSend(ws, { type: "watch-result", online, strict: STRICT_ROSTER });
       return;
     }
 
@@ -1166,6 +1254,7 @@ wss.on("connection", (ws, req) => {
 
       if (!mailbox.has(msg.to)) mailbox.set(msg.to, new Map());
       mailbox.get(msg.to).set(msg.msgId, { ...payload, ts: Date.now() });
+      scheduleMailboxSave();
 
       if (target && target.ws.readyState === WebSocket.OPEN) {
         safeSend(target.ws, { type: "deliver", ...payload, queued: false });
@@ -1225,15 +1314,16 @@ wss.on("connection", (ws, req) => {
 
     if (msg.type === "mailbox-ack" && myId && typeof msg.msgId === "string") {
       const box = mailbox.get(myId);
-      if (box) box.delete(msg.msgId);
+      if (box && box.delete(msg.msgId)) scheduleMailboxSave();
       return;
     }
   });
 
   ws.on("close", () => {
     if (myId && clients.get(myId) && clients.get(myId).ws === ws) {
+      const wasVisible = clients.get(myId).visible;
       clients.delete(myId);
-      broadcastPresence(myId, false);
+      broadcastPresence(myId, false, { wasVisible });
       console.log("[reg] " + shortId(myId) + " disconnected, clients=" + clients.size);
     }
   });
@@ -1266,7 +1356,7 @@ setInterval(() => {
     // копиться дольше разумного окна ожидания, даже если общий счётчик
     // per-user ещё не выбран целиком.
     for (const [msgId, entry] of box) {
-      if (entry.kind && entry.kind !== "chat" && now - entry.ts > MAILBOX_FILE_TTL_MS) box.delete(msgId);
+      if (mailboxEntryExpired(entry, now)) { box.delete(msgId); scheduleMailboxSave(); }
     }
     if (box.size <= MAX_MAILBOX_PER_USER) continue;
     const entries = Array.from(box.entries()).sort((a, b) => a[1].ts - b[1].ts);
@@ -1305,6 +1395,7 @@ setInterval(() => {
 function shutdown() {
   console.log("Завершаем работу…");
   try { savePushSubs(); } catch (e) {}
+  try { saveMailbox(); } catch (e) {}
   for (const ws of wss.clients) { try { ws.close(1001, "server shutdown"); } catch (e) {} }
   wss.close(() => {
     httpServer.close(() => process.exit(0));

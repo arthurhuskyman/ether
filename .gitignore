@@ -1,2 +1,5 @@
 node_modules/
 coverage/
+.ether-push-subs.json
+.ether-mailbox.json
+.ether-mailbox.json.tmp

@@ -138,6 +138,8 @@ class SignalingClient extends EventTarget {
         name: this.name,
         visible: this.visible,
         publicKey: this.publicKey,
+        // Контакты, чьё присутствие нужно видеть: сервер не раскрывает остальных (старый сервер поле просто игнорирует)
+        watch: this.watchIds ? this.watchIds() : undefined,
       }));
       this.dispatchEvent(new CustomEvent("connected"));
     });
@@ -159,6 +161,9 @@ class SignalingClient extends EventTarget {
         this.prekeyCount = Number.isInteger(msg.prekeyCount) ? msg.prekeyCount : null;
         const users = (Array.isArray(msg.online) ? msg.online : []).map(normalizeRosterEntry).filter(Boolean);
         etherLog("info", "[signaling] зарегистрирован, онлайн:", users.length);
+        this.dispatchEvent(new CustomEvent("online-list", { detail: { users } }));
+      } else if (msg.type === "watch-result") {
+        const users = (Array.isArray(msg.online) ? msg.online : []).map(normalizeRosterEntry).filter(Boolean);
         this.dispatchEvent(new CustomEvent("online-list", { detail: { users } }));
       } else if (msg.type === "register-rate-limited") {
         // Сервер отклонил регистрацию по лимиту попыток — раньше клиент
@@ -328,6 +333,8 @@ class SignalingClient extends EventTarget {
   mailboxAck(msgId) { return this.send("mailbox-ack", { msgId }); }
 
   // Prekey-пакеты для начала Double Ratchet (см. ratchet.js): выложить свои публичные ключи / запросить пакет собеседника.
+  // Заменяет список наблюдаемых контактов (сервер ответит watch-result с теми, кто сейчас онлайн)
+  watch(ids) { return this.send("watch", { ids: Array.from(ids || []).slice(0, 2000) }); }
   uploadPrekeys(payload) { return this.send("prekey-upload", { spk: payload.spk, opks: payload.opks }); }
   fetchPrekeys(to, rid) { return this.send("prekey-fetch", { to, rid }); }
 

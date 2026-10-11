@@ -678,6 +678,20 @@ function messageSoundStyleForContact(contactId) {
   return (style && MESSAGE_SOUND_FILES[style]) ? style : "default";
 }
 const soundPool = new Map(); // ключ -> <audio>, создаются один раз и переиспользуются
+// iOS показывает на экране блокировки виджет «Now Playing» (название страницы, 0:00 и кнопка ▶) после ЛЮБОГО звука, сыгранного через
+// <audio> в фоне — звук сообщения, рингтон, гудки. Виджет не исчезает сам. Поэтому после каждого такого звука снимаем медиасессию
+// (метаданные, состояние и обработчики кнопок) — несколько раз, т.к. iOS обновляет виджет с задержкой.
+function clearNowPlaying() {
+  const run = () => {
+    try {
+      if (!("mediaSession" in navigator)) return;
+      navigator.mediaSession.metadata = null;
+      navigator.mediaSession.playbackState = "none";
+      for (const a of ["play", "pause", "seekbackward", "seekforward", "previoustrack", "nexttrack", "stop"]) { try { navigator.mediaSession.setActionHandler(a, null); } catch (e) {} }
+    } catch (e) {}
+  };
+  run(); setTimeout(run, 400); setTimeout(run, 1500); setTimeout(run, 4000);
+}
 let dialingAudioEl = null;
 
 function getSoundEl(src, loop) {
@@ -688,6 +702,9 @@ function getSoundEl(src, loop) {
     el.preload = "auto";
     el.loop = !!loop;
     el.setAttribute("playsinline", "");
+    el.setAttribute("x-webkit-airplay", "deny"); el.disableRemotePlayback = true; // не показывать AirPlay/пульт для служебных звуков
+    el.addEventListener("ended", clearNowPlaying);
+    el.addEventListener("pause", () => { clearTimeout(el.__npTimer); el.__npTimer = setTimeout(() => { if (el.paused) clearNowPlaying(); }, 300); });
     document.body.appendChild(el);
     soundPool.set(src, el);
     // Уведомления и рингтон должны быть слышны сразу, громко — если ОС
@@ -1556,6 +1573,7 @@ function playRingtone() {
 }
 function stopRingtone() {
   if (ringtoneTimer) { clearInterval(ringtoneTimer); ringtoneTimer = null; }
+  if (ringtoneAudioEl) clearNowPlaying();
   if (ringtoneAudioEl) {
     try { ringtoneAudioEl.pause(); ringtoneAudioEl.currentTime = 0; } catch (e) {}
     ringtoneAudioEl = null;
@@ -1595,6 +1613,7 @@ function playNoAnswerSound() {
   } catch (e) {}
 }
 function stopCallSounds() {
+  if (dialingAudioEl) clearNowPlaying();
   if (dialingAudioEl) {
     try { dialingAudioEl.pause(); dialingAudioEl.currentTime = 0; } catch (e) {}
     dialingAudioEl = null;
@@ -1890,6 +1909,8 @@ function wireOnboardingOnce() {
       Store.myId = crypto.randomUUID();
     }
     Store.name = nameVal;
+    // Новый профиль не виден незнакомцам в списке «онлайн» по умолчанию (включить можно в настройках) — меньше следов, чем у «видимого всем»
+    try { if (localStorage.getItem("ether.discoverable") === null) Store.discoverable = false; } catch (e) {}
     __onboardingKeyPairPromise = ensureKeyPair().catch(() => {});
     goToOnboardingSlide(3);
   });
@@ -2905,8 +2926,27 @@ function syncBlockedToSW() {
     else if (swRegistration && swRegistration.active) swRegistration.active.postMessage(msg);
   } catch (e) {}
 }
+// A3: какие id просить у сервера в списке «онлайн» — только наши контакты (и участники групп)
+function watchedContactIds() {
+  const ids = new Set();
+  for (const c of state.contacts.values()) {
+    if (c.isSelf || c.isDemo) continue;
+    if (c.isGroup) { for (const m of (c.members || [])) if (m.id && m.id !== Store.myId) ids.add(m.id); }
+    else if (c.managed && c.id) ids.add(c.id);
+  }
+  return Array.from(ids);
+}
+let __watchKey = "", __watchTimer = null;
+function syncWatch(force) {
+  const ids = watchedContactIds().sort(), key = ids.join(",");
+  if (!force && key === __watchKey) return;
+  __watchKey = key;
+  clearTimeout(__watchTimer);
+  __watchTimer = setTimeout(() => { try { if (signaling && signaling.connected && signaling.registered && signaling.features.includes("watch")) signaling.watch(ids); } catch (e) {} }, 800);
+}
 function persistContacts() {
   try { syncBlockedToSW(); } catch (e) {}
+  try { syncWatch(false); } catch (e) {}
   __contactsPersistPending = Array.from(state.contacts.values()).filter((c) => c.managed).map((c) => ({
     id: c.id, name: c.name, raw: c.raw, publicKey: c.publicKey,
     rc: c.rc || undefined, verifiedKey: c.verifiedKey || undefined, pendingKey: c.pendingKey || undefined, rejectedKey: c.rejectedKey || undefined, authSeen: c.authSeen || undefined,
@@ -6624,6 +6664,7 @@ function pauseAllVoicePlayback() {
   }
   document.querySelectorAll(".voice-play-btn").forEach((b) => { setVoiceIcon(b, VOICE_PLAY_ICON_SVG); });
   stopVoicePlaybackWaveLoop();
+  clearNowPlaying();
 }
 // === Раздел 7 роадмапа — real waveform ПРИ ПРОСЛУШИВАНИИ голосовых (а не
 // только при их записи, см. V.45.0.0 startVoiceLevelMeter/AnalyserNode на
@@ -6822,7 +6863,7 @@ function hydrateFileSlots(root) {
       audio.onplay = () => setUi(true);
       audio.onpause = () => setUi(false);
       audio.onended = () => {
-        setUi(false);
+        setUi(false); clearNowPlaying();
         // Стопкой: после входящего голосового само запускается следующее входящее ниже по ленте
         try {
           if (el.closest(".bubble-row") && !el.closest(".bubble-row.mine")) {
@@ -8120,6 +8161,7 @@ function initSignaling() {
   updateSignalingStatusUI("connecting", "…");
   etherLog("info", "[signaling] connecting to " + url);
   signaling = new SignalingClient(url, Store.myId, { name: Store.name, visible: Store.discoverable, publicKey: Store.myPublicKeyJwk });
+  signaling.watchIds = watchedContactIds;
   signalingCleanup = wireSignalingEvents(signaling);
   signaling.addEventListener("slow-connect", () => { if (!signaling.connected) updateSignalingStatusUI("connecting", T("status.waking")); });
   signaling.start();
@@ -13858,6 +13900,7 @@ const bootWatchdog = setTimeout(() => { if (bootDidNotRender()) showBootRecovery
 window.addEventListener("error", () => { if (bootDidNotRender()) { clearTimeout(bootWatchdog); showBootRecovery(); } });
 window.addEventListener("unhandledrejection", () => { if (bootDidNotRender()) { clearTimeout(bootWatchdog); showBootRecovery(); } });
 
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") setTimeout(clearNowPlaying, 1200); });
 document.addEventListener("DOMContentLoaded", async () => {
   try {
     await restoreFromIDB().catch(() => {});
