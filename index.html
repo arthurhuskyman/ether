@@ -438,6 +438,8 @@
         </label>
         <button type="button" id="settings-ringtone-preview" class="settings-row link-row"><span data-i18n="settings.ringtone.preview">Play preview</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
         <label class="settings-row"><span data-i18n="settings.pinlock">PIN code on start</span><input id="settings-pinlock" type="checkbox" class="switch" /></label>
+        <label class="settings-row"><span data-i18n="settings.encrypt">Encrypt data on this device</span><input id="settings-encrypt-store" type="checkbox" class="switch" /></label>
+        <p class="fine muted settings-hint" data-i18n="settings.encrypt.hint">Messages, keys and files are stored encrypted with a key made from your PIN (6+ digits). Protects against someone copying the device storage. If you forget the PIN, the data cannot be recovered. A short digit PIN can still be guessed offline — use a long one.</p>
         <button type="button" id="change-pin-btn" class="settings-row link-row hidden"><span data-i18n="settings.pin.change">Change PIN</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
       </div>
       <div class="settings-group flat-content" data-settings-category="data">
@@ -1446,6 +1448,7 @@
 <script src="js/vendor/jsQR.js"></script>
 <script src="js/signaling-codec.js"></script>
 <script src="js/crypto-helper.js"></script>
+<script src="js/secure-store.js"></script>
 <script src="js/icons.js"></script>
 <script src="js/rich.js"></script>
 <script src="js/ratchet.js"></script>

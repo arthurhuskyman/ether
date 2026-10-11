@@ -25,7 +25,7 @@ const opkList = (n, tag) => Array.from({ length: n }, (_, i) => ({ id: tag + i, 
   const A = await connect(idA), B = await connect(idB);
   check("registered сообщает features с prekeys и prekeyCount=0", (() => { const r = A.events.find((e) => e.type === "registered"); return r && r.features.includes("prekeys") && r.prekeyCount === 0; })());
 
-  B.send({ type: "prekey-upload", spk: { id: "spk1", pub: pub("s") }, opks: opkList(12, "o") });
+  B.send({ type: "prekey-upload", spk: { id: "spk1", pub: pub("s"), sig: "c2ln" }, opks: opkList(12, "o") });
   await wait(150);
   const stored = B.events.find((e) => e.type === "prekey-stored");
   check("загрузка подтверждена, count=12", stored && stored.count === 12 && !stored.error);
@@ -36,6 +36,7 @@ const opkList = (n, tag) => Array.from({ length: n }, (_, i) => ({ id: tag + i, 
   check("пакет содержит spk и один opk", b1 && b1.spk && b1.spk.id === "spk1" && b1.opk && b1.opk.id === "o0" && b1.opk.pub.length === 2);
   A.send({ type: "prekey-fetch", to: idB, rid: "r2" });
   await wait(150);
+  check("подпись spk сохраняется и отдаётся в пакете", b1 && b1.spk && b1.spk.sig === "c2ln");
   const b2 = A.events.find((e) => e.type === "prekey-bundle" && e.rid === "r2");
   check("второй запрос получает ДРУГОЙ opk (одноразовый)", b2 && b2.opk && b2.opk.id === "o1");
 

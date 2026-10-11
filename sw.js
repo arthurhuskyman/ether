@@ -22,6 +22,7 @@ const SHELL_FILES = [
   "./js/signaling-codec.js",
   "./js/signaling-client.js",
   "./js/crypto-helper.js",
+  "./js/secure-store.js",
   "./js/icons.js",
   "./js/rich.js",
   "./js/ratchet.js",

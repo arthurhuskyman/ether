@@ -1287,11 +1287,11 @@ wss.on("connection", (ws, req) => {
     if (msg.type === "prekey-upload" && myId) {
       if (!wsRateLimitOk(prekeyUploadHits, myId, 20)) return;
       const spk = msg.spk, opks = Array.isArray(msg.opks) ? msg.opks : [];
-      if (spk != null && !(spk && validPrekeyId(spk.id) && validPrekeyPub(spk.pub))) { safeSend(ws, { type: "prekey-stored", error: "invalid" }); return; }
+      if (spk != null && !(spk && validPrekeyId(spk.id) && validPrekeyPub(spk.pub) && (spk.sig == null || (typeof spk.sig === "string" && spk.sig.length <= 200)))) { safeSend(ws, { type: "prekey-stored", error: "invalid" }); return; }
       if (opks.length > PREKEY_MAX_UPLOAD || !opks.every((o) => o && validPrekeyId(o.id) && validPrekeyPub(o.pub))) { safeSend(ws, { type: "prekey-stored", error: "invalid" }); return; }
       let e = prekeys.get(myId);
       if (!e) { e = { spk: null, opks: new Map(), ts: Date.now() }; prekeys.set(myId, e); }
-      if (spk) e.spk = { id: spk.id, pub: spk.pub };
+      if (spk) e.spk = { id: spk.id, pub: spk.pub, ...(typeof spk.sig === "string" && spk.sig.length <= 200 ? { sig: spk.sig } : {}) };
       for (const o of opks) e.opks.set(o.id, o.pub);
       while (e.opks.size > PREKEY_MAX_OPKS) e.opks.delete(e.opks.keys().next().value);
       e.ts = Date.now();

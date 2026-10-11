@@ -254,3 +254,31 @@ test("prekey: запас на сервере пополняется по усл�
   reload(b, () => {});
   assert.equal(b.R.needsPrekeys(25), false, "после перезагрузки spk на месте");
 });
+
+// ---------- подпись spk (C2) ----------
+test("prekey: spk подписан ключом личности — подлинный пакет принимается, подменённый отвергается, без подписи (старый клиент) принимается", async () => {
+  const { a, b } = await pair();
+  const up = await b.R.prekeyUploadPayload(2, b.priv);
+  assert.ok(up.spk.sig, "подпись выложена");
+  assert.equal(await a.R.verifySpk(b.pub, up.spk), true);
+  const e = await sendX(a, b, { t: "по подписанному" }, { spk: up.spk, opk: up.opks[0] });
+  assert.ok(e.h.p, "старт по prekey-пакету");
+  assert.deepEqual(await recv(b, a, e), { t: "по подписанному" });
+  // сервер подменил spk своим ключом (подпись от прежнего spk)
+  const { a: a2, b: b2 } = await pair();
+  const real = await b2.R.prekeyUploadPayload(1, b2.priv);
+  const evil = await a2.R.prekeyUploadPayload(1, a2.priv); // «ключ сервера»
+  const forged = { id: evil.spk.id, pub: evil.spk.pub, sig: real.spk.sig };
+  assert.equal(await a2.R.verifySpk(b2.pub, forged), false);
+  const e2 = await sendX(a2, b2, { t: "подмена" }, { spk: forged, opk: null });
+  assert.equal(e2.h.p, undefined, "подмена не использована: старт от долговременных ключей");
+  assert.deepEqual(await recv(b2, a2, e2), { t: "подмена" });
+  // подпись другого человека
+  assert.equal(await a2.R.verifySpk(a2.pub, real.spk), false);
+  // старый клиент без подписи — принимается как раньше
+  const { a: a3, b: b3 } = await pair();
+  const old = await b3.R.prekeyUploadPayload(1);
+  assert.equal(old.spk.sig, undefined);
+  const e3 = await sendX(a3, b3, { t: "без подписи" }, { spk: old.spk, opk: old.opks[0] });
+  assert.ok(e3.h.p);
+});

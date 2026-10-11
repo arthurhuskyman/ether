@@ -50,6 +50,21 @@ const Ratchet = (() => {
   function persist() { store.save(getDb()); }
 
   // ---------- примитивы ----------
+  // Подпись spk долговременным ключом личности (C2): сервер не может подменить prekey собеседника своим. Тот же P-256 ключ используется
+  // для ECDH и ECDSA (как XEdDSA в Signal); сообщение содержит метку домена, чтобы подпись нельзя было перенести в другой контекст.
+  const SPK_SIG_DOMAIN = "ether-spk-v1|";
+  const spkMsg = (id, x, y) => te.encode(SPK_SIG_DOMAIN + id + "|" + x + "|" + y);
+  async function signSpk(priv, id, x, y) {
+    const key = await crypto.subtle.importKey("jwk", { kty: "EC", crv: "P-256", x: priv.x, y: priv.y, d: priv.d, ext: true }, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
+    return b64(new Uint8Array(await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, spkMsg(id, x, y))));
+  }
+  async function verifySpk(theirPub, spk) {
+    try {
+      if (!spk || typeof spk.sig !== "string" || spk.sig.length > 200 || !Array.isArray(spk.pub)) return false;
+      const key = await crypto.subtle.importKey("jwk", { kty: "EC", crv: "P-256", x: theirPub.x, y: theirPub.y, ext: true }, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
+      return await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, key, unb64(spk.sig), spkMsg(spk.id, spk.pub[0], spk.pub[1]));
+    } catch (e) { return false; }
+  }
   async function genPair() {
     const pair = await crypto.subtle.generateKey(ALG, true, ["deriveBits"]);
     const j = await crypto.subtle.exportKey("jwk", pair.privateKey);
@@ -206,6 +221,8 @@ const Ratchet = (() => {
         let bundle = null;
         if (ctx.getBundle) { try { bundle = await ctx.getBundle(); } catch (e) { bundle = null; } }
         const okPub = (x) => Array.isArray(x) && x.length === 2 && x.every((v) => typeof v === "string" && v.length > 0 && v.length <= 100);
+        // Подпись есть и не сходится — пакет подменён/испорчен, начинаем от долговременных ключей; подписи нет (старый клиент) — принимаем как раньше
+        if (bundle && bundle.spk && bundle.spk.sig != null && ctx.theirPubJwk && !(await verifySpk(ctx.theirPubJwk, bundle.spk))) bundle = null;
         const usable = bundle && bundle.spk && typeof bundle.spk.id === "string" && okPub(bundle.spk.pub) && (!bundle.opk || (typeof bundle.opk.id === "string" && okPub(bundle.opk.pub)));
         list.unshift(usable ? await newInitiatorX(ctx, bundle) : await newInitiator(ctx.myPrivJwk, ctx.theirPubJwk, ctx.myId, ctx.contactId));
       }
@@ -265,7 +282,7 @@ const Ratchet = (() => {
   // Нужно ли пополнить запас на сервере: нет spk, пора менять spk, или одноразовых там меньше OPK_WANT.
   function needsPrekeys(serverCount) { const p = pk(); return !p.spk || Date.now() - p.spk.t > SPK_ROTATE_MS || !(serverCount >= OPK_WANT); }
   // Готовит публичную часть для загрузки на сервер: текущий spk (меняется раз в неделю, старые ещё живут) и count новых одноразовых.
-  async function prekeyUploadPayload(count) {
+  async function prekeyUploadPayload(count, myPrivJwk) {
     const p = pk(), now = Date.now();
     if (!p.spk || now - p.spk.t > SPK_ROTATE_MS) {
       if (p.spk) p.old.unshift(p.spk);
@@ -282,13 +299,14 @@ const Ratchet = (() => {
     const ids = Object.keys(p.opks);
     if (ids.length > OPK_STORE_MAX) for (const id of ids.slice(0, ids.length - OPK_STORE_MAX)) delete p.opks[id];
     persist();
-    return { spk: { id: p.spk.id, pub: [p.spk.x, p.spk.y] }, opks: fresh };
+    if (myPrivJwk && !p.spk.sig) { try { p.spk.sig = await signSpk(myPrivJwk, p.spk.id, p.spk.x, p.spk.y); persist(); } catch (e) {} }
+    return { spk: { id: p.spk.id, pub: [p.spk.x, p.spk.y], ...(p.spk.sig ? { sig: p.spk.sig } : {}) }, opks: fresh };
   }
 
   function reset(contactId) { const d = getDb().s; if (d[contactId]) { delete d[contactId]; persist(); } }
   function resetAll() { db = { s: {}, pk: {} }; persist(); }
   function info(contactId) { const l = (getDb().s[contactId] || []); return l.length ? l.length + " сесс., основная: ns=" + l[0].ns + " nr=" + l[0].nr + (l[0].init ? " (ждёт ответа)" : "") : "нет"; }
 
-  return { encrypt, decrypt, reset, resetAll, setStore, info, needsPrekeys, prekeyUploadPayload };
+  return { encrypt, decrypt, reset, resetAll, setStore, info, needsPrekeys, prekeyUploadPayload, verifySpk, signSpk };
 })();
 if (typeof module !== "undefined") module.exports = Ratchet;

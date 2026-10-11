@@ -160,8 +160,13 @@ const IDB = (() => {
     });
     return dbPromise;
   }
-  async function set(key, value) {
+  const SEALED_TEXT_KEYS = new Set(["contactsPrev"]);
+  async function set(key, value, opts) {
     try {
+      if (typeof SecureStore !== "undefined" && SecureStore.isActive() && !(opts && opts.plain)) {
+        if (typeof key === "string" && key.indexOf("file:") === 0 && value instanceof Blob) value = await SecureStore.sealBlob(value);
+        else if (SEALED_TEXT_KEYS.has(key) && typeof value === "string") value = await SecureStore.sealText(value);
+      }
       const db = await open();
       return new Promise((res) => {
         const tx = db.transaction(STORE, "readwrite");
@@ -178,7 +183,16 @@ const IDB = (() => {
       return new Promise((res) => {
         const tx = db.transaction(STORE, "readonly");
         const r = tx.objectStore(STORE).get(key);
-        r.onsuccess = () => res(r.result);
+        r.onsuccess = async () => {
+          let v = r.result;
+          try {
+            if (typeof SecureStore !== "undefined") {
+              if (v && typeof v === "object" && v.__enc === 1) v = await SecureStore.openBlob(v);
+              else if (SEALED_TEXT_KEYS.has(key) && typeof v === "string") v = await SecureStore.openText(v);
+            }
+          } catch (e) { v = undefined; }
+          res(v);
+        };
         r.onerror = () => res(undefined);
       });
     } catch (e) { return undefined; }
@@ -215,17 +229,20 @@ const CRITICAL_LS_KEYS = [
   "ether.panicShakeEnabled", "ether.fx", "ether.sigKey", "ether.fx.aurora", "ether.keyInfo",
 ];
 
+// Резервная копия ключей в IndexedDB берёт значения «как лежат на диске» (при включённом шифровании — шифртекст), а не расшифрованные из памяти
+const lsRaw = (k) => (typeof SecureStore !== "undefined" ? SecureStore.rawGet(k) : localStorage.getItem(k));
 async function backupToIDB() {
   for (const k of CRITICAL_LS_KEYS) {
-    const v = localStorage.getItem(k);
+    const v = lsRaw(k);
     if (v !== null) await IDB.set(k, v);
+    else if (typeof SecureStore !== "undefined" && SecureStore.KEYS.indexOf(k) >= 0) await IDB.del(k); // старая открытая копия не должна пережить шифрование
   }
 }
 async function restoreFromIDB() {
   for (const k of CRITICAL_LS_KEYS) {
-    if (localStorage.getItem(k) !== null) continue;
+    if (lsRaw(k) !== null) continue;
     const v = await IDB.get(k);
-    if (v !== null && v !== undefined) localStorage.setItem(k, v);
+    if (v !== null && v !== undefined) { if (typeof SecureStore !== "undefined") SecureStore.rawSet(k, v); else localStorage.setItem(k, v); }
   }
 }
 let _idbBackupTimer = null;
@@ -1648,6 +1665,11 @@ async function tryUnlock(pin) {
     if (btn) btn.classList.remove("loading");
   }
   if (h === Store.pinHash) {
+    if (SecureStore.isOn()) { // данные зашифрованы PIN'ом — расшифровываем в память до старта приложения
+      let ok = false;
+      try { ok = await SecureStore.unlock(pin); } catch (e) { toast(T("secure.corrupt")); return; }
+      if (!ok) { toast(T("toast.pinWrong")); return; }
+    }
     state.unlockAttempts = 0;
     const p = $("#lock-pin"); if (p) p.value = "";
     const l = $("#lock-screen"); if (l) l.classList.add("hidden");
@@ -2943,6 +2965,16 @@ function syncWatch(force) {
   __watchKey = key;
   clearTimeout(__watchTimer);
   __watchTimer = setTimeout(() => { try { if (signaling && signaling.connected && signaling.registered && signaling.features.includes("watch")) signaling.watch(ids); } catch (e) {} }, 800);
+}
+// Включение/выключение шифрования: файлы из IndexedDB перезаписываются (IDB.set сам шифрует/не шифрует по текущему состоянию SecureStore)
+async function migrateFilesEncryption(toEncrypted) {
+  for (const c of state.contacts.values()) for (const m of c.messages) {
+    if (!m.file || m.file.pending || m.file.failed) continue;
+    try {
+      const raw = await IDB.get("file:" + m.id); // уже расшифрованный Blob (или undefined)
+      if (raw instanceof Blob) await IDB.set("file:" + m.id, raw, toEncrypted ? undefined : { plain: true });
+    } catch (e) {}
+  }
 }
 function persistContacts() {
   try { syncBlockedToSW(); } catch (e) {}
@@ -7636,7 +7668,7 @@ async function maybeUploadPrekeys(force) {
   if (!force && !Ratchet.needsPrekeys(signaling.prekeyCount)) return;
   prekeyUploadBusy = true;
   try {
-    const payload = await Ratchet.prekeyUploadPayload(30);
+    const payload = await Ratchet.prekeyUploadPayload(30, Store.myPrivateKeyJwk);
     signaling.uploadPrekeys(payload);
     etherLog("info", "[prekey] выложено одноразовых ключей: " + payload.opks.length);
   } catch (e) { etherLog("warn", "[prekey] не удалось подготовить ключи:", String(e)); }
@@ -12336,12 +12368,51 @@ function wireSettingsScreen() {
     const ss = $("#set-pin-sheet"); if (ss) ss.classList.remove("hidden");
     setTimeout(() => { const i = $("#set-pin-input"); if (i) i.focus(); }, 50);
   });
+  // Шифрование данных на устройстве (js/secure-store.js): включается и выключается только с подтверждением PIN
+  const encToggle = $("#settings-encrypt-store");
+  const syncEncUi = () => { if (encToggle) { encToggle.checked = SecureStore.isOn(); encToggle.disabled = !Store.pinEnabled && !SecureStore.isOn(); } };
+  syncEncUi();
+  if (encToggle) encToggle.addEventListener("change", () => {
+    if (!Store.pinEnabled) { encToggle.checked = false; toast(T("secure.needPin")); return; }
+    pinSheetMode = encToggle.checked ? "encrypt-enable" : "encrypt-disable";
+    const st = $("#set-pin-title"); if (st) st.textContent = T(encToggle.checked ? "secure.enableTitle" : "pin.confirmTitle");
+    const si = $("#set-pin-input"); if (si) si.value = "";
+    const ss = $("#set-pin-sheet"); if (ss) ss.classList.remove("hidden");
+    setTimeout(() => { const i = $("#set-pin-input"); if (i) i.focus(); }, 50);
+  });
+  let pinOldValue = "";
   const pinSave = $("#set-pin-save-btn");
   if (pinSave) pinSave.addEventListener("click", async () => {
     const inp = $("#set-pin-input"); if (!inp) return;
     const v = inp.value.trim();
     if (!v || v.length < 4) { toast(T("toast.pinShort")); return; }
     if (!/^\d+$/.test(v)) { toast(T("toast.pinDigits")); return; }
+
+    if (pinSheetMode === "encrypt-enable" || pinSheetMode === "encrypt-disable") {
+      const h = await pbkdf2Hex(v, Store.pinSalt, PIN_ITERATIONS);
+      if (h !== Store.pinHash) { toast(T("toast.pinWrong")); return; }
+      const ss = $("#set-pin-sheet");
+      try {
+        if (pinSheetMode === "encrypt-enable") {
+          if (v.length < SecureStore.MIN_PIN) { toast(T("secure.pinShort", { n: SecureStore.MIN_PIN })); return; }
+          if (ss) ss.classList.add("hidden");
+          toast(T("secure.working"));
+          await SecureStore.enable(v);
+          await backupToIDB();
+          await migrateFilesEncryption(true);
+          toast(T("secure.on"));
+        } else {
+          if (ss) ss.classList.add("hidden");
+          toast(T("secure.working"));
+          await migrateFilesEncryption(false);
+          await SecureStore.disable(v);
+          await backupToIDB();
+          toast(T("secure.off"));
+        }
+      } catch (e) { etherLog("error", "[secure]", String(e)); toast(T("secure.failed")); }
+      syncEncUi();
+      return;
+    }
 
     if (pinSheetMode === "new") {
       Store.pinSalt = randomSaltHex(16);
@@ -12355,6 +12426,7 @@ function wireSettingsScreen() {
     if (pinSheetMode === "disable") {
       const h = await pbkdf2Hex(v, Store.pinSalt, PIN_ITERATIONS);
       if (h !== Store.pinHash) { toast(T("toast.pinWrong")); return; }
+      if (SecureStore.isOn()) { toast(T("secure.offFirst")); const ss0 = $("#set-pin-sheet"); if (ss0) ss0.classList.add("hidden"); const pl0 = $("#settings-pinlock"); if (pl0) pl0.checked = true; return; }
       Store.pinEnabled = false;
       Store.pinHash = "";
       Store.pinSalt = "";
@@ -12367,6 +12439,7 @@ function wireSettingsScreen() {
     if (pinSheetMode === "verify-old") {
       const h = await pbkdf2Hex(v, Store.pinSalt, PIN_ITERATIONS);
       if (h !== Store.pinHash) { toast(T("toast.pinWrong")); return; }
+      pinOldValue = v;
       // Старый PIN подтверждён — переходим ко ВТОРОЙ фазе: ввод НОВОГО
       // PIN. Раньше этой фазы не было вообще: экран просто закрывался,
       // и сменить PIN через интерфейс было физически невозможно.
@@ -12377,6 +12450,12 @@ function wireSettingsScreen() {
       return;
     }
     if (pinSheetMode === "enter-new") {
+      if (SecureStore.isOn()) { // данные зашифрованы старым PIN — перешифровываем новым ДО смены хэша
+        if (v.length < SecureStore.MIN_PIN) { toast(T("secure.pinShort", { n: SecureStore.MIN_PIN })); return; }
+        try { if (!(await SecureStore.rekey(pinOldValue, v))) { toast(T("toast.pinWrong")); return; } await backupToIDB(); }
+        catch (e) { etherLog("error", "[secure] rekey", String(e)); toast(T("secure.failed")); return; }
+      }
+      pinOldValue = "";
       Store.pinSalt = randomSaltHex(16);
       Store.pinHash = await pbkdf2Hex(v, Store.pinSalt, PIN_ITERATIONS);
       const ss = $("#set-pin-sheet"); if (ss) ss.classList.add("hidden");
