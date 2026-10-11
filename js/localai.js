@@ -50,10 +50,30 @@ const LocalAI = (() => {
     const code = (document.documentElement.getAttribute("lang") || "en").slice(0, 2);
     return LANG_NAMES[code] ? { language: LANG_NAMES[code], task: "transcribe" } : {};
   }
+  // Whisper-tiny на коротких и тихих записях любит «зацикливаться» («8,8,8,8…»). Защита в три слоя:
+  // 1) тишину не распознаём; 2) ограничиваем длину ответа по длительности звука и запрещаем повторы n-грамм;
+  // 3) схлопываем оставшиеся повторы в тексте.
+  function rms(a) { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * a[i]; return Math.sqrt(s / Math.max(1, a.length)); }
+  function cleanTranscript(text) {
+    let toks = String(text || "").replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+    // слитные «8,8,8,8» делим по запятым/точкам, чтобы увидеть повтор
+    toks = toks.flatMap((t) => (/^(?:[^\s,.;]{1,6}[,.;]){3,}/.test(t) ? t.split(/(?<=[,.;])/) : [t]));
+    for (let n = 1; n <= 4; n++) {
+      for (let i = 0; i + n * 3 <= toks.length; i++) {
+        let reps = 1;
+        while (i + (reps + 1) * n <= toks.length && toks.slice(i, i + n).join("|").replace(/[,.;]/g, "") === toks.slice(i + reps * n, i + (reps + 1) * n).join("|").replace(/[,.;]/g, "")) reps++;
+        if (reps >= 3) { toks.splice(i + n, (reps - 1) * n); toks[i + n - 1] += "…"; }
+      }
+    }
+    return toks.join(" ").replace(/…+/g, "…").replace(/([,.;])…/g, "…").trim();
+  }
   async function transcribeBlob(blob) {
     const run = await loadEngine();
     const audio = await decodeToMono16k(blob);
-    return run(audio, languageOption());
+    if (rms(audio) < 0.003) return "";
+    const sec = audio.length / 16000;
+    const opts = Object.assign({ max_new_tokens: Math.max(24, Math.min(220, Math.ceil(sec * 6) + 20)), no_repeat_ngram_size: 3, repetition_penalty: 1.2 }, languageOption());
+    return cleanTranscript(await run(audio, opts));
   }
 
   // ---- Краткое содержание: частотная выжимка (extractive) ----
@@ -73,7 +93,7 @@ const LocalAI = (() => {
     });
     return scored.sort((a, b) => b.score - a.score).slice(0, n).sort((a, b) => a.i - b.i).map((x) => x.s).join(" ");
   }
-  return { setEngine, isReady, loadEngine, decodeToMono16k, transcribeBlob, summarize, sentences, onProgress: (fn) => { progressListeners.add(fn); return () => progressListeners.delete(fn); }, MODEL, TF_URL };
+  return { cleanTranscript, rms, setEngine, isReady, loadEngine, decodeToMono16k, transcribeBlob, summarize, sentences, onProgress: (fn) => { progressListeners.add(fn); return () => progressListeners.delete(fn); }, MODEL, TF_URL };
 })();
 
 // ---- Интеграция с чатом ----

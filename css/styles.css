@@ -2591,3 +2591,8 @@ html.theme-fading, html.theme-fading *, html.theme-fading *::before, html.theme-
 .voice-duration { order: 9; }
 .voice-transcript { order: 10; }
 .voice-wave { min-width: 60px; }
+/* Волна не наезжает на соседние кнопки (узкий пузырь, широкая кассета/пластинка) */
+.voice-wave { min-width: 72px; flex: 1 1 72px; }
+.voice-wave-bars { overflow: hidden; gap: 1px; }
+.voice-wave-bars i { min-width: 0; }
+.voice-speed-btn, .voice-tr-btn { flex: none; }

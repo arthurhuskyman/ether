@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.68.0.0";
+const APP_VERSION = "V.68.0.1";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 // Сервер перевода по умолчанию (LibreTranslate-совместимый). Официальный публичный инстанс обычно
@@ -6481,7 +6481,7 @@ function fileBubbleHtml(msgId, fileInfo) {
       <button type="button" class="voice-speed-btn" aria-label="${escapeHtml(T("chat.voice.speed"))}">${voiceSpeed()}×</button>
       <button type="button" class="voice-tr-btn" aria-label="${escapeHtml(T("ai.transcribe"))}" title="${escapeHtml(T("ai.transcribe"))}">${Icons.html("text", 16)}</button>
       <span class="voice-duration">${escapeHtml(durLabel)}</span>
-      ${fileInfo.transcript ? `<div class="voice-transcript">${escapeHtml(fileInfo.transcript)}</div>` : ""}
+      ${fileInfo.transcript ? `<div class="voice-transcript">${escapeHtml(typeof LocalAI !== "undefined" ? LocalAI.cleanTranscript(fileInfo.transcript) : fileInfo.transcript)}</div>` : ""}
     </div>`;
   }
   return `<a class="file-bubble file-bubble-doc" data-file-id="${escapeHtml(msgId)}" data-file-kind="file" href="#">

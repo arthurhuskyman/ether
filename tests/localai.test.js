@@ -17,7 +17,7 @@ function setup(a) {
     unreadDividerFor.delete("alice"); state.chatId = "alice"; state.tab = "chats"; renderTab();
     fileBlobUrlCache.set("v1", "blob:v");
     window.AudioContext = class { decodeAudioData() { return Promise.resolve({ duration: 2 }); } close() {} };
-    window.OfflineAudioContext = class { constructor(ch, len) { this.len = len; } createBufferSource() { return { connect() {}, start() {} }; } get destination() { return {}; } startRendering() { return Promise.resolve({ getChannelData: () => new Float32Array(this.len) }); } };
+    window.OfflineAudioContext = class { constructor(ch, len) { this.len = len; } createBufferSource() { return { connect() {}, start() {} }; } get destination() { return {}; } startRendering() { return Promise.resolve({ getChannelData: () => new Float32Array(this.len).fill(0.2) }); } };
     IDB.get = async () => ({ arrayBuffer: async () => new ArrayBuffer(8) });`);
 }
 
@@ -76,5 +76,30 @@ test("пункт «Краткое содержание» появляется т
   assert.ok(a.document.querySelector("#ai-sheet-text").textContent.length > 10);
   a.run(`state.contacts.get("alice").messages.push({ id: "t2", from: "them", text: "коротко", ts: Date.now() }); openMessageSheet("t2", "alice")`);
   assert.ok(!Array.from(a.document.querySelectorAll("#message-sheet-body [data-action]")).some((b) => b.getAttribute("data-action") === "summary"));
+  a.close();
+});
+
+test("зацикливание Whisper: повторы схлопываются, тишина не распознаётся, длина ответа ограничена", async () => {
+  const a = await booted(); setup(a);
+  const C = (t) => a.run(`LocalAI.cleanTranscript(${JSON.stringify(t)})`);
+  const looped = C("Резду 3,4,5,6," + "8,".repeat(120) + "8");
+  assert.ok(looped.length < 60, "восьмёрки схлопнуты: " + looped);
+  assert.match(looped, /Резду/); assert.match(looped, /…/);
+  assert.equal(C("привет привет привет привет привет как дела"), "привет… как дела");
+  assert.equal(C("да нет да нет да нет да нет конец"), "да нет… конец");
+  assert.equal(C("обычная фраза без повторов, честно"), "обычная фраза без повторов, честно");
+  assert.equal(C("раз два раз"), "раз два раз", "короткие повторы не трогаем");
+  // тишина и параметры генерации
+  a.window.OfflineAudioContext = class { constructor(ch, len) { this.len = len; } createBufferSource() { return { connect() {}, start() {} }; } get destination() { return {}; } startRendering() { return Promise.resolve({ getChannelData: () => new Float32Array(this.len) }); } };
+  a.window.localStorage.setItem("ether.localAi", "1");
+  a.run(`window.__opts = null; LocalAI.setEngine(async (audio, o) => { window.__opts = o; return "текст"; });`);
+  await a.run(`transcribeVoiceMessage("alice", "v1")`);
+  assert.equal(a.run(`window.__opts`), null, "тихий звук (нули) движку не отдаётся");
+  a.window.OfflineAudioContext = class { constructor(ch, len) { this.len = len; } createBufferSource() { return { connect() {}, start() {} }; } get destination() { return {}; } startRendering() { return Promise.resolve({ getChannelData: () => new Float32Array(this.len).fill(0.2) }); } };
+  a.run(`state.contacts.get("alice").messages[0].file.transcript = undefined`);
+  a.window.localStorage.setItem("ether.localAi", "1");
+  await a.run(`transcribeVoiceMessage("alice", "v1")`);
+  const o = a.run(`window.__opts`);
+  assert.ok(o && o.max_new_tokens >= 24 && o.max_new_tokens <= 220 && o.no_repeat_ngram_size === 3, "ограничения генерации заданы");
   a.close();
 });
