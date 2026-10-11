@@ -2635,3 +2635,6 @@ html.theme-fading, html.theme-fading *, html.theme-fading *::before, html.theme-
   #thread-sheet .sheet-handle { display: none; }
   #thread-sheet .thread-list { flex: 1; overflow-y: auto; }
 }
+.text-sheet-choices { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+.text-sheet-choice { text-align: start; padding: 12px 16px; border-radius: 12px; border: 1px solid var(--line, rgba(128,128,128,.35)); background: transparent; color: inherit; font-size: 15px; }
+.text-sheet-choice.on { border-color: var(--accent, #4a8cff); background: color-mix(in srgb, var(--accent, #4a8cff) 14%, transparent); }

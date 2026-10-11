@@ -178,3 +178,22 @@ test("длинная пачка непрочитанных: у разделит�
   assert.ok(a.document.querySelector("#ai-sheet-text").textContent.length > 10);
   a.close();
 });
+
+test("«Доска» — один пункт с выбором шаблона; отдельного «Списка» в меню нет", async () => {
+  const a = await booted("ru");
+  const d = a.document;
+  assert.equal(d.querySelector("#chat-list-btn"), null, "дубль убран");
+  a.run(`const c = ensureContactEntry("alice", "Alice"); c.managed = true; state.chatId = "alice"; renderChatThread();`);
+  d.querySelector("#chat-board-btn").click();
+  const opts = Array.from(d.querySelectorAll("#text-sheet-choices .text-sheet-choice"));
+  assert.equal(opts.length, 2); assert.ok(opts[0].classList.contains("on"), "по умолчанию канбан");
+  opts[1].click();
+  d.querySelector("#text-sheet-input").value = "Покупки";
+  d.querySelector("#text-sheet-ok").click();
+  await sleep(100);
+  const cols = a.run(`JSON.stringify(state.contacts.get("alice").messages.filter((m) => m.board).map((m) => m.board.cols.length))`);
+  assert.equal(cols, "[2]", "шаблон «Список» = две колонки");
+  a.run(`openTextSheet({ title: "x", value: "y", onOk() {} })`);
+  assert.ok(d.querySelector("#text-sheet-choices").classList.contains("hidden"), "у остальных диалогов выбора нет");
+  a.close();
+});

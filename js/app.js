@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.70.0.0";
+const APP_VERSION = "V.70.1.0";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 // Сервер перевода по умолчанию (LibreTranslate-совместимый). Официальный публичный инстанс обычно
@@ -5596,11 +5596,22 @@ function handleRichClick(c, m, el) {
 }
 // Общая шторка ввода одной строки (карточка доски, название доски)
 let __textSheetCb = null;
+let __textSheetChoice = null;
 function openTextSheet(opts) {
   const sheet = $("#text-sheet"), input = $("#text-sheet-input"); if (!sheet || !input) return;
   __textSheetCb = opts.onOk || null;
   $("#text-sheet-title").textContent = opts.title || "";
   input.value = opts.value || ""; input.placeholder = opts.placeholder || "";
+  // необязательный выбор варианта (например, шаблон доски): значение уходит вторым аргументом onOk
+  const ch = $("#text-sheet-choices"); __textSheetChoice = null;
+  if (ch) {
+    ch.innerHTML = ""; ch.classList.toggle("hidden", !opts.choices);
+    (opts.choices || []).forEach((o, i) => {
+      const b = document.createElement("button"); b.type = "button"; b.setAttribute("role", "radio"); b.className = "text-sheet-choice"; b.textContent = o.label; b.dataset.value = o.value;
+      const pick = () => { __textSheetChoice = o.value; ch.querySelectorAll(".text-sheet-choice").forEach((x) => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-checked", on ? "true" : "false"); }); };
+      b.addEventListener("click", pick); ch.appendChild(b); if (i === 0) pick();
+    });
+  }
   sheet.classList.remove("hidden");
   setTimeout(() => { try { input.focus(); input.select(); } catch (e) {} }, 60);
 }
@@ -5609,7 +5620,7 @@ function submitTextSheet() {
   const v = input.value.trim(); if (!v) return;
   const cb = __textSheetCb; __textSheetCb = null;
   sheet.classList.add("hidden");
-  if (cb) cb(v);
+  if (cb) cb(v, __textSheetChoice);
 }
 let __noteTarget = null;
 function openNoteSheet(cid, msgId) {
@@ -5638,8 +5649,7 @@ function addPollOptionInput() {
 function wireRichSheets() {
   const bind = (id, fn) => { const el = $(id); if (el) el.addEventListener("click", fn); };
   bind("#chat-poll-btn", () => { collapseComposerPlus(); openPollSheet(); });
-  bind("#chat-board-btn", () => { collapseComposerPlus(); openTextSheet({ title: T("chat.board.name"), value: T("chat.board.defaultTitle"), onOk: (title) => { if (state.chatId) createBoard(state.chatId, title); } }); });
-  bind("#chat-list-btn", () => { collapseComposerPlus(); openTextSheet({ title: T("chat.list.name"), value: T("chat.list.defaultTitle"), onOk: (title) => { if (state.chatId) createBoard(state.chatId, title, ["todo", "done"]); } }); });
+  bind("#chat-board-btn", () => { collapseComposerPlus(); openTextSheet({ title: T("chat.board.name"), value: T("chat.board.defaultTitle"), choices: [{ value: "kanban", label: T("chat.board.tpl.kanban") }, { value: "list", label: T("chat.board.tpl.list") }], onOk: (title, tpl) => { if (state.chatId) createBoard(state.chatId, title, tpl === "list" ? ["todo", "done"] : undefined); } }); });
   bind("#chat-note-btn", () => { collapseComposerPlus(); openTextSheet({ title: T("chat.note.name"), value: T("chat.note.defaultTitle"), onOk: (title) => { if (state.chatId) createNote(state.chatId, title); } }); });
   bind("#note-save-btn", () => { const t = __noteTarget; if (!t) return; $("#note-sheet").classList.add("hidden"); noteOp(t.cid, t.msgId, $("#note-input").value); __noteTarget = null; });
   bind("#poll-add-opt-btn", addPollOptionInput);
