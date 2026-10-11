@@ -247,7 +247,7 @@ class SignalingClient extends EventTarget {
         try { ws.close(); } catch (e) {}
         if (this.ws === ws) { this.ws = null; this.connected = false; this.registered = false; this.dispatchEvent(new CustomEvent("disconnected")); this._connect(); }
       }
-    }, 3000);
+    }, 5000); // 3 с на медленном мобильном канале и холодном сервере давали лишние переподключения
   }
 
   _scheduleRetry() {

@@ -340,6 +340,8 @@ window.__LANG_DICTS["en"] = {
     "toast.callAccepted": "Connecting — speak as soon as you hear",
     "toast.nameUpdated": "Name updated",
     "toast.idUpdated": "Identifier updated",
+    "toast.contactKeyChanged": "{name}'s security key has changed (new device or reinstall). Compare the safety number with them.",
+    "call.tooSoon": "The last call just failed — wait a few seconds and try again.",
     "toast.keysRegenerated": "Encryption keys were re-created on this device: your sigil has changed. Compare it with your contacts.",
     "toast.saved": "Saved",
     "toast.pinOn": "PIN enabled",

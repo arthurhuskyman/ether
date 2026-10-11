@@ -159,14 +159,15 @@ async function etherTurnCheckOne(url, username, credential, timeoutMs) {
 }
 async function etherTurnCheck(timeoutMs = 15000) {
   try { await window.__etherIceReady; } catch (e) {}
-  const out = [];
+  // Адреса проверяются параллельно (у каждого свои два RTCPeerConnection): последовательно на 6 адресах это до 90 секунд.
+  const jobs = [];
   for (const srv of ICE_SERVERS) {
     for (const u of [].concat(srv.urls || [])) {
       if (!/^turns?:/i.test(u) || !srv.username) continue;
-      out.push(await etherTurnCheckOne(u, srv.username, srv.credential, timeoutMs));
+      jobs.push(etherTurnCheckOne(u, srv.username, srv.credential, timeoutMs));
     }
   }
-  return out;
+  return Promise.all(jobs);
 }
 window.etherTurnCheck = etherTurnCheck;
 
@@ -568,7 +569,7 @@ class PeerLink extends EventTarget {
           this._setStatus("disconnected");
           return;
         }
-        this.send({ kind: "ping", t: Date.now() });
+        this.send({ kind: "ping", t: Date.now(), rc: 1 });
       }, 5000);
       // Трек мог быть добавлен ДО того, как канал открылся — тогда
       // negotiationneeded сработал вхолостую (событие одноразовое) и
@@ -590,7 +591,11 @@ class PeerLink extends EventTarget {
       let payload;
       try { payload = JSON.parse(ev.data); } catch (e) { return; }
       if (!payload) return;
-      if (payload.kind === "ping") { this.send({ kind: "pong", t: payload.t }); return; }
+      if ((payload.kind === "ping" || payload.kind === "pong") && payload.rc && !this.peerRatchet) {
+        this.peerRatchet = true; // собеседник умеет Double Ratchet — приложение запомнит это в контакте
+        this.dispatchEvent(new CustomEvent("caps", { detail: { rc: true } }));
+      }
+      if (payload.kind === "ping") { this.send({ kind: "pong", t: payload.t, rc: 1 }); return; }
       if (payload.kind === "pong") { this._lastPongAt = Date.now(); return; }
       if (payload.kind === "sdp") {
         this._handleRemoteSdp(payload).catch((e) => this._log("warn", "[webrtc] пересогласование:", String(e)));
@@ -1346,6 +1351,9 @@ class MeshManager extends EventTarget {
     });
     link.addEventListener("app-message", (ev) => {
       this.dispatchEvent(new CustomEvent("message", { detail: { id: link.id, payload: ev.detail } }));
+    });
+    link.addEventListener("caps", (ev) => {
+      this.dispatchEvent(new CustomEvent("link-caps", { detail: { id: link.id, ...ev.detail } }));
     });
     link.addEventListener("remote-track", (ev) => {
       this.dispatchEvent(new CustomEvent("remote-track", { detail: { id: link.id, ...ev.detail } }));

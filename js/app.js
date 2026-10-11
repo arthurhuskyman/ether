@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.62.0.8";
+const APP_VERSION = "V.63.0.0";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 // Сервер перевода по умолчанию (LibreTranslate-совместимый). Официальный публичный инстанс обычно
@@ -473,6 +473,7 @@ const state = {
   _callMuteOnAnswer: false,
   _callDeadSeconds: 0,
   _lastCallFailedAt: 0,   // ← новое
+  _unlockLockedUntil: 0,  // до какого момента экран PIN заблокирован после неверных попыток
   chatFilter: "all", // "all" | "unread" | "groups" | "direct" — чипы-фильтры над списком чатов
   _firstRenderDone: false, // снимается через 400мс после старта — пока false, список чатов рисует skeleton вместо "пусто"
   multiSelect: null, // Set<id> выбранных сообщений в режиме мультивыбора, либо null вне режима
@@ -1860,6 +1861,7 @@ async function ensureKeyPair() {
     const { publicKeyJwk, privateKeyJwk } = await CryptoHelper.generateKeyPair();
     Store.myPrivateKeyJwk = privateKeyJwk;
     Store.myPublicKeyJwk = publicKeyJwk;
+    try { Ratchet.resetAll(); } catch (e) {} // новая личность — старые ratchet-сессии бессмысленны
     let info = {}; try { info = JSON.parse(localStorage.getItem("ether.keyInfo") || "{}") || {}; } catch (e) {}
     info = { at: Date.now(), count: (info.count || 0) + 1, existing: hadProfile };
     try { localStorage.setItem("ether.keyInfo", JSON.stringify(info)); scheduleIDBBackup(); } catch (e) {}
@@ -4608,6 +4610,7 @@ function markThreadRead(c) {
 }
 function saveCurrentDraft() {
   if (!state.chatId) return;
+  if (state.editingMessageId) return; // в поле сейчас правка чужого/своего сообщения, а не черновик — не сохраняем её как черновик
   const input = $("#chat-input"); if (!input) return;
   const v = input.value.trim();
   if (v) state.drafts[state.chatId] = v; else delete state.drafts[state.chatId];
@@ -5680,7 +5683,8 @@ async function finishIncomingFile(msgId, buf, from) {
       vibrate([80, 40, 80]);
     }
     if (state.tab === "chats") renderChatsList();
-    if (isOpen) sendAckBatch(from, [msgId], "read");
+    // «Прочитано» уходит только через markThreadRead (его вызывает renderChatThread, когда лента прокручена к низу) —
+    // раньше здесь отправлялось безусловно, даже если человек листал старую переписку.
     updateAppBadge();
   }
 }
@@ -6308,8 +6312,10 @@ function setContactAvatar(contactId, dataUrl) {
 // Сжимаем выбранное фото до маленького квадратного аватара (как иконки
 // контактов) — иначе dataURL из телефона в несколько МБ разбухал бы
 // persistContacts() (localStorage) на каждую группу.
+const AVATAR_SOURCE_MAX_BYTES = 25 * 1024 * 1024; // огромный исходник (TIFF и т.п.) только подвесит вкладку на чтении и декодировании
 function readImageAsAvatarDataUrl(file, size = 160) {
   return new Promise((resolve, reject) => {
+    if (file && file.size > AVATAR_SOURCE_MAX_BYTES) { reject(new Error("image too large")); return; }
     const img = new Image();
     const reader = new FileReader();
     reader.onerror = () => reject(reader.error);
@@ -6714,6 +6720,42 @@ function resolveGroupDelivery(deliveryId) {
   if (!g || !m) return null;
   return { ownerChat: g, targetMsg: m };
 }
+// ---- Double Ratchet (js/ratchet.js) для офлайн-конвертов ----
+// Конверт для одного msgId шифруется один раз и кэшируется: повторная отправка не должна тратить новые ключи цепочки.
+const envelopeCache = new Map();
+async function encryptForContact(contact, msgId, payload) {
+  const cached = envelopeCache.get(msgId);
+  if (cached) return cached;
+  let envelope = null;
+  if (contact.rc) {
+    try {
+      envelope = await Ratchet.encrypt({ contactId: contact.id, myId: Store.myId, myPrivJwk: Store.myPrivateKeyJwk, theirPubJwk: contact.publicKey }, payload);
+    } catch (e) { etherLog("warn", "[ratchet] шифрование не удалось, отправляю прежним способом:", String(e)); }
+  }
+  if (!envelope) {
+    const sharedKey = await CryptoHelper.deriveSharedKey(Store.myPrivateKeyJwk, contact.publicKey);
+    envelope = await CryptoHelper.encryptJson(sharedKey, payload);
+    envelope.rc = 1; // «я умею Double Ratchet» — собеседник запомнит и дальше отвечает уже им
+  }
+  envelopeCache.set(msgId, envelope);
+  trimMap(envelopeCache, 200);
+  return envelope;
+}
+function markContactRatchet(c) {
+  if (!c || c.rc) return;
+  c.rc = true; persistContacts();
+  etherLog("info", "[ratchet] " + String(c.id).slice(0, 10) + "… поддерживает Double Ratchet");
+}
+// Единая точка смены долговременного ключа контакта (раньше ключ молча подменялся в трёх местах).
+function adoptContactKey(c, newKey) {
+  if (c.publicKey && keysDiffer(newKey, c.publicKey)) {
+    try { Ratchet.reset(c.id); } catch (e) {}
+    envelopeCache.clear();
+    etherLog("warn", "[ratchet] ключ " + String(c.id).slice(0, 10) + "… изменился, сессии сброшены");
+    try { toast(T("toast.contactKeyChanged", { name: c.name || T("sys.someone") })); } catch (e) {}
+  }
+  c.publicKey = newKey;
+}
 async function flushOutboxItem(msgId) {
   const entry = outbox.get(msgId); if (!entry) return;
   if (entry.serverAcked) { outbox.delete(msgId); persistOutbox(); return; }
@@ -6757,8 +6799,7 @@ async function flushOutboxItem(msgId) {
       if (!full) { outbox.delete(msgId); persistOutbox(); markMessageAck(entry.to, msgId, "failed"); return; } // файл пропал из IndexedDB — отправить нечего
       entry.payload = full;
     }
-    const sharedKey = await CryptoHelper.deriveSharedKey(Store.myPrivateKeyJwk, contact.publicKey);
-    const envelope = await CryptoHelper.encryptJson(sharedKey, entry.payload);
+    const envelope = await encryptForContact(contact, msgId, entry.payload);
     entry.attempts = (entry.attempts || 0) + 1;
     entry.lastAttemptAt = Date.now();
     persistOutbox();
@@ -7251,7 +7292,7 @@ function wireSignalingEvents(sig) {
       const c = state.contacts.get(u.id);
       if (c && c.managed) {
         c.online = true;
-        if (u.publicKey && keysDiffer(u.publicKey, c.publicKey)) { c.publicKey = u.publicKey; persistContacts(); flushPendingNoKey(u.id); }
+        if (u.publicKey && keysDiffer(u.publicKey, c.publicKey)) { adoptContactKey(c, u.publicKey); persistContacts(); flushPendingNoKey(u.id); }
         scheduleAutoConnect(u.id);
       }
     }
@@ -7269,7 +7310,7 @@ function wireSignalingEvents(sig) {
     const c = state.contacts.get(id);
     if (c && c.managed) {
       c.online = online;
-      if (online && publicKey && keysDiffer(publicKey, c.publicKey)) { c.publicKey = publicKey; persistContacts(); flushPendingNoKey(id); }
+      if (online && publicKey && keysDiffer(publicKey, c.publicKey)) { adoptContactKey(c, publicKey); persistContacts(); flushPendingNoKey(id); }
       if (online) scheduleAutoConnect(id); else clearAutoConnectTimer(id);
       if (state.chatId === id) renderChatThread();
       if (state.contactCardId === id) renderContactCard();
@@ -7448,11 +7489,16 @@ subs.push(on("deliver", async (ev) => {
   try {
     const theirKey = fromPublicKey || (state.contacts.get(from) || {}).publicKey;
     if (!theirKey) throw new Error("no key");
-    const sharedKey = await CryptoHelper.deriveSharedKey(Store.myPrivateKeyJwk, theirKey);
-    payload = await CryptoHelper.decryptJson(sharedKey, envelope);
-    if (fromPublicKey) {
-      const c = state.contacts.get(from);
-      if (c && keysDiffer(fromPublicKey, c.publicKey)) { c.publicKey = fromPublicKey; persistContacts(); }
+    const c0 = state.contacts.get(from);
+    // Смена долговременного ключа собеседника: старые ratchet-сессии с ним недействительны, пользователя предупреждаем.
+    if (fromPublicKey && c0) adoptContactKey(c0, fromPublicKey);
+    if (envelope && envelope.v === 2) {
+      payload = await Ratchet.decrypt({ contactId: from, myId: Store.myId, myPrivJwk: Store.myPrivateKeyJwk, theirPubJwk: theirKey }, envelope);
+      markContactRatchet(c0);
+    } else {
+      const sharedKey = await CryptoHelper.deriveSharedKey(Store.myPrivateKeyJwk, theirKey);
+      payload = await CryptoHelper.decryptJson(sharedKey, envelope);
+      if (envelope && envelope.rc) markContactRatchet(c0);
     }
   } catch (e) { etherLog("error", "[crypto] decrypt failed:", String(e)); return; }
 
@@ -9441,6 +9487,7 @@ function deleteContact(id) {
   state.mentionedChats.delete(id); // на прямые контакты не вешается, но безопасно и симметрично остальной чистке
   const audioEl = document.getElementById("remote-audio-" + id); if (audioEl) audioEl.remove();
   state.contacts.delete(id);
+  try { Ratchet.reset(id); } catch (e) {}
   recentlyDeletedIds.set(id, Date.now());
   // .keys().next().value — самый старый id по порядку вставки (Map, как и
   // Set, сохраняет порядок вставки); .values() здесь дал бы timestamp, а не
@@ -9640,6 +9687,7 @@ async function beginCall(id, withVideo) {
   // 4с вместо 1.5с: в логе видно три beginCall подряд с интервалами
   // 1.7с и 2.6с — старый debounce их не покрывал.
   if (state._lastCallFailedAt && Date.now() - state._lastCallFailedAt < 4000) {
+    try { toast(T("call.tooSoon")); } catch (e) {}
     return;
   }
 
@@ -12163,6 +12211,10 @@ function wireMeshEvents() {
       if (l && (l.status === "connected" || l.status === "in-call")) return;
       attemptConnect(rid, true).catch(() => {});
     }, 400);
+  });
+  mesh.addEventListener("link-caps", (ev) => {
+    const c = state.contacts.get(ev.detail.id);
+    if (c && ev.detail.rc) markContactRatchet(c);
   });
   mesh.addEventListener("link-status", (ev) => {
     try {
