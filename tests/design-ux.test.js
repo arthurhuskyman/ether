@@ -137,3 +137,56 @@ test("токены: отдельный файл, подключён в index.htm
   const odd = (css.match(/border(?:-[a-z]+)*-radius:[^;]*/g) || []).filter((d) => /(?<![\d.])(6|9|10|11|14|15|18|20|22|26|28|32)px/.test(d));
   assert.deepEqual(odd, [], "радиусы вне шкалы 8/12/16/24: " + odd.slice(0, 3).join(" | "));
 });
+
+test("пресеты стиля: Спокойный/Стандартный/Игривый применяются, ручное изменение даёт «Свой», расширенные эффекты свёрнуты", async () => {
+  const a = await booted();
+  const grp = a.document.querySelector("#fx-presets-group");
+  assert.ok(grp, "группа пресетов добавлена в настройки");
+  assert.ok(a.document.querySelector("#fx-settings-group").classList.contains("fx-advanced-collapsed"), "расширенные эффекты по умолчанию свёрнуты");
+  assert.equal(a.run(`fxCurrentPreset()`), "default");
+  a.run(`fxApplyPreset("calm")`);
+  assert.equal(a.run(`fxCurrentPreset()`), "calm");
+  assert.equal(a.run(`FX.get("dance")`), false); assert.equal(a.run(`FX.get("patina")`), false); assert.equal(a.run(`Store.calmMode`), true);
+  assert.equal(a.document.documentElement.dataset.calmMode, "1");
+  assert.equal(a.document.querySelector("#fxs-dance").checked, false, "тумблер расширенной группы следует за пресетом");
+  assert.equal(a.document.querySelector('[data-preset="calm"]').classList.contains("active"), true);
+  a.run(`fxApplyPreset("playful")`);
+  assert.equal(a.run(`fxCurrentPreset()`), "playful");
+  assert.equal(a.run(`FX.get("skin")`), true); assert.equal(a.run(`FX.get("ambient")`), false, "фоновый звук пресет не включает"); assert.equal(a.run(`Store.calmMode`), false);
+  a.run(`fxApplyPreset("default")`);
+  assert.equal(a.run(`fxCurrentPreset()`), "default");
+  assert.equal(a.run(`FX.get("dance")`), true); assert.equal(a.run(`FX.get("skin")`), false);
+  // ручное изменение → «Свой»
+  const sw = a.document.querySelector("#fxs-dance"); sw.checked = false; sw.dispatchEvent(new a.window.Event("change"));
+  await new Promise((r) => setTimeout(r, 30));
+  assert.equal(a.run(`fxCurrentPreset()`), "custom");
+  assert.equal(a.document.querySelector('[data-preset="custom"]').classList.contains("active"), true);
+  // «Расширенные эффекты» разворачивают группы
+  a.document.querySelector("#fx-advanced-btn").click();
+  assert.equal(a.document.querySelector("#fx-settings-group").classList.contains("fx-advanced-collapsed"), false);
+  // приватные/разрешаемые функции пресет не трогает
+  a.run(`FX.set("weather", true); FX.set("burn", "ash"); fxApplyPreset("calm");`);
+  assert.equal(a.run(`FX.get("weather")`), true); assert.equal(a.run(`FX.get("burn")`), "ash");
+  a.close();
+});
+
+test("поле ввода: многострочное; Enter отправляет только на десктопе, Shift+Enter и сенсорные устройства — перенос; переносы видны в пузыре", async () => {
+  const a = await booted();
+  a.run(`ensureContactEntry("alice", "Alice").managed = true; state.chatId = "alice"; renderTab();`);
+  const el = a.document.querySelector("#chat-input");
+  assert.equal(el.tagName, "TEXTAREA");
+  let submits = 0;
+  a.document.querySelector("#chat-form").addEventListener("submit", (e) => { e.preventDefault(); submits++; });
+  const key = (opts) => { const ev = new a.window.KeyboardEvent("keydown", Object.assign({ key: "Enter", bubbles: true, cancelable: true }, opts)); el.dispatchEvent(ev); return ev; };
+  a.window.matchMedia = (q) => ({ matches: false, addEventListener() {}, addListener() {} }); // мышь
+  el.value = "hello";
+  assert.equal(key({}).defaultPrevented, true, "Enter на десктопе отправляет"); assert.equal(submits, 1);
+  assert.equal(key({ shiftKey: true }).defaultPrevented, false, "Shift+Enter — перенос строки"); assert.equal(submits, 1);
+  assert.equal(key({ isComposing: true }).defaultPrevented, false, "ввод через IME не прерываем");
+  el.value = "   "; assert.equal(key({}).defaultPrevented, true); assert.equal(submits, 1, "пустое не отправляется");
+  a.window.matchMedia = (q) => ({ matches: /coarse/.test(q), addEventListener() {}, addListener() {} }); // сенсорный экран
+  el.value = "hi"; assert.equal(key({}).defaultPrevented, false, "на сенсорном Enter — перенос строки"); assert.equal(submits, 1);
+  assert.equal(a.run(`linkifyAndHighlight("line1\\nline2 https://e.com\\nline3", "")`).split("<br>").length, 3, "переносы строк показываются");
+  assert.equal(a.run(`linkifyAndHighlight("<b>x</b>\\ny", "")`).includes("<b>"), false, "разметка по-прежнему экранируется");
+  a.close();
+});

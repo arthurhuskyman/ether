@@ -771,6 +771,76 @@ function fx2InjectSettings() {
   grp.querySelector("#fx-closeday-btn").addEventListener("click", () => fxCloseDay());
   grp.querySelector("#fx-campfire-btn").addEventListener("click", () => fxCreateCampfire(4));
 }
+// ---------------------------------------------------------------------
+// Пресеты стиля: «Спокойный / Стандартный / Игривый / Свой» вместо тридцати отдельных тумблеров.
+// Пресет задаёт набор декоративных эффектов (и «Спокойный режим»); точная настройка — под кнопкой «Расширенные эффекты».
+// Функции с разрешениями и приватностью (погода, Vision Loop, рисование на видео, вибрации, сгорание) пресетом не меняются.
+// ---------------------------------------------------------------------
+const FX_PRESET_KEYS = ["sonic", "dance", "vault", "patina", "easter", "farewell", "silence", "ritual", "breathing", "season", "skin", "sigil", "veil", "wave", "composer", "ambient", "presence", "pulse"];
+const FX_PRESETS = {
+  calm: { sonic: false, dance: false, vault: false, patina: false, easter: false, farewell: false, silence: false, ritual: false, breathing: false, season: false, skin: false, sigil: true, veil: false, wave: false, composer: false, ambient: false, presence: true, pulse: false, calmMode: true },
+  playful: { sonic: true, dance: true, vault: true, patina: true, easter: true, farewell: true, silence: true, ritual: true, breathing: true, season: true, skin: true, sigil: true, veil: true, wave: true, composer: true, ambient: false, presence: true, pulse: true, calmMode: false },
+};
+function fxDefaultOf(k) { if (k === "breathing") return !isIOS(); const d = FX_DEFAULTS[k]; return !!d; }
+function fxPresetValues(id) {
+  if (id === "default") { const o = {}; for (const k of FX_PRESET_KEYS) o[k] = fxDefaultOf(k); o.calmMode = false; return o; }
+  return FX_PRESETS[id] || null;
+}
+// какой пресет сейчас действует: совпал ровно с одним из трёх — он, иначе «Свой»
+function fxCurrentPreset() {
+  for (const id of ["default", "calm", "playful"]) {
+    const v = fxPresetValues(id);
+    if (FX_PRESET_KEYS.every((k) => !!FX.get(k) === v[k]) && !!Store.calmMode === v.calmMode) return id;
+  }
+  return "custom";
+}
+function fxApplyPreset(id) {
+  const v = fxPresetValues(id); if (!v) return;
+  if (id === "default") { // стандартный = вернуть умолчания: убираем собственные значения этих ключей
+    const all = FX._all(); for (const k of FX_PRESET_KEYS) delete all[k];
+    try { localStorage.setItem(FX_KEY, JSON.stringify(all)); } catch (e) {}
+  } else {
+    const all = FX._all(); for (const k of FX_PRESET_KEYS) all[k] = v[k];
+    try { localStorage.setItem(FX_KEY, JSON.stringify(all)); } catch (e) {}
+  }
+  Store.calmMode = !!v.calmMode; try { applyCalmMode(); } catch (e) {}
+  try { if (typeof scheduleIDBBackup === "function") scheduleIDBBackup(); } catch (e) {}
+  try { fxApplyClasses(); fxAfterRender(); fxAmbientSync(); } catch (e) {}
+  fxSyncPresetUI();
+}
+function fxSyncPresetUI() {
+  const grp = document.getElementById("fx-presets-group"); if (!grp) return;
+  const cur = fxCurrentPreset();
+  grp.querySelectorAll("[data-preset]").forEach((b) => { b.classList.toggle("active", b.dataset.preset === cur); b.setAttribute("aria-pressed", b.dataset.preset === cur ? "true" : "false"); });
+  const note = grp.querySelector("#fx-preset-note"); if (note) note.textContent = T("fxp." + cur + ".note");
+  // тумблеры расширенных групп и «Спокойный режим» следуют за пресетом
+  document.querySelectorAll('#fx-settings-group input[id^="fxs-"][type="checkbox"], #fx2-settings-group input[id^="fxs-"][type="checkbox"]').forEach((el) => { const k = el.id.slice(4); if (FX_PRESET_KEYS.includes(k)) el.checked = !!FX.get(k); });
+  const calm = document.getElementById("settings-calm-mode"); if (calm) calm.checked = Store.calmMode;
+}
+function fxInjectPresets() {
+  if (document.getElementById("fx-presets-group")) return;
+  const first = document.getElementById("fx-settings-group"); if (!first) return;
+  const grp = document.createElement("div"); grp.className = "settings-group flat-content"; grp.id = "fx-presets-group"; grp.setAttribute("data-settings-category", "appearance");
+  const seg = [["calm", "fxp.calm"], ["default", "fxp.default"], ["playful", "fxp.playful"], ["custom", "fxp.custom"]];
+  grp.innerHTML = `<div class="settings-row column"><span class="settings-group-title" data-i18n="fxp.title">${fx2Esc(T("fxp.title"))}</span>`
+    + `<div class="theme-seg fx-preset-seg" role="group">${seg.map(([id, key]) => `<button type="button" data-preset="${id}" data-i18n="${key}" aria-pressed="false">${fx2Esc(T(key))}</button>`).join("")}</div>`
+    + `<p id="fx-preset-note" class="fine muted" style="margin:6px 0 0;"></p></div>`
+    + `<button type="button" id="fx-advanced-btn" class="settings-row link-row" aria-expanded="false"><span data-i18n="fxp.advanced">${fx2Esc(T("fxp.advanced"))}</span></button>`;
+  first.insertAdjacentElement("beforebegin", grp);
+  grp.querySelectorAll("[data-preset]").forEach((b) => b.addEventListener("click", () => { if (b.dataset.preset !== "custom") fxApplyPreset(b.dataset.preset); else document.getElementById("fx-advanced-btn").click(); }));
+  const setAdvanced = (open) => {
+    for (const id of ["fx-settings-group", "fx2-settings-group"]) { const g = document.getElementById(id); if (g) g.classList.toggle("fx-advanced-collapsed", !open); }
+    const btn = document.getElementById("fx-advanced-btn"); if (btn) btn.setAttribute("aria-expanded", open ? "true" : "false");
+  };
+  document.getElementById("fx-advanced-btn").addEventListener("click", () => setAdvanced(document.getElementById("fx-settings-group").classList.contains("fx-advanced-collapsed")));
+  setAdvanced(false);
+  // ручное изменение любого тумблера переводит пресет в «Свой»
+  document.querySelectorAll('#fx-settings-group input[id^="fxs-"], #fx2-settings-group input[id^="fxs-"]').forEach((el) => el.addEventListener("change", () => setTimeout(fxSyncPresetUI, 0)));
+  const calm = document.getElementById("settings-calm-mode"); if (calm) calm.addEventListener("change", () => setTimeout(fxSyncPresetUI, 0));
+  fxSyncPresetUI();
+  if (typeof updateSettingsCategoryView === "function") updateSettingsCategoryView();
+}
+
 function fx2DecorateContactCard() {
   const card = document.getElementById("screen-contact"); if (!card || card.classList.contains("hidden")) return;
   const c = state.contactCardId ? state.contacts.get(state.contactCardId) : null; if (!c) return;
@@ -784,6 +854,8 @@ function fx2After() {
   fx2Presence();
   fx2ApplySkin();
   fx2InjectSettings();
+  fxInjectPresets();
+  fxSyncPresetUI(); // язык мог догрузиться уже после первой вставки — подписи и состояние пересчитываем при каждом проходе
   fx2DecorateContactCard();
   fx2InjectLookButton();
   fx2InjectDrawButton();

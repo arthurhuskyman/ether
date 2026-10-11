@@ -753,15 +753,17 @@ function linkifyAndHighlight(text, query) {
   let result = "";
   let lastIdx = 0;
   for (const u of found) {
-    if (u.start > lastIdx) result += applyMarkdown(highlightMentions(highlightRaw(escapeHtml(text.slice(lastIdx, u.start)), query)));
+    if (u.start > lastIdx) result += nl2br(applyMarkdown(highlightMentions(highlightRaw(escapeHtml(text.slice(lastIdx, u.start)), query))));
     const hrefUrl = u.normalized; // https://... даже для "голого" домена — иначе браузер трактует как относительный путь
     const displayText = escapeHtml(u.raw); // показываем то, что пользователь реально написал (без добавленного https://)
     result += `<a href="${escapeHtml(hrefUrl)}" target="_blank" rel="noopener noreferrer">${highlightRaw(displayText, query)}</a>`;
     lastIdx = u.end;
   }
-  if (lastIdx < text.length) result += applyMarkdown(highlightMentions(highlightRaw(escapeHtml(text.slice(lastIdx)), query)));
-  return result || esc;
+  if (lastIdx < text.length) result += nl2br(applyMarkdown(highlightMentions(highlightRaw(escapeHtml(text.slice(lastIdx)), query))));
+  return result || nl2br(esc);
 }
+// Переносы строк из многострочного ввода показываем как <br> (текст к этому моменту уже экранирован).
+function nl2br(html) { return String(html).replace(/\r?\n/g, "<br>"); }
 // P2.39 — автозамена текстовых смайликов на эмодзи при отправке (:) → 🙂
 // и т.п.). Срабатывает один раз, в момент отправки — меняется реально
 // отправляемый текст (как делают большинство мессенджеров), а не только
@@ -3155,6 +3157,29 @@ function formatChatListTime(ts) {
   if (d.getFullYear() === now.getFullYear()) { try { return d.toLocaleDateString(I18N.current, { day: "2-digit", month: "2-digit" }); } catch (e) { return formatDay(ts); } }
   return formatDay(ts);
 }
+// Карточка «Добавьте первого собеседника»: видимый QR, три способа и подсказка про заметки. Кнопки переиспользуют
+// существующие обработчики вкладки «Контакты» — своей логики добавления здесь нет.
+function buildFirstRunCard() {
+  const card = document.createElement("div");
+  card.className = "first-run-card flat-content";
+  card.id = "first-run-card";
+  card.innerHTML = `
+    <h2>${escapeHtml(T("firstRun.title"))}</h2>
+    <p class="fine muted">${escapeHtml(T("firstRun.sub"))}</p>
+    <div class="first-run-qr"><canvas width="180" height="180" aria-label="${escapeHtml(T("firstRun.qrLabel"))}"></canvas><span class="fine muted">${escapeHtml(T("firstRun.qrHint"))}</span></div>
+    <div class="first-run-actions">
+      <button type="button" class="btn-secondary" data-first="scan">${escapeHtml(T("connect.qr.scan"))}</button>
+      <button type="button" class="btn-secondary" data-first="find">${escapeHtml(T("firstRun.find"))}</button>
+      <button type="button" class="btn-secondary" data-first="invite">${escapeHtml(T("firstRun.invite"))}</button>
+    </div>
+    <p class="fine muted first-run-note">${escapeHtml(T("firstRun.note"))}</p>`;
+  try { renderQrToCanvas(card.querySelector("canvas")); } catch (e) {}
+  const goConnect = (after) => { state.tab = "connect"; state.chatId = null; renderTab(); if (after) setTimeout(after, 60); };
+  card.querySelector('[data-first="scan"]').addEventListener("click", () => { const b = $("#scan-qr-btn"); if (b) b.click(); });
+  card.querySelector('[data-first="find"]').addEventListener("click", () => goConnect(() => { const i = $("#contacts-search") || $("#connect-search"); if (i) i.focus(); }));
+  card.querySelector('[data-first="invite"]').addEventListener("click", () => goConnect(() => { const t = $("#invite-idle") || $("#create-invite-btn"); if (t && t.scrollIntoView) t.scrollIntoView({ block: "center" }); }));
+  return card;
+}
 function setPinReorder(on) { state.pinReorder = !!on; renderChatsList(); }
 function renderChatsList() {
   const list = $("#chats-list"), empty = $("#chats-empty"), archivedToggle = $("#chats-archived-toggle");
@@ -3193,6 +3218,9 @@ function renderChatsList() {
   }
   if (empty) empty.classList.add("hidden");
   if (archivedToggle) archivedToggle.classList.toggle("hidden", !withArchived);
+  // Пока нет ни одного собеседника (есть только «Заметки себе») — карточка с действиями вместо немого пустого списка.
+  const noPeers = !all.some((c) => !c.isSelf && c.managed);
+  if (noPeers && state.chatFilter === "all" && !query && Store.myId) list.appendChild(buildFirstRunCard());
   const ta = $("#toggle-archived");
   if (ta) {
     ta.textContent = state.showArchived ? T("chats.archive.hide") : T("chats.archive.show");
@@ -6094,8 +6122,33 @@ function cleanupExpiredFileBlobs(removedMessages) {
     if (cached) { try { cached.audio.pause(); } catch (e) {} voiceAudioCache.delete(m.id); }
   }
 }
+// Поле ввода растёт по тексту (до max-height в CSS): многострочные сообщения.
+function autoGrowChatInput() {
+  const el = $("#chat-input"); if (!el || el.tagName !== "TEXTAREA") return;
+  el.style.height = "auto";
+  el.style.height = Math.min(el.scrollHeight + 2, 132) + "px";
+}
+// Десктоп: Enter отправляет, Shift+Enter переносит строку. На сенсорных устройствах Enter всегда переносит строку (отправка — кнопкой).
+function wireChatInputKeys() {
+  const el = $("#chat-input"); if (!el || el.dataset.keysWired) return; el.dataset.keysWired = "1";
+  el.addEventListener("input", autoGrowChatInput);
+  // Программная подстановка текста (черновик, правка, очистка после отправки) тоже пересчитывает высоту
+  try {
+    const desc = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value");
+    if (desc && desc.set) Object.defineProperty(el, "value", { configurable: true, get() { return desc.get.call(this); }, set(v) { desc.set.call(this, v); autoGrowChatInput(); } });
+  } catch (e) {}
+  el.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" || e.shiftKey || e.isComposing || e.ctrlKey || e.altKey || e.metaKey) return;
+    const coarse = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+    if (coarse) return;
+    e.preventDefault();
+    const form = $("#chat-form");
+    if (form && el.value.trim()) { if (form.requestSubmit) form.requestSubmit(); else form.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true })); }
+  });
+}
 function updateSendVsMic() {
   const input = $("#chat-input"); if (!input) return;
+  autoGrowChatInput();
   const hasText = input.value.trim().length > 0;
   const sendBtn = $(".send-btn[type=submit]");
   const micBtn = $("#voice-record-btn");
@@ -9563,6 +9616,7 @@ function setComposerFan(open) {
 }
 function collapseComposerPlus() { setComposerFan(false); }
 function wireComposerPlusMode() {
+  wireChatInputKeys();
   const plusBtn = $("#chat-plus-btn"); if (!plusBtn) return;
   plusBtn.addEventListener("click", (e) => {
     e.preventDefault();
@@ -11086,7 +11140,7 @@ function updateSettingsCategoryView() {
   if (searching) {
     if (list) list.classList.add("hidden");
     if (header) header.classList.add("hidden");
-    groups.forEach((g) => g.classList.remove("category-hidden"));
+    groups.forEach((g) => { g.classList.remove("category-hidden"); g.classList.remove("fx-advanced-collapsed"); }); // при поиске расширенные эффекты тоже ищутся
     return;
   }
   if (!state.settingsCategory) {
