@@ -2565,3 +2565,29 @@ html.theme-fading, html.theme-fading *, html.theme-fading *::before, html.theme-
 }
 .poll-opt, .thread-chip { min-height: 44px; }
 .icon-btn { min-width: 44px; min-height: 44px; }
+
+/* Голосовая комната */
+.room-bar { display: flex; align-items: center; gap: 10px; padding: 8px 14px; margin: 0 8px 6px; border-radius: var(--radius-m, 12px); }
+.room-bar.hidden { display: none; }
+.room-ico { color: var(--accent); display: inline-flex; }
+.room-text { flex: 1; display: flex; flex-direction: column; min-width: 0; font-size: var(--t-meta, 12px); }
+.room-text b { font-size: var(--t-body, 14px); }
+.room-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .85; }
+.room-btn { min-height: 44px; padding: 0 16px; border-radius: 999px; border: 0; background: var(--accent); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+.room-btn.is-leave { background: var(--danger, #d64545); }
+
+/* Локальный ИИ */
+.voice-bubble { flex-wrap: wrap; }
+.voice-tr-btn { flex: none; width: 28px; height: 28px; border-radius: 50%; border: 1px solid currentColor; background: transparent; color: inherit; opacity: .75; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; position: relative; }
+.voice-tr-btn::after { content: ""; position: absolute; inset: -8px; }
+.voice-transcript { flex: 1 0 100%; font-size: var(--t-body, 14px); line-height: 1.35; padding: 6px 2px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.voice-transcript.is-status { opacity: .7; font-style: italic; }
+.ai-summary-text { font-size: var(--t-body, 15px); line-height: 1.45; white-space: pre-wrap; margin: 4px 0 12px; }
+/* Голосовое в два ряда: 1) play · волна · скорость; 2) расшифровка-кнопка · длительность; затем текст расшифровки */
+.voice-wave-bars { gap: 1.5px; }
+.voice-wave-bars i { min-width: 1px; }
+.voice-bubble { min-width: 250px; }
+.voice-tr-btn { order: 8; margin-inline-start: auto; }
+.voice-duration { order: 9; }
+.voice-transcript { order: 10; }
+.voice-wave { min-width: 60px; }

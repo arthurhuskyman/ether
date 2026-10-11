@@ -441,6 +441,14 @@
         <button type="button" id="settings-favorites-btn" class="settings-row link-row"><span data-i18n="settings.favorites">Favorite messages</span><span id="settings-favorites-count" class="chevron"></span></button>
       </div>
       <div class="settings-group flat-content" data-settings-category="data">
+        <div class="settings-row column"><span class="settings-group-title" data-i18n="settings.localAi.title">Local AI</span></div>
+        <label class="settings-row"><span data-i18n="settings.localAi">Transcribe voice messages</span><input id="settings-local-ai" type="checkbox" class="switch" /></label>
+        <label class="settings-row"><span data-i18n="settings.localAi.lang">Recognition language</span>
+          <select id="settings-local-ai-lang" class="settings-select"><option value="ui" data-i18n="settings.localAi.lang.ui">Same as the app</option><option value="auto" data-i18n="settings.localAi.lang.auto">Detect automatically</option></select></label>
+        <p class="fine muted settings-hint" data-i18n="settings.localAi.hint">Recognition runs on this device — audio is never sent anywhere. The first use downloads a ~40 MB model from huggingface.co and the engine from jsdelivr.net (those servers see your IP address). The model is cached afterwards.</p>
+        <button type="button" id="settings-local-ai-delete" class="settings-row link-row"><span data-i18n="settings.localAi.delete">Delete downloaded model</span></button>
+      </div>
+      <div class="settings-group flat-content" data-settings-category="data">
         <div class="settings-row column"><span class="settings-group-title" data-i18n="settings.backup.title">Backup</span></div>
         <p class="fine muted" style="margin:0 0 10px;" data-i18n="settings.backup.explain">Ether has no server backup — everything lives only on this device. If you lose or replace this device, contacts, groups and messages are gone unless you save a backup file yourself.</p>
         <button type="button" id="settings-export-backup-btn" class="settings-row link-row"><span data-i18n="debug.exportData">Export all data</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
@@ -582,6 +590,8 @@
         </button>
         <button type="button" id="pinned-msg-unpin" class="icon-btn small" aria-label="Unpin"><svg data-icon="x" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></button>
       </div>
+
+      <div id="room-bar" class="room-bar glass hidden" role="region" aria-label="Voice room"></div>
 
       <div id="chat-messages" class="chat-messages"></div>
 
@@ -879,6 +889,18 @@
     <button type="button" id="story-delete-btn" class="icon-btn hidden" aria-label="Delete" data-i18n-aria="stories.delete"><svg data-icon="trash" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"></svg></button>
     <button type="button" id="story-close-btn" class="icon-btn" aria-label="Close" data-i18n-aria="sys.close"><svg data-icon="x" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg></button></div>
   <div id="story-text" class="story-text"></div>
+</div>
+
+<div id="ai-sheet" class="sheet hidden" role="dialog" aria-modal="true" aria-labelledby="ai-sheet-title">
+  <div class="sheet-backdrop"></div>
+  <div class="sheet-panel glass-content">
+    <div class="sheet-handle"></div>
+    <h3 id="ai-sheet-title" class="sheet-title" data-i18n="ai.summary">Summary</h3>
+    <p id="ai-sheet-text" class="ai-summary-text"></p>
+    <p class="fine muted" data-i18n="ai.summary.hint">Key sentences picked on this device — not a generated rewrite.</p>
+    <button type="button" id="ai-sheet-copy" class="btn-secondary" data-i18n="chat.copy">Copy</button>
+    <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="ai-sheet" data-i18n="sys.cancel">Cancel</button>
+  </div>
 </div>
 
 <div id="thread-sheet" class="sheet hidden" role="dialog" aria-modal="true" aria-labelledby="thread-sheet-title">
@@ -1209,6 +1231,8 @@
     <textarea id="group-info-description" class="rename-input" maxlength="200" rows="2" placeholder="Group description" data-i18n-ph="group.description.placeholder"></textarea>
     <button type="button" id="group-info-description-btn" class="btn-secondary" data-i18n="group.description.save">Save description</button>
     <button type="button" id="group-info-call-btn" class="btn-secondary call-unavailable" data-i18n="chat.call">Call</button>
+    <label class="settings-row" id="group-info-room-row"><span data-i18n="room.enable">Voice room</span><input id="group-info-room" type="checkbox" class="switch" /></label>
+    <p class="fine muted" data-i18n="room.enable.hint">A room you can drop into any time without ringing everyone. Up to 6 people at once; presence is visible only to online members.</p>
     <label class="settings-row" id="group-info-write-restricted-row"><span data-i18n="group.onlyAdminsWrite">Only admins can send messages</span><input id="group-info-write-restricted" type="checkbox" class="switch" /></label>
     <button type="button" id="group-info-invite-link-btn" class="settings-row link-row hidden"><span data-i18n="group.inviteLink">Invite link</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
     <p class="fine muted" data-i18n="group.members">Members</p>
@@ -1412,6 +1436,8 @@
 <script src="js/emoji-data.js"></script>
 <script src="js/app.js"></script>
 <script src="js/group-call.js"></script>
+<script src="js/rooms.js"></script>
+<script src="js/localai.js"></script>
 <script src="js/features.js"></script>
 <script src="js/features2.js"></script>
 <script src="js/easter.js"></script>

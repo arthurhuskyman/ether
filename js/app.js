@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.67.0.0";
+const APP_VERSION = "V.68.0.0";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 // Сервер перевода по умолчанию (LibreTranslate-совместимый). Официальный публичный инстанс обычно
@@ -211,7 +211,7 @@ const CRITICAL_LS_KEYS = [
   "ether.callVolume", "ether.lang", "ether.recentReactions",
   "ether.chatFolders", "ether.emojiSkinTone", "ether.recentEmoji", "ether.myAvatar",
   "ether.translateEndpoint", "ether.translateApiKey",
-  "ether.readable", "ether.stories", "ether.quietOn", "ether.quietFrom", "ether.quietTo", "ether.wpColor1", "ether.wpColor2", "ether.chatWallpaper", "ether.voiceSpeed", "ether.deadManEnabled", "ether.deadManThresholdDays", "ether.deadManContactId", "ether.deadManLastSentAt",
+  "ether.readable", "ether.localAi", "ether.localAiLang", "ether.stories", "ether.quietOn", "ether.quietFrom", "ether.quietTo", "ether.wpColor1", "ether.wpColor2", "ether.chatWallpaper", "ether.voiceSpeed", "ether.deadManEnabled", "ether.deadManThresholdDays", "ether.deadManContactId", "ether.deadManLastSentAt",
   "ether.panicShakeEnabled", "ether.fx", "ether.sigKey", "ether.fx.aurora", "ether.keyInfo",
 ];
 
@@ -2774,7 +2774,7 @@ function loadContacts() {
       pinOrder: typeof c.pinOrder === "number" ? c.pinOrder : null,
       // Группы — без этих полей запись после перезагрузки превращается в
       // битый обычный контакт (isGroup(c) === false, участников нет).
-      isGroup: !!c.isGroup,
+      isGroup: !!c.isGroup, room: c.room || undefined,
       members: Array.isArray(c.members) ? c.members : undefined,
       createdBy: c.createdBy || undefined,
       avatar: c.avatar || undefined,
@@ -2885,7 +2885,7 @@ function persistContacts() {
     archived: c.archived, muted: c.muted, muteUntil: c.muteUntil || undefined, blocked: c.blocked, vibrateOnly: c.vibrateOnly || undefined,
     pinned: c.pinned || undefined, pinnedMessageId: c.pinnedMessageId || undefined,
     pinOrder: typeof c.pinOrder === "number" ? c.pinOrder : undefined,
-    isGroup: c.isGroup || undefined,
+    isGroup: c.isGroup || undefined, room: c.isGroup && c.room || undefined,
     members: c.isGroup ? c.members : undefined,
     createdBy: c.isGroup ? c.createdBy : undefined,
     // killer-features-backlog 0.7 — локальный аватар контакта: раньше
@@ -3690,6 +3690,7 @@ function openGroupInfo(groupId) {
     else { avatarBtn.style.backgroundImage = ""; avatarBtn.style.background = avatarGradient(g.name); avatarBtn.textContent = initials(g.name); }
   }
   const nameInput = $("#group-info-name"); if (nameInput) nameInput.value = g.name || "";
+  { const rt = $("#group-info-room"); if (rt) { rt.checked = !!g.room; rt.disabled = !isGroupAdmin(g, Store.myId); } }
   const descInput = $("#group-info-description"); if (descInput) descInput.value = g.description || "";
   const list = $("#group-info-members");
   const myIsAdmin = isGroupAdmin(g, Store.myId);
@@ -4017,7 +4018,7 @@ const NEAR_BOTTOM_PX = 80;
 function isNearBottom(el) { if (!el) return true; return el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX; }
 
 function renderChatHeaderSoft() { renderChatThreadInner(); } // шапка обновляется до проверки «подписи» ленты, поэтому ленту это не перестраивает
-function renderChatThread() { try { renderKeyChangeBanner(); renderChatThreadInner(); if (state.threadRoot) renderThreadSheet(); } catch (e) { __lastChatSig = ""; etherLog("error", "[renderChatThread]", String(e)); const w = $("#chat-messages"); if (w) w.innerHTML = `<div class="empty-state"><p>Error.</p></div>`; } }
+function renderChatThread() { try { renderKeyChangeBanner(); renderChatThreadInner(); if (state.threadRoot) renderThreadSheet(); if (typeof roomRenderBar === "function") roomRenderBar(); } catch (e) { __lastChatSig = ""; etherLog("error", "[renderChatThread]", String(e)); const w = $("#chat-messages"); if (w) w.innerHTML = `<div class="empty-state"><p>Error.</p></div>`; } }
 
 let __lastChatSig = "";
 const __renderedAck = new Map(); // id сообщения -> статус доставки на прошлой отрисовке (для анимации смены)
@@ -4468,7 +4469,7 @@ if (m.replyTo) {
       }
       const sel = window.getSelection();
       if (sel && sel.toString().length > 0) return;
-      if (ev.target.closest(".voice-play-btn, .voice-wave, .voice-speed-btn")) return; // у кнопки уже есть свой обработчик — тут просто не открываем меню поверх него
+      if (ev.target.closest(".voice-play-btn, .voice-wave, .voice-speed-btn, .voice-tr-btn, .voice-transcript")) return; // у кнопки уже есть свой обработчик — тут просто не открываем меню поверх него
       if (m.file && m.file.kind === "audio" && !m.file.pending) {
         toggleVoicePlaybackFor(inner);
         return;
@@ -6478,7 +6479,9 @@ function fileBubbleHtml(msgId, fileInfo) {
       <span class="voice-live-wave" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></span>
       <div class="voice-progress voice-wave" role="slider" tabindex="0" aria-label="${escapeHtml(T("chat.voice.seek"))}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="voice-wave-bars">${voiceWaveHtml(fileInfo.wave, msgId)}</div><div class="voice-progress-fill"></div></div>
       <button type="button" class="voice-speed-btn" aria-label="${escapeHtml(T("chat.voice.speed"))}">${voiceSpeed()}×</button>
+      <button type="button" class="voice-tr-btn" aria-label="${escapeHtml(T("ai.transcribe"))}" title="${escapeHtml(T("ai.transcribe"))}">${Icons.html("text", 16)}</button>
       <span class="voice-duration">${escapeHtml(durLabel)}</span>
+      ${fileInfo.transcript ? `<div class="voice-transcript">${escapeHtml(fileInfo.transcript)}</div>` : ""}
     </div>`;
   }
   return `<a class="file-bubble file-bubble-doc" data-file-id="${escapeHtml(msgId)}" data-file-kind="file" href="#">
@@ -6664,6 +6667,8 @@ function hydrateFileSlots(root) {
     const knownDuration = parseFloat(el.getAttribute("data-duration")) || 0;
     const speedBtn0 = el.querySelector(".voice-speed-btn");
     if (speedBtn0) speedBtn0.onclick = (ev) => { ev.stopPropagation(); cycleVoiceSpeed(); };
+    const trBtn0 = el.querySelector(".voice-tr-btn");
+    if (trBtn0) trBtn0.onclick = (ev) => { ev.stopPropagation(); if (typeof transcribeVoiceMessage === "function" && state.chatId) transcribeVoiceMessage(state.chatId, msgId); };
     getFileBlobUrl(msgId).then((url) => {
       if (!url || !playBtn) {
         // Та же проблема для голосовых — кнопка play оставалась
@@ -9650,6 +9655,7 @@ function openMessageSheet(msgId, contactId) {
   if (m.text && !m.file && !m.contactCard && !m.poll && !m.board) rare.push(act("translate", m.translation ? T("chat.translate.hide") : T("chat.translate")));
   rare.push(act("favorite", m.favorite ? T("chat.unfavorite") : T("chat.favorite")));
   rare.push(act("thread", T("chat.thread.open")));
+  if (typeof LocalAI !== "undefined" && messageSummarySource(m).length >= 200) rare.push(act("summary", T("ai.summary")));
   rare.push(act("select", T("chat.selectMsgs")));
   if (isOwn && !groupCtx && !m.file && !m.contactCard && !m.poll && !m.board) rare.push(act("edit", T("chat.edit")));
   rare.push(act("delete-local", T("chat.delete.local"), "destructive"));
@@ -9670,6 +9676,7 @@ async function handleMessageAction(action, msgId, contactId) {
   const m = c.messages.find((x) => x.id === msgId); if (!m) return;
   if (action === "copy") { copyText(m.text || "", T("toast.msgCopied")); flashCopiedBubble(msgId); }
   else if (action === "thread") openThread(contactId, msgId);
+  else if (action === "summary") openSummarySheet(messageSummarySource(m));
   else if (action === "edit") startEditing(msgId);
   else if (action === "delete-local") deleteMessageLocal(contactId, msgId);
   else if (action === "delete-both") {
@@ -13161,6 +13168,8 @@ async function importBackupFile(file) {
 // =====================================================================
 function wireMeshEvents() {
   if (typeof gcallWire === "function") gcallWire();
+  if (typeof roomWire === "function") roomWire();
+  if (typeof wireLocalAi === "function") wireLocalAi();
   // Показ экрана прервали через системный UI браузера, а не через нашу
   // кнопку (см. PeerLink.startScreenShare/screenTrack.onended в webrtc.js)
   // — синхронизируем кнопку обратно в неактивное состояние.

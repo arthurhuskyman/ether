@@ -101,6 +101,7 @@ function handleGroupCallPayload(fromId, p) {
   const g = gcallGroup(p.gid);
   if (!g || !gcallIsMember(g, fromId)) return; // только участники этой группы
   const fresh = !p.ts || Date.now() - p.ts < GCALL_INVITE_TTL_MS;
+  if (typeof roomHandle === "function" && roomHandle(fromId, p, g)) return; // голосовые комнаты: присутствие и тихий вход
   if (p.t === "invite" || p.t === "join") {
     if (GC.gid === p.gid) {
       if (p.t === "invite") return;
