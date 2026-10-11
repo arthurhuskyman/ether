@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.69.0.0";
+const APP_VERSION = "V.70.0.0";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 // Сервер перевода по умолчанию (LibreTranslate-совместимый). Официальный публичный инстанс обычно
@@ -4361,6 +4361,13 @@ function renderChatThreadInner() {
       const span = document.createElement("span");
       span.textContent = T("chat.unreadDivider");
       div.appendChild(span);
+      const unreadTexts = renderList.slice(renderList.indexOf(m)).filter((x) => x.from !== "me" && x.from !== "system" && x.text).map((x) => x.text);
+      if (typeof LocalAI !== "undefined" && unreadTexts.join(" ").length >= 400) {
+        const sb = document.createElement("button");
+        sb.type = "button"; sb.className = "unread-summary-btn"; sb.textContent = T("ai.summary");
+        sb.addEventListener("click", (e) => { e.stopPropagation(); openSummarySheet(unreadTexts.join(". ")); });
+        div.appendChild(sb);
+      }
       frag.appendChild(div);
       unreadDividerEl = div;
       prevMsg = null; // разделитель тоже разрывает визуальную группировку подряд идущих сообщений
@@ -5290,6 +5297,7 @@ function showStory() {
   $("#story-time").textContent = formatTime(st.ts);
   $("#story-bars").innerHTML = v.items.map((_, k) => `<span class="${k < v.i ? "done" : k === v.i ? "cur" : ""}"></span>`).join("");
   $("#story-delete-btn").classList.toggle("hidden", st.owner !== "me");
+  const rf = $("#story-reply"); if (rf) { rf.classList.toggle("hidden", st.owner === "me" || !c || !c.managed); const ri = $("#story-reply-input"); if (ri && !ri.value) ri.blur(); }
   v.timer = setTimeout(() => { v.i++; showStory(); }, 6000);
 }
 function closeStoryViewer() {
@@ -5314,6 +5322,18 @@ function wireStories() {
   if (ov) {
     ov.addEventListener("click", (e) => { if (e.target.closest("#story-close-btn") || e.target.closest("#story-delete-btn")) return; if (__storyViewer) { __storyViewer.i++; showStory(); } });
     $("#story-close-btn").addEventListener("click", (e) => { e.stopPropagation(); closeStoryViewer(); });
+    const rf = $("#story-reply"), ri = $("#story-reply-input");
+    if (rf && ri) {
+      rf.addEventListener("click", (e) => e.stopPropagation());
+      ri.addEventListener("focus", () => { if (__storyViewer) clearTimeout(__storyViewer.timer); });
+      rf.addEventListener("submit", async (e) => {
+        e.preventDefault(); const v = __storyViewer, text = ri.value.trim(); if (!v || !text) return;
+        const st = v.items[v.i], c = state.contacts.get(st.owner); if (!c) return;
+        ri.value = ""; ri.blur(); closeStoryViewer();
+        await sendChatMessage(c.id, text, { msgId: "story:" + st.id, text: "📖 " + st.text.slice(0, 80), authorName: c.name });
+        toast(T("stories.replySent"));
+      });
+    }
     $("#story-delete-btn").addEventListener("click", (e) => {
       e.stopPropagation(); const v = __storyViewer; if (!v) return;
       const st = v.items[v.i]; storiesList = loadStories().filter((x) => x.id !== st.id); persistStories(); closeStoryViewer();
@@ -6657,6 +6677,31 @@ function voiceWaveHtml(wave, seed) {
   const w = sanitizeWave(wave) || fallbackWave(seed || "x");
   return w.map((v) => `<i style="height:${Math.round(18 + (v / 31) * 82)}%"></i>`).join("");
 }
+// У голосовых от старых клиентов волны нет — считаем её один раз из самого звука (локально) и запоминаем в сообщении.
+const waveBackfillTried = new Set();
+async function backfillVoiceWave(msgId, el) {
+  if (waveBackfillTried.has(msgId)) return;
+  waveBackfillTried.add(msgId);
+  let m = null;
+  for (const c of state.contacts.values()) { m = (c.messages || []).find((x) => x.id === msgId); if (m) break; }
+  if (!m || !m.file || m.file.wave) return;
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    const blob = await IDB.get("file:" + msgId);
+    if (!AC || !blob || blob.size > 4 * 1024 * 1024) return;
+    const ctx = new AC(); let audio;
+    try { audio = await ctx.decodeAudioData(await blob.arrayBuffer()); } finally { try { ctx.close(); } catch (e) {} }
+    const data = audio.getChannelData(0), n = Math.min(data.length, 200000), step = Math.max(1, Math.floor(data.length / n));
+    const abs = new Float32Array(Math.ceil(data.length / step));
+    for (let i = 0, k = 0; i < data.length; i += step, k++) abs[k] = Math.abs(data[i]);
+    const wave = sanitizeWave(compressWave(abs));
+    if (!wave) return;
+    m.file.wave = wave;
+    persistContacts();
+    const bars = el && el.querySelector(".voice-wave-bars");
+    if (bars) bars.innerHTML = voiceWaveHtml(wave, msgId);
+  } catch (e) { /* формат не декодируется — остаётся условная волна */ }
+}
 const VOICE_SPEEDS = [1, 1.5, 2];
 function voiceSpeed() { let v = 1; try { v = parseFloat(localStorage.getItem("ether.voiceSpeed")) || 1; } catch (e) {} return VOICE_SPEEDS.includes(v) ? v : 1; }
 function cycleVoiceSpeed() {
@@ -6809,6 +6854,7 @@ function hydrateFileSlots(root) {
     if (speedBtn0) speedBtn0.onclick = (ev) => { ev.stopPropagation(); cycleVoiceSpeed(); };
     const trBtn0 = el.querySelector(".voice-tr-btn");
     if (trBtn0) trBtn0.onclick = (ev) => { ev.stopPropagation(); if (typeof transcribeVoiceMessage === "function" && state.chatId) transcribeVoiceMessage(state.chatId, msgId); };
+    backfillVoiceWave(msgId, el);
     getFileBlobUrl(msgId).then((url) => {
       if (!url || !playBtn) {
         // Та же проблема для голосовых — кнопка play оставалась

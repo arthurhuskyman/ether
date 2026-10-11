@@ -433,6 +433,8 @@ window.__LANG_DICTS["ru"] = {
     "stories.of": "История: {name}",
     "stories.new": "Новая история",
     "stories.placeholder": "О чём думаете?",
+    "stories.reply": "Ответить…",
+    "stories.replySent": "Ответ отправлен",
     "stories.delete": "Удалить историю",
     "stories.hint": "Видна вашим контактам 24 часа. Доставляется со сквозным шифрованием.",
     "stories.publish": "Опубликовать",

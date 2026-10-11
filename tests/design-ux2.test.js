@@ -115,6 +115,14 @@ test("истории: публикация, приём, срок жизни 24 �
   d.querySelector('[data-story-owner="alice"]').click();
   assert.ok(!d.querySelector("#story-viewer").classList.contains("hidden"));
   assert.equal(d.querySelector("#story-text").textContent, "от Алисы");
+  assert.ok(!d.querySelector("#story-reply").classList.contains("hidden"), "на чужой истории есть поле ответа");
+  d.querySelector("#story-reply-input").value = "Классно!";
+  d.querySelector("#story-reply").dispatchEvent(new a.window.Event("submit", { cancelable: true, bubbles: true }));
+  await sleep(100);
+  const sent = a.run(`JSON.stringify(state.contacts.get("alice").messages.filter((m) => m.from === "me").map((m) => ({ t: m.text, r: m.replyTo && m.replyTo.text })))`);
+  assert.match(sent, /Классно!/); assert.match(sent, /от Алисы/, "цитата истории в ответе");
+  assert.ok(d.querySelector("#story-viewer").classList.contains("hidden"), "просмотр закрылся после ответа");
+  a.run(`openStoryViewer("alice")`);
   d.querySelector("#story-close-btn").click();
   assert.equal(a.run(`loadStories().find((s) => s.id === "st1").seen`), true);
   assert.equal(d.querySelector('.story-item.is-unseen'), null, "после просмотра кольцо гаснет");
@@ -143,5 +151,30 @@ test("пустые состояния: поиск без результатов 
   assert.ok(!d.querySelector("#chat-peer-status .typing-both"));
   a.run(`state.typingSendingState.set("alice", true); renderChatThread();`);
   assert.ok(d.querySelector("#chat-peer-status .typing-both"), "подпись, когда печатают оба");
+  a.close();
+});
+
+test("волна старого голосового считается из самого звука один раз и запоминается", async () => {
+  const a = await booted("ru");
+  a.run(`const c = ensureContactEntry("alice", "Alice"); c.managed = true; c.messages.push({ id: "v1", from: "alice", ts: Date.now(), file: { name: "v.webm", mime: "audio/webm", size: 10, kind: "voice", duration: 3 } });`);
+  // подмена WebAudio: «звук» с нарастающей громкостью
+  a.window.AudioContext = function () { return { decodeAudioData: async () => ({ getChannelData: () => Float32Array.from({ length: 4000 }, (_, i) => (i / 4000) * Math.sin(i)) }), close() {} }; };
+  a.run(`IDB.set("file:v1", new Blob([new Uint8Array(10)], { type: "audio/webm" }))`);
+  await sleep(50);
+  const done = await a.run(`(async () => { const el = document.createElement("div"); el.innerHTML = '<div class="voice-wave-bars"></div>'; await backfillVoiceWave("v1", el); const m = state.contacts.get("alice").messages[0]; return JSON.stringify({ n: m.file.wave && m.file.wave.length, first: m.file.wave && m.file.wave[0], last: m.file.wave && m.file.wave[39], bars: el.querySelectorAll("i").length }); })()`);
+  const r = JSON.parse(done);
+  assert.equal(r.n, 40); assert.equal(r.bars, 40); assert.ok(r.last > r.first, "форма отражает громкость");
+  a.close();
+});
+
+test("длинная пачка непрочитанных: у разделителя есть кнопка «Краткое содержание»", async () => {
+  const a = await booted("ru");
+  const long = "Мы обсуждали поездку в горы и маршрут на выходные. ".repeat(10);
+  a.run(`const c = ensureContactEntry("bob", "Bob"); c.managed = true; for (let i = 0; i < 3; i++) c.messages.push({ id: "u" + i, from: "bob", text: ${JSON.stringify(long)}, ts: Date.now() - 1000 + i, ack: "delivered" }); unreadDividerFor.set("bob", "u0"); state.chatId = "bob"; renderChatThread();`);
+  const btn = a.document.querySelector(".unread-divider .unread-summary-btn");
+  assert.ok(btn, "кнопка сводки у разделителя");
+  btn.click();
+  assert.ok(!a.document.querySelector("#ai-sheet").classList.contains("hidden"));
+  assert.ok(a.document.querySelector("#ai-sheet-text").textContent.length > 10);
   a.close();
 });

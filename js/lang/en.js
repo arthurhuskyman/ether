@@ -435,6 +435,8 @@ window.__LANG_DICTS["en"] = {
     "stories.of": "Story of {name}",
     "stories.new": "New story",
     "stories.placeholder": "What's on your mind?",
+    "stories.reply": "Reply…",
+    "stories.replySent": "Reply sent",
     "stories.delete": "Delete story",
     "stories.hint": "Visible to your contacts for 24 hours. Delivered end-to-end encrypted.",
     "stories.publish": "Publish",

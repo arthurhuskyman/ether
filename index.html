@@ -895,6 +895,10 @@
     <button type="button" id="story-delete-btn" class="icon-btn hidden" aria-label="Delete" data-i18n-aria="stories.delete"><svg data-icon="trash" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"></svg></button>
     <button type="button" id="story-close-btn" class="icon-btn" aria-label="Close" data-i18n-aria="sys.close"><svg data-icon="x" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg></button></div>
   <div id="story-text" class="story-text"></div>
+  <form id="story-reply" class="story-reply hidden" autocomplete="off">
+    <input id="story-reply-input" type="text" maxlength="500" placeholder="Reply…" data-i18n-placeholder="stories.reply" aria-label="Reply" data-i18n-aria="stories.reply">
+    <button type="submit" class="icon-btn" aria-label="Send" data-i18n-aria="chat.send"><svg data-icon="send" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"></svg></button>
+  </form>
 </div>
 
 <div id="ai-sheet" class="sheet hidden" role="dialog" aria-modal="true" aria-labelledby="ai-sheet-title">
