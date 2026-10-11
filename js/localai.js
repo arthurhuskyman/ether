@@ -10,6 +10,7 @@ const LocalAI = (() => {
   const TF_URL = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0/dist/transformers.min.js";
   // whisper-base заметно точнее tiny на русском и коротких фразах (≈80 МБ в квантованном виде вместо ≈40)
   const MODEL = "Xenova/whisper-base";
+  const FALLBACK_MODEL = "Xenova/whisper-tiny"; // если base не загрузилась или не стартовала
   const MAX_AUDIO_SEC = 300;
   const LANG_NAMES = { ru: "russian", en: "english", de: "german", fr: "french", es: "spanish", it: "italian", pt: "portuguese", uk: "ukrainian", pl: "polish", tr: "turkish", ar: "arabic", zh: "chinese", ja: "japanese", ko: "korean", hi: "hindi", nl: "dutch", cs: "czech", sv: "swedish", he: "hebrew", fa: "persian" };
   let engine = null, loading = null;
@@ -44,9 +45,12 @@ const LocalAI = (() => {
       // Библиотека присылает события по каждому файлу модели отдельно (конфиг, токенайзер, веса…), и у каждого процент свой —
       // раньше число прыгало 100→0→100. Считаем общий прогресс по сумме байт и не даём ему уменьшаться.
       const progress = makeProgress(notify);
-      const asr = await mod.pipeline("automatic-speech-recognition", MODEL, { dtype: "q8", progress_callback: progress });
+      let asr = null, name = MODEL;
+      try { asr = await mod.pipeline("automatic-speech-recognition", MODEL, { progress_callback: progress }); }
+      catch (e) { try { etherLog("warn", "[localai] base не загрузилась, пробую tiny:", String(e && e.message || e)); } catch (x) {} name = FALLBACK_MODEL; asr = await mod.pipeline("automatic-speech-recognition", FALLBACK_MODEL, { progress_callback: progress }); }
       notify(100);
       engine = async (audio, o) => { const out = await asr(audio, Object.assign({ chunk_length_s: 30, return_timestamps: false }, o || {})); return String((out && out.text) || "").trim(); };
+      engine.modelName = name;
       return engine;
     })();
     try { return await loading; } finally { loading = null; }
@@ -90,13 +94,25 @@ const LocalAI = (() => {
     const run = await loadEngine();
     const audio = await decodeToMono16k(blob);
     if (rms(audio) < 0.003) return "";
-    // тихие записи выравниваем по громкости (пик → ~0.9, усиление не более 20×): Whisper хуже слышит тихий голос
-    let peak = 0; for (let i = 0; i < audio.length; i++) { const v = Math.abs(audio[i]); if (v > peak) peak = v; }
-    if (peak > 0 && peak < 0.5) { const g = Math.min(20, 0.9 / peak); for (let i = 0; i < audio.length; i++) audio[i] *= g; }
+    // Громкость не нормализуем: лог-мел признаки Whisper и так не зависят от уровня сигнала
     const sec = audio.length / 16000;
     // кириллица режется на много коротких токенов — прежний лимит (6 ток/с) обрезал русские записи на полуслове
-    const opts = Object.assign({ max_new_tokens: Math.max(48, Math.min(440, Math.ceil(sec * 14) + 30)), no_repeat_ngram_size: 4 }, languageOption());
-    return cleanTranscript(await run(audio, opts));
+    const lang = languageOption();
+    const tokens = Math.max(48, Math.min(440, Math.ceil(sec * 14) + 30));
+    // Несколько попыток от «строгих» настроек к самым простым: если модель при ограничениях вернула пустоту,
+    // повторяем с настройками библиотеки по умолчанию (иначе пользователь видит «ничего не распознано»).
+    const attempts = [
+      Object.assign({ max_new_tokens: tokens, no_repeat_ngram_size: 4 }, lang),
+      Object.assign({}, lang),
+      {},
+    ];
+    for (let i = 0; i < attempts.length; i++) {
+      let text = "";
+      try { text = cleanTranscript(await run(audio, attempts[i])); } catch (e) { try { etherLog("warn", "[localai] попытка " + (i + 1) + " упала:", String(e && e.message || e)); } catch (x) {} if (i === attempts.length - 1) throw e; }
+      try { etherLog("info", "[localai] попытка " + (i + 1) + ", модель " + (run.modelName || "?") + ", " + sec.toFixed(1) + " с, символов: " + text.length); } catch (x) {}
+      if (text) return text;
+    }
+    return "";
   }
 
   // ---- Краткое содержание: частотная выжимка (extractive) ----

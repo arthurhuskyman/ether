@@ -116,3 +116,16 @@ test("процент загрузки модели: сумма по файлам
   assert.ok(seen.every((v) => v <= 99), "до готовности движка не 100");
   a.close();
 });
+
+test("пустой ответ при строгих настройках → повтор с настройками по умолчанию, пока не появится текст", async () => {
+  const a = await booted();
+  setup(a);
+  a.window.localStorage.setItem("ether.localAi", "1");
+  a.run(`window.__calls = []; LocalAI.setEngine(async (audio, o) => { window.__calls.push(Object.keys(o).sort().join(",")); return window.__calls.length < 3 ? "" : "привет мир"; });`);
+  await a.run(`transcribeVoiceMessage("alice", "v1")`);
+  const calls = a.run(`JSON.stringify(window.__calls)`);
+  assert.equal(JSON.parse(calls).length, 3, "три попытки: " + calls);
+  assert.equal(JSON.parse(calls)[2], "", "последняя — без параметров");
+  assert.equal(a.run(`state.contacts.get("alice").messages[0].file.transcript`), "привет мир");
+  a.close();
+});
