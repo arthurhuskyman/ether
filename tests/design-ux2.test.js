@@ -197,3 +197,12 @@ test("«Доска» — один пункт с выбором шаблона; �
   assert.ok(d.querySelector("#text-sheet-choices").classList.contains("hidden"), "у остальных диалогов выбора нет");
   a.close();
 });
+
+test("меню «+»: порядок Эмодзи, Камера, Файл, Опрос, Доска, Заметка; плашки якорятся над кнопкой", async () => {
+  const a = await booted("ru");
+  const d = a.document;
+  const ids = Array.from(d.querySelectorAll("#composer-menu-sheet .composer-menu-item")).map((b) => b.id);
+  assert.deepEqual(ids, ["chat-emoji-btn", "chat-camera-btn", "chat-attach-btn", "chat-poll-btn", "chat-board-btn", "chat-note-btn"]);
+  assert.equal(d.querySelector("#chat-attach-btn span").textContent, "Файл");
+  a.close();
+});

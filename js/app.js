@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.70.1.0";
+const APP_VERSION = "V.70.2.0";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 // Сервер перевода по умолчанию (LibreTranslate-совместимый). Официальный публичный инстанс обычно
@@ -10598,6 +10598,11 @@ function wireEmojiPicker() {
 function setComposerFan(open) {
   const sheet = $("#composer-menu-sheet"); if (sheet) sheet.classList.toggle("hidden", !open);
   const plus = $("#chat-plus-btn"); if (plus) plus.setAttribute("aria-expanded", open ? "true" : "false");
+  // плашки выезжают вверх из самой кнопки «+»: якорим колонку над ней
+  if (open && sheet && plus) {
+    const r = plus.getBoundingClientRect(), panel = sheet.querySelector(".sheet-panel");
+    if (panel && r.width) { panel.style.setProperty("--menu-bottom", Math.max(8, Math.round(window.innerHeight - r.top + 10)) + "px"); panel.style.setProperty("--menu-left", Math.max(8, Math.round(r.left)) + "px"); }
+  }
 }
 function collapseComposerPlus() { setComposerFan(false); }
 function wireComposerPlusMode() {

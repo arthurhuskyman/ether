@@ -100,6 +100,19 @@ test("зацикливание Whisper: повторы схлопываются,
   a.window.localStorage.setItem("ether.localAi", "1");
   await a.run(`transcribeVoiceMessage("alice", "v1")`);
   const o = a.run(`window.__opts`);
-  assert.ok(o && o.max_new_tokens >= 24 && o.max_new_tokens <= 220 && o.no_repeat_ngram_size === 3, "ограничения генерации заданы");
+  assert.ok(o && o.max_new_tokens >= 48 && o.max_new_tokens <= 440 && o.no_repeat_ngram_size === 4 && o.repetition_penalty === undefined, "ограничения генерации заданы");
+  a.close();
+});
+
+test("процент загрузки модели: сумма по файлам, не прыгает назад и не доходит до 100 до готовности", async () => {
+  const a = await booted();
+  const seen = JSON.parse(a.run(`(() => { const out = []; const p = LocalAI.makeProgress((v) => out.push(Math.round(v)));
+    p({ status: "initiate", file: "config.json" }); p({ status: "progress", file: "config.json", loaded: 1, total: 2 });
+    p({ status: "progress", file: "enc.onnx", loaded: 10, total: 100 }); p({ status: "progress", file: "enc.onnx", loaded: 60, total: 100 });
+    p({ status: "progress", file: "dec.onnx", loaded: 0, total: 100 });  // новый крупный файл не должен откатить шкалу
+    p({ status: "progress", file: "dec.onnx", loaded: 100, total: 100 }); p({ status: "done", file: "dec.onnx" }); p({ status: "done", file: "enc.onnx" }); p({ status: "done", file: "config.json" });
+    return JSON.stringify(out); })()`));
+  for (let i = 1; i < seen.length; i++) assert.ok(seen[i] >= seen[i - 1], "не убывает: " + seen.join(","));
+  assert.ok(seen.every((v) => v <= 99), "до готовности движка не 100");
   a.close();
 });

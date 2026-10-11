@@ -1,5 +1,5 @@
 // =====================================================================
-// Локальный ИИ: распознавание голосовых (Whisper-tiny в WebAssembly, transformers.js) и краткое содержание.
+// Локальный ИИ: распознавание голосовых (Whisper-base в WebAssembly, transformers.js) и краткое содержание.
 // Звук никуда не отправляется — модель выполняется на устройстве. Единственное обращение в сеть — разовая загрузка библиотеки
 // (cdn.jsdelivr.net) и модели (huggingface.co, ≈40 МБ); поэтому функция включается только после явного согласия,
 // а при загрузке эти серверы видят IP-адрес. Модель кэшируется браузером; удалить её можно в настройках.
@@ -8,7 +8,8 @@
 // =====================================================================
 const LocalAI = (() => {
   const TF_URL = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0/dist/transformers.min.js";
-  const MODEL = "Xenova/whisper-tiny";
+  // whisper-base заметно точнее tiny на русском и коротких фразах (≈80 МБ в квантованном виде вместо ≈40)
+  const MODEL = "Xenova/whisper-base";
   const MAX_AUDIO_SEC = 300;
   const LANG_NAMES = { ru: "russian", en: "english", de: "german", fr: "french", es: "spanish", it: "italian", pt: "portuguese", uk: "ukrainian", pl: "polish", tr: "turkish", ar: "arabic", zh: "chinese", ja: "japanese", ko: "korean", hi: "hindi", nl: "dutch", cs: "czech", sv: "swedish", he: "hebrew", fa: "persian" };
   let engine = null, loading = null;
@@ -18,15 +19,33 @@ const LocalAI = (() => {
   // Подмена движка (тесты и возможные другие реализации): async (Float32Array, { language }) => string
   function setEngine(fn) { engine = fn; }
   function isReady() { return !!engine; }
+  // Общий прогресс загрузки из событий по отдельным файлам модели: сумма байт, без откатов назад
+  function makeProgress(emit) {
+    const files = new Map(); let shown = 0;
+    return (p) => {
+      if (!p || !p.file) return;
+      if (p.status === "done") { const f = files.get(p.file); if (f && f.total) f.loaded = f.total; }
+      else if (p.status === "progress" || p.status === "initiate" || p.status === "download") {
+        const f = files.get(p.file) || { loaded: 0, total: 0 }; files.set(p.file, f);
+        if (typeof p.total === "number" && p.total > 0) f.total = p.total;
+        if (typeof p.loaded === "number") f.loaded = Math.min(p.loaded, f.total || p.loaded);
+      } else return;
+      let loaded = 0, total = 0; for (const f of files.values()) { loaded += f.loaded; total += f.total; }
+      if (total <= 0) return;
+      shown = Math.max(shown, Math.min(99, (loaded / total) * 100)); emit(shown);
+    };
+  }
   async function loadEngine() {
     if (engine) return engine;
     if (loading) return loading;
     loading = (async () => {
       const mod = await import(TF_URL);
       mod.env.allowLocalModels = false;
-      const asr = await mod.pipeline("automatic-speech-recognition", MODEL, {
-        progress_callback: (p) => { if (p && typeof p.progress === "number") notify(Math.max(0, Math.min(100, p.progress))); },
-      });
+      // Библиотека присылает события по каждому файлу модели отдельно (конфиг, токенайзер, веса…), и у каждого процент свой —
+      // раньше число прыгало 100→0→100. Считаем общий прогресс по сумме байт и не даём ему уменьшаться.
+      const progress = makeProgress(notify);
+      const asr = await mod.pipeline("automatic-speech-recognition", MODEL, { dtype: "q8", progress_callback: progress });
+      notify(100);
       engine = async (audio, o) => { const out = await asr(audio, Object.assign({ chunk_length_s: 30, return_timestamps: false }, o || {})); return String((out && out.text) || "").trim(); };
       return engine;
     })();
@@ -50,7 +69,7 @@ const LocalAI = (() => {
     const code = (document.documentElement.getAttribute("lang") || "en").slice(0, 2);
     return LANG_NAMES[code] ? { language: LANG_NAMES[code], task: "transcribe" } : {};
   }
-  // Whisper-tiny на коротких и тихих записях любит «зацикливаться» («8,8,8,8…»). Защита в три слоя:
+  // Whisper на коротких и тихих записях любит «зацикливаться» («8,8,8,8…»). Защита в три слоя:
   // 1) тишину не распознаём; 2) ограничиваем длину ответа по длительности звука и запрещаем повторы n-грамм;
   // 3) схлопываем оставшиеся повторы в тексте.
   function rms(a) { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * a[i]; return Math.sqrt(s / Math.max(1, a.length)); }
@@ -71,8 +90,12 @@ const LocalAI = (() => {
     const run = await loadEngine();
     const audio = await decodeToMono16k(blob);
     if (rms(audio) < 0.003) return "";
+    // тихие записи выравниваем по громкости (пик → ~0.9, усиление не более 20×): Whisper хуже слышит тихий голос
+    let peak = 0; for (let i = 0; i < audio.length; i++) { const v = Math.abs(audio[i]); if (v > peak) peak = v; }
+    if (peak > 0 && peak < 0.5) { const g = Math.min(20, 0.9 / peak); for (let i = 0; i < audio.length; i++) audio[i] *= g; }
     const sec = audio.length / 16000;
-    const opts = Object.assign({ max_new_tokens: Math.max(24, Math.min(220, Math.ceil(sec * 6) + 20)), no_repeat_ngram_size: 3, repetition_penalty: 1.2 }, languageOption());
+    // кириллица режется на много коротких токенов — прежний лимит (6 ток/с) обрезал русские записи на полуслове
+    const opts = Object.assign({ max_new_tokens: Math.max(48, Math.min(440, Math.ceil(sec * 14) + 30)), no_repeat_ngram_size: 4 }, languageOption());
     return cleanTranscript(await run(audio, opts));
   }
 
@@ -93,7 +116,7 @@ const LocalAI = (() => {
     });
     return scored.sort((a, b) => b.score - a.score).slice(0, n).sort((a, b) => a.i - b.i).map((x) => x.s).join(" ");
   }
-  return { cleanTranscript, rms, setEngine, isReady, loadEngine, decodeToMono16k, transcribeBlob, summarize, sentences, onProgress: (fn) => { progressListeners.add(fn); return () => progressListeners.delete(fn); }, MODEL, TF_URL };
+  return { makeProgress, cleanTranscript, rms, setEngine, isReady, loadEngine, decodeToMono16k, transcribeBlob, summarize, sentences, onProgress: (fn) => { progressListeners.add(fn); return () => progressListeners.delete(fn); }, MODEL, TF_URL };
 })();
 
 // ---- Интеграция с чатом ----
