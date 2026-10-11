@@ -250,3 +250,144 @@ test("окно отрисовки чата: длинная переписка р
   assert.equal(d.querySelector(".load-earlier-btn"), null);
   a.close();
 });
+
+test("голосовые: волна из метаданных, перемотка по волне, скорость, пауза записи, очистка чужой волны", async () => {
+  const a = await booted();
+  const d = a.document;
+  // чистка чужого значения
+  assert.equal(a.run(`sanitizeWave("x")`), undefined);
+  assert.equal(a.run(`sanitizeWave([1,2])`), undefined);
+  assert.equal(JSON.stringify(a.run(`sanitizeWave([0,5,99,-3,7.6,1])`)), JSON.stringify([0, 5, 31, 0, 8, 1]));
+  const w = a.run(`compressWave(Array.from({length: 200}, (_, i) => (i % 20) / 20))`);
+  assert.equal(w.length, 40); assert.ok(Math.max(...w) === 31 && Math.min(...w) >= 2);
+  // отрисовка
+  a.run(`const c = ensureContactEntry("alice", "Alice"); c.managed = true;
+    c.messages.push({ id: "v1", from: "them", text: "", ts: Date.now(), file: { name: "voice-message", mime: "audio/webm", size: 10, kind: "audio", duration: 10, wave: Array.from({length: 40}, (_, i) => i % 32) } });
+    c.messages.push({ id: "v2", from: "them", text: "", ts: Date.now(), file: { name: "voice-message", mime: "audio/webm", size: 10, kind: "audio", duration: 4 } });
+    unreadDividerFor.delete("alice"); state.chatId = "alice"; state.tab = "chats"; renderTab();`);
+  const bubbles = d.querySelectorAll(".voice-bubble");
+  assert.equal(bubbles.length, 2);
+  for (const b of bubbles) assert.equal(b.querySelectorAll(".voice-wave-bars i").length, 40, "40 столбиков (и без волны — запасная)");
+  assert.equal(bubbles[0].querySelector(".voice-wave").getAttribute("role"), "slider");
+  // скорость
+  assert.equal(a.run(`voiceSpeed()`), 1);
+  d.querySelector(".voice-speed-btn").click();
+  assert.equal(a.run(`voiceSpeed()`), 1.5);
+  assert.equal(d.querySelector(".voice-speed-btn").textContent, "1.5×");
+  d.querySelector(".voice-speed-btn").click(); d.querySelector(".voice-speed-btn").click();
+  assert.equal(a.run(`voiceSpeed()`), 1, "цикл 1 → 1.5 → 2 → 1");
+  // пауза записи: время паузы не входит в длительность
+  a.run(`voiceRecorder = { pause() {}, resume() {}, state: "recording" }; voiceRecordStartedAt = Date.now() - 5000; voiceRecordPausedTotal = 0; voiceRecordPaused = false;`);
+  a.run(`toggleVoiceRecordingPause()`);
+  assert.equal(a.run(`voiceRecordPaused`), true);
+  assert.ok(d.querySelector("#voice-recording-bar").classList.contains("is-paused"));
+  a.run(`voiceRecordPausedAt = Date.now() - 3000`);
+  const el = a.run(`voiceRecordElapsedSec()`);
+  assert.ok(el > 1.5 && el < 2.6, "5 с минус 3 с паузы ≈ 2 с, получили " + el);
+  a.run(`toggleVoiceRecordingPause()`);
+  assert.equal(a.run(`voiceRecordPaused`), false);
+  assert.ok(a.run(`voiceRecordPausedTotal`) >= 2900);
+  a.run(`voiceRecorder = null; voiceRecordPausedTotal = 0;`);
+  a.close();
+});
+
+test("опросы и доски: создание, голосование, получение от собеседника и из группы, права", async () => {
+  const a = await booted();
+  const d = a.document;
+  a.run(`const c = ensureContactEntry("alice", "Alice"); c.managed = true; state.chatId = "alice"; state.tab = "chats"; renderTab();`);
+  // создание опроса
+  const ok = await a.run(`createPoll("alice", "Обед?", ["Суши", "Пицца"], false)`);
+  assert.equal(ok, true);
+  assert.equal(await a.run(`createPoll("alice", "x", ["один"], false)`), false, "меньше двух пунктов");
+  const mine = a.run(`state.contacts.get("alice").messages.find((m) => m.poll)`);
+  assert.ok(mine && mine.text === "Обед?");
+  assert.equal(d.querySelectorAll(".poll-opt").length, 2);
+  // голос и перевод в процент
+  d.querySelector('[data-poll-opt="o2"]').click();
+  await new Promise((r) => setTimeout(r, 30));
+  assert.match(d.querySelector('[data-poll-opt="o2"]').textContent, /100%/);
+  assert.ok(d.querySelector('[data-poll-opt="o2"]').classList.contains("is-mine"));
+  // нажатие по пункту не открывает меню сообщения
+  assert.ok(d.querySelector("#message-sheet").classList.contains("hidden"));
+  // голос собеседника
+  a.run(`applyIncomingPayload("alice", "e1", { kind: "poll-vote", id: "${mine.id}", opts: ["o1"], ts: Date.now() }, true)`);
+  assert.match(d.querySelector('[data-poll-opt="o1"]').textContent, /50%/);
+  // чужой не-автор не закрывает мой опрос? — закрывает только автор: приходящее poll-close для моего сообщения игнорируется
+  a.run(`applyIncomingPayload("alice", "e2", { kind: "poll-close", id: "${mine.id}" }, true)`);
+  assert.equal(a.run(`state.contacts.get("alice").messages.find((m) => m.poll).poll.closed`), false);
+  // входящий опрос и закрытие автором
+  a.run(`applyIncomingPayload("alice", "e3", { kind: "poll", id: "p-in", ts: Date.now(), poll: { q: "Кино?", multi: true, opts: [{ id: "a", t: "Да" }, { id: "b", t: "Нет" }] } }, true)`);
+  assert.ok(Array.from(d.querySelectorAll(".poll-q")).some((e) => e.textContent.includes("Кино?")));
+  a.run(`applyIncomingPayload("alice", "e4", { kind: "poll-close", id: "p-in" }, true)`);
+  assert.ok(Array.from(d.querySelectorAll(".poll-bubble.is-closed")).length === 1);
+  // мусорный опрос отбрасывается
+  a.run(`applyIncomingPayload("alice", "e5", { kind: "poll", id: "bad", poll: { q: "", opts: [] } }, true)`);
+  assert.equal(a.run(`state.contacts.get("alice").messages.some((m) => m.id === "bad")`), false);
+  // доска
+  assert.equal(await a.run(`createBoard("alice", "Релиз")`), true);
+  const bm = a.run(`state.contacts.get("alice").messages.find((m) => m.board)`);
+  assert.equal(d.querySelectorAll(".board-col").length, 3);
+  await a.run(`boardOp("alice", "${bm.id}", { t: "add", card: { id: "k1", t: "Тесты", col: "todo" } })`);
+  assert.equal(d.querySelectorAll(".board-card").length, 1);
+  d.querySelector('.board-card [data-board-act="right"]').click();
+  await new Promise((r) => setTimeout(r, 30));
+  assert.equal(d.querySelector('.board-col[data-col="doing"] .board-card') !== null, true, "карточка переехала в «В работе»");
+  a.run(`applyIncomingPayload("alice", "e6", { kind: "board-op", id: "${bm.id}", ts: Date.now() + 5, op: { t: "del", id: "k1" } }, true)`);
+  assert.equal(d.querySelectorAll(".board-card").length, 0);
+  // группа: операции только от участников
+  a.run(`const g = ensureContactEntry("grp1", "Team"); g.managed = true; g.isGroup = true; g.members = [{id: "me-test-id", name: "T"}, {id: "alice", name: "Alice"}]; g.createdBy = "me-test-id";`);
+  a.run(`applyIncomingPayload("alice", "g1", { kind: "poll", id: "gp1", groupId: "grp1", senderName: "Alice", ts: Date.now(), poll: { q: "Группа?", opts: [{ id: "a", t: "A" }, { id: "b", t: "B" }] } }, true)`);
+  assert.equal(a.run(`state.contacts.get("grp1").messages.some((m) => m.id === "gp1")`), true);
+  a.run(`applyIncomingPayload("stranger", "g2", { kind: "poll", id: "gp2", groupId: "grp1", ts: Date.now(), poll: { q: "Чужой", opts: [{ id: "a", t: "A" }, { id: "b", t: "B" }] } }, true)`);
+  assert.equal(a.run(`state.contacts.get("grp1").messages.some((m) => m.id === "gp2")`), false, "не участник — игнор");
+  a.run(`applyIncomingPayload("stranger", "g3", { kind: "poll-vote", id: "gp1", groupId: "grp1", opts: ["a"] }, true)`);
+  assert.equal(a.run(`Object.keys(state.contacts.get("grp1").messages.find((m) => m.id === "gp1").pollVotes).length`), 0);
+  // превью в списке чатов и отсутствие правки/перевода
+  a.run(`state.chatId = null; state.tab = "chats"; renderTab(); renderChatsList();`);
+  assert.match(d.querySelector("#chats-list").textContent, /🗂|📊/);
+  a.close();
+});
+
+test("демо-чат: создаётся из карточки первого запуска, отвечает по сценарию, не ходит в сеть, переживает перезагрузку; анимации отклика", async () => {
+  const a = await booted();
+  const d = a.document;
+  a.run(`state.tab = "chats"; state.chatFilter = "all"; renderTab(); renderChatsList();`);
+  const btn = d.querySelector('#first-run-card [data-first="demo"]');
+  assert.ok(btn, "кнопка демо-чата в карточке первого запуска");
+  btn.click();
+  assert.equal(a.run(`state.chatId`), "__demo__");
+  const c = () => a.run(`state.contacts.get("__demo__")`);
+  assert.equal(a.run(`state.contacts.get("__demo__").messages.length`), 2, "два приветствия");
+  assert.ok(a.run(`state.contacts.get("__demo__").isSelf`), "обходится сетью как «Заметки себе»");
+  // пишем — получаем ответ по шагам
+  await a.run(`sendChatMessage("__demo__", "привет")`);
+  await new Promise((r) => setTimeout(r, 900));
+  assert.equal(a.run(`state.contacts.get("__demo__").messages.length`), 4);
+  assert.equal(a.run(`state.contacts.get("__demo__").messages[2].ack`), "read", "свои сообщения сразу прочитаны");
+  await a.run(`sendChatMessage("__demo__", "ещё")`);
+  await new Promise((r) => setTimeout(r, 2400));
+  assert.ok(d.querySelector(".poll-bubble"), "бот прислал пример опроса");
+  assert.ok(d.querySelector(".board-bubble"), "и доску");
+  // голосование в демо не уходит в сеть и работает
+  d.querySelector('[data-poll-opt="o1"]').click();
+  await new Promise((r) => setTimeout(r, 30));
+  assert.match(d.querySelector('[data-poll-opt="o1"]').textContent, /100%/);
+  // карточка первого запуска остаётся (настоящих контактов ещё нет)
+  a.run(`state.chatId = null; renderTab(); renderChatsList();`);
+  assert.ok(d.querySelector("#first-run-card"));
+  // сохранение: флаги не теряются
+  const saved = JSON.parse(a.window.localStorage.getItem("ether.contacts") || "[]");
+  a.run(`persistContactsNow()`);
+  const raw = a.window.localStorage.getItem("ether.contacts");
+  assert.ok(!raw || raw.includes('"isDemo":true'), "isDemo сохраняется");
+  // статус звонка/мэша: демо не считается контактом для списка «Контакты»
+  assert.equal(a.run(`Array.from(state.contacts.values()).filter((c) => c.managed && !c.isGroup && !c.isSelf).length`), 0);
+  // анимации отклика: смена статуса даёт ack-pop, копирование даёт вспышку
+  a.run(`const n = ensureContactEntry("zed", "Zed"); n.managed = true; n.messages.push({ id: "q1", from: "me", text: "x", ts: Date.now(), ack: "sent" }); unreadDividerFor.delete("zed"); state.chatId = "zed"; renderTab();`);
+  assert.equal(d.querySelector(".ack-pop"), null, "на первой отрисовке прыжка нет");
+  a.run(`state.contacts.get("zed").messages[0].ack = "delivered"; renderChatThread();`);
+  assert.ok(d.querySelector(".ack-tick.ack-pop"), "смена статуса — прыжок галочки");
+  a.run(`flashCopiedBubble("q1")`);
+  assert.ok(d.querySelector(".bubble.bubble-copied"));
+  a.close();
+});

@@ -49,7 +49,7 @@ test("голосовое: значок play/pause в своём span, кнопк
   assert.ok(btn.querySelector(".fx-voice-deco.vinyl"), "рисунок лежит внутри кнопки");
   a.run(`setVoiceIcon(document.querySelector(".voice-play-btn"), VOICE_PAUSE_ICON_SVG)`);
   assert.ok(btn.querySelector(".fx-voice-deco"), "смена значка не стирает рисунок");
-  assert.ok(btn.innerHTML.includes("M7 5h4v14"));
+  assert.ok(btn.innerHTML.includes('data-icon="pause"'));
   a.close();
 });
 

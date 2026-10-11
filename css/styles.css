@@ -2430,3 +2430,67 @@ html[data-readable="1"] .chat-row-preview-text, html[data-readable="1"] .setting
   background: transparent; color: var(--accent, inherit); font-size: var(--t-meta, 13px);
   cursor: pointer; min-height: 36px;
 }
+
+/* Единый набор иконок (js/icons.js) */
+.ico { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.ico.ico-fill { fill: currentColor; stroke: none; }
+
+/* Голосовые: волна с перемоткой, скорость, пауза записи */
+.voice-wave { position: relative; flex: 1; height: 28px; border-radius: 0; background: transparent; overflow: visible; cursor: pointer; touch-action: none; min-width: 80px; }
+.voice-wave:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
+.voice-wave-bars { display: flex; align-items: center; gap: 2px; height: 100%; pointer-events: none; }
+.voice-wave-bars i { flex: 1; min-width: 2px; border-radius: 2px; background: currentColor; opacity: .28; transition: opacity var(--motion-instant, 80ms) linear; }
+.voice-wave-bars i.on { opacity: 1; color: var(--accent); }
+.bubble-row.mine .voice-wave-bars i.on { color: #fff; }
+.voice-wave .voice-progress-fill { display: none; }
+.bubble-row.mine .voice-progress.voice-wave { background: transparent; }
+.voice-speed-btn { flex: none; min-width: 34px; height: 24px; padding: 0 6px; border-radius: 12px; border: 1px solid currentColor; background: transparent; color: inherit; font-size: 11px; font-weight: 600; opacity: .75; cursor: pointer; }
+.voice-speed-btn:active { transform: scale(.94); }
+#voice-recording-bar.is-paused .voice-recording-dot { animation: none; opacity: .4; }
+#voice-recording-bar.is-paused .voice-recording-wave span { animation: none !important; transform: scaleY(.35) !important; opacity: .4 !important; }
+
+/* Опросы и доски в чате */
+.rich-input, .poll-opt-input { width: 100%; box-sizing: border-box; padding: 12px 14px; border-radius: var(--radius-m, 12px); border: 1px solid var(--border, rgba(128,128,128,.3)); background: var(--bg-2, transparent); color: inherit; font: inherit; margin-bottom: 8px; }
+.poll-opts-list { display: flex; flex-direction: column; }
+.rich-check { display: flex; align-items: center; gap: 8px; margin: 8px 0 12px; font-size: var(--t-body, 15px); }
+.sheet-title { margin: 4px 0 12px; font-size: var(--t-title, 17px); }
+.poll-bubble, .board-bubble { min-width: 220px; max-width: 100%; }
+.poll-q, .board-title { display: flex; gap: 8px; align-items: flex-start; font-weight: 600; margin-bottom: 8px; }
+.poll-q .ico, .board-title .ico { margin-top: 2px; }
+.poll-opts { display: flex; flex-direction: column; gap: 6px; }
+.poll-opt { position: relative; display: flex; align-items: center; gap: 8px; width: 100%; text-align: start; padding: 8px 10px; min-height: 40px; border-radius: var(--radius-s, 8px); border: 1px solid color-mix(in srgb, currentColor 22%, transparent); background: transparent; color: inherit; font: inherit; overflow: hidden; cursor: pointer; }
+.poll-opt:disabled { cursor: default; opacity: .85; }
+.poll-opt-bar { position: absolute; inset-block: 0; inset-inline-start: 0; background: color-mix(in srgb, var(--accent) 24%, transparent); transition: width var(--motion-base, 200ms) ease; z-index: 0; }
+.poll-opt > :not(.poll-opt-bar) { position: relative; z-index: 1; }
+.poll-opt.is-mine { border-color: var(--accent); }
+.poll-opt-mark { width: 16px; display: inline-flex; color: var(--accent); }
+.poll-opt-text { flex: 1; }
+.poll-opt-count { font-size: var(--t-meta, 12px); opacity: .8; min-width: 32px; text-align: end; }
+.poll-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 8px; font-size: var(--t-meta, 12px); opacity: .85; }
+.poll-close-btn { background: none; border: 0; color: var(--accent); font: inherit; font-size: var(--t-meta, 12px); cursor: pointer; padding: 4px 0; }
+.poll-closed { font-weight: 600; }
+.board-cols { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; max-width: 100%; -webkit-overflow-scrolling: touch; }
+.board-col { flex: 0 0 150px; background: color-mix(in srgb, currentColor 7%, transparent); border-radius: var(--radius-s, 8px); padding: 6px; display: flex; flex-direction: column; gap: 6px; }
+.board-col-h { display: flex; justify-content: space-between; font-size: var(--t-meta, 12px); font-weight: 600; opacity: .8; padding: 2px 4px; }
+.board-card { background: var(--bg-1, rgba(255,255,255,.08)); border-radius: var(--radius-s, 8px); padding: 6px 8px; font-size: var(--t-body, 14px); display: flex; flex-direction: column; gap: 4px; border: 1px solid color-mix(in srgb, currentColor 14%, transparent); }
+.board-card-t { cursor: pointer; overflow-wrap: anywhere; }
+.board-card-acts { display: flex; gap: 4px; justify-content: flex-end; }
+.board-card-acts button, .board-add { background: none; border: 0; color: inherit; cursor: pointer; opacity: .7; display: inline-flex; align-items: center; gap: 4px; padding: 4px; min-width: 28px; min-height: 28px; justify-content: center; border-radius: var(--radius-s, 8px); font: inherit; font-size: var(--t-meta, 12px); }
+.board-card-acts button:active, .board-add:active { background: color-mix(in srgb, currentColor 12%, transparent); }
+.board-add { justify-content: flex-start; }
+
+/* Отклик: прыжок галочки при смене статуса, вспышка пузыря при копировании */
+@keyframes ackPop { 0% { transform: scale(.55); opacity: .4; } 60% { transform: scale(1.25); opacity: 1; } 100% { transform: scale(1); } }
+.ack-pop .ack-svg { animation: ackPop var(--motion-base) var(--ease-spring) both; transform-origin: center; }
+.ack-pop .ack-svg-2 { animation-delay: 60ms; }
+@keyframes bubbleCopied { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); } 40% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 30%, transparent); } 100% { box-shadow: 0 0 0 0 transparent; } }
+.bubble-copied { animation: bubbleCopied var(--motion-slow) var(--ease-out); }
+@media (prefers-reduced-motion: reduce) { .ack-pop .ack-svg, .bubble-copied { animation: none; } }
+
+/* Правки по скриншотам: компактная доска, голосовое без наложений */
+.board-card { font-size: 13px; line-height: 1.3; }
+.board-col { flex-basis: 156px; }
+.board-add span { white-space: nowrap; }
+.voice-bubble { min-width: 240px; }
+.voice-bubble .voice-live-wave { display: none; }
+.voice-duration { flex: none; white-space: nowrap; }

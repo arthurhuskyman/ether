@@ -660,6 +660,7 @@ class PeerLink extends EventTarget {
     if (!this.dc || this.dc.readyState !== "open") return false;
     const metaPayload = { kind: "file-meta", id: meta.id, name: meta.name, mime: meta.mime, size: meta.size, totalChunks: base64Chunks.length };
     if (meta.duration != null) metaPayload.duration = meta.duration;
+    if (meta.wave) metaPayload.wave = meta.wave;
     if (meta.forwarded) metaPayload.forwarded = true;
     if (meta.caption) metaPayload.caption = meta.caption;
     if (!this.send(metaPayload)) return false;

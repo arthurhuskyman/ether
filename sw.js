@@ -1,4 +1,4 @@
-const CACHE_VERSION = "ether-shell-v214";
+const CACHE_VERSION = "ether-shell-v215";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -20,6 +20,8 @@ const SHELL_FILES = [
   "./js/signaling-codec.js",
   "./js/signaling-client.js",
   "./js/crypto-helper.js",
+  "./js/icons.js",
+  "./js/rich.js",
   "./js/ratchet.js",
   "./js/linkauth.js",
   "./js/crypto-worker.js",

@@ -324,7 +324,7 @@ function fxWireVoiceStyle() {
       const btn = m.target.closest ? m.target.closest(".voice-play-btn") : (m.target.parentElement && m.target.parentElement.closest(".voice-play-btn"));
       if (!btn) continue;
       const bubble = btn.closest(".voice-bubble"); if (!bubble) continue;
-      bubble.classList.toggle("fx-playing", btn.innerHTML.includes("M7 5h4v14"));
+      bubble.classList.toggle("fx-playing", btn.innerHTML.includes('data-icon="pause"'));
     }
   });
   obs.observe(wrap, { subtree: true, childList: true });

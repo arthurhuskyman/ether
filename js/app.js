@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.65.0.0";
+const APP_VERSION = "V.66.0.0";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 // Сервер перевода по умолчанию (LibreTranslate-совместимый). Официальный публичный инстанс обычно
@@ -51,12 +51,12 @@ const EMOJI_CATEGORIES = EMOJI_GROUPS.map((g) => ({ id: g.id, icon: g.icon, emoj
 // SVG path (без обёртки <svg>, чтобы не плодить 6 почти одинаковых
 // строк разметки в renderSettingsCategories()).
 const SETTINGS_CATEGORIES = [
-  { id: "profile", labelKey: "settings.category.profile", iconPath: "M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2c-4.4 0-8 2.2-8 5v3h16v-3c0-2.8-3.6-5-8-5z" },
-  { id: "privacy", labelKey: "settings.category.privacy", iconPath: "M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3zm0 9.99h6c-.5 3.6-2.9 6.8-6 8-3.1-1.2-5.5-4.4-6-8h6V4.2l6 2.2v4.6l-6-1.03z" },
-  { id: "notifications", labelKey: "settings.category.notifications", iconPath: "M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2zm6-6v-5a6 6 0 0 0-4-5.66V5a2 2 0 1 0-4 0v.34A6 6 0 0 0 6 11v5l-2 2v1h16v-1l-2-2z" },
-  { id: "appearance", labelKey: "settings.category.appearance", iconPath: "M12 2a10 10 0 1 0 0 20c.8 0 1.4-.6 1.4-1.4 0-.4-.2-.7-.4-1-.3-.3-.4-.6-.4-1 0-.8.6-1.4 1.4-1.4h1.7a5.3 5.3 0 0 0 5.3-5.3C21 6.6 17 2 12 2zM6.5 11a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm3-4a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm3 4a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z" },
-  { id: "data", labelKey: "settings.category.data", iconPath: "M4 6a8 3 0 1 0 16 0 8 3 0 1 0-16 0zm0 0v12a8 3 0 0 0 16 0V6M4 11a8 3 0 0 0 16 0" },
-  { id: "help", labelKey: "settings.category.help", iconPath: "M11 18h2v-2h-2v2zm1-16a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 2a8 8 0 1 1 0 16 8 8 0 0 1 0-16zm0 3a3.5 3.5 0 0 0-3.5 3.5h2a1.5 1.5 0 1 1 3 0c0 .8-.4 1.2-1.1 1.8-.8.7-1.9 1.6-1.9 3.2h2c0-.8.4-1.2 1.1-1.8.8-.7 1.9-1.6 1.9-3.2A3.5 3.5 0 0 0 12 7z" },
+  { id: "profile", labelKey: "settings.category.profile", icon: "user" },
+  { id: "privacy", labelKey: "settings.category.privacy", icon: "shield" },
+  { id: "notifications", labelKey: "settings.category.notifications", icon: "bell" },
+  { id: "appearance", labelKey: "settings.category.appearance", icon: "palette" },
+  { id: "data", labelKey: "settings.category.data", icon: "database" },
+  { id: "help", labelKey: "settings.category.help", icon: "help" },
 ];
 // Раздел 6 роадмапа — skin-tone selector для inline-эмодзи-пикера.
 // Полноценный выезд пикера как inline-панели (вместо текущего
@@ -2512,7 +2512,7 @@ function showUpdateBanner(reg) {
     </div>
     <button type="button" class="btn-primary notif-banner-btn" data-act="reload">${escapeHtml(T("update.reload"))}</button>
     <button type="button" class="icon-btn small" data-act="dismiss" aria-label="${escapeHtml(T("sys.close"))}">
-      <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
+      ${Icons.html("x", 18)}
     </button>`;
   document.body.appendChild(el);
 
@@ -2757,7 +2757,8 @@ function loadContacts() {
       birthday: typeof c.birthday === "string" ? c.birthday : undefined, birthdayCelebrated: c.birthdayCelebrated || undefined,
       heartbeatThresholdDays: c.heartbeatThresholdDays || undefined,
       heartbeatAlertedAt: c.heartbeatAlertedAt || undefined,
-      isSelf: c.id === SELF_CHAT_ID,
+      isSelf: c.id === SELF_CHAT_ID || !!c.isDemo,
+      isDemo: c.isDemo || undefined, demoStep: c.demoStep || 0,
     });
   }
   ensureSelfChatContact();
@@ -2868,6 +2869,7 @@ function persistContacts() {
     birthday: c.birthday || undefined, birthdayCelebrated: c.birthdayCelebrated || undefined,
     heartbeatThresholdDays: c.heartbeatThresholdDays || undefined,
     heartbeatAlertedAt: c.heartbeatAlertedAt || undefined,
+    isDemo: c.isDemo || undefined, demoStep: c.demoStep || undefined,
   }));
   if (__contactsPersistTimer) return;
   __contactsPersistTimer = setTimeout(() => {
@@ -3114,6 +3116,7 @@ function isContactMuted(c) {
 }
 function contactStatusLabel(c) {
   if (c.isGroup) return T("group.memberCount", { n: c.members.length });
+  if (c.isDemo) return T("demo.hint");
   if (c.isSelf) return T("chats.selfChat.hint");
   if (c.status === "in-call") return T("status.inCall");
   if (c.status === "connected") return T("status.connected");
@@ -3179,6 +3182,7 @@ function buildFirstRunCard() {
       <button type="button" class="btn-secondary" data-first="scan">${escapeHtml(T("connect.qr.scan"))}</button>
       <button type="button" class="btn-secondary" data-first="find">${escapeHtml(T("firstRun.find"))}</button>
       <button type="button" class="btn-secondary" data-first="invite">${escapeHtml(T("firstRun.invite"))}</button>
+      <button type="button" class="btn-secondary" data-first="demo">${escapeHtml(T("firstRun.demo"))}</button>
     </div>
     <p class="fine muted first-run-note">${escapeHtml(T("firstRun.note"))}</p>`;
   try { renderQrToCanvas(card.querySelector("canvas")); } catch (e) {}
@@ -3186,7 +3190,52 @@ function buildFirstRunCard() {
   card.querySelector('[data-first="scan"]').addEventListener("click", () => { const b = $("#scan-qr-btn"); if (b) b.click(); });
   card.querySelector('[data-first="find"]').addEventListener("click", () => goConnect(() => { const i = $("#contacts-search") || $("#connect-search"); if (i) i.focus(); }));
   card.querySelector('[data-first="invite"]').addEventListener("click", () => goConnect(() => { const t = $("#invite-idle") || $("#create-invite-btn"); if (t && t.scrollIntoView) t.scrollIntoView({ block: "center" }); }));
+  card.querySelector('[data-first="demo"]').addEventListener("click", () => createDemoChat());
   return card;
+}
+// ===== Демо-чат: локальный «гид», ничего не уходит в сеть. Это обычный self-контакт (isSelf) с флагом isDemo, поэтому
+// сеть, звонки и списки контактов его обходят так же, как «Заметки себе»; отвечает на сообщения по сценарию. =====
+const DEMO_CHAT_ID = "__demo__";
+function demoSay(c, text, extra) {
+  const rec = Object.assign({ id: crypto.randomUUID(), from: "them", text, ts: Date.now(), readAckSent: true }, extra || {});
+  c.messages.push(rec); c.lastActivity = rec.ts; persistContacts();
+  if (state.chatId === c.id) { renderChatThread(); playMessageSound(c.id); } else if (state.tab === "chats") renderChatsList();
+}
+function createDemoChat() {
+  let c = state.contacts.get(DEMO_CHAT_ID);
+  if (!c) {
+    c = { id: DEMO_CHAT_ID, name: T("demo.name"), raw: "", managed: true, publicKey: null, online: false, status: "self", messages: [], lastActivity: Date.now(), archived: false, muted: false, blocked: false, pinned: false, pinnedMessageId: null, isGroup: false, disappearingTimer: 0, isSelf: true, isDemo: true, demoStep: 0 };
+    state.contacts.set(DEMO_CHAT_ID, c);
+    demoSay(c, T("demo.welcome1")); demoSay(c, T("demo.welcome2"));
+  }
+  persistContacts();
+  state.contactCardId = null; state.tab = "chats"; state.chatId = DEMO_CHAT_ID; renderTab();
+}
+function demoOnSend(c, payload) {
+  if (!payload || !["chat", "poll", "board", "file-meta", "file"].includes(payload.kind)) return;
+  const step = c.demoStep || 0; c.demoStep = step + 1;
+  const kind = payload.kind;
+  setTimeout(() => {
+    if (!state.contacts.has(DEMO_CHAT_ID)) return;
+    if (kind === "poll") { demoSay(c, T("demo.pollThanks")); return; }
+    if (kind === "board") { demoSay(c, T("demo.boardThanks")); return; }
+    if (step === 0) demoSay(c, T("demo.s1"));
+    else if (step === 1) {
+      demoSay(c, T("demo.s2"));
+      const poll = EtherRich.sanitizePoll({ q: T("demo.pollQ"), multi: false, opts: [{ id: "o1", t: T("demo.pollA") }, { id: "o2", t: T("demo.pollB") }] });
+      if (poll) setTimeout(() => demoSay(c, poll.q, { poll, pollVotes: {} }), 500);
+      const board = EtherRich.sanitizeBoard({ title: T("demo.boardTitle"), cols: [{ id: "todo", t: T("chat.board.col1") }, { id: "doing", t: T("chat.board.col2") }, { id: "done", t: T("chat.board.col3") }] });
+      if (board) setTimeout(() => {
+        const rec = { id: crypto.randomUUID(), from: "them", text: board.title, ts: Date.now(), readAckSent: true, board };
+        EtherRich.applyBoardOp(rec, { t: "add", card: { id: "d1", t: T("demo.card1"), col: "todo" } }, 1);
+        EtherRich.applyBoardOp(rec, { t: "add", card: { id: "d2", t: T("demo.card2"), col: "doing" } }, 1);
+        c.messages.push(rec); c.lastActivity = rec.ts; persistContacts(); if (state.chatId === c.id) renderChatThread();
+      }, 1000);
+    }
+    else if (step === 2) demoSay(c, T("demo.s3"));
+    else if (step === 3) demoSay(c, T("demo.s4"));
+    else demoSay(c, T("demo.sEnd"));
+  }, 700);
 }
 function setPinReorder(on) { state.pinReorder = !!on; renderChatsList(); }
 function renderChatsList() {
@@ -3227,7 +3276,7 @@ function renderChatsList() {
   if (empty) empty.classList.add("hidden");
   if (archivedToggle) archivedToggle.classList.toggle("hidden", !withArchived);
   // Пока нет ни одного собеседника (есть только «Заметки себе») — карточка с действиями вместо немого пустого списка.
-  const noPeers = !all.some((c) => !c.isSelf && c.managed);
+  const noPeers = !all.some((c) => !c.isSelf && !c.isDemo && c.managed);
   if (noPeers && state.chatFilter === "all" && !query && Store.myId) list.appendChild(buildFirstRunCard());
   const ta = $("#toggle-archived");
   if (ta) {
@@ -3307,9 +3356,9 @@ function renderChatsList() {
     const __rowMuted = isContactMuted(c);
     const muteIcon = __rowMuted ? `<span class="muted-icon" title="${escapeHtml(c.muted ? T("chat.contact.mute") : T("chat.mute.until", { time: formatChatListTime(c.muteUntil) }))}"><svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M12 2a1 1 0 0 1 1 1v.6a6 6 0 0 1 5 5.9v4l1.6 2.4a1 1 0 0 1-.8 1.6H5.2a1 1 0 0 1-.8-1.6L6 13.5v-4a6 6 0 0 1 5-5.9V3a1 1 0 0 1 1-1zm-2 18a2 2 0 0 0 4 0h-4z"/><line x1="3.5" y1="20.5" x2="20.5" y2="3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>` : "";
     const blockIcon = c.blocked ? `<span class="muted-icon" title="${escapeHtml(T("chat.contact.block"))}"><svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><line x1="6" y1="18" x2="18" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>` : "";
-    const pinIcon = c.pinned ? `<span class="muted-icon" title="${escapeHtml(T("chats.pin"))}"><svg viewBox="0 0 24 24" width="13" height="13"><path fill="currentColor" d="M14 2 22 10l-3 3-1-1-4 4 1 5-2 2-5-5-5 5-1-1 5-5-5-5 2-2 5 1 4-4-1-1z"/></svg></span>` : "";
+    const pinIcon = c.pinned ? `<span class="muted-icon" title="${escapeHtml(T("chats.pin"))}">${Icons.html("pin", 13)}</span>` : "";
     let preview = last
-      ? (last.from === "system" && last.textKey ? escapeHtml(renderSystemMessageText(last)) : last.file ? escapeHtml(T("chat.file.preview." + last.file.kind)) : (last.contactCard ? escapeHtml(T("chat.contactCard.preview", { name: last.contactCard.name || T("sys.someone") })) : escapeHtml(truncate(last.text, 42))))
+      ? (last.from === "system" && last.textKey ? escapeHtml(renderSystemMessageText(last)) : last.file ? escapeHtml(T("chat.file.preview." + last.file.kind)) : (last.poll ? escapeHtml(truncate(T("chat.poll.preview", { q: last.text }), 42)) : last.board ? escapeHtml(truncate(T("chat.board.preview", { title: last.text }), 42)) : last.contactCard ? escapeHtml(T("chat.contactCard.preview", { name: last.contactCard.name || T("sys.someone") })) : escapeHtml(truncate(last.text, 42))))
       : escapeHtml(contactStatusLabel(c));
     if (query && last && (last.text || "").toLowerCase().includes(query)) preview = highlightRaw(escapeHtml(truncate(last.text, 42)), state.searchQuery);
     // "Печатает…" перекрывает обычное превью — раньше это было видно
@@ -3375,11 +3424,11 @@ function renderChatsList() {
       </div>
       <div class="chat-row-actions chat-row-actions-end">
         <button type="button" class="chat-row-action-btn chat-row-action-pin" data-action="pin">
-          <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M14 2 22 10l-3 3-1-1-4 4 1 5-2 2-5-5-5 5-1-1 5-5-5-5 2-2 5 1 4-4-1-1z"/></svg>
+          ${Icons.html("pin", 18)}
           <span>${escapeHtml(c.pinned ? T("chats.unpin") : T("chats.pin"))}</span>
         </button>
         <button type="button" class="chat-row-action-btn chat-row-action-delete" data-action="delete">
-          <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M6 7h12l-1 13.5a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 7 20.5L6 7zm3.5-4h5l1 2H19v1.5H5V5h4.5l1-2z"/></svg>
+          ${Icons.html("trash", 20)}
           <span>${escapeHtml(T("chats.action.delete"))}</span>
         </button>
       </div>`;
@@ -3621,7 +3670,7 @@ function openGroupInfo(groupId) {
       if (canRemove) {
         const rm = document.createElement("button");
         rm.type = "button"; rm.className = "icon-btn"; rm.setAttribute("aria-label", T("group.remove"));
-        rm.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>';
+        rm.innerHTML = '' + Icons.html("x", 18) + '';
         rm.addEventListener("click", (ev) => { ev.stopPropagation(); removeGroupMember(groupId, m.id, false); openGroupInfo(groupId); });
         row.appendChild(rm);
       }
@@ -3746,7 +3795,7 @@ function renderContactGallery(c) {
     getFileBlobUrl(m.id).then((url) => {
       if (!url || !btn.isConnected) return;
       if (m.file.kind === "video") {
-        btn.innerHTML = `<video src="${escapeHtml(url)}" muted playsinline></video><span class="contact-gallery-play"><svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M8 5v14l11-7z"/></svg></span>`;
+        btn.innerHTML = `<video src="${escapeHtml(url)}" muted playsinline></video><span class="contact-gallery-play">${Icons.html("play", 22)}</span>`;
       } else {
         btn.innerHTML = `<img src="${escapeHtml(url)}" alt="" loading="lazy" />`;
       }
@@ -3927,6 +3976,7 @@ function isNearBottom(el) { if (!el) return true; return el.scrollHeight - el.sc
 function renderChatThread() { try { renderKeyChangeBanner(); renderChatThreadInner(); } catch (e) { __lastChatSig = ""; etherLog("error", "[renderChatThread]", String(e)); const w = $("#chat-messages"); if (w) w.innerHTML = `<div class="empty-state"><p>Error.</p></div>`; } }
 
 let __lastChatSig = "";
+const __renderedAck = new Map(); // id сообщения -> статус доставки на прошлой отрисовке (для анимации смены)
 // «Подпись» содержимого переписки: если с прошлой отрисовки ничего видимого не изменилось, DOM не пересобираем —
 // раньше каждый заход в чат и каждое событие (статус, набор текста, соединение) перерисовывали ленту 2–3 раза, и это было видно глазом.
 // Окно отрисовки ленты: в DOM только последние N сообщений (до 5000 в чате — иначе вкладка тяжелеет), выше — кнопка «Показать более ранние».
@@ -3947,7 +3997,7 @@ function chatRenderSig(c, q, list) {
     + "|" + document.documentElement.lang + "|" + Store.linkPreviewsEnabled + "|" + linkPreviewCache.size + "|" + (c.pinnedMessageId || "") + "|" + (isGroup(c) ? "g" : "p") + "|" + (function () { try { return localStorage.getItem("ether.fx") || ""; } catch (e) { return ""; } })();
   h += "|win:" + (list ? list.length : c.messages.length);
   for (const m of (list || c.messages)) {
-    h += "\n" + m.id + ":" + (m.ack || "") + (m.edited ? "e" : "") + (m.deleted ? "d" : "") + (m.favorite ? "f" : "") + (m.ttl || "") + (m.forwarded ? "w" : "") + ":" + (m.text || "")
+    h += "\n" + m.id + ":" + (m.rv || 0) + (m.ack || "") + (m.edited ? "e" : "") + (m.deleted ? "d" : "") + (m.favorite ? "f" : "") + (m.ttl || "") + (m.forwarded ? "w" : "") + ":" + (m.text || "")
       + (m.translation ? m.translation.text : "") + (m.reactions ? JSON.stringify(m.reactions) : "")
       + (m.file ? [m.file.pending ? 1 : 0, m.file.failed ? 1 : 0, m.file.progress || "", m.file.w || ""].join("") : "") + (m.replyTo ? "r" : "");
   }
@@ -4210,10 +4260,16 @@ function renderChatThreadInner() {
       check.className = "multiselect-checkbox" + (msSelected ? " checked" : "");
       bubble.appendChild(check);
     }
-    const tick = m.from === "me" ? ackGlyph(m.ack) : "";
+    let tick = m.from === "me" ? ackGlyph(m.ack) : "";
+    // Смена статуса доставки у уже нарисованного сообщения — галочка «прыгает» (на первой отрисовке и при заходе в чат — нет)
+    if (m.from === "me" && m.ack) {
+      const prevAck = __renderedAck.get(m.id);
+      if (prevAck !== undefined && prevAck !== m.ack) tick = tick.replace('class="ack-tick', 'class="ack-tick ack-pop');
+      __renderedAck.set(m.id, m.ack); if (__renderedAck.size > 4000) trimMap(__renderedAck, 3000);
+    }
     const editedMark = m.edited ? `<span class="bubble-edited">${escapeHtml(T("chat.edit"))}</span>` : "";
-    const ttlMark = m.ttl ? `<span class="bubble-ttl" title="${escapeHtml(disappearingTimerLabel(m.ttl))}"><svg viewBox="0 0 24 24" width="12" height="12"><path fill="currentColor" d="M6 2h12v2l-4.5 5L18 14v2H6v-2l4.5-5L6 4V2zm2.2 2L11 7.5h2L15.8 4H8.2zM11 13.5 8.2 17h7.6L13 13.5h-2z"/></svg></span>` : "";
-    const favMark = m.favorite ? `<span class="bubble-favorite" title="${escapeHtml(T("chat.favorite"))}"><svg viewBox="0 0 24 24" width="11" height="11"><path fill="currentColor" d="M12 2 9.2 8.6 2 9.2l5.5 4.7L5.8 21 12 17.3 18.2 21l-1.7-7.1L22 9.2l-7.2-.6z"/></svg></span>` : "";
+    const ttlMark = m.ttl ? `<span class="bubble-ttl" title="${escapeHtml(disappearingTimerLabel(m.ttl))}">${Icons.html("hourglass", 12)}</span>` : "";
+    const favMark = m.favorite ? `<span class="bubble-favorite" title="${escapeHtml(T("chat.favorite"))}">${Icons.html("star", 11)}</span>` : "";
     const inner = document.createElement("div");
     // Класс glass-content убран с чужих пузырей: новый дизайн — матовый
     // фон --bg-2 + тонкий border (см. styles.css). Стекло на десятках
@@ -4221,7 +4277,7 @@ function renderChatThreadInner() {
     // композитинг (20+ blur-слоёв).
     inner.className = "bubble" + (m.mentionMe ? " bubble-mentioned" : "");
     inner.setAttribute("data-msg-id", m.id); // для прокрутки к оригиналу по тапу на цитате ответа
-    const body = m.file ? fileBubbleHtml(m.id, m.file) : (m.contactCard ? contactCardBubbleHtml(m.contactCard) : linkifyAndHighlight(m.text, q));
+    const body = m.file ? fileBubbleHtml(m.id, m.file) : m.poll ? pollBubbleHtml(c, m) : m.board ? boardBubbleHtml(m) : (m.contactCard ? contactCardBubbleHtml(m.contactCard) : linkifyAndHighlight(m.text, q));
     const isFirstOfGroupBlock = !prevMsg || prevMsg.fromId !== m.fromId || prevMsg.from !== "them";
     const senderLabel = (isGroup(c) && m.from === "them" && m.fromId && isFirstOfGroupBlock)
       ? `<div class="bubble-sender">${escapeHtml(m.fromName || T("sys.someone"))}</div>` : "";
@@ -4310,6 +4366,8 @@ if (m.replyTo) {
     inner.addEventListener("click", (ev) => {
       if (longPressFired) { longPressFired = false; return; } // меню уже открыто долгим нажатием — не открываем ещё и обычное действие следом
       if (state.multiSelect) { ev.stopPropagation(); toggleMultiSelectMsg(m.id); return; }
+      const richEl = ev.target.closest("[data-poll-opt], [data-poll-close], [data-board-act]");
+      if (richEl) { ev.stopPropagation(); handleRichClick(c, m, richEl); return; }
       const addBtn = ev.target.closest(".contact-card-add-btn");
       if (addBtn) {
         ev.stopPropagation();
@@ -4358,7 +4416,7 @@ if (m.replyTo) {
       }
       const sel = window.getSelection();
       if (sel && sel.toString().length > 0) return;
-      if (ev.target.closest(".voice-play-btn")) return; // у кнопки уже есть свой обработчик — тут просто не открываем меню поверх него
+      if (ev.target.closest(".voice-play-btn, .voice-wave, .voice-speed-btn")) return; // у кнопки уже есть свой обработчик — тут просто не открываем меню поверх него
       if (m.file && m.file.kind === "audio" && !m.file.pending) {
         toggleVoicePlaybackFor(inner);
         return;
@@ -4891,7 +4949,7 @@ function openScheduleListSheet() {
     item.innerHTML = `<span class="forward-name">${escapeHtml(snippet)}<br><span class="fine muted">${escapeHtml(formatChatListTime(row.sendAt))}</span></span>`;
     const cancelBtn = document.createElement("button");
     cancelBtn.type = "button"; cancelBtn.className = "icon-btn small schedule-row-cancel-btn"; cancelBtn.setAttribute("aria-label", T("sys.cancel"));
-    cancelBtn.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>`;
+    cancelBtn.innerHTML = `${Icons.html("x", 18)}`;
     cancelBtn.addEventListener("click", () => {
       state.scheduledMessages = state.scheduledMessages.filter((s) => s.id !== row.id);
       persistScheduledMessages();
@@ -4999,6 +5057,217 @@ async function deleteMessageForBoth(contactId, msgId) {
 }
 // Пересылка контакта другому контакту — карточка со своим видом в
 // пузыре сообщения (имя + кнопка "Добавить"), не обычный текст.
+// ===== Опросы и доски (логика — js/rich.js) =====
+async function dispatchRich(c, payload, ackMsgId) {
+  if (c.isSelf) { if (c.isDemo) demoOnSend(c, payload); return; }
+  if (isGroup(c)) {
+    payload.groupId = c.id; payload.senderName = Store.name || T("sys.someone");
+    for (const mem of c.members) {
+      if (mem.id === Store.myId) continue;
+      const mc = ensureContactEntry(mem.id, mem.name);
+      const deliveryId = crypto.randomUUID();
+      if (ackMsgId) { groupDeliveryMap.set(deliveryId, { groupId: c.id, contentId: ackMsgId, to: mem.id }); trimMap(groupDeliveryMap, GROUP_DELIVERY_MAP_LIMIT); persistGroupDeliveryMap(); }
+      await trySendOrQueue(mc, deliveryId, Object.assign({}, payload));
+    }
+  } else {
+    await trySendOrQueue(c, ackMsgId || crypto.randomUUID(), payload);
+  }
+}
+function pushRichMessage(c, rec) {
+  if (c.disappearingTimer) rec.ttl = c.disappearingTimer;
+  c.messages.push(rec); trimMessages(c); c.lastActivity = rec.ts; persistContacts();
+  if (state.chatId === c.id) { renderChatThreadInner(); const wrap = $("#chat-messages"); if (wrap) wrap.scrollTop = wrap.scrollHeight; }
+  if (state.tab === "chats") renderChatsList();
+  playOutgoingSound(); haptic("light");
+}
+async function createPoll(contactId, q, optTexts, multi) {
+  const c = state.contacts.get(contactId); if (!c) return false;
+  if (c.blocked) { toast(T("toast.blocked")); return false; }
+  if (isGroup(c) && !isGroupWriteAllowed(c, Store.myId)) { toast(T("toast.groupWriteRestricted")); return false; }
+  const poll = EtherRich.sanitizePoll({ q, multi, opts: optTexts.map((t, i) => ({ id: "o" + (i + 1), t })) });
+  if (!poll) { toast(T("chat.poll.needTwo")); return false; }
+  const msgId = crypto.randomUUID(), ts = Date.now();
+  const rec = { id: msgId, from: "me", text: poll.q, ts, ack: "sent", serverAcked: false, poll, pollVotes: {} };
+  pushRichMessage(c, rec);
+  const payload = { kind: "poll", id: msgId, ts, poll: { q: poll.q, multi: poll.multi, opts: poll.opts } };
+  if (rec.ttl) payload.ttl = rec.ttl;
+  await dispatchRich(c, payload, msgId);
+  return true;
+}
+async function votePoll(contactId, msgId, optId) {
+  const c = state.contacts.get(contactId); const m = c && c.messages.find((x) => x.id === msgId); if (!m || !m.poll || m.poll.closed) return;
+  const cur = (m.pollVotes && m.pollVotes[Store.myId]) || [];
+  let next;
+  if (m.poll.multi) next = cur.includes(optId) ? cur.filter((x) => x !== optId) : cur.concat(optId);
+  else next = cur[0] === optId ? [] : [optId];
+  if (!EtherRich.applyVote(m, Store.myId, next)) return;
+  haptic("light"); persistContacts();
+  if (state.chatId === contactId) renderChatThread();
+  await dispatchRich(c, { kind: "poll-vote", id: msgId, opts: next, ts: Date.now() });
+}
+async function closePollMsg(contactId, msgId) {
+  const c = state.contacts.get(contactId); const m = c && c.messages.find((x) => x.id === msgId);
+  if (!m || m.from !== "me" || !EtherRich.closePoll(m)) return;
+  persistContacts(); if (state.chatId === contactId) renderChatThread();
+  await dispatchRich(c, { kind: "poll-close", id: msgId, ts: Date.now() });
+}
+async function createBoard(contactId, title) {
+  const c = state.contacts.get(contactId); if (!c) return false;
+  if (c.blocked) { toast(T("toast.blocked")); return false; }
+  if (isGroup(c) && !isGroupWriteAllowed(c, Store.myId)) { toast(T("toast.groupWriteRestricted")); return false; }
+  const board = EtherRich.sanitizeBoard({ title: title || T("chat.board.defaultTitle"), cols: [{ id: "todo", t: T("chat.board.col1") }, { id: "doing", t: T("chat.board.col2") }, { id: "done", t: T("chat.board.col3") }] });
+  if (!board) return false;
+  const msgId = crypto.randomUUID(), ts = Date.now();
+  pushRichMessage(c, { id: msgId, from: "me", text: board.title, ts, ack: "sent", serverAcked: false, board });
+  const payload = { kind: "board", id: msgId, ts, board: { title: board.title, cols: board.cols } };
+  await dispatchRich(c, payload, msgId);
+  return true;
+}
+async function boardOp(contactId, msgId, op) {
+  const c = state.contacts.get(contactId); const m = c && c.messages.find((x) => x.id === msgId); if (!m || !m.board) return;
+  const ts = Date.now();
+  if (!EtherRich.applyBoardOp(m, op, ts)) return;
+  haptic("light"); persistContacts();
+  if (state.chatId === contactId) renderChatThread();
+  await dispatchRich(c, { kind: "board-op", id: msgId, op, ts });
+}
+// Входящие: создание и операции. Контейнер — группа (payload.groupId, отправитель должен быть участником) или личный чат.
+function richContainer(from, payload, create) {
+  if (payload && payload.groupId) {
+    const g = state.contacts.get(payload.groupId);
+    if (!g || !g.isGroup || !g.members.some((x) => x.id === from)) return null;
+    return g;
+  }
+  return create ? ensureContactEntry(from, null) : state.contacts.get(from);
+}
+function applyIncomingRich(from, envelopeMsgId, payload) {
+  const kind = payload.kind;
+  const create = kind === "poll" || kind === "board";
+  const c = richContainer(from, payload, create); if (!c) return;
+  if (create) {
+    if (c.messages.some((x) => x.id === payload.id) || typeof payload.id !== "string") return;
+    if (payload.groupId && c.writeRestricted && !isGroupAdmin(c, from)) return;
+    const rec = { id: payload.id, from: "them", text: "", ts: payload.ts || Date.now(), readAckSent: false, deliveryId: envelopeMsgId };
+    if (payload.groupId) { rec.fromId = from; rec.fromName = payload.senderName || (state.contacts.get(from) && state.contacts.get(from).name) || T("sys.someone"); }
+    if (kind === "poll") { const poll = EtherRich.sanitizePoll(payload.poll); if (!poll) return; rec.poll = poll; rec.pollVotes = {}; rec.text = poll.q; }
+    else { const board = EtherRich.sanitizeBoard(payload.board); if (!board) return; rec.board = board; rec.text = board.title; }
+    if (payload.ttl) rec.ttl = payload.ttl;
+    c.messages.push(rec); trimMessages(c); c.lastActivity = Date.now(); persistContacts();
+    const routeId = c.id;
+    const preview = T(kind === "poll" ? "chat.poll.preview" : "chat.board.preview", kind === "poll" ? { q: rec.text } : { title: rec.text });
+    if (state.chatId === routeId) { renderChatThread(); playMessageSound(routeId); vibrate([80, 40, 80]); announceToScreenReader(T("sr.newMessage", { name: rec.fromName || c.name, text: truncate(preview, 80) })); }
+    else {
+      toast(`${c.name}: ${truncate(preview, 40)}`);
+      if (!isContactMuted(c)) showNotification(c.name || T("app.name"), truncate(preview, 80), { tag: "ether-msg-" + c.id, contactId: c.id, kind: "message", forceSilent: c.vibrateOnly });
+      playMessageSound(routeId); vibrate([80, 40, 80]);
+    }
+    if (state.tab === "chats") renderChatsList();
+    updateAppBadge();
+    return;
+  }
+  const m = c.messages.find((x) => x.id === payload.id); if (!m) return;
+  let changed = false;
+  if (kind === "poll-vote") changed = EtherRich.applyVote(m, from, payload.opts);
+  else if (kind === "poll-close") { const authorId = c.isGroup ? m.fromId : c.id; changed = m.from === "them" && authorId === from && EtherRich.closePoll(m); }
+  else if (kind === "board-op") changed = EtherRich.applyBoardOp(m, payload.op, Math.min(Number(payload.ts) || Date.now(), Date.now() + 60000));
+  if (!changed) return;
+  persistContacts();
+  if (state.chatId === c.id) renderChatThread();
+}
+function pollBubbleHtml(c, m) {
+  const t = EtherRich.tally(m), me = (m.pollVotes && m.pollVotes[Store.myId]) || [];
+  const max = Math.max(1, ...Object.values(t.counts));
+  const opts = m.poll.opts.map((o) => {
+    const n = t.counts[o.id] || 0, mine = me.includes(o.id);
+    const pct = t.voters ? Math.round((n / t.voters) * 100) : 0;
+    return `<button type="button" class="poll-opt${mine ? " is-mine" : ""}" data-poll-opt="${escapeHtml(o.id)}" role="${m.poll.multi ? "checkbox" : "radio"}" aria-checked="${mine}"${m.poll.closed ? " disabled" : ""}>
+      <span class="poll-opt-bar" style="width:${(n / max * 100).toFixed(0)}%"></span>
+      <span class="poll-opt-mark">${mine ? Icons.html("check", 14) : ""}</span>
+      <span class="poll-opt-text">${escapeHtml(o.t)}</span>
+      <span class="poll-opt-count">${n ? pct + "%" : ""}</span>
+    </button>`;
+  }).join("");
+  const foot = `<span>${escapeHtml(T("chat.poll.votes", { n: t.voters }))}${m.poll.multi ? " · " + escapeHtml(T("chat.poll.multiHint")) : ""}</span>`
+    + (m.poll.closed ? `<span class="poll-closed">${escapeHtml(T("chat.poll.closed"))}</span>` : (m.from === "me" ? `<button type="button" class="poll-close-btn" data-poll-close="1">${escapeHtml(T("chat.poll.close"))}</button>` : ""));
+  return `<div class="poll-bubble${m.poll.closed ? " is-closed" : ""}"><div class="poll-q">${Icons.html("poll", 16)}<span>${escapeHtml(m.poll.q)}</span></div><div class="poll-opts" role="${m.poll.multi ? "group" : "radiogroup"}" aria-label="${escapeHtml(m.poll.q)}">${opts}</div><div class="poll-foot">${foot}</div></div>`;
+}
+function boardBubbleHtml(m) {
+  const b = m.board;
+  const cols = b.cols.map((col, ci) => {
+    const cards = b.cards.filter((k) => k.col === col.id).map((k) => `<div class="board-card" data-card="${escapeHtml(k.id)}"><span class="board-card-t" data-board-act="edit" tabindex="0" role="button">${escapeHtml(k.t)}</span><span class="board-card-acts">`
+      + (ci > 0 ? `<button type="button" data-board-act="left" aria-label="${escapeHtml(T("chat.board.moveLeft"))}">${Icons.html("chevron-left", 14)}</button>` : "")
+      + (ci < b.cols.length - 1 ? `<button type="button" data-board-act="right" aria-label="${escapeHtml(T("chat.board.moveRight"))}">${Icons.html("chevron-right", 14)}</button>` : "")
+      + `<button type="button" data-board-act="del" aria-label="${escapeHtml(T("chat.board.delete"))}">${Icons.html("x", 14)}</button></span></div>`).join("");
+    return `<div class="board-col" data-col="${escapeHtml(col.id)}"><div class="board-col-h">${escapeHtml(col.t)}<span class="board-col-n">${b.cards.filter((k) => k.col === col.id).length}</span></div>${cards}<button type="button" class="board-add" data-board-act="add" data-col="${escapeHtml(col.id)}">${Icons.html("plus", 14)}<span>${escapeHtml(T("chat.board.addCard"))}</span></button></div>`;
+  }).join("");
+  return `<div class="board-bubble"><div class="board-title">${Icons.html("board", 16)}<span>${escapeHtml(b.title)}</span></div><div class="board-cols">${cols}</div></div>`;
+}
+function handleRichClick(c, m, el) {
+  if (el.hasAttribute("data-poll-opt")) { votePoll(c.id, m.id, el.getAttribute("data-poll-opt")); return; }
+  if (el.hasAttribute("data-poll-close")) { closePollMsg(c.id, m.id); return; }
+  const act = el.getAttribute("data-board-act");
+  const cardEl = el.closest("[data-card]"), cardId = cardEl && cardEl.getAttribute("data-card");
+  const cols = m.board.cols.map((x) => x.id);
+  const card = cardId && m.board.cards.find((k) => k.id === cardId);
+  if (act === "add") {
+    const col = el.getAttribute("data-col");
+    openTextSheet({ title: T("chat.board.addCard"), placeholder: T("chat.board.cardText"), onOk: (text) => boardOp(c.id, m.id, { t: "add", card: { id: crypto.randomUUID(), t: text, col } }) });
+  } else if (act === "edit" && card) {
+    openTextSheet({ title: T("chat.edit"), value: card.t, placeholder: T("chat.board.cardText"), onOk: (text) => boardOp(c.id, m.id, { t: "edit", id: card.id, text }) });
+  } else if ((act === "left" || act === "right") && card) {
+    const i = cols.indexOf(card.col) + (act === "left" ? -1 : 1);
+    if (i >= 0 && i < cols.length) boardOp(c.id, m.id, { t: "move", id: card.id, col: cols[i] });
+  } else if (act === "del" && card) {
+    boardOp(c.id, m.id, { t: "del", id: card.id });
+  }
+}
+// Общая шторка ввода одной строки (карточка доски, название доски)
+let __textSheetCb = null;
+function openTextSheet(opts) {
+  const sheet = $("#text-sheet"), input = $("#text-sheet-input"); if (!sheet || !input) return;
+  __textSheetCb = opts.onOk || null;
+  $("#text-sheet-title").textContent = opts.title || "";
+  input.value = opts.value || ""; input.placeholder = opts.placeholder || "";
+  sheet.classList.remove("hidden");
+  setTimeout(() => { try { input.focus(); input.select(); } catch (e) {} }, 60);
+}
+function submitTextSheet() {
+  const sheet = $("#text-sheet"), input = $("#text-sheet-input"); if (!sheet || !input) return;
+  const v = input.value.trim(); if (!v) return;
+  const cb = __textSheetCb; __textSheetCb = null;
+  sheet.classList.add("hidden");
+  if (cb) cb(v);
+}
+function openPollSheet() {
+  const sheet = $("#poll-sheet"); if (!sheet) return;
+  $("#poll-q-input").value = ""; $("#poll-multi-input").checked = false;
+  const list = $("#poll-opts-list"); list.innerHTML = "";
+  for (let i = 0; i < 2; i++) addPollOptionInput();
+  sheet.classList.remove("hidden");
+  setTimeout(() => { try { $("#poll-q-input").focus(); } catch (e) {} }, 60);
+}
+function addPollOptionInput() {
+  const list = $("#poll-opts-list"); if (!list || list.children.length >= EtherRich.LIM.opts) return;
+  const inp = document.createElement("input");
+  inp.type = "text"; inp.className = "poll-opt-input"; inp.maxLength = EtherRich.LIM.opt; inp.autocomplete = "off";
+  inp.placeholder = T("chat.poll.option", { n: list.children.length + 1 });
+  list.appendChild(inp);
+  const add = $("#poll-add-opt-btn"); if (add) add.classList.toggle("hidden", list.children.length >= EtherRich.LIM.opts);
+}
+function wireRichSheets() {
+  const bind = (id, fn) => { const el = $(id); if (el) el.addEventListener("click", fn); };
+  bind("#chat-poll-btn", () => { collapseComposerPlus(); openPollSheet(); });
+  bind("#chat-board-btn", () => { collapseComposerPlus(); openTextSheet({ title: T("chat.board.name"), value: T("chat.board.defaultTitle"), onOk: (title) => { if (state.chatId) createBoard(state.chatId, title); } }); });
+  bind("#poll-add-opt-btn", addPollOptionInput);
+  bind("#poll-create-btn", async () => {
+    const q = $("#poll-q-input").value.trim();
+    const opts = Array.from($$("#poll-opts-list .poll-opt-input")).map((i) => i.value.trim()).filter(Boolean);
+    if (!state.chatId) return;
+    if (await createPoll(state.chatId, q, opts, $("#poll-multi-input").checked)) $("#poll-sheet").classList.add("hidden");
+  });
+  bind("#text-sheet-ok", submitTextSheet);
+  const ti = $("#text-sheet-input"); if (ti) ti.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); submitTextSheet(); } });
+}
 function contactCardBubbleHtml(card) {
   const name = card.name || T("sys.someone");
   const already = state.contacts.has(card.id);
@@ -5360,6 +5629,7 @@ async function sendGroupFile(groupId, file, meta) {
     file: { name, mime, size: file.size, kind: fileKindFromMime(mime), pending: true },
   };
   if (meta.duration) rec.file.duration = meta.duration;
+  if (meta.wave) rec.file.wave = meta.wave;
   if (caption) rec.file.caption = caption;
   if (g.disappearingTimer) rec.ttl = g.disappearingTimer;
   g.messages.push(rec); trimMessages(g); g.lastActivity = ts; persistContacts();
@@ -5371,6 +5641,7 @@ async function sendGroupFile(groupId, file, meta) {
   try { await IDB.set("file:" + msgId, new Blob([buffer], { type: mime })); } catch (e) {}
   const payload = { kind: "file", id: msgId, ts, name, mime, size: file.size, dataB64: arrayBufferToBase64(buffer), groupId, senderName: Store.name || T("sys.someone") };
   if (meta.duration) payload.duration = meta.duration;
+  if (meta.wave) payload.wave = meta.wave;
   if (caption) payload.caption = caption;
   if (g.disappearingTimer) payload.ttl = g.disappearingTimer;
   playOutgoingSound();
@@ -5427,7 +5698,7 @@ async function sendFileOffline(contactId, file, opts) {
 // Переиспользует ровно ту же инфраструктуру, что и обычные файлы (P2P
 // только "вживую", хранение блоба в IndexedDB) — отличается только UI
 // записи и типом отрисовки пузыря (проигрыватель вместо файла).
-async function sendVoiceMessage(contactId, blob, durationSec) {
+async function sendVoiceMessage(contactId, blob, durationSec, wave) {
   const c = state.contacts.get(contactId); if (!c) return;
   const inGroup = isGroup(c);
   if (!inGroup && c.blocked) { toast(T("toast.blocked")); return; }
@@ -5437,7 +5708,7 @@ async function sendVoiceMessage(contactId, blob, durationSec) {
   if (blob.size === 0) { toast(T("toast.fileEmpty")); return; }
   const voiceCap = inGroup ? GROUP_FILE_MAX : MAX_FILE_SIZE;
   if (blob.size > voiceCap) { toast(T("toast.fileTooLarge", { size: formatFileSize(voiceCap) })); return; }
-  if (inGroup) { await sendGroupFile(contactId, blob, { name: "voice-message", duration: durationSec, mime: blob.type || "audio/webm" }); return; }
+  if (inGroup) { await sendGroupFile(contactId, blob, { name: "voice-message", duration: durationSec, wave, mime: blob.type || "audio/webm" }); return; }
   const existingLink2 = mesh.get(contactId);
   const alreadyLive2 = existingLink2 && (existingLink2.status === "connected" || existingLink2.status === "in-call");
   if (!alreadyLive2) toast(T("toast.connecting"));
@@ -5445,7 +5716,7 @@ async function sendVoiceMessage(contactId, blob, durationSec) {
   if (!link) {
     // Размер уже гарантированно ≤ MAX_FILE_SIZE (проверка чуть выше) —
     // офлайн-путь всегда доступен, отдельная проверка не нужна.
-    await sendVoiceOffline(contactId, blob, durationSec);
+    await sendVoiceOffline(contactId, blob, durationSec, wave);
     return;
   }
 
@@ -5454,7 +5725,7 @@ async function sendVoiceMessage(contactId, blob, durationSec) {
   const mime = blob.type || "audio/webm";
   const rec = {
     id: msgId, from: "me", text: "", ts, ack: "sent", serverAcked: false,
-    file: { name: "voice-message", mime, size: blob.size, kind: "audio", duration: durationSec, pending: true },
+    file: { name: "voice-message", mime, size: blob.size, kind: "audio", duration: durationSec, wave, pending: true },
   };
   c.messages.push(rec); trimMessages(c); c.lastActivity = ts; persistContacts();
   if (state.chatId === contactId) { renderChatThreadInner(); const wrap = $("#chat-messages"); if (wrap) wrap.scrollTop = wrap.scrollHeight; }
@@ -5470,7 +5741,7 @@ async function sendVoiceMessage(contactId, blob, durationSec) {
   for (let offset = 0; offset < buffer.byteLength; offset += FILE_CHUNK_SIZE) {
     chunks.push(arrayBufferToBase64(buffer.slice(offset, offset + FILE_CHUNK_SIZE)));
   }
-  const ok = await link.sendFile({ id: msgId, name: "voice-message", mime, size: blob.size, duration: durationSec }, chunks);
+  const ok = await link.sendFile({ id: msgId, name: "voice-message", mime, size: blob.size, duration: durationSec, wave }, chunks);
   rec.file.pending = false;
   rec.ack = ok ? "sent" : "failed";
   persistContacts();
@@ -5481,14 +5752,14 @@ async function sendVoiceMessage(contactId, blob, durationSec) {
 // Голосовой аналог sendFileOffline — тот же принцип (один зашифрованный
 // payload через почтовый ящик сервера, без чанкования), плюс duration
 // в записи для правильной отрисовки плеера.
-async function sendVoiceOffline(contactId, blob, durationSec) {
+async function sendVoiceOffline(contactId, blob, durationSec, wave) {
   const c = state.contacts.get(contactId); if (!c) return;
   const msgId = crypto.randomUUID();
   const ts = Date.now();
   const mime = blob.type || "audio/webm";
   const rec = {
     id: msgId, from: "me", text: "", ts, ack: "sent", serverAcked: false,
-    file: { name: "voice-message", mime, size: blob.size, kind: "audio", duration: durationSec, pending: true },
+    file: { name: "voice-message", mime, size: blob.size, kind: "audio", duration: durationSec, wave, pending: true },
   };
   c.messages.push(rec); trimMessages(c); c.lastActivity = ts; persistContacts();
   if (state.chatId === contactId) { renderChatThreadInner(); const wrap = $("#chat-messages"); if (wrap) wrap.scrollTop = wrap.scrollHeight; }
@@ -5499,7 +5770,7 @@ async function sendVoiceOffline(contactId, blob, durationSec) {
   catch (e) { rec.file.pending = false; rec.ack = "failed"; persistContacts(); if (state.chatId === contactId) renderChatThreadInner(); return; }
   try { await IDB.set("file:" + msgId, new Blob([buffer], { type: mime })); } catch (e) {}
 
-  const payload = { kind: "file", id: msgId, name: "voice-message", mime, size: blob.size, duration: durationSec, dataB64: arrayBufferToBase64(buffer) };
+  const payload = { kind: "file", id: msgId, name: "voice-message", mime, size: blob.size, duration: durationSec, wave, dataB64: arrayBufferToBase64(buffer) };
   await trySendOrQueue(c, msgId, payload);
   rec.file.pending = false;
   persistContacts();
@@ -5516,6 +5787,8 @@ function pickVoiceMimeType() {
 }
 let voiceRecorder = null, voiceRecordStream = null, voiceRecordChunks = [], voiceRecordStartedAt = 0, voiceRecordTimerId = null;
 let voiceRecordStarting = false;
+let voiceWaveSamples = [], voiceRecordPaused = false, voiceRecordPausedAt = 0, voiceRecordPausedTotal = 0;
+function voiceRecordElapsedSec() { return Math.max(0, (Date.now() - voiceRecordStartedAt - voiceRecordPausedTotal - (voiceRecordPaused ? Date.now() - voiceRecordPausedAt : 0)) / 1000); }
 let voiceRecordCancelPending = false; // чат покинули, пока висел getUserMedia
 let voiceRecordTargetChatId = null; // чат, в котором НАЧАЛАСЬ запись — используется при остановке, а не state.chatId в тот момент (пользователь мог переключиться в другой чат за время записи)
 // Реальный level meter поверх MediaRecorder (раздел 6 роадмапа) — раньше
@@ -5546,7 +5819,7 @@ function startVoiceLevelMeter(stream) {
     let lastSampleAt = 0;
     const tick = (now) => {
       voiceLevelRaf = requestAnimationFrame(tick);
-      if (!voiceAnalyser) return;
+      if (!voiceAnalyser || voiceRecordPaused) return;
       if (now - lastSampleAt < 90) return; // ~11 замеров/сек — глазу достаточно, не гоняем лишний раз getByteTimeDomainData+DOM на каждый rAF (обычно 60/сек)
       lastSampleAt = now;
       voiceAnalyser.getByteTimeDomainData(data);
@@ -5555,6 +5828,8 @@ function startVoiceLevelMeter(stream) {
       const rms = Math.sqrt(sumSq / data.length); // ~0..1, обычная речь даёт 0.05–0.2
       voiceLevelHistory.push(rms);
       voiceLevelHistory.shift();
+      if (!voiceWaveSamples.length) { const lead = Math.min(8, Math.round(voiceRecordElapsedSec() * 1000 / 90)); for (let k = 0; k < lead; k++) voiceWaveSamples.push(rms); }
+      voiceWaveSamples.push(rms);
       bars.forEach((b, i) => {
         const level = Math.min(1, voiceLevelHistory[i] * 3.5); // усиление — иначе столбики почти не двигались бы на тихой речи
         b.style.transform = `scaleY(${(0.35 + level * 1.15).toFixed(2)})`;
@@ -5624,11 +5899,13 @@ async function startVoiceRecording() {
   // периодическими чанками stop() завершается практически мгновенно.
   voiceRecorder.start(200);
   voiceRecordStartedAt = Date.now();
+  voiceWaveSamples = []; voiceRecordPaused = false; voiceRecordPausedTotal = 0;
+  setVoicePauseUi(false);
   const form = $("#chat-form"); if (form) form.classList.add("hidden");
   const bar = $("#voice-recording-bar"); if (bar) bar.classList.remove("hidden");
   const timeEl = $("#voice-recording-time");
   voiceRecordTimerId = setInterval(() => {
-    if (timeEl) timeEl.textContent = formatVoiceDuration((Date.now() - voiceRecordStartedAt) / 1000);
+    if (timeEl) timeEl.textContent = formatVoiceDuration(voiceRecordElapsedSec());
   }, 200);
   // AudioContext для индикатора уровня создаём не в момент старта записи — иначе на iOS смена частоты аудиосессии даёт щелчок в записи
   setTimeout(() => { if (voiceRecorder && voiceRecordStream) startVoiceLevelMeter(voiceRecordStream); }, 600);
@@ -5644,10 +5921,29 @@ function cancelVoiceRecordingIfLeavingChat(newChatId) {
     else if (voiceRecordStarting) voiceRecordCancelPending = true;
   }
 }
+function setVoicePauseUi(paused) {
+  const bar = $("#voice-recording-bar"); if (bar) bar.classList.toggle("is-paused", !!paused);
+  const btn = $("#voice-pause-btn"); if (!btn) return;
+  btn.innerHTML = paused ? Icons.html("mic", 20) : Icons.html("pause", 20);
+  const label = T(paused ? "chat.voice.resume" : "chat.voice.pause");
+  btn.setAttribute("aria-label", label); btn.title = label;
+  const note = $("#voice-recording-note"); if (note) note.textContent = T(paused ? "chat.voice.paused" : "chat.voice.recording");
+}
+// Пауза записи: MediaRecorder.pause() не пишет тишину в файл, время паузы в длительность не входит.
+function toggleVoiceRecordingPause() {
+  if (!voiceRecorder || voiceRecordStarting) return;
+  try {
+    if (!voiceRecordPaused) { voiceRecorder.pause(); voiceRecordPaused = true; voiceRecordPausedAt = Date.now(); }
+    else { voiceRecorder.resume(); voiceRecordPausedTotal += Date.now() - voiceRecordPausedAt; voiceRecordPaused = false; }
+  } catch (e) { return; }
+  setVoicePauseUi(voiceRecordPaused);
+}
 function stopVoiceRecording(send) {
   if (voiceRecordStarting) { voiceRecordCancelPending = true; return; } // отпустили в момент прогрева микрофона — запись ещё не началась
   const contactId = voiceRecordTargetChatId;
-  const durationSec = (Date.now() - voiceRecordStartedAt) / 1000;
+  const durationSec = voiceRecordElapsedSec();
+  const waveOut = compressWave(voiceWaveSamples);
+  voiceWaveSamples = []; voiceRecordPaused = false; voiceRecordPausedTotal = 0; setVoicePauseUi(false);
   if (voiceRecordTimerId) { clearInterval(voiceRecordTimerId); voiceRecordTimerId = null; }
   stopVoiceLevelMeter();
   const form = $("#chat-form"); if (form) form.classList.remove("hidden");
@@ -5672,7 +5968,7 @@ function stopVoiceRecording(send) {
     if (streamSnapshot) streamSnapshot.getTracks().forEach((t) => t.stop());
     if (!send || durationSec < 0.6) return; // случайное короткое нажатие — не отправляем пустышку
     const blob = new Blob(chunksSnapshot, { type: mimeType });
-    if (contactId) sendVoiceMessage(contactId, blob, durationSec);
+    if (contactId) sendVoiceMessage(contactId, blob, durationSec, waveOut);
   });
   try { recorder.stop(); } catch (e) {}
 }
@@ -5724,7 +6020,7 @@ function handleFilePayload(from, payload) {
     const c = ensureContactEntry(from, null);
     const isOpen = state.chatId === from;
     const rec = { id: payload.id, from: "them", text: "", ts: Date.now(), readAckSent: false,
-      file: { name: payload.name, mime: payload.mime, size: payload.size, kind: fileKindFromMime(payload.mime), duration: payload.duration || 0, pending: true } };
+      file: { name: payload.name, mime: payload.mime, size: payload.size, kind: fileKindFromMime(payload.mime), duration: payload.duration || 0, wave: sanitizeWave(payload.wave), pending: true } };
     if (payload.ttl) rec.ttl = payload.ttl;
     if (payload.forwarded) { rec.forwarded = true; if (typeof payload.fwdFrom === "string" && payload.fwdFrom) rec.forwardedFrom = payload.fwdFrom.slice(0, 40); }
     if (typeof payload.caption === "string" && payload.caption) rec.file.caption = payload.caption.slice(0, 200);
@@ -5926,7 +6222,7 @@ function fileBubbleHtml(msgId, fileInfo) {
     return `<div class="file-bubble file-bubble-pending" data-msg-id="${escapeHtml(msgId)}"><div class="file-spinner"></div><span>${escapeHtml(T("chat.file.sending"))}</span>${bar}</div>`;
   }
   if (fileInfo.failed) {
-    return `<div class="file-bubble file-bubble-failed"><svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 2 1 21h22L12 2zm0 6 6.5 11h-13L12 8zm-1 2.5v4h2v-4h-2zm0 5.5v2h2v-2h-2z"/></svg> <span>${escapeHtml(T("chat.file.failed"))}</span></div>`;
+    return `<div class="file-bubble file-bubble-failed">${Icons.html("warning", 16)} <span>${escapeHtml(T("chat.file.failed"))}</span></div>`;
   }
   const sizeStr = formatFileSize(fileInfo.size);
   // Подпись (P1.12) — под медиа-слотом, отдельной строкой. Применима к
@@ -5954,7 +6250,8 @@ function fileBubbleHtml(msgId, fileInfo) {
     return `<div class="voice-bubble" data-file-id="${escapeHtml(msgId)}" data-file-kind="audio" data-duration="${fileInfo.duration || 0}">
       <button type="button" class="voice-play-btn" disabled><span class="vp-ico">${VOICE_PLAY_ICON_SVG}</span></button>
       <span class="voice-live-wave" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></span>
-      <div class="voice-progress"><div class="voice-progress-fill"></div></div>
+      <div class="voice-progress voice-wave" role="slider" tabindex="0" aria-label="${escapeHtml(T("chat.voice.seek"))}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="voice-wave-bars">${voiceWaveHtml(fileInfo.wave, msgId)}</div><div class="voice-progress-fill"></div></div>
+      <button type="button" class="voice-speed-btn" aria-label="${escapeHtml(T("chat.voice.speed"))}">${voiceSpeed()}×</button>
       <span class="voice-duration">${escapeHtml(durLabel)}</span>
     </div>`;
   }
@@ -5962,6 +6259,44 @@ function fileBubbleHtml(msgId, fileInfo) {
     <span class="file-doc-icon"><svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm8 1.5V8h4.5L14 3.5zM7 12h10v1.5H7V12zm0 4h10v1.5H7V16zm0-8h5v1.5H7V8z"/></svg></span>
     <span class="file-doc-info"><span class="file-doc-name">${escapeHtml(fileInfo.name)}</span><span class="file-doc-size">${escapeHtml(sizeStr)}</span></span>
   </a>`;
+}
+// Форма волны голосового: до 64 целых 0..31 — считается при записи, едет в метаданных вместе с duration. Чужое значение чистим.
+const VOICE_WAVE_BARS = 40;
+function sanitizeWave(w) {
+  if (!Array.isArray(w) || w.length < 4 || w.length > 64) return undefined;
+  const out = w.map((v) => Math.max(0, Math.min(31, Math.round(Number(v) || 0))));
+  return out;
+}
+function compressWave(samples, n) {
+  n = n || VOICE_WAVE_BARS;
+  if (!samples || samples.length < 2) return undefined;
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const a = Math.floor(i * samples.length / n), b = Math.max(a + 1, Math.floor((i + 1) * samples.length / n));
+    let mx = 0; for (let j = a; j < b && j < samples.length; j++) if (samples[j] > mx) mx = samples[j];
+    out.push(mx);
+  }
+  const peak = Math.max(...out, 0.02);
+  return out.map((v) => Math.max(2, Math.round((v / peak) * 31)));
+}
+// Когда волна не пришла (старый клиент) — ровные «псевдослучайные» столбики от id сообщения, чтобы дорожка не была пустой
+function fallbackWave(seed) {
+  let h = 2166136261; for (let i = 0; i < seed.length; i++) { h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619); }
+  const out = []; for (let i = 0; i < VOICE_WAVE_BARS; i++) { h = Math.imul(h ^ (h >>> 15), 2246822507) >>> 0; out.push(6 + (h % 14)); }
+  return out;
+}
+function voiceWaveHtml(wave, seed) {
+  const w = sanitizeWave(wave) || fallbackWave(seed || "x");
+  return w.map((v) => `<i style="height:${Math.round(18 + (v / 31) * 82)}%"></i>`).join("");
+}
+const VOICE_SPEEDS = [1, 1.5, 2];
+function voiceSpeed() { let v = 1; try { v = parseFloat(localStorage.getItem("ether.voiceSpeed")) || 1; } catch (e) {} return VOICE_SPEEDS.includes(v) ? v : 1; }
+function cycleVoiceSpeed() {
+  const next = VOICE_SPEEDS[(VOICE_SPEEDS.indexOf(voiceSpeed()) + 1) % VOICE_SPEEDS.length];
+  try { localStorage.setItem("ether.voiceSpeed", String(next)); } catch (e) {}
+  document.querySelectorAll(".voice-speed-btn").forEach((b) => { b.textContent = next + "×"; });
+  for (const e of voiceAudioCache.values()) { try { e.audio.playbackRate = next; } catch (x) {} }
+  return next;
 }
 function formatVoiceDuration(sec) {
   // floor, не round: 59.6с реально длится 59.6с — round дал бы "1:00",
@@ -5974,7 +6309,7 @@ function formatVoiceDuration(sec) {
 // Единая иконография — play/pause голосового сообщения раньше были
 // текстовыми символами ▶/⏸ (textContent), теперь те же SVG, что и
 // везде в приложении (viewBox 24×24, currentColor).
-const VOICE_PLAY_ICON_SVG = '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>';
+const VOICE_PLAY_ICON_SVG = '' + Icons.html("play", 16) + '';
 // Значок play/pause живёт в своём <span class="vp-ico"> — рисунок кассеты/пластинки (features.js) лежит рядом в той же кнопке и не затирается
 function setVoiceIcon(btn, svg) {
   if (!btn) return;
@@ -5982,7 +6317,7 @@ function setVoiceIcon(btn, svg) {
   if (!ico) { ico = document.createElement("span"); ico.className = "vp-ico"; btn.appendChild(ico); }
   ico.innerHTML = svg;
 }
-const VOICE_PAUSE_ICON_SVG = '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>';
+const VOICE_PAUSE_ICON_SVG = '' + Icons.html("pause", 16) + '';
 const voiceAudioCache = new Map(); // msgId -> { audio, playing, analyser? } — переиспользуем между рендерами
 // Раньше при уходе из чата (в список чатов или в другой чат) голосовое,
 // если оно играло, продолжало звучать в фоне — кнопки для остановки
@@ -6101,6 +6436,8 @@ function hydrateFileSlots(root) {
     const fill = el.querySelector(".voice-progress-fill");
     const durEl = el.querySelector(".voice-duration");
     const knownDuration = parseFloat(el.getAttribute("data-duration")) || 0;
+    const speedBtn0 = el.querySelector(".voice-speed-btn");
+    if (speedBtn0) speedBtn0.onclick = (ev) => { ev.stopPropagation(); cycleVoiceSpeed(); };
     getFileBlobUrl(msgId).then((url) => {
       if (!url || !playBtn) {
         // Та же проблема для голосовых — кнопка play оставалась
@@ -6149,8 +6486,38 @@ function hydrateFileSlots(root) {
         el.classList.toggle("fx-playing", playing); el.classList.toggle("is-playing", playing);
       };
       // ontimeupdate/onended/onplay/onpause — присвоение свойств: ЗАМЕНЯЕТ обработчики прошлого рендера, а не копит дубли.
+      const waveEl = el.querySelector(".voice-wave"), waveBars = waveEl ? Array.from(waveEl.querySelectorAll("i")) : [];
+      const paintWave = (ratio) => {
+        const n = Math.round(ratio * waveBars.length);
+        waveBars.forEach((b, i) => b.classList.toggle("on", i < n));
+        if (waveEl) waveEl.setAttribute("aria-valuenow", String(Math.round(ratio * 100)));
+      };
+      const applySpeed = () => { try { audio.playbackRate = voiceSpeed(); audio.preservesPitch = true; } catch (e) {} };
+      // Перемотка по волне: тап — прыжок, перетаскивание — скраббинг; со стрелок клавиатуры ±5 с
+      const seekTo = (ratio) => {
+        const dur = durOf(); if (!dur) return;
+        ratio = Math.max(0, Math.min(1, ratio));
+        try { audio.currentTime = ratio * dur; } catch (e) {}
+        paintWave(ratio); if (fill) fill.style.width = (ratio * 100) + "%";
+        if (durEl) durEl.textContent = formatVoiceDuration(Math.max(0, dur - ratio * dur));
+      };
+      if (waveEl) {
+        const ratioAt = (ev) => { const r = waveEl.getBoundingClientRect(); const x = (ev.clientX - r.left) / (r.width || 1); return getComputedStyle(waveEl).direction === "rtl" ? 1 - x : x; };
+        let dragging = false;
+        waveEl.onpointerdown = (ev) => { ev.stopPropagation(); dragging = true; try { waveEl.setPointerCapture(ev.pointerId); } catch (e) {} seekTo(ratioAt(ev)); };
+        waveEl.onpointermove = (ev) => { if (dragging) seekTo(ratioAt(ev)); };
+        waveEl.onpointerup = waveEl.onpointercancel = () => { dragging = false; };
+        waveEl.onclick = (ev) => ev.stopPropagation();
+        waveEl.onkeydown = (ev) => {
+          if (ev.key !== "ArrowLeft" && ev.key !== "ArrowRight") return;
+          ev.preventDefault(); const dur = durOf(); if (!dur) return;
+          const d = (ev.key === "ArrowRight" ? 5 : -5) * (getComputedStyle(waveEl).direction === "rtl" ? -1 : 1);
+          seekTo((audio.currentTime + d) / dur);
+        };
+      }
       audio.ontimeupdate = () => {
         const dur = durOf();
+        if (dur) paintWave(Math.min(1, audio.currentTime / dur));
         if (fill && dur) fill.style.width = Math.min(100, (audio.currentTime / dur) * 100) + "%";
         if (durEl && dur) durEl.textContent = formatVoiceDuration(Math.max(0, dur - audio.currentTime));
       };
@@ -6160,8 +6527,10 @@ function hydrateFileSlots(root) {
         setUi(false);
         try { audio.currentTime = 0; } catch (e) {} // следующее прослушивание — всегда с начала
         if (fill) fill.style.width = "0%";
+        paintWave(0);
         if (durEl) durEl.textContent = formatVoiceDuration(knownDuration || durOf() || 0);
       };
+      if (audio.currentTime > 0.05) audio.ontimeupdate(); // перерисовка чата не должна сбрасывать показ позиции
       playBtn.onclick = (ev) => {
         if (ev) { ev.stopPropagation(); }
         // Не играть несколько голосовых хором — только через собственный кеш (эти Audio() не лежат в DOM).
@@ -6171,6 +6540,7 @@ function hydrateFileSlots(root) {
         if (!audio.paused) { audio.pause(); return; }
         // Закончившееся (или записанное MediaRecorder'ом без длительности в заголовке) голосовое играем с начала
         if (audio.ended || (isFinite(audio.duration) && audio.currentTime >= audio.duration - 0.05)) { try { audio.currentTime = 0; } catch (e) {} }
+        applySpeed();
         audio.play().catch(() => { setUi(false); });
       };
     });
@@ -6609,6 +6979,7 @@ async function forwardIntoGroup(g, rec, m, srcMsgId) {
     try { b64 = arrayBufferToBase64(await blob.arrayBuffer()); } catch (e) { return fail(T("chat.file.unavailable")); }
     Object.assign(payload, { kind: "file", name: m.file.name, mime: m.file.mime, size: m.file.size, dataB64: b64 });
     if (m.file.duration != null) payload.duration = m.file.duration;
+    if (m.file.wave) payload.wave = m.file.wave;
     if (m.file.caption) payload.caption = m.file.caption;
   } else {
     Object.assign(payload, { kind: "chat", text: rec.text || "" });
@@ -6656,6 +7027,7 @@ async function forwardMessage(msgId, fromContactId, toContactId) {
       pending: true,
     };
     if (m.file.duration != null) rec.file.duration = m.file.duration;
+    if (m.file.wave) rec.file.wave = m.file.wave;
     // retryMessage сохраняет caption при повторной отправке — forwardMessage
     // раньше его терял: подпись к фото/видео пропадала при пересылке.
     if (m.file.caption) rec.file.caption = m.file.caption;
@@ -6710,6 +7082,7 @@ async function forwardMessage(msgId, fromContactId, toContactId) {
         const meta = { id: msgId2, name: m.file.name, mime: m.file.mime, size: m.file.size, forwarded: true };
         if (rec.forwardedFrom) meta.fwdFrom = rec.forwardedFrom;
         if (m.file.duration != null) meta.duration = m.file.duration;
+        if (m.file.wave) meta.wave = m.file.wave;
         if (m.file.caption) meta.caption = m.file.caption;
         const ok = await link.sendFile(meta, chunks);
         rec.file.pending = false;
@@ -6738,6 +7111,8 @@ async function forwardMessage(msgId, fromContactId, toContactId) {
       };
       if (rec.forwardedFrom) payload.fwdFrom = rec.forwardedFrom;
       if (m.file.duration != null) payload.duration = m.file.duration;
+      if (m.file.wave) payload.wave = m.file.wave;
+    if (m.file.wave) payload.wave = m.file.wave;
       if (m.file.caption) payload.caption = m.file.caption;
       await trySendOrQueue(to, msgId2, payload);
       rec.file.pending = false;
@@ -6783,6 +7158,7 @@ async function trySendOrQueue(contact, msgId, payloadObj) {
   if (contact.isSelf) {
     const mSelf = contact.messages.find((x) => x.id === msgId);
     if (mSelf) { mSelf.ack = "read"; mSelf.serverAcked = true; }
+    if (contact.isDemo) demoOnSend(contact, payloadObj);
     return;
   }
   // Раньше ack сразу оптимистично выставлялся в "sent" при создании
@@ -7095,6 +7471,12 @@ function pruneOutbox() {
   }
   if (changed) persistOutbox();
 }
+// Короткая вспышка пузыря при копировании — отклик «скопировано» на самом сообщении, а не только тостом
+function flashCopiedBubble(msgId) {
+  const el = Array.from(document.querySelectorAll(".bubble[data-msg-id]")).find((b) => b.getAttribute("data-msg-id") === msgId); if (!el) return;
+  el.classList.remove("bubble-copied"); void el.offsetWidth; el.classList.add("bubble-copied");
+  setTimeout(() => el.classList.remove("bubble-copied"), 700);
+}
 function trimMap(map, max) { while (map.size > max) map.delete(map.keys().next().value); }
 function persistPendingNoKey() {
   const obj = {};
@@ -7140,6 +7522,7 @@ function resumeUnsentMessages() {
 const _recentAckSent = new Map();
 function sendAckBatch(contactId, originalMsgIds, ackState) {
   if (!Array.isArray(originalMsgIds) || originalMsgIds.length === 0) return;
+  { const lc = state.contacts.get(contactId); if (lc && lc.isSelf) return; } // «Заметки себе» и демо-чат — локальные, квитанции некому слать
   // JSON.stringify, не join(",") — id'шники здесь обычные crypto.
   // randomUUID() без запятых, но join() молча склеил бы два разных
   // набора id в один и тот же ключ, если в массив когда-нибудь попадёт
@@ -7934,7 +8317,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     catch (e) { etherLog("error", "[file] decode failed:", String(e)); return; }
     const rec = {
       id: payload.id, from: "them", text: "", ts: payload.ts || Date.now(), readAckSent: false, deliveryId: envelopeMsgId,
-      file: { name: payload.name || "file", mime: payload.mime || "application/octet-stream", size: payload.size || blob.size, kind: fileKindFromMime(payload.mime), duration: payload.duration, pending: false },
+      file: { name: payload.name || "file", mime: payload.mime || "application/octet-stream", size: payload.size || blob.size, kind: fileKindFromMime(payload.mime), duration: payload.duration, wave: sanitizeWave(payload.wave), pending: false },
     };
     if (payload.forwarded) { rec.forwarded = true; if (typeof payload.fwdFrom === "string" && payload.fwdFrom) rec.forwardedFrom = payload.fwdFrom.slice(0, 40); }
     if (typeof payload.caption === "string" && payload.caption) rec.file.caption = payload.caption.slice(0, 200);
@@ -8093,6 +8476,8 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
       }
       if (state.chatId === from || state.tab === "chats") renderTab();
     }
+  } else if (kind === "poll" || kind === "board" || kind === "poll-vote" || kind === "poll-close" || kind === "board-op") {
+    applyIncomingRich(from, envelopeMsgId, payload);
   } else if (kind === "reaction") {
     applyReaction(from, payload);
     try { if (!payload.remove && payload.emoji) { const rc = state.contacts.get(from); announceToScreenReader(T("a11y.reactionFrom", { name: (rc && rc.name) || T("sys.someone"), emoji: payload.emoji })); } } catch (e) {}
@@ -8617,7 +9002,7 @@ function wireConnectScreen() {
   const newGroupBtn = $("#new-group-btn");
   if (newGroupBtn) newGroupBtn.addEventListener("click", () => {
     state._newGroupAvatar = null;
-    if (newGroupAvatarBtn) { newGroupAvatarBtn.style.backgroundImage = ""; newGroupAvatarBtn.style.background = "var(--accent)"; newGroupAvatarBtn.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M11 5a1 1 0 1 1 2 0v6h6a1 1 0 1 1 0 2h-6v6a1 1 0 1 1-2 0v-6H5a1 1 0 1 1 0-2h6V5z"/></svg>'; }
+    if (newGroupAvatarBtn) { newGroupAvatarBtn.style.backgroundImage = ""; newGroupAvatarBtn.style.background = "var(--accent)"; newGroupAvatarBtn.innerHTML = Icons.html("plus", 22); }
     const nameInput = $("#new-group-name"); if (nameInput) nameInput.value = "";
     const list = $("#new-group-members");
     if (list) {
@@ -9023,10 +9408,10 @@ function openMessageSheet(msgId, contactId) {
   // Уровень 3 (редкие): перевод, избранное, выбор, правка, удаление. «Повторить» — тапом по значку «не доставлено» у самого сообщения.
   // Пересылка/правка/«удалить у всех» рассчитаны на одного получателя, поэтому в группах не предлагаются; локальные действия безопасны всегда.
   const rare = [];
-  if (m.text && !m.file && !m.contactCard) rare.push(act("translate", m.translation ? T("chat.translate.hide") : T("chat.translate")));
+  if (m.text && !m.file && !m.contactCard && !m.poll && !m.board) rare.push(act("translate", m.translation ? T("chat.translate.hide") : T("chat.translate")));
   rare.push(act("favorite", m.favorite ? T("chat.unfavorite") : T("chat.favorite")));
   rare.push(act("select", T("chat.selectMsgs")));
-  if (isOwn && !groupCtx && !m.file && !m.contactCard) rare.push(act("edit", T("chat.edit")));
+  if (isOwn && !groupCtx && !m.file && !m.contactCard && !m.poll && !m.board) rare.push(act("edit", T("chat.edit")));
   rare.push(act("delete-local", T("chat.delete.local"), "destructive"));
   if (isOwn && !groupCtx) rare.push(act("delete-both", T("chat.delete.both"), "destructive"));
   const actions = [...main, `<div class="sheet-divider" role="separator"></div>`, ...rare];
@@ -9043,7 +9428,7 @@ function openMessageSheet(msgId, contactId) {
 async function handleMessageAction(action, msgId, contactId) {
   const c = state.contacts.get(contactId); if (!c) return;
   const m = c.messages.find((x) => x.id === msgId); if (!m) return;
-  if (action === "copy") copyText(m.text || "", T("toast.msgCopied"));
+  if (action === "copy") { copyText(m.text || "", T("toast.msgCopied")); flashCopiedBubble(msgId); }
   else if (action === "edit") startEditing(msgId);
   else if (action === "delete-local") deleteMessageLocal(contactId, msgId);
   else if (action === "delete-both") {
@@ -9234,6 +9619,8 @@ async function retryMessage(contactId, msgId) {
         dataB64: arrayBufferToBase64(buffer),
       };
       if (m.file.duration != null) payload.duration = m.file.duration;
+      if (m.file.wave) payload.wave = m.file.wave;
+    if (m.file.wave) payload.wave = m.file.wave;
       if (m.file.caption) payload.caption = m.file.caption;
       await trySendOrQueue(c, msgId, payload);
     } catch (e) {
@@ -9774,7 +10161,7 @@ function deleteContact(id) {
   // оставшихся через broadcastGroupRoster ДО удаления.
   const cg = state.contacts.get(id);
   if (isGroup(cg)) { removeGroupMember(id, Store.myId, true); return; }
-  if (cg && cg.isSelf) { toast(T("toast.cantDeleteSelfChat")); return; }
+  if (cg && cg.isSelf && !cg.isDemo) { toast(T("toast.cantDeleteSelfChat")); return; }
   // Если удаляют контакт прямо во время звонка с ним — раньше это
   // полагалось на побочный эффект mesh.remove() ниже, а не на настоящий
   // closeCallScreen(). pendingRemoteStreams и другая очистка (audio-
@@ -9952,7 +10339,7 @@ function renderCallsList() {
         </div>
       </button>
       <button type="button" class="call-back-btn" aria-label="${escapeHtml(T("chat.call"))}" ${c ? "" : "disabled"}>
-        <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.7 21 3 13.3 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.4 0 .8-.2 1L6.6 10.8z"/></svg>
+        ${Icons.html("phone", 18)}
       </button>`;
     const backBtn = row.querySelector(".call-back-btn");
     if (backBtn && c) backBtn.addEventListener("click", (e) => { e.stopPropagation(); beginCall(rec.contactId); });
@@ -11175,9 +11562,9 @@ function renderSettingsCategories() {
   const list = $("#settings-category-list"); if (!list) return;
   list.innerHTML = SETTINGS_CATEGORIES.map((cat) => `
     <button type="button" class="settings-category-row" data-category="${cat.id}">
-      <span class="settings-category-icon"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="${cat.iconPath}"/></svg></span>
+      <span class="settings-category-icon">${Icons.html(cat.icon, 20)}</span>
       <span class="settings-category-label">${escapeHtml(T(cat.labelKey))}</span>
-      <span class="chevron"><svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M8.59 16.59 13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg></span>
+      <span class="chevron">${Icons.html("chevron-right", 16)}</span>
     </button>`).join("");
   list.querySelectorAll(".settings-category-row").forEach((btn) => {
     btn.addEventListener("click", () => openSettingsCategory(btn.dataset.category));
@@ -12830,10 +13217,13 @@ if (cameraInput) {
     input.addEventListener("keydown", (ev) => { if (ev.key === "Escape") closeMentionAutocomplete(); });
   }
   wireMentionAutocomplete();
+  wireRichSheets();
   const micBtn = $("#voice-record-btn");
   if (micBtn) micBtn.addEventListener("click", () => { startVoiceRecording(); });
   const voiceCancelBtn = $("#voice-cancel-btn");
   if (voiceCancelBtn) voiceCancelBtn.addEventListener("click", () => stopVoiceRecording(false));
+  const voicePauseBtn = $("#voice-pause-btn");
+  if (voicePauseBtn) voicePauseBtn.addEventListener("click", toggleVoiceRecordingPause);
   const voiceSendBtn = $("#voice-send-btn");
   if (voiceSendBtn) voiceSendBtn.addEventListener("click", () => stopVoiceRecording(true));
   const callBtn = $("#chat-call-btn");
