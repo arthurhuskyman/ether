@@ -83,7 +83,7 @@ function createApp(opts = {}) {
       w.indexedDB = new IDBFactory(); w.IDBKeyRange = IDBKeyRange; // свой IDB на каждое окно — без утечки состояния между тестами
       w.fetch = opts.fetch || (async (url, init) => { fetchLog.push({ url: String(url), init }); throw new Error("offline (test)"); });
       w.AbortSignal.timeout = w.AbortSignal.timeout || ((ms) => AbortSignal.timeout(ms));
-      w.WebSocket = class { constructor() { this.readyState = 0; } send() {} close() {} addEventListener() {} };
+      w.WebSocket = opts.realWebSocket ? require(path.join(ROOT, "signaling-server", "node_modules", "ws")) : class { constructor() { this.readyState = 0; } send() {} close() {} addEventListener() {} };
       w.Blob = class extends Blob { constructor(parts, o) { super((parts || []).map((p) => (ArrayBuffer.isView(p) ? Buffer.from(p.buffer, p.byteOffset, p.byteLength) : p)), o); } }; // Uint8Array из realm jsdom не instanceof Node-шного
        w.URL.createObjectURL = () => "blob:test"; w.URL.revokeObjectURL = () => {};
       w.requestAnimationFrame = (f) => setTimeout(f, 0);

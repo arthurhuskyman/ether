@@ -156,6 +156,7 @@ class SignalingClient extends EventTarget {
       if (msg.type === "registered") {
         this.registered = true;
         this.features = Array.isArray(msg.features) ? msg.features.filter((f) => typeof f === "string").slice(0, 20) : [];
+        this.prekeyCount = Number.isInteger(msg.prekeyCount) ? msg.prekeyCount : null;
         const users = (Array.isArray(msg.online) ? msg.online : []).map(normalizeRosterEntry).filter(Boolean);
         etherLog("info", "[signaling] зарегистрирован, онлайн:", users.length);
         this.dispatchEvent(new CustomEvent("online-list", { detail: { users } }));
@@ -198,6 +199,14 @@ class SignalingClient extends EventTarget {
         }));
       } else if (msg.type === "deliver-ack" && typeof msg.msgId === "string") {
         this.dispatchEvent(new CustomEvent("deliver-ack", { detail: { msgId: msg.msgId, error: typeof msg.error === "string" ? msg.error : null } }));
+      } else if (msg.type === "prekey-bundle" && typeof msg.rid === "string") {
+        this.dispatchEvent(new CustomEvent("prekey-bundle", { detail: { rid: msg.rid, to: msg.to, spk: msg.spk || null, opk: msg.opk || null, error: typeof msg.error === "string" ? msg.error : null } }));
+      } else if (msg.type === "prekey-stored") {
+        if (Number.isInteger(msg.count)) this.prekeyCount = msg.count;
+        this.dispatchEvent(new CustomEvent("prekey-stored", { detail: { count: msg.count, error: msg.error || null } }));
+      } else if (msg.type === "prekey-low") {
+        this.prekeyCount = Number.isInteger(msg.count) ? msg.count : 0;
+        this.dispatchEvent(new CustomEvent("prekey-low", { detail: { count: this.prekeyCount } }));
       } else if (msg.type === "replaced") {
         etherLog("warn", "[signaling] вкладка отключена сервером — тот же id открыт в другом месте" + (msg.sameIp === true ? " (тот же адрес/сеть)" : msg.sameIp === false ? " (другой адрес)" : "") + (typeof msg.ageSec === "number" ? ", моё соединение жило " + msg.ageSec + " с" : ""));
         // Раньше здесь вручную ставилось shouldRun = false без вызова stop() —
@@ -304,7 +313,9 @@ class SignalingClient extends EventTarget {
   signal(to, data) { return this.send("signal", { to, data }); }
 
   deliver(to, msgId, envelope, fromPublicKey, kind) {
-    if (!envelope || typeof envelope.iv !== "string" || typeof envelope.ct !== "string") return false;
+    // v1: {iv, ct}; v2 (Double Ratchet): {v:2, h, ct} — у v2 нет iv, заголовок h несёт номера и ключи храповика
+    if (!envelope || typeof envelope.ct !== "string") return false;
+    if (typeof envelope.iv !== "string" && !(envelope.v === 2 && envelope.h && typeof envelope.h === "object")) return false;
     return this.send("deliver", {
       to,
       msgId,
@@ -315,6 +326,10 @@ class SignalingClient extends EventTarget {
   }
 
   mailboxAck(msgId) { return this.send("mailbox-ack", { msgId }); }
+
+  // Prekey-пакеты для начала Double Ratchet (см. ratchet.js): выложить свои публичные ключи / запросить пакет собеседника.
+  uploadPrekeys(payload) { return this.send("prekey-upload", { spk: payload.spk, opks: payload.opks }); }
+  fetchPrekeys(to, rid) { return this.send("prekey-fetch", { to, rid }); }
 
   sendPushSubscription(subscription) {
     if (!subscription) return false;

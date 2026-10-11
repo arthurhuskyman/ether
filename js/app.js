@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.63.0.0";
+const APP_VERSION = "V.64.0.0";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 // Сервер перевода по умолчанию (LibreTranslate-совместимый). Официальный публичный инстанс обычно
@@ -6735,7 +6735,7 @@ async function encryptForContact(contact, msgId, payload, forceV1) {
   const serverOk = !!(signaling && Array.isArray(signaling.features) && signaling.features.includes("ratchet2"));
   if (contact.rc && serverOk && !forceV1) {
     try {
-      envelope = await Ratchet.encrypt({ contactId: contact.id, myId: Store.myId, myPrivJwk: Store.myPrivateKeyJwk, theirPubJwk: contact.publicKey }, payload);
+      envelope = await Ratchet.encrypt({ contactId: contact.id, myId: Store.myId, myPrivJwk: Store.myPrivateKeyJwk, theirPubJwk: contact.publicKey, getBundle: () => fetchPrekeyBundle(contact.id) }, payload);
     } catch (e) { etherLog("warn", "[ratchet] шифрование не удалось, отправляю прежним способом:", String(e)); }
   }
   if (!envelope) {
@@ -6746,6 +6746,35 @@ async function encryptForContact(contact, msgId, payload, forceV1) {
   envelopeCache.set(msgId, envelope);
   trimMap(envelopeCache, 200);
   return envelope;
+}
+// ---- Prekey-пакеты: свои выкладываем на сервер, чужие забираем перед стартом новой сессии ----
+let prekeyUploadBusy = false;
+async function maybeUploadPrekeys(force) {
+  if (!signaling || !signaling.connected || !signaling.registered || prekeyUploadBusy) return;
+  if (!Array.isArray(signaling.features) || !signaling.features.includes("prekeys")) return;
+  if (!force && !Ratchet.needsPrekeys(signaling.prekeyCount)) return;
+  prekeyUploadBusy = true;
+  try {
+    const payload = await Ratchet.prekeyUploadPayload(30);
+    signaling.uploadPrekeys(payload);
+    etherLog("info", "[prekey] выложено одноразовых ключей: " + payload.opks.length);
+  } catch (e) { etherLog("warn", "[prekey] не удалось подготовить ключи:", String(e)); }
+  finally { prekeyUploadBusy = false; }
+}
+function fetchPrekeyBundle(id, timeoutMs) {
+  return new Promise((resolve) => {
+    if (!signaling || !signaling.connected || !Array.isArray(signaling.features) || !signaling.features.includes("prekeys")) { resolve(null); return; }
+    const rid = crypto.randomUUID().replace(/-/g, "").slice(0, 20);
+    let done = false, timer = null;
+    const handler = (ev) => {
+      if (ev.detail.rid !== rid) return;
+      finish(ev.detail.error || !ev.detail.spk ? null : { spk: ev.detail.spk, opk: ev.detail.opk });
+    };
+    const finish = (v) => { if (done) return; done = true; clearTimeout(timer); signaling.removeEventListener("prekey-bundle", handler); resolve(v); };
+    timer = setTimeout(() => finish(null), timeoutMs || 2500);
+    signaling.addEventListener("prekey-bundle", handler);
+    if (!signaling.fetchPrekeys(id, rid)) finish(null);
+  });
 }
 function markContactRatchet(c) {
   if (!c || c.rc) return;
@@ -7368,6 +7397,8 @@ function wireSignalingEvents(sig) {
     if (key) { Store.vapidPublicKey = key; ensurePushSubscription().catch(() => {}); }
   }));
   subs.push(on("push-subscribed", () => { etherLog("info", "[push] server confirmed subscription"); }));
+  subs.push(on("online-list", () => { maybeUploadPrekeys(false); }));
+  subs.push(on("prekey-low", () => { maybeUploadPrekeys(true); }));
   subs.push(on("online-list", (ev) => {
     for (const u of ev.detail.users) {
       onlineSet.add(u.id);

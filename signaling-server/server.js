@@ -996,7 +996,20 @@ function isValidEnvelope(env) {
   return typeof env.iv === "string" && env.iv.length < 200;
 }
 // Возможности сервера, о которых он сообщает клиентам при регистрации: клиент включает новый формат только если сервер его понимает.
-const SERVER_FEATURES = ["ratchet2"];
+const SERVER_FEATURES = ["ratchet2", "prekeys"];
+
+// ---------- Prekey-пакеты для начала Double Ratchet (3DH/4DH) ----------
+// Клиент заранее выкладывает подписанный-по-смыслу prekey (spk, меняется раз в неделю) и пачку одноразовых (opks).
+// Сервер хранит только ПУБЛИЧНЫЕ части в памяти и отдаёт желающим начать переписку: spk + один opk (который тут же удаляется).
+// Подмена пакета сервером ничего не даёт: общий секрет включает DH с долговременным ключом получателя, которого у сервера нет.
+const prekeys = new Map(); // id -> { spk: {id, pub:[x,y]}|null, opks: Map(opkId -> [x,y]), ts }
+const prekeyUploadHits = new Map();
+const prekeyFetchHits = new Map();
+const PREKEY_MAX_OPKS = 100, PREKEY_MAX_UPLOAD = 50, PREKEY_LOW = 10, PREKEY_TTL_MS = 30 * 24 * 3600 * 1000;
+function validPrekeyPub(p) { return Array.isArray(p) && p.length === 2 && p.every((s) => typeof s === "string" && s.length >= 20 && s.length <= 100 && /^[A-Za-z0-9_-]+$/.test(s)); }
+function validPrekeyId(s) { return typeof s === "string" && s.length >= 1 && s.length <= 32 && /^[A-Za-z0-9_-]+$/.test(s); }
+function prekeyCount(id) { const e = prekeys.get(id); return e ? e.opks.size : 0; }
+setInterval(() => { const now = Date.now(); for (const [id, e] of prekeys) if (now - e.ts > PREKEY_TTL_MS) prekeys.delete(id); }, 3600 * 1000).unref();
 function shortId(s) { return String(s || "").slice(0, 10) + "…"; }
 
 // ---------- Соединения ----------
@@ -1053,7 +1066,7 @@ wss.on("connection", (ws, req) => {
         .filter((i) => i !== myId)
         .map((i) => rosterEntry(i))
         .filter(Boolean);
-      safeSend(ws, { type: "registered", id: myId, online, features: SERVER_FEATURES });
+      safeSend(ws, { type: "registered", id: myId, online, features: SERVER_FEATURES, prekeyCount: prekeyCount(myId) });
       if (PUSH_ENABLED) safeSend(ws, { type: "vapid-key", key: VAPID_PUBLIC });
       clearThrottleForRecipient(myId);
       flushMailbox(myId, ws);
@@ -1178,6 +1191,34 @@ wss.on("connection", (ws, req) => {
             kind: "message",
           }).catch(() => {});
         }, PUSH_AFTER_MS);
+      }
+      return;
+    }
+
+    if (msg.type === "prekey-upload" && myId) {
+      if (!wsRateLimitOk(prekeyUploadHits, myId, 20)) return;
+      const spk = msg.spk, opks = Array.isArray(msg.opks) ? msg.opks : [];
+      if (spk != null && !(spk && validPrekeyId(spk.id) && validPrekeyPub(spk.pub))) { safeSend(ws, { type: "prekey-stored", error: "invalid" }); return; }
+      if (opks.length > PREKEY_MAX_UPLOAD || !opks.every((o) => o && validPrekeyId(o.id) && validPrekeyPub(o.pub))) { safeSend(ws, { type: "prekey-stored", error: "invalid" }); return; }
+      let e = prekeys.get(myId);
+      if (!e) { e = { spk: null, opks: new Map(), ts: Date.now() }; prekeys.set(myId, e); }
+      if (spk) e.spk = { id: spk.id, pub: spk.pub };
+      for (const o of opks) e.opks.set(o.id, o.pub);
+      while (e.opks.size > PREKEY_MAX_OPKS) e.opks.delete(e.opks.keys().next().value);
+      e.ts = Date.now();
+      safeSend(ws, { type: "prekey-stored", count: e.opks.size });
+      return;
+    }
+    if (msg.type === "prekey-fetch" && myId && typeof msg.to === "string" && msg.to.length <= 128 && typeof msg.rid === "string" && msg.rid.length <= 40) {
+      if (!wsRateLimitOk(prekeyFetchHits, myId, 60) || !wsRateLimitPairOk(myId, msg.to, 12)) { safeSend(ws, { type: "prekey-bundle", rid: msg.rid, to: msg.to, error: "rate" }); return; }
+      const e = prekeys.get(msg.to);
+      let opk = null;
+      if (e && e.opks.size) { const k = e.opks.keys().next().value; opk = { id: k, pub: e.opks.get(k) }; e.opks.delete(k); }
+      safeSend(ws, { type: "prekey-bundle", rid: msg.rid, to: msg.to, spk: e && e.spk ? e.spk : null, opk });
+      // Владельцу — сигнал пополнить запас, если он онлайн
+      if (e && opk && e.opks.size < PREKEY_LOW) {
+        const owner = clients.get(msg.to);
+        if (owner) safeSend(owner.ws, { type: "prekey-low", count: e.opks.size });
       }
       return;
     }

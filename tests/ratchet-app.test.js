@@ -162,3 +162,62 @@ test("сервер отклонил конверт: сообщение не сч
   const e = await ev(A, `return await encryptForContact(state.contacts.get("bob-id"), "e1", outbox.get("e1").payload, outbox.get("e1").forceV1);`);
   assert.equal(e.v, 1);
 });
+
+test("prekey: приложение берёт пакет получателя и стартует сессию по 4DH; приёмник расходует одноразовый ключ", async () => {
+  const { A, B, pubA, pubB } = await setup();
+  const up = await ev(B, `return await Ratchet.prekeyUploadPayload(5);`);
+  A.run(`state.contacts.get("bob-id").rc = true; window.__fetched = 0; fetchPrekeyBundle = async (id) => { window.__fetched++; return { spk: ${JSON.stringify(up.spk)}, opk: ${JSON.stringify(up.opks[0])} }; };`);
+  const e1 = await sendOffline(A, B, "alice-id", "bob-id", pubA, "px1", chat("pc1", "по пакету"));
+  assert.equal(e1.v, 2); assert.ok(e1.h.p && e1.h.p.o === up.opks[0].id, "в заголовке данные пакета");
+  assert.equal(A.run(`window.__fetched`), 1);
+  assert.ok(has(B, "alice-id", "pc1"), "получатель расшифровал");
+  assert.equal(B.run(`!!state.contacts.get("alice-id").rc`), true);
+  await sendOffline(A, B, "alice-id", "bob-id", pubA, "px2", chat("pc2", "второе"));
+  assert.equal(A.run(`window.__fetched`), 1, "пакет нужен только для старта сессии");
+  assert.ok(has(B, "alice-id", "pc2"));
+  assert.equal(B.run(`Object.keys(JSON.parse(localStorage.getItem("ether.ratchet")).pk.opks).includes(${JSON.stringify(up.opks[0].id)})`), false, "одноразовый ключ удалён");
+});
+
+test("prekey: запрос пакета через сигнальный клиент (ответ сервера, таймаут, отказ)", async () => {
+  const { A } = await setup();
+  A.run(`window.__ws = []; signaling.ws = { readyState: WebSocket.OPEN, send(x) { window.__ws.push(JSON.parse(x)); } }; signaling.connected = true; signaling.features = ["ratchet2", "prekeys"];`);
+  // ответ сервера
+  A.run(`window.__b = undefined; fetchPrekeyBundle("bob-id", 1500).then((v) => { window.__b = JSON.stringify(v); });`);
+  const req = JSON.parse(A.run(`JSON.stringify(window.__ws.find((m) => m.type === "prekey-fetch"))`));
+  assert.equal(req.to, "bob-id");
+  A.run(`signaling.dispatchEvent(new CustomEvent("prekey-bundle", { detail: { rid: ${JSON.stringify(req.rid)}, spk: { id: "s1", pub: ["a","b"] }, opk: { id: "o1", pub: ["c","d"] }, error: null } }))`);
+  await new Promise((r) => setTimeout(r, 50));
+  assert.deepEqual(JSON.parse(A.run(`window.__b`)), { spk: { id: "s1", pub: ["a", "b"] }, opk: { id: "o1", pub: ["c", "d"] } });
+  // чужой rid игнорируется, по таймауту — null
+  A.run(`window.__b2 = "pending"; fetchPrekeyBundle("bob-id", 200).then((v) => { window.__b2 = JSON.stringify(v); }); signaling.dispatchEvent(new CustomEvent("prekey-bundle", { detail: { rid: "чужой", spk: { id: "x", pub: [] } } }));`);
+  await new Promise((r) => setTimeout(r, 400));
+  assert.equal(A.run(`window.__b2`), "null");
+  // сервер без поддержки — сразу null, запрос не отправляется
+  A.run(`signaling.features = ["ratchet2"]; window.__ws.length = 0; window.__b3 = "pending"; fetchPrekeyBundle("bob-id", 200).then((v) => { window.__b3 = JSON.stringify(v); });`);
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(A.run(`window.__b3`), "null"); assert.equal(A.run(`window.__ws.length`), 0);
+});
+
+test("signaling.deliver пропускает конверт Double Ratchet (v2) и отбрасывает мусор", async () => {
+  const { A } = await setup();
+  A.run(`window.__ws = []; signaling.ws = { readyState: WebSocket.OPEN, send(x) { window.__ws.push(JSON.parse(x)); } };`);
+  assert.equal(A.run(`signaling.deliver("bob-id", "m1", { v: 2, h: { d: ["a", "b"], pn: 0, n: 0 }, ct: "QUJD" }, {}, "chat")`), true);
+  assert.equal(A.run(`signaling.deliver("bob-id", "m2", { iv: "AA", ct: "BB", v: 1 }, {}, "chat")`), true);
+  assert.equal(A.run(`signaling.deliver("bob-id", "m3", { v: 2, ct: "QUJD" }, {}, "chat")`), false, "v2 без заголовка");
+  assert.equal(A.run(`signaling.deliver("bob-id", "m4", { x: 1 }, {}, "chat")`), false);
+  assert.equal(A.run(`window.__ws.filter((m) => m.type === "deliver").length`), 2);
+});
+
+test("prekey: при регистрации приложение выкладывает ключи, а при prekey-low пополняет запас", async () => {
+  const { A } = await setup();
+  A.run(`window.__ws = []; signaling.ws = { readyState: WebSocket.OPEN, send(x) { window.__ws.push(JSON.parse(x)); } }; signaling.connected = true; signaling.registered = true; signaling.features = ["ratchet2", "prekeys"]; signaling.prekeyCount = 0;`);
+  await ev(A, `await maybeUploadPrekeys(false);`);
+  let up = JSON.parse(A.run(`JSON.stringify(window.__ws.filter((m) => m.type === "prekey-upload"))`));
+  assert.equal(up.length, 1); assert.equal(up[0].opks.length, 30); assert.ok(up[0].spk.id);
+  A.run(`signaling.prekeyCount = 40`);
+  await ev(A, `await maybeUploadPrekeys(false);`);
+  assert.equal(JSON.parse(A.run(`JSON.stringify(window.__ws.filter((m) => m.type === "prekey-upload").length)`)), 1, "запаса достаточно — повторно не выкладываем");
+  A.run(`signaling.dispatchEvent(new CustomEvent("prekey-low", { detail: { count: 3 } }))`);
+  await new Promise((r) => setTimeout(r, 400));
+  assert.equal(JSON.parse(A.run(`JSON.stringify(window.__ws.filter((m) => m.type === "prekey-upload").length)`)), 2, "prekey-low вызывает пополнение");
+});

@@ -5,8 +5,10 @@
 // не открывает уже прочитанные сообщения (forward secrecy после первого ответа собеседника) и перестаёт
 // открывать будущие, как только собеседник ответит новым временным ключом (post-compromise security).
 //
-// Чего это НЕ даёт (честно): нет одноразовых prekey на сервере (как в X3DH у Signal), поэтому самые первые
-// сообщения до первого ответа защищены тем же долговременным ключом, что и раньше. Это улучшение, а не полный Signal.
+// Старт сессии: если сервер отдал prekey-пакет получателя (spk + одноразовый opk), используется 3DH/4DH (как X3DH у Signal):
+// первые сообщения тоже защищены от компрометации долговременного ключа. Если пакета нет (сервер/собеседник старые, opk кончились,
+// сервер недоступен), сессия стартует от долговременных ключей — как раньше. Подписей prekey нет: подмена пакета сервером не даёт
+// ему секрета, потому что в общий секрет входит DH с долговременным ключом получателя, а его закрытой части у сервера нет.
 // Сообщения по прямому P2P-каналу сюда не попадают — их защищает DTLS WebRTC.
 //
 // Схема (как в спецификации Double Ratchet, примитивы WebCrypto):
@@ -38,7 +40,13 @@ const Ratchet = (() => {
   };
   function setStore(s) { store = s; db = null; }
   let db = null;
-  function getDb() { if (!db) db = store.load() || {}; return db; }
+  function getDb() {
+    if (!db) {
+      const raw = store.load() || {};
+      db = { s: raw.s && typeof raw.s === "object" ? raw.s : {}, pk: raw.pk && typeof raw.pk === "object" ? raw.pk : {} };
+    }
+    return db;
+  }
   function persist() { store.save(getDb()); }
 
   // ---------- примитивы ----------
@@ -85,6 +93,34 @@ const Ratchet = (() => {
     const [rk, cks] = await kdfRK(sk, await dh(dhs, theirXY));
     return { id: b64(crypto.getRandomValues(new Uint8Array(6))), rk: b64(rk), dhs, dhr: theirXY, cks: b64(cks), ckr: null, ns: 0, nr: 0, pn: 0, sk: {}, skOrder: [], hist: [], init: true, t: Date.now() };
   }
+  // Старт по prekey-пакету получателя (3DH/4DH).
+  async function x3dhSecret(parts, myId, theirId) {
+    return hkdf(concat(...parts), te.encode("ether-dr-x3dh-v1"), "ether-dr-x3dh|" + [myId, theirId].sort().join("|"), 32);
+  }
+  async function newInitiatorX(ctx, bundle) {
+    const theirXY = [ctx.theirPubJwk.x, ctx.theirPubJwk.y], spkPub = bundle.spk.pub, opkPub = bundle.opk ? bundle.opk.pub : null;
+    const ek = await genPair();
+    const parts = [await dh(ctx.myPrivJwk, spkPub), await dh(ek, theirXY), await dh(ek, spkPub)];
+    if (opkPub) parts.push(await dh(ek, opkPub));
+    const sk = await x3dhSecret(parts, ctx.myId, ctx.contactId);
+    const dhs = await genPair();
+    const [rk, cks] = await kdfRK(sk, await dh(dhs, spkPub));
+    return { id: b64(crypto.getRandomValues(new Uint8Array(6))), rk: b64(rk), dhs, dhr: [spkPub[0], spkPub[1]], cks: b64(cks), ckr: null, ns: 0, nr: 0, pn: 0, sk: {}, skOrder: [], hist: [], init: true,
+      px: { e: [ek.x, ek.y], s: bundle.spk.id, o: bundle.opk ? bundle.opk.id : null }, t: Date.now() };
+  }
+  async function newResponderX(ctx, p) {
+    const store = pk();
+    const spk = store.spk && store.spk.id === p.s ? store.spk : store.old.find((o) => o.id === p.s);
+    if (!spk) throw new Error("ratchet: unknown prekey");
+    const opk = p.o ? store.opks[p.o] : null;
+    if (p.o && !opk) throw new Error("ratchet: unknown one-time prekey");
+    const ikA = [ctx.theirPubJwk.x, ctx.theirPubJwk.y];
+    const parts = [await dh(spk, ikA), await dh(ctx.myPrivJwk, p.e), await dh(spk, p.e)];
+    if (opk) parts.push(await dh(opk, p.e));
+    const sk = await x3dhSecret(parts, ctx.myId, ctx.contactId);
+    return { s: { id: b64(crypto.getRandomValues(new Uint8Array(6))), rk: b64(sk), dhs: { x: spk.x, y: spk.y, d: spk.d }, dhr: null, cks: null, ckr: null, ns: 0, nr: 0, pn: 0, sk: {}, skOrder: [], hist: [], init: false, t: Date.now() }, opkId: p.o || null };
+  }
+
   async function newResponder(myIdPriv, theirPubJwk, myId, theirId) {
     const sk = await initialSecret(myIdPriv, [theirPubJwk.x, theirPubJwk.y], myId, theirId);
     return { id: b64(crypto.getRandomValues(new Uint8Array(6))), rk: b64(sk), dhs: { x: myIdPriv.x, y: myIdPriv.y, d: myIdPriv.d }, dhr: null, cks: null, ckr: null, ns: 0, nr: 0, pn: 0, sk: {}, skOrder: [], hist: [], init: false, t: Date.now() };
@@ -98,7 +134,7 @@ const Ratchet = (() => {
     const { key, iv } = await aeadKey(mk);
     const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: aad(from, to, h) }, key, te.encode(JSON.stringify(plain))));
     const env = { v: 2, h, ct: b64(ct), rc: 1 };
-    if (s.init) env.h.i = 1;
+    if (s.init) { env.h.i = 1; if (s.px) env.h.p = s.px; }
     return env;
   }
 
@@ -160,13 +196,19 @@ const Ratchet = (() => {
     return run;
   }
 
-  function sessionsOf(contactId) { const d = getDb(); return d[contactId] || (d[contactId] = []); }
+  function sessionsOf(contactId) { const d = getDb().s; return d[contactId] || (d[contactId] = []); }
 
   // Зашифровать объект для контакта. Состояние сохраняется ДО возврата: ключ нельзя использовать дважды даже при падении.
   function encrypt(ctx, plain) {
     return serial(ctx.contactId, async () => {
       const list = sessionsOf(ctx.contactId);
-      if (!list.length) { list.unshift(await newInitiator(ctx.myPrivJwk, ctx.theirPubJwk, ctx.myId, ctx.contactId)); }
+      if (!list.length) {
+        let bundle = null;
+        if (ctx.getBundle) { try { bundle = await ctx.getBundle(); } catch (e) { bundle = null; } }
+        const okPub = (x) => Array.isArray(x) && x.length === 2 && x.every((v) => typeof v === "string" && v.length > 0 && v.length <= 100);
+        const usable = bundle && bundle.spk && typeof bundle.spk.id === "string" && okPub(bundle.spk.pub) && (!bundle.opk || (typeof bundle.opk.id === "string" && okPub(bundle.opk.pub)));
+        list.unshift(usable ? await newInitiatorX(ctx, bundle) : await newInitiator(ctx.myPrivJwk, ctx.theirPubJwk, ctx.myId, ctx.contactId));
+      }
       const s = list[0];
       const env = await encryptWith(s, ctx.myId, ctx.contactId, plain);
       s.t = Date.now();
@@ -196,8 +238,17 @@ const Ratchet = (() => {
       }
       const known = list.some((s) => (s.hist || []).includes(dhKey(env.h.d)));
       if (env.h.i === 1 && !known) {
-        const s = await newResponder(ctx.myPrivJwk, ctx.theirPubJwk, ctx.myId, from);
+        let s, opkId = null;
+        const p = env.h.p;
+        if (p) {
+          const okPub = (x) => Array.isArray(x) && x.length === 2 && x.every((v) => typeof v === "string" && v.length > 0 && v.length <= 100);
+          if (!okPub(p.e) || typeof p.s !== "string" || (p.o != null && typeof p.o !== "string")) throw new Error("ratchet: bad prekey header");
+          const r = await newResponderX(ctx, p); s = r.s; opkId = r.opkId;
+        } else {
+          s = await newResponder(ctx.myPrivJwk, ctx.theirPubJwk, ctx.myId, from);
+        }
         const plain = await decryptWith(s, from, to, env);
+        if (opkId) delete pk().opks[opkId]; // одноразовый ключ использован и уничтожен
         list.unshift(s);
         while (list.length > MAX_SESSIONS) list.pop();
         persist();
@@ -207,10 +258,37 @@ const Ratchet = (() => {
     });
   }
 
-  function reset(contactId) { const d = getDb(); if (d[contactId]) { delete d[contactId]; persist(); } }
-  function resetAll() { db = {}; persist(); }
-  function info(contactId) { const l = (getDb()[contactId] || []); return l.length ? l.length + " сесс., основная: ns=" + l[0].ns + " nr=" + l[0].nr + (l[0].init ? " (ждёт ответа)" : "") : "нет"; }
+  // ---------- prekeys получателя ----------
+  const SPK_ROTATE_MS = 7 * 24 * 3600 * 1000, SPK_KEEP_OLD = 3, OPK_STORE_MAX = 200, OPK_WANT = 20;
+  function pk() { const d = getDb(); if (!d.pk.opks) d.pk.opks = {}; if (!d.pk.old) d.pk.old = []; return d.pk; }
+  function rid() { return b64(crypto.getRandomValues(new Uint8Array(9))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
+  // Нужно ли пополнить запас на сервере: нет spk, пора менять spk, или одноразовых там меньше OPK_WANT.
+  function needsPrekeys(serverCount) { const p = pk(); return !p.spk || Date.now() - p.spk.t > SPK_ROTATE_MS || !(serverCount >= OPK_WANT); }
+  // Готовит публичную часть для загрузки на сервер: текущий spk (меняется раз в неделю, старые ещё живут) и count новых одноразовых.
+  async function prekeyUploadPayload(count) {
+    const p = pk(), now = Date.now();
+    if (!p.spk || now - p.spk.t > SPK_ROTATE_MS) {
+      if (p.spk) p.old.unshift(p.spk);
+      p.old = p.old.slice(0, SPK_KEEP_OLD);
+      const pair = await genPair();
+      p.spk = { id: rid(), x: pair.x, y: pair.y, d: pair.d, t: now };
+    }
+    const fresh = [];
+    for (let i = 0; i < count; i++) {
+      const pair = await genPair(), id = rid();
+      p.opks[id] = { x: pair.x, y: pair.y, d: pair.d, t: now };
+      fresh.push({ id, pub: [pair.x, pair.y] });
+    }
+    const ids = Object.keys(p.opks);
+    if (ids.length > OPK_STORE_MAX) for (const id of ids.slice(0, ids.length - OPK_STORE_MAX)) delete p.opks[id];
+    persist();
+    return { spk: { id: p.spk.id, pub: [p.spk.x, p.spk.y] }, opks: fresh };
+  }
 
-  return { encrypt, decrypt, reset, resetAll, setStore, info };
+  function reset(contactId) { const d = getDb().s; if (d[contactId]) { delete d[contactId]; persist(); } }
+  function resetAll() { db = { s: {}, pk: {} }; persist(); }
+  function info(contactId) { const l = (getDb().s[contactId] || []); return l.length ? l.length + " сесс., основная: ns=" + l[0].ns + " nr=" + l[0].nr + (l[0].init ? " (ждёт ответа)" : "") : "нет"; }
+
+  return { encrypt, decrypt, reset, resetAll, setStore, info, needsPrekeys, prekeyUploadPayload };
 })();
 if (typeof module !== "undefined") module.exports = Ratchet;

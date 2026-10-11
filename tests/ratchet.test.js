@@ -157,3 +157,100 @@ test("reset(contact) забывает сессии контакта", async () =
   b.R.reset(a.id);
   assert.equal(b.R.info(a.id), "нет");
 });
+
+// ---------- prekey-пакеты (3DH/4DH) ----------
+async function bundleOf(dev, n = 3) {
+  const up = await dev.R.prekeyUploadPayload(n);
+  return { spk: up.spk, opks: up.opks, bundle: (i = 0) => ({ spk: up.spk, opk: up.opks[i] || null }) };
+}
+const sendX = (from, to, plain, bundle) => from.R.encrypt({ ...ctx(from, to), getBundle: async () => bundle }, plain);
+function reload(dev, mutate) { const o = JSON.parse(dev.mem.json); mutate(o); dev.mem.json = JSON.stringify(o); dev.R.setStore({ load: () => JSON.parse(dev.mem.json), save: (x) => { dev.mem.json = JSON.stringify(x); } }); }
+
+test("prekey: старт по пакету с одноразовым ключом, переписка идёт в обе стороны, одноразовый ключ уничтожен", async () => {
+  const { a, b } = await pair();
+  const pb = await bundleOf(b);
+  const e1 = await sendX(a, b, { t: 1 }, pb.bundle(0));
+  assert.ok(e1.h.p && e1.h.p.s === pb.spk.id && e1.h.p.o === pb.opks[0].id && e1.h.i === 1);
+  assert.deepEqual(await recv(b, a, e1), { t: 1 });
+  const r = await send(b, a, { r: 1 });
+  assert.deepEqual(await recv(a, b, r), { r: 1 });
+  const e2 = await send(a, b, { t: 2 }); assert.equal(e2.h.p, undefined, "после ответа заголовок пакета больше не нужен");
+  assert.deepEqual(await recv(b, a, e2), { t: 2 });
+  // повтор начального конверта после сброса сессий не проходит: одноразовый ключ уничтожен
+  b.R.reset(a.id);
+  await assert.rejects(recv(b, a, e1), /one-time prekey/);
+});
+
+test("prekey: пакет без одноразового ключа тоже работает (3DH)", async () => {
+  const { a, b } = await pair();
+  const pb = await bundleOf(b, 0);
+  const e = await sendX(a, b, { t: "без opk" }, { spk: pb.spk, opk: null });
+  assert.equal(e.h.p.o, null);
+  assert.deepEqual(await recv(b, a, e), { t: "без opk" });
+});
+
+test("prekey: утечка ТОЛЬКО долговременных ключей не открывает первое сообщение (в отличие от старта без пакета)", async () => {
+  const { a, b } = await pair();
+  const pb = await bundleOf(b);
+  const withX = await sendX(a, b, { secret: "X" }, pb.bundle(0));
+  const legacy = await send(a, b, { secret: "L" }); // та же пара, но без пакета — для сравнения уйдёт новой сессией, поэтому берём другую пару
+  void legacy;
+  const { a: a2, b: b2 } = await pair();
+  const legacyEnv = await send(a2, b2, { secret: "L" });
+  // злоумышленник знает долговременный секретный ключ Боба (но не его хранилище prekey)
+  const eveLegacy = device("bob-id", { privateKeyJwk: b2.priv, publicKeyJwk: b2.pub });
+  assert.deepEqual(await recv(eveLegacy, a2, legacyEnv), { secret: "L" }, "без пакета достаточно долговременного ключа");
+  const eve = device("bob-id", { privateKeyJwk: b.priv, publicKeyJwk: b.pub });
+  await assert.rejects(recv(eve, a, withX), "с пакетом долговременного ключа недостаточно");
+});
+
+test("prekey: испорченный пакет — откат на старт без пакета, сообщение всё равно доходит", async () => {
+  const { a, b } = await pair();
+  const e = await sendX(a, b, { t: 1 }, { spk: { id: 5, pub: "oops" }, opk: null });
+  assert.equal(e.h.p, undefined);
+  assert.deepEqual(await recv(b, a, e), { t: 1 });
+  const { a: a2, b: b2 } = await pair();
+  const e2 = await a2.R.encrypt({ ...ctx(a2, b2), getBundle: async () => { throw new Error("сеть"); } }, { t: 2 });
+  assert.deepEqual(await recv(b2, a2, e2), { t: 2 });
+});
+
+test("prekey: неизвестный spk отклоняется; старый spk после ротации ещё принимается", async () => {
+  const { a, b } = await pair();
+  const pb = await bundleOf(b);
+  // Алиса взяла пакет со старым spk, Боб до прихода сообщения успел сменить spk (прошла неделя)
+  reload(b, (o) => { o.pk.spk.t = 0; });
+  const fresh = await b.R.prekeyUploadPayload(2);
+  assert.notEqual(fresh.spk.id, pb.spk.id, "spk сменился");
+  const e = await sendX(a, b, { t: "по старому spk" }, pb.bundle(0));
+  assert.deepEqual(await recv(b, a, e), { t: "по старому spk" });
+  const { a: a2, b: b2 } = await pair();
+  const bogus = { spk: { id: "нет-такого", pub: pb.spk.pub }, opk: null };
+  const e2 = await sendX(a2, b2, { t: 2 }, bogus);
+  await assert.rejects(recv(b2, a2, e2), /unknown prekey/);
+});
+
+test("prekey: одновременный старт с обеих сторон по пакетам сходится", async () => {
+  const { a, b } = await pair();
+  const pa = await bundleOf(a), pb = await bundleOf(b);
+  const ea = await sendX(a, b, { from: "a" }, pb.bundle(0));
+  const eb = await sendX(b, a, { from: "b" }, pa.bundle(0));
+  assert.deepEqual(await recv(b, a, ea), { from: "a" });
+  assert.deepEqual(await recv(a, b, eb), { from: "b" });
+  for (let i = 0; i < 3; i++) {
+    const m = await send(a, b, { i }); assert.deepEqual(await recv(b, a, m), { i });
+    const r = await send(b, a, { j: i }); assert.deepEqual(await recv(a, b, r), { j: i });
+  }
+});
+
+test("prekey: запас на сервере пополняется по условию; хранилище переживает перезапуск", async () => {
+  const { b } = await pair();
+  assert.equal(b.R.needsPrekeys(50), true, "ещё нет spk");
+  const up = await b.R.prekeyUploadPayload(20);
+  assert.equal(up.opks.length, 20);
+  assert.equal(b.R.needsPrekeys(25), false);
+  assert.equal(b.R.needsPrekeys(5), true, "на сервере мало");
+  assert.equal(b.R.needsPrekeys(undefined), true);
+  assert.ok(up.opks.every((o) => /^[A-Za-z0-9_-]{1,32}$/.test(o.id) && o.pub.every((s) => /^[A-Za-z0-9_-]{20,100}$/.test(s))), "формат совместим с проверкой сервера");
+  reload(b, () => {});
+  assert.equal(b.R.needsPrekeys(25), false, "после перезагрузки spk на месте");
+});
