@@ -179,22 +179,65 @@ test("длинная пачка непрочитанных: у разделит�
   a.close();
 });
 
-test("«Доска» — один пункт с выбором шаблона; отдельного «Списка» в меню нет", async () => {
+test("«Задача»: одно название, три колонки (канбан), без выбора шаблона и без «Списка»", async () => {
   const a = await booted("ru");
   const d = a.document;
   assert.equal(d.querySelector("#chat-list-btn"), null, "дубль убран");
+  assert.equal(d.querySelector("#chat-board-btn span").textContent, "Задача");
+  assert.equal(d.querySelector("#chat-note-btn span").textContent, "Заметка");
   a.run(`const c = ensureContactEntry("alice", "Alice"); c.managed = true; state.chatId = "alice"; renderChatThread();`);
   d.querySelector("#chat-board-btn").click();
-  const opts = Array.from(d.querySelectorAll("#text-sheet-choices .text-sheet-choice"));
-  assert.equal(opts.length, 2); assert.ok(opts[0].classList.contains("on"), "по умолчанию канбан");
-  opts[1].click();
-  d.querySelector("#text-sheet-input").value = "Покупки";
+  assert.equal(d.querySelector("#text-sheet-input").value, "Задача", "название по умолчанию");
   d.querySelector("#text-sheet-ok").click();
   await sleep(100);
   const cols = a.run(`JSON.stringify(state.contacts.get("alice").messages.filter((m) => m.board).map((m) => m.board.cols.length))`);
-  assert.equal(cols, "[2]", "шаблон «Список» = две колонки");
-  a.run(`openTextSheet({ title: "x", value: "y", onOk() {} })`);
-  assert.ok(d.querySelector("#text-sheet-choices").classList.contains("hidden"), "у остальных диалогов выбора нет");
+  assert.equal(cols, "[3]", "всегда три колонки");
+  assert.equal(a.run(`T("chat.board.addCard")`), "Добавить", "короткая кнопка, помещается в узкую колонку");
+  a.close();
+});
+
+test("поля поиска: единый вид «Поиск в …» на всех вкладках", async () => {
+  const a = await booted("ru");
+  const d = a.document;
+  const ph = (id) => d.querySelector(id).getAttribute("placeholder");
+  const T = (k) => a.run(`T(${JSON.stringify(k)})`).replace(/\u00A0/g, " ");
+  assert.equal(T("chats.search"), "Поиск в чатах");
+  assert.equal(T("connect.search"), "Поиск в контактах");
+  assert.equal(T("settings.search"), "Поиск в настройках");
+  assert.equal(T("debug.search"), "Поиск в отладке");
+  assert.equal(T("chat.search"), "Поиск в чате");
+  assert.ok(ph("#debug-search") && ph("#settings-search"));
+  a.close();
+});
+
+test("история: после публикации в строке — миниатюра моей истории с плюсом «добавить ещё»", async () => {
+  const a = await booted("ru");
+  const d = a.document;
+  a.run(`const c = ensureContactEntry("alice", "Alice"); c.managed = true; state.tab = "chats"; state.chatId = null; renderTab(); renderChatsList();`);
+  assert.equal(await a.run(`publishStory("Привет всем", 2)`), true);
+  a.run(`renderChatsList()`);
+  const mine = d.querySelector('.story-item.is-mine');
+  assert.ok(mine, "моя история в строке");
+  assert.ok(mine.querySelector(".story-thumb.story-bg-2"), "миниатюра последней истории");
+  assert.match(mine.querySelector(".story-thumb").textContent, /Привет/);
+  assert.ok(mine.querySelector("[data-story-add]"), "плюс для новой истории");
+  mine.querySelector("[data-story-add]").dispatchEvent(new a.window.MouseEvent("click", { bubbles: true }));
+  assert.ok(!d.querySelector("#story-sheet").classList.contains("hidden"), "плюс открывает создание");
+  a.close();
+});
+
+test("звук при запуске: пул разблокируется тихим WAV, а не настоящими рингтонами; зависшие звуки снимаются", async () => {
+  const a = await booted("ru");
+  const calls = [];
+  a.window.HTMLMediaElement.prototype.play = function () { calls.push({ src: String(this.src).slice(0, 22), muted: this.muted }); return Promise.resolve(); };
+  a.window.HTMLMediaElement.prototype.pause = function () { this.__paused = true; };
+  a.run(`for (const el of soundPool.values()) { delete el.dataset.unlocked; delete el.dataset.unlocking; } unlockSoundPool()`);
+  await sleep(50);
+  assert.ok(calls.length > 5, "элементов пула несколько");
+  assert.ok(calls.every((c) => c.src.startsWith("data:audio/wav") && c.muted), "только тихий WAV и muted: " + JSON.stringify(calls[0]));
+  // настоящие звуки на месте и размьючены после разблокировки
+  const ok = a.run(`Array.from(soundPool.values()).every((el) => el.muted === false && !String(el.src).startsWith("data:"))`);
+  assert.equal(ok, true);
   a.close();
 });
 

@@ -3,7 +3,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.70.2.1";
+const APP_VERSION = "V.70.3.0";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 // Сервер перевода по умолчанию (LibreTranslate-совместимый). Официальный публичный инстанс обычно
@@ -748,45 +748,58 @@ function getSoundEl(src, loop) {
 // смогут запускаться сами, из любого асинхронного события (входящий
 // звонок, сообщение), без нового жеста.
 
+// Тихий WAV (≈0,1 с тишины): разблокировка пула идёт именно им, а не настоящими звуками. Раньше на первом касании после запуска
+// «разблокировка» проигрывала ВСЕ рингтоны, звонки и сигналы сообщений «почти беззвучно» (volume = 0.01) — но на iOS громкость
+// элемента программно не меняется, и пользователь слышал их все разом, хотя ни звонка, ни сообщений не было.
+let __silentWavUri = "";
+function silentWavUri() {
+  if (__silentWavUri) return __silentWavUri;
+  const n = 800, buf = new Uint8Array(44 + n), dv = new DataView(buf.buffer);
+  const str = (o, t) => { for (let i = 0; i < t.length; i++) buf[o + i] = t.charCodeAt(i); };
+  str(0, "RIFF"); dv.setUint32(4, 36 + n, true); str(8, "WAVE"); str(12, "fmt "); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+  dv.setUint32(24, 8000, true); dv.setUint32(28, 8000, true); dv.setUint16(32, 1, true); dv.setUint16(34, 8, true); str(36, "data"); dv.setUint32(40, n, true);
+  buf.fill(128, 44);
+  let bin = ""; for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
+  return (__silentWavUri = "data:audio/wav;base64," + btoa(bin));
+}
 function unlockSoundPool() {
   for (const src of [...Object.values(RINGTONES), ...Object.values(SOUND_FILES), ...Object.values(MESSAGE_SOUND_FILES)]) {
     const el = getSoundEl(src, false);
-    if (el.dataset.unlocked) continue;
-    if (el.dataset.unlocking) continue; // уже разблокируем прямо сейчас
+    if (el.dataset.unlocked || el.dataset.unlocking) continue;
+    // Не трогаем элемент, который прямо сейчас играет по делу (идёт звонок): это не разблокировка, а помеха
+    if (!el.paused) continue;
     el.dataset.unlocking = "1";
-    // Раньше тут использовался el.muted=true на время разблокировки — но
-    // initAudioWarmup() вешает ОДИН И ТОТ ЖЕ обработчик сразу на touchstart
-    // и click. Один тап пользователя генерирует оба события подряд, функция
-    // вызывается дважды с интервалом в пару миллисекунд. Второй вызов читал
-    // уже выставленный первым вызовом el.muted=true как "исходное" значение
-    // и восстанавливал его же — элемент оставался muted НАВСЕГДА.
-    const originalVolume = el.volume;
-    // el.volume = 0 (как было раньше) на iOS НЕ считается за "реальное
-    // воспроизведение" — браузер не помечает элемент как разрешённый к
-    // автоплею, и следующий .play() из асинхронного события (входящий
-    // звонок) падает с NotAllowedError. 0.01 достаточно, чтобы iOS
-    // зачла это как звук, но на слух — почти неслышно.
-    el.volume = 0.01;
-    let p;
-    try { p = el.play(); }
-    catch (e) { el.volume = originalVolume; delete el.dataset.unlocking; continue; }
-    const finish = () => {
-      el.pause();
-      el.currentTime = 0;
-      el.volume = 1;
-      el.dataset.unlocked = "1";
+    const originalLoop = el.loop;
+    let finished = false;
+    const finish = (ok) => {
+      if (finished) return; finished = true;
+      try { el.pause(); } catch (e) {}
+      try { el.muted = false; el.volume = 1; el.src = src; el.loop = originalLoop; el.currentTime = 0; } catch (e) {}
+      if (ok) el.dataset.unlocked = "1";
       delete el.dataset.unlocking;
     };
-    if (p && typeof p.then === "function") {
-      p.then(finish).catch(() => {
-        el.volume = originalVolume || 1;
-        delete el.dataset.unlocking;
-      });
-    } else {
-      finish();
-    }
+    try {
+      el.muted = true;
+      el.src = silentWavUri();
+      const p = el.play();
+      if (p && typeof p.then === "function") p.then(() => finish(true)).catch(() => finish(false));
+      else finish(true);
+      setTimeout(() => finish(false), 1500); // страховка: если play() завис, возвращаем элемент в исходное состояние
+    } catch (e) { finish(false); }
   }
 }
+// Вернулись в приложение: всё, что «зависло» в очереди воспроизведения, пока оно было в фоне (iOS откладывает play() и
+// запускает позже), снимаем — если звонка сейчас нет. Иначе рингтон и сигналы вдруг играли бы при открытии приложения.
+function silenceStaleSounds() {
+  if (state && (state.callId || state.callPhase === "ringing")) return;
+  for (const el of soundPool.values()) {
+    if (el.dataset && el.dataset.unlocking) continue;
+    try { if (!el.paused || el.currentTime > 0) { el.pause(); el.currentTime = 0; } } catch (e) {}
+  }
+  try { stopRingtone(); } catch (e) {}
+}
+document.addEventListener("visibilitychange", () => { if (!document.hidden) silenceStaleSounds(); });
+window.addEventListener("pageshow", () => silenceStaleSounds());
 
 // =====================================================================
 // Утилиты
@@ -1336,6 +1349,7 @@ let __nextSoundAt = 0;
 // смысла нет.
 let __warmDone = false;
 let __pendingMessageSound = false;
+let __pendingMessageSoundAt = 0;
 let __warmInProgress = false;
 function initAudioWarmup() {
   const warm = () => {
@@ -1357,7 +1371,8 @@ function initAudioWarmup() {
         document.removeEventListener("keydown", warm);
           if (__pendingMessageSound) {
       __pendingMessageSound = false;
-      try { playMessageSound(); } catch (e) {}
+      // отложенный сигнал имеет смысл только «свежим»: через минуту он звучал бы сам по себе, без нового сообщения
+      if (Date.now() - __pendingMessageSoundAt < 15000) { try { playMessageSound(); } catch (e) {} }
     }
     }).catch(() => { __warmInProgress = false; });
     } else if (ctx.state === "running") {
@@ -1479,7 +1494,7 @@ function playMessageSound(contactId) {
         // это ОЖИДАЕМОЕ поведение при холодном старте, не ошибка.
         // Запоминаем флаг: initAudioWarmup проиграет отложенный звук
         // при первом touchstart/click/keydown.
-        __pendingMessageSound = true;
+        __pendingMessageSound = true; __pendingMessageSoundAt = Date.now();
         etherLog("info", "[sound] message: NotAllowedError — откладываю до первого жеста");
       } else {
         etherLog("warn", "[sound] message (audio):", String(e));
@@ -5266,14 +5281,18 @@ function renderStoriesRow() {
   if (!owners.length && !hasMine && !Array.from(state.contacts.values()).some((c) => c.managed && !c.isSelf && !c.isGroup)) { row.classList.add("hidden"); row.innerHTML = ""; return; }
   row.classList.remove("hidden");
   const bubble = (id, name, ring, inner, label) => `<button type="button" class="story-item${ring}" data-story-owner="${escapeHtml(id)}" aria-label="${escapeHtml(label)}"><span class="story-ring">${inner}</span><span class="story-name">${escapeHtml(name)}</span></button>`;
-  let html = bubble("__new__", hasMine ? T("stories.mine") : T("stories.add"), hasMine ? " is-mine" : " is-add", `<span class="story-plus">${Icons.html("plus", 20)}</span>`, T("stories.add"));
+  const mineLast = list.filter((x) => x.owner === "me").sort((a, b) => b.ts - a.ts)[0];
+  const mineInner = mineLast ? `<span class="story-thumb story-bg-${mineLast.bg | 0}">${escapeHtml(String(mineLast.text || "").slice(0, 18))}</span>` : `<span class="story-plus">${Icons.html("plus", 20)}</span>`;
+  let html = bubble("__new__", hasMine ? T("stories.mine") : T("stories.add"), hasMine ? " is-mine" : " is-add", mineInner, hasMine ? T("stories.mine") : T("stories.add"));
+  if (hasMine) html = html.replace("</button>", `<span class="story-add-badge" data-story-add="1" role="button" aria-label="${escapeHtml(T("stories.add"))}">${Icons.html("plus", 12)}</span></button>`);
   for (const id of owners) {
     const c = state.contacts.get(id), unseen = list.some((x) => x.owner === id && !x.seen);
     html += bubble(id, c.name || T("sys.someone"), unseen ? " is-unseen" : "", avatarCircleHtml(c, null, ""), T("stories.of", { name: c.name || "" }));
   }
   row.innerHTML = html;
-  row.querySelectorAll(".story-item").forEach((b) => b.addEventListener("click", () => {
+  row.querySelectorAll(".story-item").forEach((b) => b.addEventListener("click", (e) => {
     const owner = b.getAttribute("data-story-owner");
+    if (e.target.closest && e.target.closest("[data-story-add]")) { openStoryComposer(); return; }
     if (owner === "__new__") { if (hasMine && list.some((x) => x.owner === "me")) openStoryViewer("me"); else openStoryComposer(); }
     else openStoryViewer(owner);
   }));
@@ -5596,22 +5615,11 @@ function handleRichClick(c, m, el) {
 }
 // Общая шторка ввода одной строки (карточка доски, название доски)
 let __textSheetCb = null;
-let __textSheetChoice = null;
 function openTextSheet(opts) {
   const sheet = $("#text-sheet"), input = $("#text-sheet-input"); if (!sheet || !input) return;
   __textSheetCb = opts.onOk || null;
   $("#text-sheet-title").textContent = opts.title || "";
   input.value = opts.value || ""; input.placeholder = opts.placeholder || "";
-  // необязательный выбор варианта (например, шаблон доски): значение уходит вторым аргументом onOk
-  const ch = $("#text-sheet-choices"); __textSheetChoice = null;
-  if (ch) {
-    ch.innerHTML = ""; ch.classList.toggle("hidden", !opts.choices);
-    (opts.choices || []).forEach((o, i) => {
-      const b = document.createElement("button"); b.type = "button"; b.setAttribute("role", "radio"); b.className = "text-sheet-choice"; b.textContent = o.label; b.dataset.value = o.value;
-      const pick = () => { __textSheetChoice = o.value; ch.querySelectorAll(".text-sheet-choice").forEach((x) => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-checked", on ? "true" : "false"); }); };
-      b.addEventListener("click", pick); ch.appendChild(b); if (i === 0) pick();
-    });
-  }
   sheet.classList.remove("hidden");
   setTimeout(() => { try { input.focus(); input.select(); } catch (e) {} }, 60);
 }
@@ -5620,7 +5628,7 @@ function submitTextSheet() {
   const v = input.value.trim(); if (!v) return;
   const cb = __textSheetCb; __textSheetCb = null;
   sheet.classList.add("hidden");
-  if (cb) cb(v, __textSheetChoice);
+  if (cb) cb(v);
 }
 let __noteTarget = null;
 function openNoteSheet(cid, msgId) {
@@ -5649,7 +5657,7 @@ function addPollOptionInput() {
 function wireRichSheets() {
   const bind = (id, fn) => { const el = $(id); if (el) el.addEventListener("click", fn); };
   bind("#chat-poll-btn", () => { collapseComposerPlus(); openPollSheet(); });
-  bind("#chat-board-btn", () => { collapseComposerPlus(); openTextSheet({ title: T("chat.board.name"), value: T("chat.board.defaultTitle"), choices: [{ value: "kanban", label: T("chat.board.tpl.kanban") }, { value: "list", label: T("chat.board.tpl.list") }], onOk: (title, tpl) => { if (state.chatId) createBoard(state.chatId, title, tpl === "list" ? ["todo", "done"] : undefined); } }); });
+  bind("#chat-board-btn", () => { collapseComposerPlus(); openTextSheet({ title: T("chat.board.name"), value: T("chat.board.defaultTitle"), onOk: (title) => { if (state.chatId) createBoard(state.chatId, title); } }); });
   bind("#chat-note-btn", () => { collapseComposerPlus(); openTextSheet({ title: T("chat.note.name"), value: T("chat.note.defaultTitle"), onOk: (title) => { if (state.chatId) createNote(state.chatId, title); } }); });
   bind("#note-save-btn", () => { const t = __noteTarget; if (!t) return; $("#note-sheet").classList.add("hidden"); noteOp(t.cid, t.msgId, $("#note-input").value); __noteTarget = null; });
   bind("#poll-add-opt-btn", addPollOptionInput);
