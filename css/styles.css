@@ -2667,3 +2667,7 @@ html.theme-fading, html.theme-fading *, html.theme-fading *::before, html.theme-
 .board-add { justify-content: center; width: 100%; font-size: 12px; gap: 2px; padding: 4px 2px; }
 .board-add svg { width: 12px; height: 12px; flex: none; }
 .board-card { font-size: 12px; }
+
+/* Меню «+»: все плашки одной ширины (по самой длинной подписи) */
+#composer-menu-sheet .composer-menu-actions { align-items: stretch; width: max-content; min-width: 156px; }
+#composer-menu-sheet .composer-menu-item { width: 100%; box-sizing: border-box; }
