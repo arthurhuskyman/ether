@@ -959,6 +959,7 @@ window.__LANG_DICTS["vi"] = {
     "help.groups.body": "Ở tab Liên hệ, chạm “Nhóm mới”, đặt tên và chọn tối đa 9 người. Nhóm kết nối trực tiếp bạn với từng thành viên (tổng cộng tối đa 10 người) — không có máy chủ nhóm. Văn bản, trả lời, chuyển tiếp, cảm xúc, tệp, tin nhắn thoại, bình chọn, bảng và ghi chú đều dùng được trong nhóm, và bạn có thể bắt đầu cuộc gọi nhóm hoặc phòng thoại. Chỉ quản trị viên mới mời được thành viên mới.",
     "help.calls.body": "Chạm vào biểu tượng điện thoại hoặc camera ở đầu cuộc trò chuyện để gọi. Trong cuộc gọi, bạn có thể tắt tiếng, bật/tắt camera, đổi camera và chuyển giữa loa trong và loa ngoài. Nếu người kia ngoại tuyến, họ sẽ nhận được thông báo và bạn có thể để lại thư thoại. Trong nhóm, chạm biểu tượng cuộc gọi để bắt đầu cuộc gọi nhóm.",
     "help.privacy.body": "Tin nhắn được mã hóa đầu cuối bằng Double Ratchet — chỉ bạn và người kia đọc được, máy chủ thì không. Máy chủ chỉ giúp các thiết bị tìm thấy nhau và giữ một phong bì đã mã hóa tối đa 14 ngày nếu người nhận ngoại tuyến. Trong hồ sơ liên hệ, hãy mở số an toàn để đối chiếu hoặc quét QR trực tiếp rồi đánh dấu liên hệ là đã xác minh. Trong Cài đặt, bạn có thể đặt PIN và bật “Mã hóa dữ liệu trên thiết bị này” — khi đó tin nhắn, khóa và tệp được lưu dạng mã hóa bằng khóa tạo từ PIN (nếu quên PIN, dữ liệu không thể khôi phục).",
+    "settings.fontSize.system": "Theo hệ thống (Dynamic Type)",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("vi");

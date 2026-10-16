@@ -959,6 +959,7 @@ window.__LANG_DICTS["yo"] = {
     "help.groups.body": "Lórí táàbù Àwọn olùbáṣepọ̀, tẹ “Ẹgbẹ́ tuntun”, sọ orúkọ rẹ̀ kí o sì yan ènìyàn títí dé 9. Àwọn ẹgbẹ́ ń so ọ́ pọ̀ tààrà mọ́ ọmọ ẹgbẹ́ kọ̀ọ̀kan (títí dé 10 lápapọ̀) — kò sí olupin ẹgbẹ́. Ọ̀rọ̀, ìdáhùn, fífiranṣẹ́ síwájú, èsì, fáìlì, ifiranṣẹ ohùn, ìdìbò, pátákó àti àkọsílẹ̀ ń ṣiṣẹ́ nínú ẹgbẹ́, o sì lè bẹ̀rẹ̀ ìpè ẹgbẹ́ tàbí yàrá ohùn. Àwọn alábòójútó nìkan ló lè pe àwọn ọmọ ẹgbẹ́ tuntun.",
     "help.calls.body": "Tẹ àmì fóònù tàbí kámẹ́rà ní òkè ìjíròrò láti pè. Nígbà ìpè, o lè pa ohùn dúró, tan tàbí pa kámẹ́rà, yí kámẹ́rà padà, kí o sì yípadà láàárín ẹ̀rọ etí àti agbóhùn sókè. Bí ẹni náà kò bá sí lórí ayélujára, yóò gba ìkìlọ̀, o sì lè fi ifiranṣẹ ohùn sílẹ̀. Nínú ẹgbẹ́, tẹ àmì ìpè láti bẹ̀rẹ̀ ìpè ẹgbẹ́.",
     "help.privacy.body": "Àwọn ifiranṣẹ ní ìpamọ́ láti ìpẹ̀kun dé ìpẹ̀kun pẹ̀lú Double Ratchet — ìwọ àti ẹni kejì nìkan ló lè kà wọ́n, kì í ṣe olupin. Olupin kàn ń ran àwọn ẹ̀rọ lọ́wọ́ láti rí ara wọn, ó sì ń fi àpò ìwé tí a pamọ́ pamọ́ fún ọjọ́ 14 tí olùgbà kò bá sí lórí ayélujára. Nínú ojú ewé olùbáṣepọ̀, ṣí nọ́ńbà ààbò láti fi wé tàbí ṣàyẹ̀wò QR lójúkojú kí o sì sàmì olùbáṣepọ̀ náà bí a ti jẹ́rìí. Nínú Ètò, o lè ṣètò PIN kí o sì tan “Pa data mọ́ lórí ẹ̀rọ yìí” — nígbà náà àwọn ifiranṣẹ, kọ́kọ́rọ́ àti fáìlì wà ní ìpamọ́ pẹ̀lú kọ́kọ́rọ́ tí a ṣe láti PIN (bí o bá gbàgbé PIN, a kò lè gba data padà).",
+    "settings.fontSize.system": "Tẹ̀lé ẹ̀rọ (Dynamic Type)",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("yo");
