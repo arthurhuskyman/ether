@@ -81,3 +81,57 @@ test("файлы в IndexedDB шифруются отдельным ключом
   assert.equal(sealed.enc, 1); assert.equal(sealed.type, "audio/webm"); assert.equal(sealed.len, 5); assert.equal(sealed.plainEqual, false);
   a.close();
 });
+
+test("смена PIN: фото и голосовые остаются читаемыми под новым PIN", async () => {
+  const a = await booted();
+  a.run(`const c = ensureContactEntry("alice", "Alice"); c.managed = true; c.messages.push({ id: "f1", from: "alice", ts: Date.now(), file: { name: "p.png", mime: "image/png", size: 3, kind: "image" } });`);
+  await a.run(`(async () => { await IDB.set("file:f1", new Blob([new Uint8Array([1,2,3])], { type: "image/png" })); await SecureStore.enable("123456"); await migrateFilesEncryption(true); })()`);
+  const before = await a.run(`(async () => { const b = await IDB.get("file:f1"); return b ? b.size : -1; })()`);
+  assert.equal(before, 3);
+  // как в обработчике смены PIN
+  await a.run(`(async () => { await migrateFilesEncryption(false); await SecureStore.rekey("123456", "987654"); await migrateFilesEncryption(true); })()`);
+  const after = await a.run(`(async () => { const b = await IDB.get("file:f1"); return b ? b.size : -1; })()`);
+  assert.equal(after, 3, "файл читается после смены PIN");
+  assert.equal(await a.run(`SecureStore.verify("123456").then((d) => !!d)`), false, "старый PIN больше не подходит");
+  assert.equal(await a.run(`SecureStore.verify("987654").then((d) => !!d)`), true);
+  a.close();
+});
+
+test("запись: быстрые последовательные setItem — на диске последняя версия; удалённый ключ не воскресает", async () => {
+  const a = await booted();
+  await a.run(`SecureStore.enable("123456")`);
+  a.run(`for (let i = 0; i < 20; i++) localStorage.setItem("ether.drafts", JSON.stringify({ v: i }));`);
+  await a.run(`SecureStore.flush()`);
+  assert.equal(a.run(`localStorage.getItem("ether.drafts")`), JSON.stringify({ v: 19 }));
+  const raw = a.run(`SecureStore.rawGet("ether.drafts")`);
+  assert.ok(raw.startsWith("enc1:"));
+  a.run(`localStorage.setItem("ether.lastSeen", "{}"); localStorage.removeItem("ether.lastSeen");`);
+  await a.run(`SecureStore.flush()`);
+  await sleep(50);
+  assert.equal(a.run(`SecureStore.rawGet("ether.lastSeen")`), null, "ключ удалён и на диске");
+  a.close();
+});
+
+test("включение: нехватка места (квота) на полпути откатывает диск — данные читаются как прежде, соль не остаётся", async () => {
+  const a = await booted();
+  // два больших значения: открытым текстом помещаются в квоту, шифртекст (×1.33) — нет
+  a.run(`localStorage.setItem("ether.drafts", "a".repeat(2400000)); localStorage.setItem("ether.callLog", "b".repeat(2400000));`);
+  let failed = false;
+  try { await a.run(`SecureStore.enable("123456")`); } catch (e) { failed = true; }
+  assert.ok(failed, "enable должен упасть из-за квоты");
+  assert.equal(a.run(`SecureStore.isOn()`), false);
+  assert.equal(a.run(`SecureStore.rawGet("ether.sec.salt")`), null, "соль откатилась");
+  assert.equal(a.run(`localStorage.getItem("ether.drafts").length`), 2400000, "данные прочитываются как прежде");
+  assert.equal(a.run(`localStorage.getItem("ether.callLog").length`), 2400000);
+  a.close();
+});
+
+test("двойной unlock не сбрасывает кэш; disable не теряет последнюю запись", async () => {
+  const a = await booted();
+  await a.run(`SecureStore.enable("123456")`);
+  a.run(`localStorage.setItem("ether.drafts", "последнее")`);
+  await a.run(`SecureStore.disable("123456")`);
+  assert.equal(a.run(`SecureStore.rawGet("ether.drafts")`), "последнее", "после отключения на диске последнее значение открытым текстом");
+  assert.equal(a.run(`SecureStore.isOn()`), false);
+  a.close();
+});

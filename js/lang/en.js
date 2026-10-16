@@ -607,6 +607,8 @@ window.__LANG_DICTS["en"] = {
     "toast.cancel": "Cancel",
     "toast.confirmDeleteChat": "Clear all messages with «{name}»?",
     "toast.confirmDeleteContact": "Delete contact «{name}»?",
+    "toast.confirmDeleteAllChats": "Delete all chats, call history, drafts and folders from this device? This cannot be undone.",
+    "storage.cat.misc": "Other",
     "toast.confirmHardReset": "Full reset: account, PIN, encryption keys and all data will be deleted. Continue?",
     "toast.confirmDeleteAccount": "Delete account? This permanently erases contacts, messages and encryption keys from this device. There is no server copy — this cannot be undone unless you made a backup.",
     "toast.confirmPanic": "This will instantly and irreversibly erase everything on this device — account, contacts, messages, keys. There is no undo. Continue?",
