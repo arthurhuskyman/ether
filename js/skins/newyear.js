@@ -1,2 +1,88 @@
-// Скин «newyear»: звуки, иконки, декор. Регистрируется в Skins (js/skins.js).
-Skins.register("newyear", {});
+// Скин «newyear»: леденцовые иконки, колокольчики и «Jingle Bells», гирлянда, снег, северное сияние, ёлка.
+(function () {
+  const F = ' fill="currentColor" fill-opacity=".3"'; // «леденцовая» заливка замкнутых форм
+  const icons = {
+    // чат — ёлочный шар с колпачком и хвостиком-речью
+    chat: '<path d="M10.500 2.800h3v2h-3z"' + F + '/><path d="M12 4.800c4.800 0 8.600 3.100 8.600 7.200S16.800 19.200 12 19.200c-1 0-1.900-.1-2.800-.4L4.800 21l1.300-3.700C4.600 16 3.400 14.100 3.400 12 3.400 7.900 7.200 4.800 12 4.800z"' + F + '/><path d="M8 12.200c1.300 1.800 6.700 1.800 8 0" opacity=".9"/>',
+    // пользователь — в колпаке Деда Мороза
+    user: '<circle cx="12" cy="11.500" r="4"' + F + '/><path d="M4.500 21c.5-3.600 3.400-5.200 7.500-5.200s7 1.600 7.500 5.200"/><path d="M7.600 8.300C8 4.600 11 2.800 15.800 4c-1.500 1.200-2 2.600-2 4.300z"' + F + '/><circle cx="16.800" cy="4" r="1.300" fill="currentColor"/>',
+    users: '<circle cx="8.500" cy="9.500" r="3.500"' + F + '/><path d="M2.500 20c.4-3.200 2.800-4.700 6-4.700s5.600 1.500 6 4.700"/><circle cx="17" cy="10.300" r="2.600"' + F + '/><path d="M17.500 15.300c2.300.2 3.700 1.500 4 4.200"/><path d="M5.800 6.800C6.500 3.800 9 3 12 3.800c-1.200.9-1.500 2-1.400 3.200z"' + F + '/>',
+    // настройки — конфеты-ползунки
+    sliders: '<path d="M3.500 7h17M3.500 17h17"/><rect x="6" y="4.200" width="7" height="5.600" rx="2.800"' + F + '/><rect x="11" y="14.200" width="7" height="5.600" rx="2.800"' + F + '/><path d="M8 7h2M13.500 17h2" stroke-dasharray="1 3"/>',
+    plus: '<path d="M12 4.500v15M4.500 12h15" stroke-width="3.200"/><circle cx="12" cy="12" r="9.500" stroke-dasharray="2 3.500" opacity=".5"/>',
+    x: '<path d="m6 6 12 12M18 6 6 18" stroke-width="3"/>',
+    check: '<path d="M4.500 12.500 9.500 17.500 19.500 6.500" stroke-width="3.200"/>',
+    // отправить — бумажный самолётик-санки со звездой
+    send: '<path d="M21 3 3.500 10.500l6.500 2.600 2.700 6.800z"' + F + '/><path d="M21 3 10 13.100"/>',
+    mic: '<rect x="8.800" y="2.800" width="6.400" height="11.400" rx="3.200"' + F + '/><path d="M5.500 11.200c0 3.800 2.800 6.400 6.500 6.400s6.500-2.600 6.500-6.400M12 17.600v3.400M9 21h6"/><path d="M9 7.500h6M9 10.200h6" opacity=".7"/>',
+    phone: '<path d="M6.500 3.200 9.600 8.300 7.800 10.200c1.200 2.500 3.200 4.500 5.800 5.800l1.900-1.800 5.100 3.100-.9 2.700c-.4 1-1.400 1.600-2.500 1.400C10 19.300 4.400 13.700 3.200 6.700c-.1-1 .5-2 1.500-2.400z"' + F + '/>',
+    video: '<rect x="2.800" y="6" width="13" height="12" rx="3.500"' + F + '/><path d="m15.800 10.200 5.400-3v9.600l-5.400-3z"' + F + '/>',
+    search: '<circle cx="10.500" cy="10.500" r="6.800"' + F + '/><path d="m15.500 15.500 5.500 5.500" stroke-width="3"/><path d="M7.500 8.500a3.600 3.600 0 0 1 3-2" opacity=".8"/>',
+    "chevron-left": '<path d="m15 4.500-7.500 7.500 7.500 7.500" stroke-width="3"/>',
+    "chevron-right": '<path d="m9 4.500 7.500 7.500L9 19.500" stroke-width="3"/>',
+    "chevron-up": '<path d="m4.500 15 7.500-7.500 7.500 7.500" stroke-width="3"/>',
+    "chevron-down": '<path d="m4.500 9 7.500 7.500L19.500 9" stroke-width="3"/>',
+    paperclip: '<path d="M20 11.500l-7.500 7.500a4.600 4.600 0 0 1-6.500-6.500l7.800-7.800a3 3 0 0 1 4.300 4.300l-7.600 7.600a1.500 1.500 0 0 1-2.200-2.200l6.700-6.700" stroke-width="2.400"/>',
+    camera: '<path d="M3.500 8.500a1.500 1.500 0 0 1 1.500-1.500h2.500L9 4.500h6L16.500 7H19a1.500 1.500 0 0 1 1.500 1.500v9.500A1.500 1.500 0 0 1 19 19.500H5A1.500 1.500 0 0 1 3.500 18z"' + F + '/><circle cx="12" cy="13" r="3.600"' + F + '/>',
+    // файл — подарочная бирка со звездой
+    file: '<path d="M6 3h8l5 5v11.500a1.500 1.500 0 0 1-1.500 1.500h-11A1.500 1.500 0 0 1 5 19.500V4.500A1.500 1.500 0 0 1 6 3z"' + F + '/><path d="M14 3v5h5"/><path d="m12 11.600.9 1.900 2.100.3-1.500 1.500.4 2.100-1.900-1-1.900 1 .4-2.100L9 13.800l2.100-.3z" fill="currentColor"/>',
+    poll: '<rect x="4" y="11" width="4.500" height="9"  rx="2.200"' + F + '/><rect x="9.800" y="4" width="4.500" height="16" rx="2.200"' + F + '/><rect x="15.500" y="14" width="4.500" height="6" rx="2.200"' + F + '/>',
+    // задача — три подарка
+    board: '<rect x="3" y="9" width="6.500" height="11" rx="1.500"' + F + '/><rect x="10" y="4.500" width="6" height="15.500" rx="1.500"' + F + '/><rect x="16.500" y="11" width="4.500" height="9" rx="1.500"' + F + '/><path d="M6.200 9v11M13 4.500V20M18.700 11v9" opacity=".7"/>',
+    smile: '<circle cx="12" cy="12" r="9"' + F + '/><path d="M8 14.200c1 1.800 2.300 2.600 4 2.600s3-.8 4-2.600" stroke-width="2.400"/><circle cx="9" cy="9.500" r="1.100" fill="currentColor"/><circle cx="15" cy="9.500" r="1.100" fill="currentColor"/>',
+    // колокольчик с остролистом
+    bell: '<path d="M6 16.500V11a6 6 0 0 1 12 0v5.500l2 2H4z"' + F + '/><path d="M10 21.500c.5.700 1.200 1 2 1s1.500-.3 2-1"/><circle cx="12" cy="4" r="1.200" fill="currentColor"/>',
+    star: '<path d="m12 2.800 2.800 5.800 6.300.9-4.600 4.400 1.100 6.300L12 17.200 6.400 20.200l1.100-6.300L2.900 9.500l6.300-.9z"' + F + '/>',
+    lock: '<rect x="4.800" y="10.500" width="14.400" height="10.500" rx="3"' + F + '/><path d="M8 10.500V7.800a4 4 0 0 1 8 0v2.700"/><path d="m12 13.700.7 1.400 1.500.2-1.100 1.100.3 1.500-1.400-.7-1.400.7.3-1.500-1.100-1.100 1.500-.2z" fill="currentColor"/>',
+    globe: '<circle cx="12" cy="12" r="9"' + F + '/><path d="M3 12h18M12 3c3 3 3 15 0 18-3-3-3-15 0-18z"/>',
+    shield: '<path d="M12 2.800 4.500 5.800v6c0 4.500 3 7.800 7.500 9.400 4.500-1.600 7.500-4.900 7.500-9.400v-6z"' + F + '/><path d="m8.800 12 2.400 2.400L15.500 10"/>',
+    info: '<circle cx="12" cy="12" r="9"' + F + '/><path d="M12 11v5.500" stroke-width="2.800"/><circle cx="12" cy="7.800" r="1.200" fill="currentColor"/>',
+    help: '<circle cx="12" cy="12" r="9"' + F + '/><path d="M9.300 9.500a2.700 2.700 0 1 1 3.700 2.500c-.7.400-1 .9-1 1.700" stroke-width="2.400"/><circle cx="12" cy="17" r="1.100" fill="currentColor"/>',
+    clock: '<circle cx="12" cy="12" r="9"' + F + '/><path d="M12 6.800V12l3.600 2" stroke-width="2.400"/>',
+    reply: '<path d="M9.500 4.500 4 10l5.500 5.500"/><path d="M4 10h9.500a6.500 6.500 0 0 1 6.500 6.500V19" stroke-width="2.600"/>',
+    forward: '<path d="m14.500 4.500 5.500 5.500-5.500 5.500"/><path d="M20 10h-9.500A6.500 6.500 0 0 0 4 16.500V19" stroke-width="2.600"/>',
+    trash: '<path d="M4 7h16M9 7V4h6v3"/><path d="M6 7l1 12.500a1.500 1.500 0 0 0 1.500 1.500h7a1.500 1.500 0 0 0 1.500-1.500L18 7z"' + F + '/>',
+    edit: '<path d="M4 20h4L19.500 8.500a2.800 2.800 0 0 0-4-4L4 16z"' + F + '/><path d="m14 6 4 4"/>',
+    copy: '<rect x="9" y="9" width="11.500" height="11.500" rx="3"' + F + '/><path d="M15 9V6.500A2.500 2.500 0 0 0 12.500 4H6.500A2.500 2.500 0 0 0 4 6.500v6A2.500 2.500 0 0 0 6.500 15H9"/>',
+    moon: '<path d="M20 14.500A8 8 0 0 1 9.500 4 8 8 0 1 0 20 14.500z"' + F + '/>',
+    link: '<path d="M10 14a4.200 4.200 0 0 0 6 0l3-3a4.200 4.200 0 0 0-6-6l-1 1M14 10a4.200 4.200 0 0 0-6 0l-3 3a4.200 4.200 0 0 0 6 6l1-1" stroke-width="2.400"/>',
+    download: '<path d="M12 3.500v12M7 11l5 5 5-5M4.500 20.500h15" stroke-width="2.600"/>',
+    refresh: '<path d="M20 11a8 8 0 1 0-2.300 5.700" stroke-width="2.600"/><path d="M20.500 3.500V11H13" stroke-width="2.600"/>',
+    pin: '<path d="M9 3.500h6l-.8 5.500 3 3.200v1.800H6.800v-1.800l3-3.200z"' + F + '/><path d="M12 14v7"/>',
+    play: '<path d="M7 3.800v16.400a1 1 0 0 0 1.500.9l13-8.200a1 1 0 0 0 0-1.700l-13-8.200A1 1 0 0 0 7 3.800z"/>',
+    pause: '<rect x="5.500" y="4" width="5" height="16" rx="2.500"/><rect x="13.500" y="4" width="5" height="16" rx="2.500"/>',
+    more: '<circle cx="5.500" cy="12" r="2.100"/><circle cx="12" cy="12" r="2.100"/><circle cx="18.500" cy="12" r="2.100"/>',
+  };
+  // колокольчики: яркий «дзинь» с обертонами
+  const bell = (f, t, d, v, w) => [{ f, t, d, v, w: w || "triangle" }, { f: f * 2, t, d: d * 0.6, v: v * 0.45, w: "sine" }, { f: f * 3.01, t, d: d * 0.3, v: v * 0.2, w: "sine" }];
+  const shimmer = (t, d, v) => ({ w: "noise", t, d, v, hp: 6500, lp: 11000 });
+  // «Jingle Bells»: E E E, E E E, E G C D E (на октаву выше, быстро)
+  const E = 1318.5, G = 1568, C = 1046.5, D = 1174.7;
+  const jingle = [];
+  [[E, 0, .07], [E, .09, .07], [E, .18, .16], [E, .38, .07], [E, .47, .07], [E, .56, .16], [E, .76, .07], [G, .85, .07], [C, .94, .08], [D, 1.03, .07], [E, 1.12, .24]].forEach(([f, t, d]) => jingle.push(...bell(f, t * 0.82, d + 0.08, 0.09)));
+  const sound = {
+    in: [shimmer(0, 0.12, 0.05), ...jingle, shimmer(0.92, 0.18, 0.04)],
+    out: [shimmer(0, 0.08, 0.05), ...bell(2093, 0, 0.5, 0.1, "sine"), ...bell(3136, 0.07, 0.4, 0.07, "sine")],
+    tap: [shimmer(0, 0.04, 0.03), { f: 3136, t: 0, d: 0.05, v: 0.04, w: "sine" }],
+    tab: [shimmer(0, 0.07, 0.04), ...bell(2349, 0, 0.18, 0.06), ...bell(3136, 0.06, 0.22, 0.05)],
+    react: [...bell(2637, 0, 0.3, 0.07), ...bell(3951, 0.07, 0.3, 0.05)],
+    error: [...bell(698.5, 0, 0.3, 0.08), ...bell(554.4, 0.14, 0.4, 0.08)],
+  };
+  function deco(layer, o) {
+    const calm = !!(o && o.calm), light = o && o.scheme === "light";
+    const el = (cls, css, html) => { const e = document.createElement("div"); e.className = cls; if (css) e.style.cssText = css; if (html) e.innerHTML = html; layer.appendChild(e); return e; };
+    if (!light) el("ny-aurora");
+    // гирлянда: провис + две чередующиеся группы лампочек
+    el("ny-wire-box", "position:absolute;left:0;top:0;right:0;height:30px", '<svg class="ny-wire" viewBox="0 0 400 26" preserveAspectRatio="none"><path d="M0 4Q50 22 100 6T200 6T300 6T400 5"/></svg>');
+    el("ny-bulbs a"); el("ny-bulbs b");
+    // снег
+    const n = calm ? 0 : 15;
+    for (let i = 0; i < n; i++) { const s = 3 + (i * 5) % 6; el("ny-flake", `--x:${(i * 6.8 + 3) % 98}%;--s:${s}px;--d:${9 + (i * 7) % 9}s;--dl:${-((i * 3.3) % 12)}s`); }
+    if (calm) for (let i = 0; i < 8; i++) { const s = 3 + (i * 5) % 6; el("ny-flake", `--x:${(i * 13 + 7) % 96}%;top:${(i * 29 + 11) % 88}%;--s:${s}px;animation:none`); }
+    // ёлка с мигающими огнями
+    const L = (x, y, c) => `<circle class="l" cx="${x}" cy="${y}" r="3" fill="${c}"/>`;
+    el("ny-tree", "", '<svg viewBox="0 0 84 110"><path d="M42 4 62 36H50l20 28H54l22 30H8l22-30H14l20-28H22z" fill="#14804e" stroke="#0b5a35" stroke-width="2" stroke-linejoin="round"/><rect x="37" y="94" width="10" height="14" fill="#7a4a24"/><path d="m42 0 2 5 5 .5-4 3.500 1.200 5L42 11l-4.200 3 1.200-5-4-3.500 5-.5z" fill="#ffd23f"/>' + L(36, 34, "#ff3b4e") + L(50, 48, "#ffd23f") + L(30, 62, "#4aa8ff") + L(56, 76, "#ff3b4e") + L(26, 86, "#ffd23f") + L(44, 70, "#4aa8ff") + "</svg>");
+    return () => { layer.innerHTML = ""; };
+  }
+  Skins.register("newyear", { icons, sound, haptic: { tap: [5] }, deco });
+})();

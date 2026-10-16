@@ -1,31 +1,158 @@
-/* ============================ 11. МЕЛОВОЙ / ШКОЛЬНАЯ ДОСКА (chalk) ============================ */
+/* ============================ 11. МЕЛОВОЙ (chalk) — школьная доска ночью, тетрадь в клетку днём ============================ */
+@font-face { font-family: "Neucha Chalk"; font-weight: 400; font-style: normal; font-display: swap; src: url("../../fonts/skins/neucha-400.woff2") format("woff2"); }
 html[data-skin="chalk"] {
-  --sk-font: "Chalkduster", "Bradley Hand", "Segoe Print", "Comic Neue", "Comic Sans MS", "Marker Felt", cursive; --sk-tracking: 0.02em;
-  --sk-bw: 2px; --sk-bs: dashed; --sk-radius: 18px 6px 20px 8px / 8px 20px 6px 18px; --sk-bubble-r: 18px 8px 20px 10px / 10px 20px 8px 18px; --sk-tail: 3px; --sk-btn-r: 14px 6px 16px 8px / 8px 16px 6px 14px; --sk-field-r: 18px 8px 20px 8px / 8px 20px 8px 18px;
-  --sk-press-scale: .96;
+  --sk-font: "Neucha Chalk", "Neucha", "Chalkduster", "Bradley Hand", "Segoe Print", "Comic Sans MS", cursive; --sk-tracking: 0.02em;
+  --sk-bw: 2px; --sk-bs: dashed; --sk-radius: 16px 6px 18px 8px / 8px 18px 6px 16px; --sk-bubble-r: 18px 9px 20px 11px / 11px 20px 9px 18px; --sk-tail: 4px; --sk-btn-r: 14px 6px 16px 8px / 8px 16px 6px 14px; --sk-field-r: 0;
+  --sk-press-scale: .95; --sk-press-x: 1px; --sk-press-y: 2px;
   --r-sm: 8px; --r-md: 12px; --r-lg: 18px; --r-xl: 22px;
+  --ck-wavy: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='8'%3E%3Cpath d='M0 4.5 Q4.500 1 9 4 T18 4.200 T27 3.800 T36 4.500' fill='none' stroke='black' stroke-width='1.800' stroke-linecap='round'/%3E%3C/svg%3E");
+  --ck-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .55 -.2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --ck-smear: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='520' height='520'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.006 .02' numOctaves='3' seed='4'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1.100 -.52'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --ck-wood: repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.12) 0 2px, transparent 2px 9px), repeating-linear-gradient(0deg, rgba(255, 220, 160, 0.1) 0 1px, transparent 1px 5px), linear-gradient(180deg, #9a6a3a, #7a4f27 50%, #8d5f33);
 }
 html[data-skin="chalk"][data-scheme="dark"] {
-  --bg-0: #1a2a23; --bg-1: #20342b; --bg-2: #263d33; --bg-3: #2f4a3d;
-  --line-1: rgba(255, 255, 255, 0.16); --line-2: rgba(255, 255, 255, 0.28);
-  --ink-0: #f4f0e2; --ink-1: rgba(244, 240, 226, 0.95); --ink-2: rgba(244, 240, 226, 0.8); --ink-3: rgba(244, 240, 226, 0.68);
+  --bg-0: #1b2e26; --bg-1: #22392f; --bg-2: #274236; --bg-3: #2f4a3d;
+  --line-1: rgba(255, 255, 255, 0.2); --line-2: rgba(255, 255, 255, 0.34);
+  --ink-0: #f6f2e4; --ink-1: rgba(246, 242, 228, 0.96); --ink-2: rgba(246, 242, 228, 0.82); --ink-3: rgba(246, 242, 228, 0.7);
   --accent: #ffd86b; --accent-hi: #ffe49a; --accent-lo: #f0c040; --accent-ghost: rgba(255, 216, 107, 0.16); --text-link: #9fe0ff;
-  --bubble-mine-bg: rgba(255, 216, 107, 0.14); --bubble-mine-ink: #fff7d6; --bubble-theirs-bg: rgba(255, 255, 255, 0.07); --bubble-theirs-ink: #f4f0e2;
-  --card-bg: none; --card-base: rgba(255, 255, 255, 0.05); --card-border: rgba(255, 255, 255, 0.55); --card-shadow: none;
-  --select-popup-bg: #20342b; --select-popup-ink: #f4f0e2; --input-bg: rgba(255, 255, 255, 0.06); --input-border: rgba(255, 255, 255, 0.55); --glass-border: rgba(255, 255, 255, 0.5);
-  --sk-line: rgba(255, 255, 255, 0.55); --sk-line-mine: #ffd86b; --sk-line-theirs: rgba(255, 255, 255, 0.55); --sk-panel: rgba(255, 255, 255, 0.05); --sk-shadow: none; --sk-bubble-shadow: none; --sk-shadow-press: none;
-  --sk-btn-bg: #ffd86b; --sk-btn-ink: #1a2a23; --sk-panel-press: rgba(255, 255, 255, 0.12);
-  --sk-bg: radial-gradient(ellipse 70% 40% at 30% 20%, rgba(255, 255, 255, 0.07), transparent 70%), radial-gradient(ellipse 60% 40% at 80% 75%, rgba(255, 255, 255, 0.05), transparent 70%), repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.015) 0 2px, transparent 2px 5px), #1a2a23;
+  --bubble-mine-bg: repeating-linear-gradient(-45deg, rgba(255, 216, 107, 0.17) 0 2px, transparent 2px 8px); --bubble-mine-ink: #fff7d6;
+  --bubble-theirs-bg: radial-gradient(rgba(255, 255, 255, 0.2) 1px, transparent 1.600px) 0 0 / 8px 8px; --bubble-theirs-ink: #f6f2e4;
+  --card-bg: none; --card-base: #22392f; --card-border: rgba(255, 255, 255, 0.6); --card-shadow: none;
+  --select-popup-bg: #22392f; --select-popup-ink: #f6f2e4; --input-bg: transparent; --input-border: rgba(255, 255, 255, 0.6); --glass-border: rgba(255, 255, 255, 0.5);
+  --sk-line: rgba(246, 242, 228, 0.7); --sk-line-mine: #ffd86b; --sk-line-theirs: rgba(246, 242, 228, 0.75);
+  --sk-panel: #22392f; --sk-shadow: none; --sk-bubble-shadow: none; --sk-shadow-press: none;
+  --sk-btn-bg: #ffd86b; --sk-btn-ink: #1b2e26; --sk-panel-press: rgba(255, 255, 255, 0.1);
+  --ck-chalk: #f6f2e4; --ck-yellow: #ffd86b; --ck-pink: #ff9eb5; --ck-blue: #9fe0ff;
+  --sk-bg: var(--ck-smear) 0 0 / 520px 520px, var(--ck-grain) 0 0 / 220px 220px, radial-gradient(ellipse 90% 60% at 50% 40%, #27443a 0%, #1b2e26 70%, #14231c 100%);
 }
 html[data-skin="chalk"][data-scheme="light"] {
-  --bg-0: #f5f6f0; --bg-1: #ffffff; --bg-2: #fbfbf7; --bg-3: #e9ece1;
-  --line-1: rgba(27, 42, 73, 0.14); --line-2: rgba(27, 42, 73, 0.26);
-  --ink-0: #1b2a49; --ink-1: rgba(27, 42, 73, 0.94); --ink-2: rgba(27, 42, 73, 0.78); --ink-3: rgba(27, 42, 73, 0.68);
-  --accent: #1e63d0; --accent-hi: #3b7ce0; --accent-lo: #164ea8; --accent-ghost: rgba(30, 99, 208, 0.12); --text-link: #164ea8;
-  --bubble-mine-bg: rgba(30, 99, 208, 0.09); --bubble-mine-ink: #12275a; --bubble-theirs-bg: rgba(214, 69, 61, 0.06); --bubble-theirs-ink: #1b2a49;
-  --card-bg: none; --card-base: #ffffff; --card-border: #1b2a49; --card-shadow: none;
-  --select-popup-bg: #ffffff; --select-popup-ink: #1b2a49; --input-bg: #ffffff; --input-border: #1b2a49; --glass-border: #1b2a49;
-  --sk-line: #1b2a49; --sk-line-mine: #1e63d0; --sk-line-theirs: #d6453d; --sk-panel: #ffffff; --sk-shadow: none; --sk-bubble-shadow: none; --sk-shadow-press: none;
-  --sk-btn-bg: #c93a32; --sk-btn-ink: #ffffff; --sk-panel-press: #e9ece1;
-  --sk-bg: radial-gradient(ellipse 70% 40% at 30% 20%, rgba(255, 255, 255, 0.9), transparent 70%), repeating-linear-gradient(0deg, rgba(27, 42, 73, 0.025) 0 1px, transparent 1px 28px), #f5f6f0;
+  --bg-0: #fbf7ea; --bg-1: #fffdf4; --bg-2: #fffdf4; --bg-3: #ece6d2;
+  --line-1: rgba(29, 47, 107, 0.2); --line-2: rgba(29, 47, 107, 0.36);
+  --ink-0: #1d2f6b; --ink-1: rgba(29, 47, 107, 0.96); --ink-2: rgba(29, 47, 107, 0.82); --ink-3: rgba(29, 47, 107, 0.72);
+  --accent: #b5322a; --accent-hi: #d4463d; --accent-lo: #8f2420; --accent-ghost: rgba(181, 50, 42, 0.12); --text-link: #1d4fc4;
+  --bubble-mine-bg: repeating-linear-gradient(-45deg, rgba(42, 82, 201, 0.14) 0 2px, transparent 2px 8px); --bubble-mine-ink: #14245c;
+  --bubble-theirs-bg: radial-gradient(rgba(181, 50, 42, 0.3) 1px, transparent 1.600px) 0 0 / 8px 8px; --bubble-theirs-ink: #1d2f6b;
+  --card-bg: none; --card-base: #fffdf4; --card-border: #1d2f6b; --card-shadow: none;
+  --select-popup-bg: #fffdf4; --select-popup-ink: #1d2f6b; --input-bg: transparent; --input-border: #1d2f6b; --glass-border: #1d2f6b;
+  --sk-line: #2a3b8a; --sk-line-mine: #2a52c9; --sk-line-theirs: #b5322a;
+  --sk-panel: #fffdf4; --sk-shadow: none; --sk-bubble-shadow: none; --sk-shadow-press: none;
+  --sk-btn-bg: #b5322a; --sk-btn-ink: #ffffff; --sk-panel-press: rgba(42, 82, 201, 0.1);
+  --ck-chalk: #2a3b8a; --ck-yellow: #b5322a; --ck-pink: #b5322a; --ck-blue: #2a52c9;
+  --sk-bg: linear-gradient(90deg, transparent 46px, rgba(214, 69, 61, 0.55) 46px 48px, transparent 48px), linear-gradient(rgba(42, 82, 201, 0.2) 1px, transparent 1px) 0 0 / 24px 24px, linear-gradient(90deg, rgba(42, 82, 201, 0.2) 1px, transparent 1px) 0 0 / 24px 24px, var(--ck-grain) 0 0 / 220px 220px, #fbf7ea;
 }
+
+/* ---- типографика: Neucha, без «жирного» — меловая линия одной толщины ---- */
+html[data-skin="chalk"] body { font-weight: 400; font-size: 17px; }
+html[data-skin="chalk"] * { font-synthesis: none; }
+html[data-skin="chalk"] :is(h1, h2, h3, #nav-title, .chat-row-name, #chat-peer-name, .btn-primary, .btn-secondary, .tab-btn, .avatar, .unread-badge, .sheet-panel h2, strong, b) { font-weight: 400; }
+html[data-skin="chalk"] #nav-title { font-size: 32px; letter-spacing: .04em; transform: rotate(-1.2deg); transform-origin: left bottom; text-shadow: 1px 1px 0 color-mix(in srgb, var(--ck-chalk) 40%, transparent); }
+html[data-skin="chalk"] :is(.chat-row-name, #chat-peer-name, .settings-category-header-title, .sheet-panel h2) { font-size: 1.15em; text-shadow: .6px .6px 0 color-mix(in srgb, var(--ck-chalk) 45%, transparent); }
+html[data-skin="chalk"] .ico { stroke-width: 1.7; }
+html[data-skin="chalk"] .ico-fill { stroke: currentColor; stroke-width: 1.5; fill: color-mix(in srgb, currentColor 35%, transparent); }
+
+/* ---- рама доски и мел-пыль ---- */
+html[data-skin="chalk"] body::after { content: ""; position: fixed; inset: 0; z-index: 60; pointer-events: none; border: 11px solid; border-color: #a9743e #7a4f27 #5f3b1c #8f5e30; box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.5), inset 0 0 28px rgba(0, 0, 0, 0.6), inset 3px 3px 0 rgba(255, 220, 160, 0.25); }
+html[data-skin="chalk"][data-scheme="light"] body::after { border-color: #e4eaf2 #b4bfce #8a97ab #c9d3e0; box-shadow: inset 0 0 0 1.500px rgba(40, 60, 100, 0.55), inset 0 0 14px rgba(40, 60, 100, 0.3); }
+html[data-skin="chalk"] body::before { background-attachment: fixed; }
+
+/* ---- шапка: слова прямо на доске с подчёркиванием мелом ---- */
+html[data-skin="chalk"] #nav-bar.glass { background: transparent; border: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: 0; position: relative; padding-top: calc(env(safe-area-inset-top, 0px) + 14px); padding-left: 20px; }
+html[data-skin="chalk"] #nav-bar.glass::after { content: ""; position: absolute; left: 14px; right: 14px; bottom: 0; height: 8px; background: var(--ck-chalk); opacity: .8; -webkit-mask: var(--ck-wavy) repeat-x left center / 36px 8px; mask: var(--ck-wavy) repeat-x left center / 36px 8px; pointer-events: none; }
+
+/* ---- таб-бар: деревянная полочка для мела ---- */
+html[data-skin="chalk"] #tab-bar.glass { background: var(--ck-wood); border: none; border-top: 3px solid #5a3a1c; border-radius: 0; box-shadow: 0 -6px 14px rgba(0, 0, 0, 0.35), inset 0 2px 0 rgba(255, 230, 180, 0.35); -webkit-backdrop-filter: none; backdrop-filter: none; padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 10px); padding-inline: 14px; }
+html[data-skin="chalk"][data-scheme="light"] #tab-bar.glass { background: repeating-linear-gradient(0deg, transparent 0 15px, rgba(42, 82, 201, 0.25) 15px 16px), linear-gradient(180deg, #f4efdc, #e8e2c8); border-top: 3px double #2a3b8a; box-shadow: none; }
+html[data-skin="chalk"] #tab-bar .tab-btn { color: #f6f2e4; font-size: 15px; letter-spacing: .05em; }
+html[data-skin="chalk"][data-scheme="light"] #tab-bar .tab-btn { color: #1d2f6b; }
+html[data-skin="chalk"] #tab-bar .tab-btn .ico { filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.4)); }
+html[data-skin="chalk"] #tab-bar .tab-btn.active { color: #ffe27a; }
+html[data-skin="chalk"][data-scheme="light"] #tab-bar .tab-btn.active { color: #b5322a; }
+html[data-skin="chalk"] #tab-bar .tab-btn::after { content: ""; position: absolute; left: 14%; right: 14%; bottom: 3px; height: 8px; background: currentColor; -webkit-mask: var(--ck-wavy) repeat-x left center / 36px 8px; mask: var(--ck-wavy) repeat-x left center / 36px 8px; clip-path: inset(0 100% 0 0); }
+html[data-skin="chalk"] #tab-bar .tab-btn.active::after { animation: ckWrite .45s steps(10) forwards; }
+html[data-skin="chalk"] #tab-bar .tab-btn.active .ico { animation: ckWobble .5s ease-out; }
+html[data-skin="chalk"] .tab-badge, html[data-skin="chalk"] .unread-badge { background: transparent; color: var(--ck-pink); border: 2px solid var(--ck-pink); border-radius: 50% 45% 55% 48% / 48% 55% 45% 50%; box-shadow: none; font-size: 12px; text-shadow: none; }
+html[data-skin="chalk"][data-scheme="light"] .unread-badge, html[data-skin="chalk"][data-scheme="light"] .tab-badge { background: #fffdf4; }
+html[data-skin="chalk"] .tab-badge { box-shadow: 0 0 0 2px #7a4f27; background: #7a4f27; color: #ffd0dc; }
+html[data-skin="chalk"] .unread-badge.is-muted { color: var(--ink-2); border-color: var(--ink-3); background: transparent; }
+
+/* ---- списки: строки в тетради — только пунктирная линия снизу ---- */
+html[data-skin="chalk"] :is(.chat-row, .settings-row, .settings-category-row, .forward-row, .sheet-action) { background: transparent; border: none; border-bottom: 2px dashed color-mix(in srgb, var(--ck-chalk) 55%, transparent); border-radius: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+html[data-skin="chalk"] .chat-row-wrapper { border-radius: 0; }
+html[data-skin="chalk"] .chat-row:active, html[data-skin="chalk"] .settings-row:active, html[data-skin="chalk"] .settings-category-row:active { background: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--ck-chalk) 16%, transparent) 0 2px, transparent 2px 7px); }
+html[data-skin="chalk"] .chat-row { padding: 10px 6px; }
+html[data-skin="chalk"] :is(.glass-content, .first-run-card, .flat-content, .contact-gallery-item, .board-col) { background: transparent; border: 2px dashed color-mix(in srgb, var(--ck-chalk) 65%, transparent); border-radius: 14px 5px 16px 7px / 7px 16px 5px 14px; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+html[data-skin="chalk"] :is(.avatar, .avatar-xl) { border: 2px solid var(--ck-chalk); border-radius: 52% 48% 55% 45% / 47% 56% 44% 53%; box-shadow: 2px 2px 0 color-mix(in srgb, var(--ck-chalk) 35%, transparent); color: #fff; overflow: hidden; text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.5); }
+html[data-skin="chalk"] .avatar::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.22) 0 2px, transparent 2px 6px); pointer-events: none; }
+
+/* ---- пузыри: облачка, обведённые мелом; заливка — штриховка / точки ---- */
+html[data-skin="chalk"] .bubble { border: none; background-color: transparent; padding: 10px 16px 8px; position: relative; font-size: 18px; line-height: 1.3; box-shadow: none; }
+html[data-skin="chalk"] .bubble::before { content: ""; position: absolute; inset: -1px; border: 2px solid var(--sk-line-theirs); border-radius: 22px 10px 24px 12px / 12px 24px 10px 22px; pointer-events: none; filter: url(#ck-wob); }
+html[data-skin="chalk"] .bubble-row.mine .bubble::before { border-color: var(--sk-line-mine); border-radius: 12px 24px 10px 22px / 22px 10px 24px 12px; }
+html[data-skin="chalk"] .bubble-row.mine .bubble { border-radius: 12px 24px 10px 22px / 22px 10px 24px 12px; }
+html[data-skin="chalk"] .bubble-row.theirs .bubble { border-radius: 22px 10px 24px 12px / 12px 24px 10px 22px; }
+html[data-skin="chalk"] .bubble-row:nth-of-type(3n+1) .bubble::before { border-radius: 26px 8px 22px 12px / 10px 26px 8px 20px; }
+html[data-skin="chalk"] .bubble-row:nth-of-type(3n+2) .bubble { transform: rotate(.4deg); }
+html[data-skin="chalk"] .bubble-row:nth-of-type(3n) .bubble { transform: rotate(-.4deg); }
+/* хвостик — мелком нарисованная чёрточка-«уголок» */
+html[data-skin="chalk"] .bubble::after { content: ""; position: absolute; bottom: -8px; width: 13px; height: 13px; border: 2px solid; border-top: none; border-left: none; background: transparent; pointer-events: none; }
+html[data-skin="chalk"] .bubble-row.mine .bubble::after { right: 12px; border-color: var(--sk-line-mine); transform: skewX(-35deg) rotate(8deg); }
+html[data-skin="chalk"] .bubble-row.theirs .bubble::after { left: 12px; border-color: var(--sk-line-theirs); transform: scaleX(-1) skewX(-35deg) rotate(8deg); }
+html[data-skin="chalk"] .bubble-row.mine .bubble.bubble-long { background: var(--bubble-mine-bg); }
+html[data-skin="chalk"] .bubble-time { font-size: 13px; opacity: .85; }
+html[data-skin="chalk"] .bubble-row.just-received .bubble { animation: ckWriteIn .8s steps(18) both; }
+html[data-skin="chalk"] .bubble-row.just-sent .bubble { animation: ckWriteIn .5s steps(12) both; }
+@keyframes ckWriteIn { 0% { clip-path: inset(-12px 100% -12px -12px); opacity: .6; } 100% { clip-path: inset(-12px -12px -12px -12px); opacity: 1; } }
+@keyframes ckWrite { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes ckWobble { 0% { transform: rotate(-12deg) scale(.85); } 60% { transform: rotate(6deg) scale(1.1); } 100% { transform: none; } }
+html[data-skin="chalk"] .bubble-reaction-chip { background: transparent; border: 2px dotted var(--ck-pink); border-radius: 14px; color: var(--ink-0); }
+html[data-skin="chalk"] .bubble-row.mine .bubble-reaction-chip, html[data-skin="chalk"] .bubble-row.theirs .bubble-reaction-chip { background: transparent; color: inherit; border: 2px dotted var(--ck-pink); }
+
+/* ---- кнопки: слово в рамке из мела + подчёркивание ---- */
+html[data-skin="chalk"] .btn-primary { background: transparent; color: var(--ck-yellow); border: 2px dashed var(--ck-yellow); box-shadow: 3px 3px 0 color-mix(in srgb, var(--ck-yellow) 30%, transparent); font-size: 1.1em; letter-spacing: .05em; position: relative; border-radius: 14px 6px 16px 8px / 8px 16px 6px 14px; text-shadow: .6px .6px 0 color-mix(in srgb, var(--ck-yellow) 50%, transparent); transition: transform .12s steps(3); }
+html[data-skin="chalk"] .btn-primary::after { content: "✶"; margin-left: 6px; font-size: .85em; }
+html[data-skin="chalk"] .btn-primary:active { transform: rotate(-2deg) translate(2px, 2px); box-shadow: none; opacity: .75; background: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--ck-yellow) 25%, transparent) 0 2px, transparent 2px 7px); }
+html[data-skin="chalk"] .btn-primary.destructive { background: transparent; color: var(--ck-pink); border-color: var(--ck-pink); }
+html[data-skin="chalk"] .btn-secondary { background: transparent; color: var(--ck-chalk); border: 2px dotted var(--ck-chalk); box-shadow: none; text-decoration: underline wavy; text-underline-offset: 4px; text-decoration-thickness: 1px; }
+html[data-skin="chalk"] .send-btn { width: 46px; height: 46px; padding: 0; background: var(--sk-btn-bg) var(--ck-grain) 0 0 / 120px 120px; color: var(--sk-btn-ink); border: 2px solid var(--ck-chalk); border-radius: 52% 48% 55% 45% / 47% 56% 44% 53%; box-shadow: 2px 3px 0 color-mix(in srgb, var(--ck-chalk) 35%, transparent); transition: transform .12s steps(3); }
+html[data-skin="chalk"] .send-btn:active { transform: rotate(-8deg) scale(.9); box-shadow: none; }
+html[data-skin="chalk"] .icon-btn:active { transform: rotate(-6deg) scale(.9); }
+html[data-skin="chalk"] .composer-plus-btn { border: 2px dashed var(--ck-chalk); border-radius: 50% 46% 54% 48%; }
+html[data-skin="chalk"] :is(.chip, .chat-filter-chip) { background: transparent; border: 2px dashed color-mix(in srgb, var(--ck-chalk) 70%, transparent); border-radius: 12px 5px 14px 6px; color: var(--ink-0); }
+html[data-skin="chalk"] :is(.chip.active, .chip.selected, .chip[aria-pressed="true"], .chat-filter-chip.active) { background: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--ck-yellow) 28%, transparent) 0 2px, transparent 2px 7px); color: var(--ck-yellow); border-style: solid; border-color: var(--ck-yellow); text-decoration: underline wavy; text-underline-offset: 4px; text-decoration-thickness: 1px; }
+
+/* ---- поля ввода — «строка для письма» ---- */
+html[data-skin="chalk"] :is(.search-input, #chat-input, .settings-select, .rich-input) { background: transparent; border: none; border-bottom: 2px dashed var(--ck-chalk); border-radius: 0; box-shadow: none; font-size: 18px; padding-left: 4px; color: var(--ink-0); }
+html[data-skin="chalk"] :is(#chat-input, .search-input)::placeholder { color: var(--ink-3); font-style: normal; }
+html[data-skin="chalk"] #chat-form.glass, html[data-skin="chalk"] .chat-input-bar.glass { background: transparent; border: none; border-top: 2px dashed color-mix(in srgb, var(--ck-chalk) 55%, transparent); border-radius: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+html[data-skin="chalk"] .edit-banner.glass { background: transparent; border: 2px dotted var(--ck-chalk); border-radius: 12px 5px 14px 6px; }
+
+/* ---- листы, тосты, меню ---- */
+html[data-skin="chalk"] .sheet-backdrop { background: rgba(5, 14, 10, 0.55); }
+html[data-skin="chalk"][data-scheme="light"] .sheet-backdrop { background: rgba(29, 47, 107, 0.25); }
+html[data-skin="chalk"] .sheet-panel { background: var(--sk-panel) var(--ck-grain) 0 0 / 220px 220px; border: 2px dashed var(--ck-chalk); border-bottom: none; border-radius: 26px 8px 0 0 / 14px 22px 0 0; box-shadow: 0 -4px 0 color-mix(in srgb, var(--ck-chalk) 18%, transparent); -webkit-backdrop-filter: none; backdrop-filter: none; }
+html[data-skin="chalk"][data-scheme="light"] .sheet-panel { background: #fffdf4; }
+html[data-skin="chalk"] .sheet-handle { background: var(--ck-chalk); opacity: .5; border-radius: 3px 5px 3px 4px; }
+html[data-skin="chalk"] #composer-menu-sheet .composer-menu-item { background: var(--sk-panel); border: 2px dashed var(--ck-chalk); border-radius: 14px 6px 16px 8px; box-shadow: 3px 3px 0 color-mix(in srgb, var(--ck-chalk) 25%, transparent); font-size: 17px; }
+html[data-skin="chalk"] #toast { background: #fff2a8; color: #2b2410; border: none; border-radius: 3px; padding: 12px 20px; font-size: 18px; transform: translate(-50%, 20px) rotate(-2deg); box-shadow: 3px 5px 0 rgba(0, 0, 0, 0.35); -webkit-backdrop-filter: none; backdrop-filter: none; background-image: linear-gradient(transparent 27px, rgba(160, 130, 40, 0.3) 28px); background-size: 100% 28px; font-weight: 400; }
+html[data-skin="chalk"] #toast.show { transform: translate(-50%, 0) rotate(-2deg); }
+html[data-skin="chalk"] .board-card { background: transparent; border: 2px dotted var(--ck-chalk); border-radius: 10px 4px 12px 5px; }
+html[data-skin="chalk"] .theme-seg { border: 2px dashed var(--ck-chalk); border-radius: 14px 6px 16px 8px; background: transparent; }
+html[data-skin="chalk"] .theme-seg button { font-size: 15px; border-radius: 10px 4px 12px 5px; }
+html[data-skin="chalk"] .voice-play-btn { background: transparent; color: var(--ck-yellow); border: 2px solid var(--ck-yellow); }
+html[data-skin="chalk"] .bubble-row.mine .voice-play-btn { background: transparent; color: var(--ck-yellow); }
+
+html[data-skin="chalk"] :is(.chat-row, .settings-row, .settings-category-row, .forward-row, .sheet-action) { border: none; border-bottom: 2px dashed color-mix(in srgb, var(--ck-chalk) 55%, transparent); border-radius: 0; }
+
+/* ---- декор: каракули на доске ---- */
+.ck-doodle { position: absolute; color: var(--ck-chalk); opacity: .16; font-family: "Neucha Chalk", "Neucha", cursive; white-space: nowrap; }
+.ck-doodle svg { display: block; overflow: visible; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ck-doodle path, .ck-doodle ellipse, .ck-doodle line { stroke-dasharray: 400; stroke-dashoffset: 400; animation: ckDraw 3s steps(40) forwards; }
+.ck-doodle.calm path, .ck-doodle.calm ellipse, .ck-doodle.calm line { animation: none; stroke-dashoffset: 0; }
+@keyframes ckDraw { to { stroke-dashoffset: 0; } }
+.ck-dust { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: var(--ck-chalk); opacity: 0; animation: ckDust 9s ease-in infinite; }
+@keyframes ckDust { 0% { opacity: 0; transform: translate(0, 0); } 20% { opacity: .5; } 100% { opacity: 0; transform: translate(-14px, 60px); } }
+html[data-calm-mode="1"] #skin-deco .ck-dust { display: none; }
+html[data-calm-mode="1"][data-skin="chalk"] :is(.bubble, #tab-bar .tab-btn::after, #tab-bar .tab-btn .ico) { animation: none !important; }
+html[data-calm-mode="1"][data-skin="chalk"] #tab-bar .tab-btn.active::after { clip-path: none; }
+@media (prefers-reduced-motion: reduce) { html[data-skin="chalk"] .bubble-row .bubble, html[data-skin="chalk"] #tab-bar .tab-btn.active .ico { animation: none !important; } html[data-skin="chalk"] #tab-bar .tab-btn.active::after { animation: none; clip-path: none; } .ck-doodle path, .ck-doodle ellipse, .ck-doodle line { stroke-dashoffset: 0; } }
+html[data-skin="chalk"] #composer-menu-sheet .sheet-panel { border: none; background: none; box-shadow: none; }

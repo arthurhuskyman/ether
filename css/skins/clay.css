@@ -1,37 +1,208 @@
-/* ============================ 7. ПЛАСТИЛИН (clay) ============================ */
+/* ============================ ПЛАСТИЛИН (clay) ============================
+   Всё «слеплено» руками: пухлые неидеальные формы, мягкий объём (блик сверху-слева, тень снизу-справа),
+   отпечатки пальцев (feTurbulence), «squish» при нажатии, желейное появление, покачивание. Шрифт — Nunito. */
+@font-face { font-family: "Nunito"; font-weight: 400; font-style: normal; font-display: swap; src: url("../../fonts/skins/nunito-400.woff2") format("woff2"); }
+@font-face { font-family: "Nunito"; font-weight: 800; font-style: normal; font-display: swap; src: url("../../fonts/skins/nunito-800.woff2") format("woff2"); }
+
 html[data-skin="clay"] {
-  --sk-font: "Nunito", "Baloo 2", ui-rounded, "Arial Rounded MT Bold", "Segoe UI", system-ui, sans-serif;
-  --sk-bw: 0px; --sk-radius: 28px; --sk-bubble-r: 26px; --sk-tail: 10px; --sk-btn-r: 24px; --sk-field-r: 26px;
-  --sk-press-scale: .93;
-  --r-sm: 16px; --r-md: 20px; --r-lg: 26px; --r-xl: 32px;
+  --sk-font: "Nunito", ui-rounded, "Arial Rounded MT Bold", "Segoe UI", system-ui, sans-serif;
+  --sk-bw: 0px; --sk-radius: 32px; --sk-bubble-r: 30px; --sk-tail: 10px; --sk-btn-r: 999px; --sk-field-r: 30px;
+  --sk-press-scale: .92;
+  --r-sm: 18px; --r-md: 24px; --r-lg: 30px; --r-xl: 36px;
+  --clay-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .42  0 0 0 0 .26  0 0 0 0 .14  0 0 0 1.1 -.42'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --clay-lump: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Cfilter id='l' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.035' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1.4 -.55'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23l)'/%3E%3C/svg%3E");
+  --clay-spring: cubic-bezier(.34, 1.9, .5, 1);
 }
 html[data-skin="clay"][data-scheme="light"] {
   --bg-0: #f6e4d1; --bg-1: #fbefe1; --bg-2: #fff6ec; --bg-3: #f1d9c0;
   --line-1: rgba(120, 76, 36, 0.14); --line-2: rgba(120, 76, 36, 0.24);
-  --ink-0: #43261a; --ink-1: rgba(67, 38, 26, 0.94); --ink-2: rgba(67, 38, 26, 0.76); --ink-3: rgba(67, 38, 26, 0.66);
-  --accent: #b83f1d; --accent-hi: #d9532f; --accent-lo: #96300f; --accent-ghost: rgba(217, 83, 47, 0.14); --text-link: #b53d1d;
+  --ink-0: #43261a; --ink-1: rgba(67, 38, 26, 0.94); --ink-2: rgba(67, 38, 26, 0.78); --ink-3: rgba(67, 38, 26, 0.68);
+  --accent: #b83f1d; --accent-hi: #d9532f; --accent-lo: #96300f; --accent-ghost: rgba(217, 83, 47, 0.16); --text-link: #b53d1d;
   --bubble-mine-bg: #ff9f80; --bubble-mine-ink: #3a1608; --bubble-theirs-bg: #fffaf3; --bubble-theirs-ink: #43261a;
   --card-bg: none; --card-base: #fff6ec; --card-border: transparent; --card-shadow: 0 10px 18px rgba(120, 76, 36, 0.22), inset 0 -6px 8px rgba(120, 76, 36, 0.12), inset 0 6px 8px rgba(255, 255, 255, 0.85);
-  --select-popup-bg: #fff6ec; --select-popup-ink: #43261a; --input-bg: #fff6ec; --input-border: transparent; --glass-border: transparent;
+  --select-popup-bg: #fff6ec; --select-popup-ink: #43261a; --input-bg: #f3dcc2; --input-border: transparent; --glass-border: transparent;
   --sk-line: transparent; --sk-panel: #fff6ec;
-  --sk-shadow: 0 10px 18px rgba(120, 76, 36, 0.22), inset 0 -6px 8px rgba(120, 76, 36, 0.12), inset 0 6px 8px rgba(255, 255, 255, 0.85);
-  --sk-bubble-shadow: 0 6px 12px rgba(120, 76, 36, 0.22), inset 0 -5px 7px rgba(120, 76, 36, 0.14), inset 0 5px 7px rgba(255, 255, 255, 0.7);
-  --sk-shadow-press: 0 2px 4px rgba(120, 76, 36, 0.25), inset 0 3px 8px rgba(120, 76, 36, 0.2);
+  --sk-shadow: 0 9px 16px rgba(120, 76, 36, 0.24), inset 0 -7px 9px rgba(150, 90, 40, 0.14), inset 0 7px 9px rgba(255, 255, 255, 0.9);
+  --sk-bubble-shadow: 0 7px 12px rgba(120, 76, 36, 0.26), inset 0 -6px 8px rgba(120, 60, 20, 0.16), inset 0 6px 8px rgba(255, 255, 255, 0.75);
+  --sk-shadow-press: 0 2px 4px rgba(120, 76, 36, 0.25), inset 0 4px 9px rgba(120, 76, 36, 0.28);
+  --sk-field: #f3dcc2; --sk-field-shadow: inset 0 6px 10px rgba(120, 76, 36, 0.26), inset 0 -4px 6px rgba(255, 255, 255, 0.8);
   --sk-btn-bg: #58c2b3; --sk-btn-ink: #0b3a33; --sk-panel-press: #f1d9c0;
+  --clay-mine-2: #ffd166; --clay-mine-2-ink: #3a2a00; --clay-theirs-2: #c9f0e6; --clay-theirs-2-ink: #0c3a33;
+  --clay-dent: rgba(120, 60, 20, 0.2); --clay-gloss: rgba(255, 255, 255, 0.75);
   --sk-bg: radial-gradient(ellipse 70% 50% at 20% 10%, rgba(255, 214, 170, 0.8), transparent 70%), radial-gradient(ellipse 60% 50% at 90% 90%, rgba(190, 235, 225, 0.7), transparent 70%), #f6e4d1;
 }
 html[data-skin="clay"][data-scheme="dark"] {
   --bg-0: #2a2233; --bg-1: #342b40; --bg-2: #40354e; --bg-3: #4d405d;
   --line-1: rgba(255, 255, 255, 0.1); --line-2: rgba(255, 255, 255, 0.18);
-  --ink-0: #fff0e4; --ink-1: rgba(255, 240, 228, 0.94); --ink-2: rgba(255, 240, 228, 0.78); --ink-3: rgba(255, 240, 228, 0.66);
-  --accent: #ff9f80; --accent-hi: #ffb79e; --accent-lo: #e87a58; --accent-ghost: rgba(255, 159, 128, 0.16); --text-link: #ffb79e;
+  --ink-0: #fff0e4; --ink-1: rgba(255, 240, 228, 0.94); --ink-2: rgba(255, 240, 228, 0.8); --ink-3: rgba(255, 240, 228, 0.68);
+  --accent: #ff9f80; --accent-hi: #ffb79e; --accent-lo: #e87a58; --accent-ghost: rgba(255, 159, 128, 0.18); --text-link: #ffb79e;
   --bubble-mine-bg: #b9472b; --bubble-mine-ink: #ffffff; --bubble-theirs-bg: #4d405d; --bubble-theirs-ink: #fff0e4;
   --card-bg: none; --card-base: #40354e; --card-border: transparent; --card-shadow: 0 10px 18px rgba(0, 0, 0, 0.4), inset 0 -6px 8px rgba(0, 0, 0, 0.22), inset 0 6px 8px rgba(255, 255, 255, 0.12);
-  --select-popup-bg: #342b40; --select-popup-ink: #fff0e4; --input-bg: #40354e; --input-border: transparent; --glass-border: transparent;
+  --select-popup-bg: #342b40; --select-popup-ink: #fff0e4; --input-bg: #352c42; --input-border: transparent; --glass-border: transparent;
   --sk-line: transparent; --sk-panel: #40354e;
-  --sk-shadow: 0 10px 18px rgba(0, 0, 0, 0.4), inset 0 -6px 8px rgba(0, 0, 0, 0.22), inset 0 6px 8px rgba(255, 255, 255, 0.12);
-  --sk-bubble-shadow: 0 6px 12px rgba(0, 0, 0, 0.4), inset 0 -5px 7px rgba(0, 0, 0, 0.2), inset 0 5px 7px rgba(255, 255, 255, 0.14);
-  --sk-shadow-press: 0 2px 4px rgba(0, 0, 0, 0.45), inset 0 3px 8px rgba(0, 0, 0, 0.3);
+  --sk-shadow: 0 9px 16px rgba(0, 0, 0, 0.42), inset 0 -7px 9px rgba(0, 0, 0, 0.24), inset 0 7px 9px rgba(255, 255, 255, 0.13);
+  --sk-bubble-shadow: 0 7px 12px rgba(0, 0, 0, 0.42), inset 0 -6px 8px rgba(0, 0, 0, 0.22), inset 0 6px 8px rgba(255, 255, 255, 0.16);
+  --sk-shadow-press: 0 2px 4px rgba(0, 0, 0, 0.45), inset 0 4px 9px rgba(0, 0, 0, 0.35);
+  --sk-field: #352c42; --sk-field-shadow: inset 0 6px 10px rgba(0, 0, 0, 0.42), inset 0 -4px 6px rgba(255, 255, 255, 0.07);
   --sk-btn-bg: #4fb3a6; --sk-btn-ink: #04201c; --sk-panel-press: #4d405d;
+  --clay-mine-2: #8a5fc0; --clay-mine-2-ink: #ffffff; --clay-theirs-2: #2f6b66; --clay-theirs-2-ink: #ffffff;
+  --clay-dent: rgba(0, 0, 0, 0.32); --clay-gloss: rgba(255, 255, 255, 0.34);
   --sk-bg: radial-gradient(ellipse 70% 50% at 20% 10%, rgba(120, 90, 160, 0.5), transparent 70%), radial-gradient(ellipse 60% 50% at 90% 90%, rgba(70, 140, 130, 0.35), transparent 70%), #2a2233;
+}
+
+html[data-scheme="dark"][data-skin="clay"] { --clay-lump: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Cfilter id='l' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.035' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.8 -.3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23l)'/%3E%3C/svg%3E"); }
+
+/* ---------- типографика ---------- */
+html[data-skin="clay"] :is(#nav-title, .nav-contact-title, .settings-group-title, .settings-category-label, .chat-row-name, .sheet-panel h2, .sheet-title, .empty-state h2, #chat-peer-name, .btn-primary, .btn-secondary, .tab-btn, .chat-filter-chip, .bubble-sender, .unread-badge, .tab-badge, .avatar) { font-weight: 800; }
+html[data-skin="clay"] #nav-title { font-size: 28px; letter-spacing: .01em; text-shadow: 0 2px 0 rgba(255, 255, 255, .55); }
+html[data-skin="clay"][data-scheme="dark"] #nav-title { text-shadow: 0 2px 0 rgba(0, 0, 0, .4); }
+
+/* ---------- фон: пластилиновый «стол» с отпечатками и крупными комками ---------- */
+html[data-skin="clay"] #skin-deco { background-image: var(--clay-noise); background-size: 180px 180px; opacity: 1; }
+html[data-skin="clay"] #skin-deco .clay-blob { position: absolute; will-change: transform; opacity: .55; }
+html[data-skin="clay"] #skin-deco .clay-blob::after { content: ""; position: absolute; inset: 14% 22% 52% 18%; border-radius: 50%; background: rgba(255, 255, 255, .55); }
+html[data-skin="clay"][data-scheme="dark"] #skin-deco .clay-blob { opacity: .32; }
+html[data-skin="clay"][data-scheme="dark"] #skin-deco .clay-blob::after { background: rgba(255, 255, 255, .25); }
+html[data-skin="clay"] #skin-deco .clay-blob { animation: clay-drift var(--dur, 24s) ease-in-out var(--dl, 0s) infinite alternate; }
+@keyframes clay-drift {
+  0% { transform: translate(0, 0) rotate(0deg) scale(1, 1); }
+  50% { transform: translate(var(--dx, 18px), calc(var(--dy, 24px) * .5)) rotate(8deg) scale(1.06, .94); }
+  100% { transform: translate(calc(var(--dx, 18px) * -.6), var(--dy, 24px)) rotate(-6deg) scale(.96, 1.05); }
+}
+
+/* ---------- панели: «колбаски»-комки, все чуть разные ---------- */
+html[data-skin="clay"] :is(.glass, .glass-regular, .glass-content, .flat-content, .chat-row, .settings-row, .sheet-panel, .first-run-card, .sheet-action, .forward-row, .settings-category-row, .contact-gallery-item, .board-col) {
+  background-image: var(--clay-noise), var(--clay-lump);
+  background-size: 180px 180px, 260px 260px; background-blend-mode: normal, soft-light;
+  background-color: var(--sk-panel);
+}
+html[data-skin="clay"] .chat-row-wrapper:nth-child(odd) .chat-row, html[data-skin="clay"] .settings-category-row:nth-child(odd) { border-radius: 38px 30px 40px 28px / 32px 38px 30px 36px; }
+html[data-skin="clay"] .chat-row-wrapper:nth-child(even) .chat-row, html[data-skin="clay"] .settings-category-row:nth-child(even) { border-radius: 30px 40px 28px 38px / 36px 30px 38px 32px; }
+html[data-skin="clay"] .chat-row-wrapper { overflow: visible; margin-bottom: 8px; border-radius: 38px; }
+html[data-skin="clay"] .chat-row-actions { border-radius: 38px; overflow: hidden; }
+html[data-skin="clay"] .chat-row { padding: 14px 18px; }
+html[data-skin="clay"] .chat-row:active { transform: scale(1.03, .93); box-shadow: var(--sk-shadow-press); transition: transform .12s; }
+html[data-skin="clay"] .chat-row { transition: transform .45s var(--clay-spring), box-shadow .3s; }
+html[data-skin="clay"] .settings-group { border-radius: 36px 30px 38px 30px / 32px 38px 30px 36px; padding: 6px 20px; }
+html[data-skin="clay"] .settings-group .settings-row { background: none; box-shadow: none; border-radius: 0; border: 0; border-bottom: 3px solid rgba(120, 76, 36, .10); }
+html[data-skin="clay"][data-scheme="dark"] .settings-group .settings-row { border-bottom-color: rgba(0, 0, 0, .22); }
+html[data-skin="clay"] .settings-group .settings-row:last-child { border-bottom: 0; }
+html[data-skin="clay"] .settings-group-title { font-size: 14px; letter-spacing: .06em; }
+html[data-skin="clay"] .settings-category-row { padding: 16px 20px; margin-bottom: 2px; }
+html[data-skin="clay"] .settings-category-icon { width: 44px; height: 44px; border-radius: 52% 48% 50% 50% / 48% 52% 48% 52%; background: var(--accent-ghost); box-shadow: inset 0 3px 5px rgba(255, 255, 255, .6), inset 0 -3px 5px var(--clay-dent); }
+html[data-skin="clay"] .settings-category-row:active { transform: scale(1.03, .93); box-shadow: var(--sk-shadow-press); }
+html[data-skin="clay"] .settings-category-row { transition: transform .45s var(--clay-spring); }
+
+/* верхняя панель и нижняя «колбаска»-таббар парят над столом */
+html[data-skin="clay"] #nav-bar.glass { margin: 8px 10px 0; border-radius: 44px; padding-left: 18px; padding-right: 12px; }
+html[data-skin="clay"] #tab-bar.glass { margin: 0 12px 8px; padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px)); border-radius: 999px; gap: 4px; }
+html[data-skin="clay"] .tab-btn { border-radius: 999px; padding: 7px 0 6px; transition: transform .45s var(--clay-spring), background .25s, box-shadow .25s; }
+html[data-skin="clay"] .tab-btn.active { background: var(--accent-ghost); box-shadow: inset 0 5px 9px var(--clay-dent), inset 0 -3px 5px var(--clay-gloss); }
+html[data-skin="clay"] .tab-btn:active { transform: scale(1.08, .86); }
+html[data-skin="clay"] .tab-btn.active .ico { animation: clay-boing .6s var(--clay-spring); }
+@keyframes clay-boing { 0% { transform: scale(.6, 1.3) translateY(4px); } 35% { transform: scale(1.3, .75) translateY(2px); } 65% { transform: scale(.9, 1.12) translateY(-3px); } 100% { transform: none; } }
+html[data-skin="clay"] .tab-btn .ico { stroke-width: 2.8; }
+
+/* чипы-«горошины» */
+html[data-skin="clay"] .chat-filter-chip { background: var(--sk-panel); color: var(--ink-1); box-shadow: 0 4px 7px rgba(120, 76, 36, .22), inset 0 3px 4px rgba(255, 255, 255, .8), inset 0 -3px 4px rgba(120, 60, 20, .12); padding: 8px 6px; font-size: 12px; transition: transform .4s var(--clay-spring); }
+html[data-skin="clay"][data-scheme="dark"] .chat-filter-chip { box-shadow: 0 4px 7px rgba(0, 0, 0, .4), inset 0 3px 4px rgba(255, 255, 255, .12), inset 0 -3px 4px rgba(0, 0, 0, .2); }
+html[data-skin="clay"] .chat-filter-chip.active { background: var(--sk-btn-bg); color: var(--sk-btn-ink); box-shadow: var(--sk-shadow-press); transform: scale(1.04, .94); }
+html[data-skin="clay"] .chat-filter-chip-add { border: 0; box-shadow: var(--sk-field-shadow); }
+
+/* ---------- пузыри: комочки с бликом и вмятиной-«отпечатком пальца» ---------- */
+html[data-skin="clay"] .bubble { margin-bottom: 4px; padding: 12px 18px 9px; font-weight: 400; background-clip: padding-box; }
+html[data-skin="clay"] .bubble-row.mine .bubble { border-radius: 32px 34px 8px 30px / 30px 28px 12px 34px; }
+html[data-skin="clay"] .bubble-row.theirs .bubble { border-radius: 34px 30px 32px 8px / 28px 34px 30px 12px; }
+html[data-skin="clay"] #screen-chat[data-skin-shape] .bubble-row.mine .bubble { border-radius: 32px 34px 8px 30px / 30px 28px 12px 34px; }
+html[data-skin="clay"] #screen-chat[data-skin-shape] .bubble-row.theirs .bubble { border-radius: 34px 30px 32px 8px / 28px 34px 30px 12px; }
+html[data-skin="clay"] .bubble-row.mine .bubble, html[data-skin="clay"] .bubble-row.theirs .bubble { background-image: var(--clay-lump); background-size: 260px 260px; background-blend-mode: soft-light; }
+html[data-skin="clay"] .bubble::before { content: ""; position: absolute; left: 14px; top: 6px; width: 38%; max-width: 90px; height: 9px; border-radius: 50%; background: radial-gradient(ellipse at 50% 50%, var(--clay-gloss), transparent 72%); transform: rotate(-4deg); pointer-events: none; }
+html[data-skin="clay"] .bubble::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: .5;
+  background: radial-gradient(ellipse 16px 11px at 86% 74%, var(--clay-dent), transparent 72%), var(--clay-noise); background-size: auto, 180px 180px; }
+/* чередуем «цвета пластилина», чтобы лента была пёстрой */
+html[data-skin="clay"] .bubble-row.mine:nth-of-type(3n+2) .bubble { background-color: var(--clay-mine-2); color: var(--clay-mine-2-ink); }
+html[data-skin="clay"] .bubble-row.theirs:nth-of-type(3n+1) .bubble { background-color: var(--clay-theirs-2); color: var(--clay-theirs-2-ink); }
+html[data-skin="clay"] .bubble-time { font-weight: 700; }
+html[data-skin="clay"] .bubble-reaction-chip { border-radius: 999px; padding: 3px 9px; background: var(--sk-panel); color: var(--ink-0); box-shadow: 0 3px 5px var(--clay-dent), inset 0 2px 3px rgba(255, 255, 255, .7); }
+html[data-skin="clay"] .bubble-reply { border-radius: 18px; border-inline-start-width: 6px; }
+html[data-skin="clay"] .bubble code { border-radius: 10px; }
+html[data-skin="clay"] .poll-opt, html[data-skin="clay"] .board-card { border-radius: 22px; border: 0; background-color: rgba(255, 255, 255, .35); box-shadow: inset 0 3px 5px rgba(255, 255, 255, .5), inset 0 -3px 5px var(--clay-dent); }
+html[data-skin="clay"] .poll-opt-bar { border-radius: 22px; }
+html[data-skin="clay"] .board-col { border-radius: 26px; box-shadow: none; background-image: none; background-color: rgba(120, 76, 36, .1); }
+html[data-skin="clay"] .voice-play-btn { box-shadow: inset 0 3px 4px rgba(255, 255, 255, .6), 0 3px 6px var(--clay-dent); }
+html[data-skin="clay"] .voice-progress { height: 10px; border-radius: 999px; box-shadow: inset 0 2px 4px var(--clay-dent); }
+html[data-skin="clay"] .voice-progress-fill { border-radius: 999px; }
+html[data-skin="clay"] .bubble-row.mine .voice-play-btn { color: #b83f1d; }
+
+/* появление: желейное «плюх» с овершутом */
+html[data-skin="clay"] .bubble-row.theirs.just-received .bubble { transform-origin: 0 100%; animation: clay-jelly-in .7s var(--clay-spring) both; }
+html[data-skin="clay"] .bubble-row.mine.just-received .bubble { transform-origin: 100% 100%; animation: clay-jelly-in .7s var(--clay-spring) both; }
+html[data-skin="clay"] .bubble-row.just-sent .bubble { transform-origin: 100% 100%; animation: clay-plop .5s var(--clay-spring) both; }
+@keyframes clay-jelly-in {
+  0% { transform: scale(.35, .25) translateY(18px); opacity: 0; }
+  35% { transform: scale(1.14, .84); opacity: 1; }
+  55% { transform: scale(.93, 1.08); }
+  75% { transform: scale(1.03, .98); }
+  100% { transform: none; opacity: 1; }
+}
+@keyframes clay-plop { 0% { transform: scale(1.12, .8) translateY(10px); opacity: .6; } 50% { transform: scale(.96, 1.06); opacity: 1; } 100% { transform: none; opacity: 1; } }
+html[data-skin="clay"] .bubble:active { opacity: 1; transform: scale(1.04, .9); }
+
+/* ---------- кнопки: пухлые «таблетки», сплющиваются при нажатии ---------- */
+html[data-skin="clay"] .btn-primary, html[data-skin="clay"] .btn-secondary {
+  position: relative; border-radius: 999px; padding: 15px 24px; font-size: 17px;
+  background-image: var(--clay-noise), linear-gradient(180deg, rgba(255, 255, 255, .28), rgba(255, 255, 255, 0) 55%); background-size: 180px, auto;
+  box-shadow: 0 9px 14px var(--clay-dent), inset 0 6px 7px rgba(255, 255, 255, .55), inset 0 -7px 8px rgba(0, 0, 0, .14);
+  transition: transform .5s var(--clay-spring), box-shadow .25s;
+}
+html[data-skin="clay"] .btn-secondary { background-color: var(--sk-panel); }
+html[data-skin="clay"] .btn-tertiary { font-weight: 800; border-radius: 999px; }
+html[data-skin="clay"] .btn-primary:active, html[data-skin="clay"] .btn-secondary:active { transform: scale(1.07, .86); box-shadow: 0 1px 2px var(--clay-dent), inset 0 7px 10px rgba(0, 0, 0, .2); opacity: 1; }
+html[data-skin="clay"] .btn-primary.destructive { background-color: var(--danger); }
+html[data-skin="clay"] .send-btn { width: 46px; height: 46px; border-radius: 52% 48% 50% 50% / 48% 52% 48% 52%; background-image: linear-gradient(180deg, rgba(255, 255, 255, .3), transparent 55%); box-shadow: 0 7px 10px var(--clay-dent), inset 0 5px 6px rgba(255, 255, 255, .6), inset 0 -6px 7px rgba(0, 0, 0, .16); transition: transform .5s var(--clay-spring), box-shadow .25s; }
+html[data-skin="clay"] .send-btn:active { transform: scale(1.12, .8); box-shadow: 0 1px 2px var(--clay-dent), inset 0 6px 9px rgba(0, 0, 0, .22); }
+html[data-skin="clay"] .icon-btn { border-radius: 50%; transition: transform .45s var(--clay-spring); }
+html[data-skin="clay"] .icon-btn:active { transform: scale(1.15, .8); }
+html[data-skin="clay"] .icon-btn .ico { stroke-width: 2.8; }
+
+/* поля — вдавленные в глину ямки */
+html[data-skin="clay"] :is(.search-input, #chat-input, .settings-select, .rich-input, .search-input-inline) { background-color: var(--sk-field); background-image: none; box-shadow: var(--sk-field-shadow); border: 0; }
+html[data-skin="clay"] .search-input-inline { box-shadow: none; }
+html[data-skin="clay"] #chat-input { border-radius: 26px; padding: 10px 18px; background: var(--sk-field); border: 0; }
+html[data-skin="clay"] .chat-input-bar.glass { margin: 0 10px 6px; border-radius: 40px; padding: 8px 10px; width: auto; }
+html[data-skin="clay"] .settings-row input[type="text"] { font-weight: 800; }
+html[data-skin="clay"] .settings-row input[type="range"] { accent-color: var(--accent); }
+html[data-skin="clay"] .settings-row input[type="range"]::-webkit-slider-runnable-track { height: 12px; border-radius: 999px; background: var(--sk-field); box-shadow: inset 0 3px 5px var(--clay-dent); }
+html[data-skin="clay"] .settings-row input[type="range"]::-webkit-slider-thumb { height: 26px; width: 26px; border-radius: 50%; background: var(--accent); box-shadow: 0 3px 5px var(--clay-dent), inset 0 3px 4px rgba(255, 255, 255, .6); margin-top: -7px; -webkit-appearance: none; }
+
+/* аватары-«колобки» и значки */
+html[data-skin="clay"] :is(.avatar, .avatar-sm, .avatar-lg, .avatar-xl) { border-radius: 48% 52% 50% 50% / 54% 46% 54% 46%; box-shadow: 0 5px 8px var(--clay-dent), inset 0 4px 5px rgba(255, 255, 255, .55), inset 0 -5px 6px rgba(0, 0, 0, .2); }
+html[data-skin="clay"] .chat-row-wrapper:nth-child(even) .avatar { border-radius: 52% 48% 46% 54% / 46% 54% 50% 50%; }
+html[data-skin="clay"] .chat-row:active .avatar { animation: clay-wobble .6s ease-in-out; }
+@keyframes clay-wobble { 0%, 100% { transform: rotate(0) scale(1); } 25% { transform: rotate(-9deg) scale(1.1, .9); } 55% { transform: rotate(7deg) scale(.95, 1.08); } 80% { transform: rotate(-3deg); } }
+html[data-skin="clay"] .unread-badge, html[data-skin="clay"] .tab-badge { border-radius: 999px; padding: 4px 9px; background-image: linear-gradient(180deg, rgba(255, 255, 255, .35), transparent 55%); box-shadow: 0 3px 5px var(--clay-dent), inset 0 2px 3px rgba(255, 255, 255, .6), inset 0 -3px 4px rgba(0, 0, 0, .2); }
+html[data-skin="clay"] .tab-badge { box-shadow: 0 0 0 2px var(--bg-0), inset 0 2px 3px rgba(255, 255, 255, .6); }
+
+/* шторки, меню «+», тосты */
+html[data-skin="clay"] .sheet-backdrop { background: rgba(60, 30, 40, .4); }
+html[data-skin="clay"] .sheet-panel { border-radius: 44px 44px 0 0; background-image: var(--clay-noise); }
+html[data-skin="clay"] .sheet-handle { width: 56px; height: 12px; border-radius: 999px; background: var(--sk-field); box-shadow: inset 0 3px 4px var(--clay-dent); }
+html[data-skin="clay"] .sheet-action { border-radius: 28px; font-weight: 800; transition: transform .45s var(--clay-spring); }
+html[data-skin="clay"] .sheet-action:active { transform: scale(1.04, .9); opacity: 1; box-shadow: var(--sk-shadow-press); }
+html[data-skin="clay"] #composer-menu-sheet .composer-menu-item { border-radius: 999px; box-shadow: 0 8px 12px var(--clay-dent), inset 0 5px 6px rgba(255, 255, 255, .7), inset 0 -5px 6px rgba(120, 60, 20, .12); }
+html[data-skin="clay"] #composer-menu-sheet .composer-menu-item { animation: clay-jelly-in .55s var(--clay-spring) both; transform-origin: 0 100%; }
+html[data-skin="clay"] .toast { border-radius: 999px; padding: 12px 22px; font-weight: 800; animation: clay-jelly-in .6s var(--clay-spring) both; }
+html[data-skin="clay"] .reaction-emoji { box-shadow: 0 5px 8px var(--clay-dent), inset 0 4px 5px rgba(255, 255, 255, .7); }
+html[data-skin="clay"] .skin-card { border-radius: 28px; border: 0; box-shadow: 0 6px 10px var(--clay-dent), inset 0 4px 6px rgba(255, 255, 255, .6); }
+html[data-skin="clay"] .skin-card.active { box-shadow: var(--sk-shadow-press); }
+html[data-skin="clay"] .empty-state h2 { font-size: 24px; }
+
+/* иконки: толстые комковатые контуры с мягкой заливкой */
+html[data-skin="clay"] .ico:not(.ico-fill) { stroke-width: 2.7; stroke-linejoin: round; stroke-linecap: round; fill: color-mix(in srgb, currentColor 20%, transparent); }
+
+/* спокойный режим и reduce-motion: без скинового движения */
+html[data-calm-mode="1"][data-skin="clay"] :is(.bubble, .toast, .composer-menu-item, .tab-btn .ico, .avatar, #skin-deco .clay-blob) { animation: none !important; }
+html[data-calm-mode="1"][data-skin="clay"] :is(.btn-primary, .btn-secondary, .send-btn, .tab-btn, .chat-row, .sheet-action, .icon-btn, .settings-category-row):active { transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  html[data-skin="clay"] :is(.bubble, .toast, .composer-menu-item, .tab-btn .ico, .avatar, #skin-deco .clay-blob) { animation: none !important; }
 }

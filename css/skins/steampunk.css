@@ -1,31 +1,206 @@
-/* ============================ 5. СТИМПАНК (steampunk) ============================ */
+/* ============================ 5. СТИМПАНК (steampunk) ============================
+   Латунь, кожа, заклёпки, пергамент: пузыри — латунные таблички и кожаные ярлыки, кнопки — тугие клапаны с глубоким нажатием,
+   аватары — иллюминаторы, декор — шестерни, трубы и пар. Yeseva One (заголовки) + Podkova (текст). */
+@font-face { font-family: "SkYeseva"; font-weight: 400; font-display: swap; src: url("../../fonts/skins/yeseva-one-400.woff2") format("woff2"); }
+@font-face { font-family: "SkPodkova"; font-weight: 400; font-display: swap; src: url("../../fonts/skins/podkova-400.woff2") format("woff2"); }
+@font-face { font-family: "SkPodkova"; font-weight: 700; font-display: swap; src: url("../../fonts/skins/podkova-700.woff2") format("woff2"); }
 html[data-skin="steampunk"] {
-  --sk-font: Georgia, "Palatino Linotype", "Book Antiqua", Cambria, "Times New Roman", serif; --sk-tracking: 0.01em;
-  --sk-bw: 4px; --sk-bs: double; --sk-radius: 8px; --sk-bubble-r: 8px; --sk-tail: 2px; --sk-btn-r: 6px; --sk-field-r: 8px;
-  --sk-press-y: 2px; --sk-press-scale: .98;
-  --r-sm: 4px; --r-md: 6px; --r-lg: 8px; --r-xl: 12px;
+  --sk-font: "SkPodkova", "Rockwell", "Roboto Slab", Georgia, "Times New Roman", serif; --sk-tracking: 0.005em;
+  --sp-head: "SkYeseva", "Playfair Display", Georgia, "Times New Roman", serif;
+  --sk-bw: 3px; --sk-bs: solid; --sk-radius: 6px; --sk-bubble-r: 6px; --sk-tail: 6px; --sk-btn-r: 8px; --sk-field-r: 6px;
+  --sk-press-y: 4px; --sk-press-scale: 1;
+  --r-sm: 3px; --r-md: 6px; --r-lg: 8px; --r-xl: 10px;
+  --sp-rv: radial-gradient(circle at 36% 32%, #fbe7ae 0 18%, #c99434 42%, #6b430f 68%, rgba(40, 22, 4, .55) 74%, transparent 78%);
+  --sp-rivets: var(--sp-rv) 5px 5px / 9px 9px no-repeat, var(--sp-rv) right 5px top 5px / 9px 9px no-repeat, var(--sp-rv) left 5px bottom 5px / 9px 9px no-repeat, var(--sp-rv) right 5px bottom 5px / 9px 9px no-repeat;
+  --sp-paper: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .3 0 0 0 0 .18 0 0 0 0 .06 0 0 0 .3 0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+  --sp-gear: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath fill='%23b8862b' fill-rule='evenodd' d='M86.0 50.0 L85.8 54.1 L95.2 58.6 L92.8 66.9 L82.4 65.7 L79.1 71.2 L76.6 74.3 L81.5 83.5 L74.6 88.8 L66.9 81.8 L61.1 84.2 L57.2 85.3 L55.8 95.6 L47.1 95.9 L45.0 85.7 L38.9 84.2 L35.1 82.8 L27.8 90.3 L20.7 85.4 L25.0 75.9 L20.9 71.2 L18.7 67.7 L8.4 69.6 L5.4 61.4 L14.6 56.3 L14.0 50.0 L14.2 45.9 L4.8 41.4 L7.2 33.1 L17.6 34.3 L20.9 28.8 L23.4 25.7 L18.5 16.5 L25.4 11.2 L33.1 18.2 L38.9 15.8 L42.8 14.7 L44.2 4.4 L52.9 4.1 L55.0 14.3 L61.1 15.8 L64.9 17.2 L72.2 9.7 L79.3 14.6 L75.0 24.1 L79.1 28.8 L81.3 32.3 L91.6 30.4 L94.6 38.6 L85.4 43.7Z M36 50 a14 14 0 1 0 28 0 a14 14 0 1 0 -28 0Z'/%3E%3C/svg%3E");
 }
 html[data-skin="steampunk"][data-scheme="light"] {
-  --bg-0: #e6d5ae; --bg-1: #efe2c2; --bg-2: #f6ecd2; --bg-3: #ead9b0;
-  --line-1: rgba(90, 52, 16, 0.22); --line-2: rgba(90, 52, 16, 0.38);
+  --bg-0: #e8d6a9; --bg-1: #f0e2bd; --bg-2: #f7edd2; --bg-3: #e6d3a3;
+  --line-1: rgba(90, 52, 16, 0.24); --line-2: rgba(90, 52, 16, 0.4);
   --ink-0: #34200c; --ink-1: rgba(52, 32, 12, 0.94); --ink-2: rgba(52, 32, 12, 0.78); --ink-3: rgba(52, 32, 12, 0.68);
-  --accent: #95581a; --accent-hi: #b37226; --accent-lo: #6e3f0f; --accent-ghost: rgba(149, 88, 26, 0.14); --text-link: #7a440f;
-  --bubble-mine-bg: linear-gradient(180deg, #e0b25e, #bf8530); --bubble-mine-ink: #2a1706; --bubble-theirs-bg: #f8eed6; --bubble-theirs-ink: #34200c;
-  --card-bg: none; --card-base: #f6ecd2; --card-border: #7a4b1e; --card-shadow: inset 0 0 0 1px #d6b06a, 0 4px 8px rgba(52, 32, 12, 0.35);
-  --select-popup-bg: #f6ecd2; --select-popup-ink: #34200c; --input-bg: #fbf3df; --input-border: #7a4b1e; --glass-border: #7a4b1e;
-  --sk-line: #7a4b1e; --sk-panel: #f6ecd2; --sk-shadow: inset 0 0 0 1px #d6b06a, 0 4px 8px rgba(52, 32, 12, 0.35); --sk-bubble-shadow: 0 3px 6px rgba(52, 32, 12, 0.3); --sk-shadow-press: inset 0 0 0 1px #d6b06a, 0 1px 2px rgba(52, 32, 12, 0.4);
-  --sk-btn-bg: linear-gradient(180deg, #d9a043, #c98d38); --sk-btn-ink: #2a1706; --sk-panel-press: #ead9b0;
-  --sk-bg: repeating-linear-gradient(45deg, rgba(90, 52, 16, 0.045) 0 2px, transparent 2px 6px), radial-gradient(ellipse 90% 70% at 50% 40%, rgba(255, 244, 214, 0.7), transparent 80%), #e6d5ae;
+  --accent: #8a4f12; --accent-hi: #b37226; --accent-lo: #6e3f0f; --accent-ghost: rgba(138, 79, 18, 0.14); --text-link: #7a440f;
+  --bubble-mine-bg: #e2b45a; --bubble-mine-ink: #2a1706; --bubble-theirs-bg: #f9f0da; --bubble-theirs-ink: #34200c;
+  --card-bg: none; --card-base: #f7edd2; --card-border: #7a4b1e; --card-shadow: 0 3px 0 #b89050;
+  --select-popup-bg: #f7edd2; --select-popup-ink: #34200c; --input-bg: #fbf3df; --input-border: #7a4b1e; --glass-border: #7a4b1e;
+  --sk-line: #7a4b1e; --sk-panel: #f4e8c8; --sk-field: #fbf3df;
+  --sk-shadow: inset 0 0 0 2px #f9efd2, inset 0 0 0 3px #b98a3e, 0 3px 0 #8a5a22, 0 5px 8px rgba(52, 32, 12, 0.35); --sk-bubble-shadow: 0 3px 0 #8a5a22, 0 5px 8px rgba(52, 32, 12, 0.3); --sk-shadow-press: inset 0 3px 6px rgba(52, 32, 12, 0.5);
+  --sk-btn-bg: #3a2616; --sk-btn-ink: #f5dc9a; --sk-panel-press: #e6d3a3;
+  --sp-hi: #f3cf7e; --sp-mid: #cf9a3c; --sp-lo: #8c5a14; --sp-dk: #3a2616; --sp-edge: #6b430f; --sp-leather: #6a4a30; --sp-leather-ink: #f6e9c8; --sp-steam: rgba(255, 255, 255, 0.55); --sp-gear-op: .16;
+  --sk-bg: radial-gradient(ellipse 100% 70% at 50% 40%, rgba(255, 246, 220, 0.75), transparent 80%), radial-gradient(ellipse 140% 100% at 50% 50%, transparent 55%, rgba(110, 66, 20, 0.4) 100%), var(--sp-paper), #e8d6a9;
 }
 html[data-skin="steampunk"][data-scheme="dark"] {
-  --bg-0: #1f150d; --bg-1: #2a1d13; --bg-2: #35251a; --bg-3: #422f21;
-  --line-1: rgba(212, 160, 70, 0.18); --line-2: rgba(212, 160, 70, 0.3);
-  --ink-0: #f2e2bb; --ink-1: rgba(242, 226, 187, 0.94); --ink-2: rgba(242, 226, 187, 0.78); --ink-3: rgba(242, 226, 187, 0.66);
-  --accent: #dca044; --accent-hi: #efb95f; --accent-lo: #b8862b; --accent-ghost: rgba(220, 160, 68, 0.16); --text-link: #efb95f;
-  --bubble-mine-bg: linear-gradient(180deg, #9a6521, #6f4513); --bubble-mine-ink: #fff4d6; --bubble-theirs-bg: #402d20; --bubble-theirs-ink: #f2e2bb;
-  --card-bg: none; --card-base: #35251a; --card-border: #b8862b; --card-shadow: inset 0 0 0 1px #5e4220, 0 4px 10px rgba(0, 0, 0, 0.5);
-  --select-popup-bg: #2a1d13; --select-popup-ink: #f2e2bb; --input-bg: #2a1d13; --input-border: #b8862b; --glass-border: #b8862b;
-  --sk-line: #b8862b; --sk-panel: #35251a; --sk-shadow: inset 0 0 0 1px #5e4220, 0 4px 10px rgba(0, 0, 0, 0.5); --sk-bubble-shadow: 0 3px 8px rgba(0, 0, 0, 0.45); --sk-shadow-press: inset 0 0 0 1px #5e4220, 0 1px 2px rgba(0, 0, 0, 0.5);
-  --sk-btn-bg: linear-gradient(180deg, #d9a043, #a2701f); --sk-btn-ink: #1c1208; --sk-panel-press: #422f21;
-  --sk-bg: repeating-linear-gradient(45deg, rgba(212, 160, 70, 0.05) 0 2px, transparent 2px 6px), radial-gradient(ellipse 90% 70% at 50% 40%, rgba(120, 80, 30, 0.35), transparent 80%), #1f150d;
+  --bg-0: #1a110a; --bg-1: #261a10; --bg-2: #33241a; --bg-3: #42301f;
+  --line-1: rgba(212, 160, 70, 0.2); --line-2: rgba(212, 160, 70, 0.34);
+  --ink-0: #f2e2bb; --ink-1: rgba(242, 226, 187, 0.94); --ink-2: rgba(242, 226, 187, 0.8); --ink-3: rgba(242, 226, 187, 0.68);
+  --accent: #e2a94d; --accent-hi: #f3c366; --accent-lo: #b8862b; --accent-ghost: rgba(226, 169, 77, 0.16); --text-link: #f3c366;
+  --bubble-mine-bg: #d9a54a; --bubble-mine-ink: #1c1006; --bubble-theirs-bg: #3b2a1c; --bubble-theirs-ink: #f2e2bb;
+  --card-bg: none; --card-base: #33241a; --card-border: #b8862b; --card-shadow: 0 3px 0 #0e0804;
+  --select-popup-bg: #261a10; --select-popup-ink: #f2e2bb; --input-bg: #1f150c; --input-border: #b8862b; --glass-border: #b8862b;
+  --sk-line: #b8862b; --sk-panel: #33241a; --sk-field: #1f150c;
+  --sk-shadow: inset 0 0 0 2px #1c120a, inset 0 0 0 3px #7a5420, 0 3px 0 #0e0804, 0 5px 10px rgba(0, 0, 0, 0.55); --sk-bubble-shadow: 0 3px 0 #0e0804, 0 5px 10px rgba(0, 0, 0, 0.5); --sk-shadow-press: inset 0 3px 8px rgba(0, 0, 0, 0.7);
+  --sk-btn-bg: #d9a043; --sk-btn-ink: #1c1208; --sk-panel-press: #42301f;
+  --sp-hi: #f1c968; --sp-mid: #c28a2c; --sp-lo: #7a4c10; --sp-dk: #1c1208; --sp-edge: #0e0804; --sp-leather: #3b2a1c; --sp-leather-ink: #f2e2bb; --sp-steam: rgba(255, 236, 190, 0.28); --sp-gear-op: .2;
+  --sk-bg: radial-gradient(ellipse 80% 50% at 50% 35%, rgba(255, 170, 70, 0.17), transparent 75%), radial-gradient(ellipse 140% 100% at 50% 50%, transparent 50%, rgba(0, 0, 0, 0.6) 100%), var(--sp-paper), #1a110a;
 }
+
+/* ---------- типографика ---------- */
+html[data-skin="steampunk"] :is(h1, h2, h3, #nav-title, #chat-peer-name, .chat-row-name, .sheet-title, .settings-category-header-title, .settings-group-title, .contact-card-name, .bubble-sender, .settings-category-label) { font-family: var(--sp-head); font-weight: 400; letter-spacing: 0.02em; }
+html[data-skin="steampunk"] :is(h1, #nav-title) { text-shadow: 0 1px 0 rgba(255, 236, 190, 0.5), 0 -1px 0 rgba(0, 0, 0, 0.35); font-size: 1.5em; }
+html[data-skin="steampunk"][data-scheme="dark"] :is(h1, #nav-title) { text-shadow: 0 -1px 0 #000, 0 1px 0 rgba(255, 220, 150, 0.25), 0 0 14px rgba(255, 170, 60, 0.35); }
+html[data-skin="steampunk"] .tab-btn { font-family: var(--sp-head); font-size: 11px; letter-spacing: 0.06em; font-weight: 400; }
+html[data-skin="steampunk"] .settings-group-title { text-transform: uppercase; letter-spacing: .14em; font-size: 12px; color: var(--accent); }
+html[data-skin="steampunk"] :is(.bubble-time, .chat-row-time) { font-style: italic; }
+html[data-skin="steampunk"] #nav-title::before { content: ""; display: inline-block; width: 1em; height: 1em; margin-right: .35em; vertical-align: -.1em; background: var(--sp-gear) center / contain no-repeat; animation: sp-spin 14s linear infinite; filter: brightness(.3) sepia(.4); }
+@keyframes sp-spin { to { transform: rotate(360deg); } }
+
+/* ---------- иконки: гравюра, рельеф ---------- */
+html[data-skin="steampunk"] .ico { stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 1px 0 rgba(255, 236, 190, 0.45)); }
+html[data-skin="steampunk"][data-scheme="dark"] .ico { filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.7)); }
+html[data-skin="steampunk"] .send-btn .ico, html[data-skin="steampunk"] .btn-primary .ico { filter: none; }
+
+/* ---------- панели: пергамент/кожа в латунной рамке с заклёпками ---------- */
+html[data-skin="steampunk"] :is(.chat-row, .settings-row, .first-run-card, .settings-category-row, .sheet-action, .forward-row, .board-col, .contact-gallery-item, .glass-content, .flat-content) {
+  border: 3px solid var(--sp-lo); border-radius: 7px;
+  background: var(--sp-rivets), var(--sp-paper), var(--sk-panel);
+  box-shadow: inset 0 0 0 2px var(--sp-hi), inset 0 0 0 3px var(--sp-lo), 0 3px 0 var(--sp-edge), 0 6px 9px rgba(0, 0, 0, 0.3);
+}
+html[data-skin="steampunk"] .chat-row { padding: 13px 22px; margin-block: 3px 6px; border-color: var(--sp-mid); }
+html[data-skin="steampunk"] .settings-row { border-radius: 0; border-width: 0 0 3px; border-image: linear-gradient(90deg, transparent, var(--sp-mid) 15%, var(--sp-hi) 50%, var(--sp-mid) 85%, transparent) 1; background: none; box-shadow: none; padding-inline: 14px; }
+html[data-skin="steampunk"] .chat-row:active, html[data-skin="steampunk"] .settings-category-row:active { transform: translateY(3px); box-shadow: inset 0 0 0 2px var(--sp-hi), inset 0 0 0 3px var(--sp-lo), 0 0 0 var(--sp-edge), 0 1px 2px rgba(0, 0, 0, 0.3); background-color: var(--sk-panel-press); }
+html[data-skin="steampunk"] .chat-row-wrapper { border-radius: 8px; }
+
+/* шапка и таб-бар: латунные рельсы */
+html[data-skin="steampunk"] :is(#nav-bar.glass, #tab-bar.glass) {
+  border: 0; border-radius: 0;
+  background: linear-gradient(180deg, var(--sp-hi) 0, var(--sp-mid) 18%, var(--sp-lo) 100%);
+  color: var(--sp-dk);
+}
+html[data-skin="steampunk"] #nav-bar.glass { border-bottom: 4px solid var(--sp-edge); box-shadow: 0 5px 0 var(--sp-mid), 0 8px 10px rgba(0, 0, 0, 0.4), inset 0 2px 0 rgba(255, 245, 205, 0.6); }
+html[data-skin="steampunk"] #tab-bar.glass { border-top: 4px solid var(--sp-edge); box-shadow: 0 -4px 0 var(--sp-mid), 0 -6px 10px rgba(0, 0, 0, 0.4), inset 0 2px 0 rgba(255, 245, 205, 0.6); }
+html[data-skin="steampunk"] #nav-bar :is(h1, #nav-title, #chat-peer-name, .icon-btn, .ico, span) { color: #2a1706; }
+html[data-skin="steampunk"] #nav-bar .ico { filter: drop-shadow(0 1px 0 rgba(255, 236, 190, 0.6)); }
+html[data-skin="steampunk"] #nav-bar :is(h1, #nav-title, #chat-peer-name) { text-shadow: 0 1px 0 rgba(255, 236, 190, 0.7); }
+html[data-skin="steampunk"] .tab-btn { color: #4a2c0c; position: relative; transition: transform .12s cubic-bezier(.3, 1.8, .5, 1); }
+html[data-skin="steampunk"] .tab-btn.active { color: #1c1006; }
+html[data-skin="steampunk"] .tab-btn.active { background: radial-gradient(ellipse 80% 80% at 50% 45%, rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.08) 70%, transparent); box-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.45), inset 0 -1px 0 rgba(255, 245, 205, 0.5); border-radius: 6px; margin: 4px 3px; padding-block: 6px; transform: translateY(1px); }
+html[data-skin="steampunk"] .tab-btn.active > svg { animation: sp-click .34s cubic-bezier(.3, 1.6, .5, 1); }
+html[data-skin="steampunk"] .tab-btn::after { content: ""; position: absolute; top: 3px; right: 10%; width: 7px; height: 7px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #ffe9a8, #c78a1c 60%, #5a3508); box-shadow: 0 0 0 1px #3a2308; opacity: .7; }
+html[data-skin="steampunk"] .tab-btn.active::after { background: radial-gradient(circle at 35% 30%, #fff6d0, #ffb43a 55%, #c66a00); box-shadow: 0 0 0 1px #3a2308, 0 0 10px 3px rgba(255, 170, 40, 0.8); opacity: 1; animation: sp-lamp 3.2s ease-in-out infinite; }
+@keyframes sp-click { 0% { transform: translateY(5px) rotate(-12deg) scale(.85); } 50% { transform: translateY(-2px) rotate(6deg) scale(1.1); } 100% { transform: none; } }
+@keyframes sp-lamp { 0%, 100% { opacity: 1; } 50% { opacity: .72; } }
+html[data-skin="steampunk"] .tab-badge { background: radial-gradient(circle at 35% 30%, #e05a3a, #8c1d0c); color: #fff; border-radius: 50%; min-width: 18px; height: 18px; box-shadow: 0 0 0 2px #3a2308, inset 0 1px 0 rgba(255, 255, 255, 0.4); font-family: var(--sp-head); font-weight: 400; }
+
+/* ---------- пузыри ---------- */
+html[data-skin="steampunk"] .bubble-row .bubble { padding: 11px 18px 9px; font-family: var(--sk-font); }
+/* свои — латунные таблички с заклёпками */
+html[data-skin="steampunk"] .bubble-row.mine .bubble {
+  border: 3px solid var(--sp-edge); border-radius: 5px 5px 5px 14px; color: var(--bubble-mine-ink);
+  background: var(--sp-rivets), linear-gradient(180deg, rgba(255, 245, 205, 0.55) 0, rgba(255, 245, 205, 0) 40%, rgba(80, 40, 0, 0.18) 100%), var(--sp-paper), var(--bubble-mine-bg);
+  box-shadow: inset 0 0 0 2px var(--sp-hi), inset 0 0 0 3px var(--sp-lo), 0 3px 0 var(--sp-edge), 0 5px 8px rgba(0, 0, 0, 0.35);
+}
+/* чужие — кожаные ярлыки со строчкой и люверсом */
+html[data-skin="steampunk"] .bubble-row.theirs .bubble {
+  border: 0; border-radius: 4px 18px 18px 4px; color: var(--bubble-theirs-ink); padding-left: 30px;
+  background: radial-gradient(circle at 15px 50%, #0c0703 0 3px, #d3a24a 3.5px 6px, #6b430f 6.5px 7.5px, transparent 8px), var(--sp-paper), linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.18)), var(--bubble-theirs-bg);
+  box-shadow: 0 3px 0 var(--sp-edge), 0 5px 8px rgba(0, 0, 0, 0.35);
+}
+html[data-skin="steampunk"] .bubble-row.theirs .bubble::after { content: ""; position: absolute; inset: 5px 6px 5px 26px; border: 1.5px dashed currentColor; opacity: .38; border-radius: 3px 13px 13px 3px; pointer-events: none; }
+html[data-skin="steampunk"][data-scheme="light"] .bubble-row.theirs .bubble { background: radial-gradient(circle at 15px 50%, #2a1706 0 3px, #b07a25 3.5px 6px, #6b430f 6.5px 7.5px, transparent 8px), var(--sp-paper), linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(120, 70, 20, 0.12)), var(--bubble-theirs-bg); box-shadow: 0 3px 0 #b98a3e, 0 5px 8px rgba(52, 32, 12, 0.3), inset 0 0 0 1px rgba(110, 63, 15, 0.45); }
+html[data-skin="steampunk"] .bubble-row.mine .bubble-time { color: #3a2308; font-style: italic; }
+html[data-skin="steampunk"] .bubble-row.theirs .bubble-sender { color: var(--accent); }
+html[data-skin="steampunk"] .bubble-reaction-chip { border: 2px solid var(--sp-lo); border-radius: 12px; background: var(--sp-hi); color: #2a1706; box-shadow: 0 2px 0 var(--sp-edge); }
+html[data-skin="steampunk"] .bubble-row.mine .bubble-reaction-chip { background: #f6e6b6; color: #2a1706; }
+html[data-skin="steampunk"] .bubble-reply { border-radius: 3px; background: rgba(60, 30, 0, 0.14); border-inline-start: 3px solid var(--sp-lo); }
+html[data-skin="steampunk"] .bubble-row.mine .bubble.bubble-long { background: var(--sp-rivets), var(--sp-paper), var(--bubble-mine-bg); }
+html[data-skin="steampunk"] .bubble-row.multiselect-selected .bubble { outline: 3px dotted var(--accent); }
+
+/* появление: «щёлк» механизма — входящие выкатываются с покачиванием, исходящие штампуются */
+@keyframes sp-in { 0% { transform: translateX(-34px) rotate(-4deg); opacity: 0; } 45% { transform: translateX(7px) rotate(1.4deg); opacity: 1; } 65% { transform: translateX(-3px) rotate(-.6deg); } 100% { transform: none; } }
+@keyframes sp-stamp { 0% { transform: scale(1.35) rotate(2deg); opacity: 0; } 55% { transform: scale(.96); opacity: 1; } 75% { transform: scale(1.02); } 100% { transform: none; } }
+html[data-skin="steampunk"] .bubble-row.just-received .bubble { animation: sp-in .5s cubic-bezier(.3, 1.2, .5, 1) both; transform-origin: 0 50%; }
+html[data-skin="steampunk"] .bubble-row.just-sent .bubble { animation: sp-stamp .34s cubic-bezier(.2, .8, .3, 1) both; transform-origin: 100% 50%; }
+
+/* ---------- кнопки: тугие латунные клапаны ---------- */
+html[data-skin="steampunk"] .btn-primary, html[data-skin="steampunk"] .btn-secondary {
+  font-family: var(--sp-head); font-weight: 400; letter-spacing: .06em; border: 3px solid var(--sp-edge); border-radius: 9px; position: relative; min-height: 46px;
+  background: linear-gradient(180deg, var(--sp-hi) 0, var(--sp-mid) 48%, var(--sp-lo) 100%); color: #1c1006; text-shadow: 0 1px 0 rgba(255, 240, 190, 0.6);
+  box-shadow: inset 0 2px 0 rgba(255, 250, 220, 0.7), inset 0 -3px 0 rgba(60, 25, 0, 0.35), 0 5px 0 var(--sp-edge), 0 8px 10px rgba(0, 0, 0, 0.35);
+  transition: transform .09s, box-shadow .09s;
+}
+html[data-skin="steampunk"] .btn-secondary { background: linear-gradient(180deg, var(--sk-panel), var(--bg-3)); color: var(--ink-0); text-shadow: none; border-color: var(--sp-lo); box-shadow: inset 0 2px 0 rgba(255, 250, 220, 0.4), 0 4px 0 var(--sp-edge), 0 7px 8px rgba(0, 0, 0, 0.3); }
+html[data-skin="steampunk"] .btn-primary.destructive { background: linear-gradient(180deg, #d9573a, #9a2410); color: #fff; text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.4); }
+html[data-skin="steampunk"] .btn-primary:active, html[data-skin="steampunk"] .btn-secondary:active { transform: translateY(5px); box-shadow: inset 0 3px 6px rgba(40, 15, 0, 0.55), 0 0 0 var(--sp-edge), 0 1px 2px rgba(0, 0, 0, 0.35); }
+html[data-skin="steampunk"] .send-btn {
+  width: 46px; height: 46px; border-radius: 50%; border: 0; color: #1c1006;
+  background: radial-gradient(circle at 50% 50%, transparent 0 58%, rgba(60, 25, 0, 0.55) 60% 63%, transparent 65%), radial-gradient(circle at 35% 28%, #fff1bd 0, var(--sp-hi) 22%, var(--sp-mid) 58%, var(--sp-lo) 100%);
+  box-shadow: 0 0 0 2px var(--sp-edge), 0 0 0 4px var(--sp-mid), 0 0 0 5px var(--sp-edge), 0 5px 7px rgba(0, 0, 0, 0.5), inset 0 2px 3px rgba(255, 250, 210, 0.8);
+  transition: transform .18s cubic-bezier(.3, 1.6, .5, 1);
+}
+html[data-skin="steampunk"] .send-btn:active { transform: rotate(70deg) scale(.93); box-shadow: 0 0 0 2px var(--sp-edge), 0 0 0 4px var(--sp-mid), 0 0 0 5px var(--sp-edge), 0 2px 3px rgba(0, 0, 0, 0.5), inset 0 3px 6px rgba(60, 25, 0, 0.5); }
+html[data-skin="steampunk"] .send-btn .ico { stroke-width: 2.2; }
+html[data-skin="steampunk"] .icon-btn { color: var(--accent); }
+html[data-skin="steampunk"] .icon-btn:active { transform: translateY(2px) scale(.94); }
+html[data-skin="steampunk"] .composer-plus-btn { color: var(--accent); }
+
+/* ---------- поля: утопленные прорези ---------- */
+html[data-skin="steampunk"] :is(.search-input, #chat-input, .settings-select, .rich-input, .poll-opt-input) {
+  background: var(--sk-field); color: var(--ink-0); border: 3px solid var(--sp-lo); border-radius: 8px; font-family: var(--sk-font);
+  box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.35), 0 1px 0 var(--sp-hi);
+}
+html[data-skin="steampunk"] :is(.search-input, #chat-input, .rich-input):focus { border-color: var(--sp-hi); box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.35), 0 0 0 2px var(--accent); outline: none; }
+html[data-skin="steampunk"] #chat-input { border-radius: 10px; padding-inline: 16px; }
+html[data-skin="steampunk"] #chat-form, html[data-skin="steampunk"] #voice-recording-bar { border: 0; border-radius: 0; background: linear-gradient(180deg, var(--bg-3), var(--bg-1)); box-shadow: 0 -3px 0 var(--sp-lo), 0 -5px 0 var(--sp-edge); }
+
+/* ---------- аватары-иллюминаторы, бейджи, чипы, шторки, тосты ---------- */
+html[data-skin="steampunk"] :is(.avatar, .avatar-xl, .avatar-sm, .contact-avatar, .chat-peer-avatar .avatar, .bubble-row-avatar .avatar) {
+  border: 0; border-radius: 50%; box-shadow: 0 0 0 2px var(--sp-edge), 0 0 0 5px var(--sp-mid), 0 0 0 6px var(--sp-edge), inset 0 3px 6px rgba(0, 0, 0, 0.5), inset 0 -2px 0 rgba(255, 255, 255, 0.25); margin: 6px 8px 6px 6px;
+}
+html[data-skin="steampunk"] :is(.bubble-row-avatar .avatar, .avatar-sm) { box-shadow: 0 0 0 1px var(--sp-edge), 0 0 0 3px var(--sp-mid), 0 0 0 4px var(--sp-edge); }
+html[data-skin="steampunk"] .unread-badge { background: radial-gradient(circle at 35% 30%, #e86a46, #8c1d0c); color: #fff; border-radius: 50%; min-width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; padding: 0 4px; box-shadow: 0 0 0 2px var(--sp-edge), 0 0 0 3px var(--sp-mid), inset 0 1px 0 rgba(255, 255, 255, 0.45); font-family: var(--sp-head); font-weight: 400; }
+html[data-skin="steampunk"] .sheet-panel {
+  border: 0; border-top: 6px solid var(--sp-edge); border-radius: 14px 14px 0 0;
+  background: radial-gradient(circle, #fbe7ae 0 1.5px, #a8721f 2px 3.5px, transparent 4px) 0 7px / 26px 14px repeat-x, linear-gradient(180deg, var(--sp-hi) 0 18px, transparent 18px), var(--sp-paper), var(--sk-panel);
+  box-shadow: inset 0 0 0 0 transparent, 0 -4px 0 var(--sp-mid), 0 -6px 0 var(--sp-edge), 0 -10px 24px rgba(0, 0, 0, 0.45); padding-top: 26px;
+}
+html[data-skin="steampunk"] .sheet-handle { display: none; }
+html[data-skin="steampunk"] .sheet-action, html[data-skin="steampunk"] .forward-row { border-radius: 8px; }
+html[data-skin="steampunk"] .sheet:not(.hidden) .sheet-panel { animation: sp-drop .45s cubic-bezier(.3, 1.3, .5, 1) both; }
+@keyframes sp-drop { 0% { transform: translateY(60px); } 60% { transform: translateY(-6px); } 80% { transform: translateY(2px); } 100% { transform: none; } }
+html[data-skin="steampunk"] #composer-menu-sheet .composer-menu-item {
+  border: 3px solid var(--sp-edge); border-radius: 9px; background: linear-gradient(180deg, var(--sp-hi), var(--sp-mid) 55%, var(--sp-lo)); color: #1c1006; font-family: var(--sp-head); font-weight: 400; letter-spacing: .04em;
+  box-shadow: inset 0 2px 0 rgba(255, 250, 220, 0.7), 0 4px 0 var(--sp-edge), 0 7px 8px rgba(0, 0, 0, 0.4); backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+html[data-skin="steampunk"] #composer-menu-sheet .composer-menu-item svg { color: #1c1006; }
+html[data-skin="steampunk"] #composer-menu-sheet .composer-menu-item:active { transform: translateY(4px); box-shadow: inset 0 3px 6px rgba(40, 15, 0, 0.5), 0 0 0 var(--sp-edge); }
+html[data-skin="steampunk"] :is(#toast, .toast) { background: var(--sp-rivets), var(--sp-paper), var(--sk-panel); color: var(--ink-0); border: 3px solid var(--sp-lo); border-radius: 8px; padding-inline: 26px; font-family: var(--sk-font); box-shadow: inset 0 0 0 2px var(--sp-hi), 0 4px 0 var(--sp-edge), 0 8px 14px rgba(0, 0, 0, 0.45); }
+html[data-skin="steampunk"] :is(.board-card, .poll-opt, .voice-bubble) { background: var(--sp-paper), var(--sk-field); border: 2px solid var(--sp-lo); border-radius: 6px; box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2); }
+html[data-skin="steampunk"] .poll-opt-bar { background: linear-gradient(180deg, var(--sp-hi), var(--sp-mid)); opacity: .55; }
+html[data-skin="steampunk"] .voice-play-btn { border-radius: 50%; background: radial-gradient(circle at 35% 28%, #fff1bd, var(--sp-mid) 60%, var(--sp-lo)); color: #1c1006; box-shadow: 0 0 0 2px var(--sp-edge), 0 3px 0 var(--sp-edge); }
+html[data-skin="steampunk"] .voice-progress { border-radius: 4px; box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5); }
+html[data-skin="steampunk"] .voice-progress-fill { border-radius: 4px; background: linear-gradient(180deg, var(--sp-hi), var(--sp-lo)); }
+html[data-skin="steampunk"] .chat-filter-chip { border: 2px solid var(--sp-edge); border-radius: 8px; font-family: var(--sp-head); font-weight: 400; background: linear-gradient(180deg, var(--bg-3), var(--sk-panel)); color: var(--ink-0); box-shadow: 0 3px 0 var(--sp-edge); padding: 8px 6px; margin-bottom: 4px; font-size: 11.5px; letter-spacing: 0; min-width: 0; }
+html[data-skin="steampunk"] .chat-filter-chip.active { background: linear-gradient(180deg, var(--sp-hi), var(--sp-mid)); color: #1c1006; transform: translateY(3px); box-shadow: inset 0 2px 4px rgba(40, 15, 0, 0.5); }
+html[data-skin="steampunk"] :is(.roster-add-btn, .fx-view-toggle button, .contact-card-add-btn, .unread-summary-btn, .load-earlier-btn, .settings-btn-full, .poll-close-btn, .voice-speed-btn, .voice-tr-btn, .contacts-index-btn, .note-edit-btn, .room-btn, .contact-action-btn) {
+  border: 2px solid var(--sp-edge); border-radius: 8px; background: linear-gradient(180deg, var(--sp-hi), var(--sp-mid) 60%, var(--sp-lo)); color: #1c1006; font-family: var(--sp-head); font-weight: 400; box-shadow: inset 0 1px 0 rgba(255, 250, 220, 0.7), 0 3px 0 var(--sp-edge);
+}
+html[data-skin="steampunk"] .fx-view-toggle button:not(.active) { background: var(--sk-panel); color: var(--ink-0); }
+html[data-skin="steampunk"] :is(.connect-card, .fx-card, .link-preview-card, .contact-card-bubble, .notif-banner, .banner, .edit-banner, .pinned-msg-banner, .contact-profile, .contact-accordion) { border: 3px solid var(--sp-lo); border-radius: 8px; background: var(--sp-rivets), var(--sp-paper), var(--sk-panel); box-shadow: inset 0 0 0 2px var(--sp-hi), 0 3px 0 var(--sp-edge); }
+html[data-skin="steampunk"] .date-sep { font-family: var(--sp-head); color: var(--accent); letter-spacing: .08em; }
+html[data-skin="steampunk"] .date-sep::before, html[data-skin="steampunk"] .date-sep::after { height: 3px; background: linear-gradient(90deg, transparent, var(--sp-mid), transparent); border-block: 1px solid var(--sp-edge); }
+
+/* ---------- декор: трубы, шестерни, пар ---------- */
+.sp-pipe { position: absolute; top: 0; bottom: 0; width: 12px; background: linear-gradient(90deg, #5a3a10 0, #e8c070 28%, #fff0c0 38%, #c8923a 62%, #6b430f 100%); box-shadow: 0 0 6px rgba(0, 0, 0, 0.45); }
+.sp-pipe::before { content: ""; position: absolute; left: -3px; right: -3px; top: 0; bottom: 0; background: repeating-linear-gradient(180deg, transparent 0 150px, #3a2308 150px 152px, #d9a54a 152px 160px, #3a2308 160px 162px, transparent 162px 330px); }
+.sp-pipe.l { left: 0; } .sp-pipe.r { right: 0; }
+.sp-gear { position: absolute; background: var(--sp-gear) center / contain no-repeat; opacity: var(--sp-gear-op, .18); animation: sp-spin 40s linear infinite; }
+.sp-gear.rev { animation-direction: reverse; }
+.sp-puff { position: absolute; bottom: 70px; width: 70px; height: 70px; border-radius: 50%; background: radial-gradient(circle, var(--sp-steam), transparent 70%); opacity: 0; animation: sp-steam 7s ease-out infinite; }
+@keyframes sp-steam { 0% { transform: translateY(0) scale(.4); opacity: 0; } 15% { opacity: 1; } 100% { transform: translateY(-340px) translateX(24px) scale(2.2); opacity: 0; } }
+html[data-calm-mode="1"] :is(.sp-gear, .sp-puff) { animation: none !important; }
+html[data-calm-mode="1"] .sp-puff { display: none; }
+html[data-calm-mode="1"][data-skin="steampunk"] :is(#nav-title::before, .tab-btn.active::after, .tab-btn.active > svg, .bubble-row .bubble, .sheet-panel) { animation: none !important; }
+@media (prefers-reduced-motion: reduce) { html[data-skin="steampunk"] :is(#nav-title::before, .tab-btn.active::after, .tab-btn.active > svg, .bubble-row .bubble, .sheet-panel) { animation: none !important; } }
+html[data-skin="steampunk"] #tab-bar .tab-btn.active, html[data-skin="steampunk"] #tab-bar .tab-btn.active span { color: #1c1006; }
+html[data-skin="steampunk"] .chat-peer-avatar { margin-right: 10px; }
+html[data-skin="steampunk"] .contact-profile :is(.avatar-xl, .contact-avatar) { margin: 8px auto 18px; }
