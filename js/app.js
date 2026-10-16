@@ -8704,6 +8704,9 @@ function reauthLink(id) {
   link._authStarted = false; startLinkAuth(id);
 }
 async function onAuthMessage(id, link, p) {
+  // Собеседник начал проверку заново (после подтверждения нашего нового ключа): повторяем и мы, иначе его запрос игнорировался бы,
+  // а он по таймауту счёл бы канал непроверенным и разорвал соединение
+  if (p.s === 1 && link._authStarted && link.authGate && link.authGate !== "pending" && typeof p.n === "string" && p.n !== link._peerNonce) { link._authStarted = false; startLinkAuth(id); }
   if (!link._authStarted) startLinkAuth(id);
   if (!link._authStarted || link.authGate !== "pending") return;
   if (p.s === 1 && typeof p.n === "string" && p.n.length <= 64 && !link._peerNonce) link._peerNonce = p.n;
