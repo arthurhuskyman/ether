@@ -188,6 +188,21 @@ html[data-skin="comic"] .ico { stroke-width: 2.6; stroke-linejoin: miter; stroke
 html[data-skin="comic"] :is(.icon-btn, .settings-category-icon, .composer-menu-item, .sheet-action, .poll-q, .board-title) .ico { filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, .35)); }
 html[data-skin="comic"] #nav-bar .icon-btn .ico { filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, .3)); }
 
+/* ---------- чипы, переключатели, прочие «акцентные» плашки ---------- */
+html[data-skin="comic"] :is(.chat-filter-chip.active, .theme-seg button.active, .contact-card-add-btn, .fx-view-toggle button.active, .room-btn, .unread-summary-btn, .story-add-badge) { background: var(--sk-btn-bg); color: var(--sk-btn-ink); }
+html[data-skin="comic"] .chat-filter-chip { border: 3px solid var(--sk-line); border-radius: 0; background: var(--sk-panel); color: var(--ink-0); transform: skewX(-10deg); box-shadow: 3px 3px 0 #000; text-transform: uppercase; letter-spacing: .06em; font-weight: 400; }
+html[data-skin="comic"] .chat-filter-chip.active { box-shadow: 0 0 0 #000; transform: skewX(-10deg) translate(3px, 3px); }
+html[data-skin="comic"] .theme-seg { border: 4px solid var(--sk-line); border-radius: 0; padding: 0; gap: 0; }
+html[data-skin="comic"] .theme-seg button { border-radius: 0; font-weight: 400; text-transform: uppercase; letter-spacing: .04em; font-size: 12px; padding: 9px 0; }
+html[data-skin="comic"] .theme-seg button.active { box-shadow: none; }
+
+html[data-skin="comic"] .roster-add-btn { border: 4px solid var(--sk-line); border-radius: 0; background: var(--sk-btn-bg); color: var(--sk-btn-ink); text-transform: uppercase; letter-spacing: .06em; box-shadow: 4px 4px 0 #000; transform: skewX(-6deg); min-height: 40px; transition: transform .1s, box-shadow .1s; }
+html[data-skin="comic"] .roster-add-btn:active { transform: skewX(-6deg) translate(4px, 4px); box-shadow: 0 0 0 #000; }
+html[data-skin="comic"] .roster-row { border: 4px solid var(--sk-line); border-radius: 0; box-shadow: 5px 5px 0 #000; background: var(--sk-panel); }
+html[data-skin="comic"] .chats-section-header { background: #111; color: #ffe14d; margin: 0 -16px 6px; padding: 4px 18px; font-size: 13px; letter-spacing: .12em; border-block: 3px solid var(--sk-line); transform: skewX(-8deg) translateX(8px); }
+html[data-skin="comic"] .chat-filter-chip { letter-spacing: .02em; font-size: 12px; padding-inline: 10px; max-width: none; overflow: visible; text-overflow: clip; }
+
+html[data-skin="comic"] #emoji-picker-sheet .sheet-panel { border-radius: 0; border: 5px solid var(--sk-line); box-shadow: 6px 6px 0 #000; }
 /* ---------- декор (js/skins/comic.js) ---------- */
 html[data-skin="comic"] #skin-deco .cm-rays { position: absolute; inset: -20% -20% auto auto; width: 140%; height: 90%; background: repeating-conic-gradient(from 0deg at 100% 0, var(--cm-dot) 0 4deg, transparent 4deg 12deg); -webkit-mask-image: radial-gradient(circle at 100% 0, #000, transparent 62%); mask-image: radial-gradient(circle at 100% 0, #000, transparent 62%); opacity: .35; }
 html[data-skin="comic"] #skin-deco .cm-ht { position: absolute; width: 70%; height: 45%; background: radial-gradient(var(--cm-dot) 2.4px, transparent 3px) 0 0 / 9px 9px; }

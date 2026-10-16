@@ -180,6 +180,20 @@ html[data-skin="cartoon"] .ico { stroke-width: 2.7; stroke-linejoin: round; stro
 html[data-skin="cartoon"] :is(#tab-bar, .icon-btn, .settings-category-icon, .send-btn) .ico { filter: drop-shadow(1.5px 1.5px 0 rgba(42, 37, 80, .35)); }
 html[data-skin="cartoon"] .send-btn .ico { filter: none; stroke: #2a2550; }
 
+/* ---------- чипы, переключатели, прочие «акцентные» плашки ---------- */
+html[data-skin="cartoon"] :is(.chat-filter-chip.active, .theme-seg button.active, .contact-card-add-btn, .fx-view-toggle button.active, .room-btn, .unread-summary-btn, .story-add-badge) { background: var(--sk-btn-bg); color: var(--sk-btn-ink); }
+html[data-skin="cartoon"] .chat-filter-chip { border: 3px solid var(--sk-line); border-radius: 999px; box-shadow: 0 3px 0 var(--sk-line); font-weight: 700; background: var(--sk-panel); color: var(--ink-0); transition: transform .25s var(--cartoon-pop); }
+html[data-skin="cartoon"] .chat-filter-chip.active { transform: translateY(2px) rotate(-2deg); box-shadow: 0 1px 0 var(--sk-line); }
+html[data-skin="cartoon"] .theme-seg { border: 3.5px solid var(--sk-line); border-radius: 999px; box-shadow: 0 3px 0 var(--sk-line); }
+html[data-skin="cartoon"] .theme-seg button { border-radius: 999px; font-weight: 700; }
+html[data-skin="cartoon"] .theme-seg button.active { box-shadow: 0 2px 0 var(--sk-line); border: 2px solid var(--sk-line); }
+
+html[data-skin="cartoon"] .roster-add-btn { border: 3.5px solid var(--sk-line); border-radius: 999px; background: var(--sk-btn-bg); color: var(--sk-btn-ink); font-weight: 800; box-shadow: 0 4px 0 var(--sk-line); min-height: 40px; transition: transform .2s var(--cartoon-pop), box-shadow .1s; }
+html[data-skin="cartoon"] .roster-add-btn:active { transform: translateY(4px) scale(1.04, .92); box-shadow: 0 0 0 var(--sk-line); }
+html[data-skin="cartoon"] .roster-row { border: 3.5px solid var(--sk-line); border-radius: 26px; box-shadow: 0 4px 0 var(--sk-line); background: var(--sk-panel); }
+html[data-skin="cartoon"] .chats-section-header { background: transparent; margin: 0; padding: 8px 4px 4px; font-size: 14px; font-weight: 800; letter-spacing: .08em; color: var(--ink-0); }
+html[data-skin="cartoon"] .chats-section-header::before { content: "\2605  "; color: #ffd23f; -webkit-text-stroke: 1.5px var(--sk-line); }
+
 /* ---------- декор (js/skins/cartoon.js) ---------- */
 html[data-skin="cartoon"] #skin-deco .cd { position: absolute; opacity: .7; animation: cartoon-float var(--d, 14s) ease-in-out infinite; animation-delay: var(--dl, 0s); will-change: transform; }
 html[data-skin="cartoon"][data-scheme="dark"] #skin-deco .cd { opacity: .5; }

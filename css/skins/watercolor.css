@@ -23,10 +23,10 @@ html[data-skin="watercolor"][data-scheme="light"] {
   --bubble-mine-bg: #cdd9ff; --bubble-mine-ink: #1d1a3c; --bubble-theirs-bg: #fff0f6; --bubble-theirs-ink: #2c2748;
   --card-bg: none; --card-base: #fdf8fc; --card-border: rgba(91, 63, 196, 0.2); --card-shadow: 0 8px 22px -12px rgba(91, 63, 196, 0.45);
   --select-popup-bg: #fffafd; --select-popup-ink: #2c2748; --input-bg: #fdf8fc; --input-border: rgba(91, 63, 196, 0.3); --glass-border: rgba(91, 63, 196, 0.2);
-  --sk-line: rgba(91, 63, 196, 0.26); --sk-panel: #fdf8fc; --sk-shadow: 0 10px 24px -14px rgba(91, 63, 196, 0.55), inset 0 0 20px rgba(255, 150, 200, 0.16); --sk-shadow-press: 0 2px 6px -3px rgba(91, 63, 196, 0.4); --sk-bubble-shadow: 0 8px 18px -10px rgba(91, 63, 196, 0.5), inset 0 0 14px rgba(255, 255, 255, 0.55);
+  --sk-line: rgba(91, 63, 196, 0.38); --sk-panel: #fdf8fc; --sk-shadow: 0 10px 24px -14px rgba(91, 63, 196, 0.55), inset 0 0 20px rgba(255, 150, 200, 0.16); --sk-shadow-press: 0 2px 6px -3px rgba(91, 63, 196, 0.4); --sk-bubble-shadow: 0 8px 18px -10px rgba(91, 63, 196, 0.55), inset 0 0 0 1px rgba(91, 63, 196, 0.12), inset 0 -6px 14px -4px rgba(91, 63, 196, 0.28);
   --sk-btn-bg: #5446b8; --sk-btn-ink: #ffffff; --sk-panel-press: #f0e6f6;
   --wc-wash-a: rgba(255, 170, 205, .5); --wc-wash-b: rgba(150, 195, 255, .5); --wc-wash-c: rgba(170, 235, 205, .45); --wc-wash-d: rgba(215, 180, 255, .5);
-  --wc-clouds: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='520' height='520'%3E%3Cfilter id='c' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.006 .011' numOctaves='3' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.78  0 0 0 0 0.6  0 0 0 0 0.95  0 0 0 1.5 -0.62'/%3E%3C/filter%3E%3Crect width='520' height='520' filter='url(%23c)'/%3E%3C/svg%3E");
+  --wc-clouds: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='520' height='520'%3E%3Cfilter id='c' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.006 .011' numOctaves='3' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.78  0 0 0 0 0.6  0 0 0 0 0.95  0 0 0 0.95 -0.40'/%3E%3C/filter%3E%3Crect width='520' height='520' filter='url(%23c)'/%3E%3C/svg%3E");
   --sk-bg: var(--wc-grain) 0 0 / 220px 220px, var(--wc-clouds) 0 0 / 520px 520px, radial-gradient(60% 40% at 8% 4%, rgba(255, 170, 205, .55), transparent 70%), radial-gradient(55% 40% at 95% 18%, rgba(150, 195, 255, .55), transparent 70%), radial-gradient(60% 40% at 15% 88%, rgba(170, 235, 205, .5), transparent 70%), radial-gradient(55% 40% at 92% 96%, rgba(215, 180, 255, .55), transparent 70%), #fbf6fb;
 }
 html[data-skin="watercolor"][data-scheme="dark"] {
@@ -40,7 +40,7 @@ html[data-skin="watercolor"][data-scheme="dark"] {
   --sk-line: rgba(183, 156, 255, 0.28); --sk-panel: #262142; --sk-shadow: 0 10px 24px -14px rgba(0, 0, 0, 0.8), inset 0 0 22px rgba(150, 110, 255, 0.14); --sk-shadow-press: 0 2px 6px -3px rgba(0, 0, 0, 0.6); --sk-bubble-shadow: 0 8px 18px -10px rgba(0, 0, 0, 0.7), inset 0 0 16px rgba(190, 160, 255, 0.16);
   --sk-btn-bg: #b79cff; --sk-btn-ink: #1b1433; --sk-panel-press: #312a55;
   --wc-wash-a: rgba(200, 80, 150, .35); --wc-wash-b: rgba(70, 110, 220, .38); --wc-wash-c: rgba(40, 160, 150, .3); --wc-wash-d: rgba(130, 80, 230, .4);
-  --wc-clouds: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='520' height='520'%3E%3Cfilter id='c' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.006 .011' numOctaves='3' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.45  0 0 0 0 0.3  0 0 0 0 0.85  0 0 0 1.4 -0.58'/%3E%3C/filter%3E%3Crect width='520' height='520' filter='url(%23c)'/%3E%3C/svg%3E");
+  --wc-clouds: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='520' height='520'%3E%3Cfilter id='c' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.006 .011' numOctaves='3' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.45  0 0 0 0 0.3  0 0 0 0 0.85  0 0 0 0.6 -0.25'/%3E%3C/filter%3E%3Crect width='520' height='520' filter='url(%23c)'/%3E%3C/svg%3E");
   --sk-bg: var(--wc-grain) 0 0 / 220px 220px, var(--wc-clouds) 0 0 / 520px 520px, radial-gradient(60% 40% at 8% 4%, rgba(200, 80, 150, .3), transparent 70%), radial-gradient(55% 40% at 95% 18%, rgba(70, 110, 220, .32), transparent 70%), radial-gradient(60% 40% at 15% 88%, rgba(40, 160, 150, .26), transparent 70%), radial-gradient(55% 40% at 92% 96%, rgba(130, 80, 230, .34), transparent 70%), #171427;
 }
 
@@ -182,6 +182,19 @@ html[data-skin="watercolor"] .story-ring .avatar { border-radius: inherit; }
 /* ---------- иконки: тонкие рукописные штрихи ---------- */
 html[data-skin="watercolor"] .ico { stroke-width: 1.45; stroke-linecap: round; stroke-linejoin: round; }
 html[data-skin="watercolor"] .send-btn .ico, html[data-skin="watercolor"] .composer-plus-btn .ico { stroke-width: 1.7; }
+
+/* ---------- чипы, переключатели, прочие «акцентные» плашки ---------- */
+html[data-skin="watercolor"] :is(.chat-filter-chip.active, .theme-seg button.active, .contact-card-add-btn, .fx-view-toggle button.active, .room-btn, .unread-summary-btn, .story-add-badge) { background: linear-gradient(135deg, var(--sk-btn-bg), color-mix(in srgb, var(--sk-btn-bg) 75%, #c070d0)); color: var(--sk-btn-ink); }
+html[data-skin="watercolor"] .chat-filter-chip { border-radius: 28px 22px 30px 20px / 22px 30px 20px 28px; border: 1px solid var(--sk-line); background: var(--sk-panel); color: var(--ink-0); box-shadow: inset 0 0 10px var(--wc-wash-d); }
+html[data-skin="watercolor"] .chat-filter-chip.active { background: linear-gradient(135deg, var(--sk-btn-bg), color-mix(in srgb, var(--sk-btn-bg) 75%, #c070d0)); color: var(--sk-btn-ink); }
+html[data-skin="watercolor"] .theme-seg { border: 1px solid var(--sk-line); border-radius: 30px 26px 32px 24px / 26px 32px 24px 30px; box-shadow: inset 0 0 12px var(--wc-wash-d); }
+html[data-skin="watercolor"] .theme-seg button { font-size: 12px; letter-spacing: -.02em; padding: 8px 1px; border-radius: 22px 18px 24px 16px; }
+html[data-skin="watercolor"] .theme-seg button.active { box-shadow: 0 4px 8px -4px var(--accent); }
+
+html[data-skin="watercolor"] .roster-add-btn { border: 1px solid var(--sk-line); border-radius: 30px 24px 32px 22px / 24px 32px 22px 30px; background: linear-gradient(135deg, var(--sk-btn-bg), color-mix(in srgb, var(--sk-btn-bg) 75%, #c070d0)); color: var(--sk-btn-ink); font-weight: 700; box-shadow: 0 8px 14px -8px var(--accent); min-height: 40px; transition: transform .4s var(--wc-bloom); }
+html[data-skin="watercolor"] .roster-add-btn:active { transform: scale(.96); filter: saturate(1.2); }
+html[data-skin="watercolor"] .roster-row { border: 1px solid var(--sk-line); border-radius: 30px 24px 32px 22px / 24px 32px 22px 30px; background: var(--sk-panel); box-shadow: var(--sk-shadow); }
+html[data-skin="watercolor"] .chats-section-header { background: transparent; margin: 0; padding: 4px 6px 0; font-family: var(--wc-script); font-size: 20px; text-transform: none; letter-spacing: 0; color: var(--accent); font-weight: 400; }
 
 /* ---------- декор (js/skins/watercolor.js) ---------- */
 html[data-skin="watercolor"] #skin-deco .wb { position: absolute; border-radius: 50%; background: radial-gradient(circle at 50% 50%, var(--c), transparent 68%); width: var(--s); height: var(--s); left: var(--x); top: var(--y); opacity: .85; animation: wc-drift var(--d, 36s) ease-in-out infinite alternate; animation-delay: var(--dl, 0s); will-change: transform; }
