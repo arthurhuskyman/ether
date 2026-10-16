@@ -67,7 +67,8 @@
     "grip": '<circle cx="9" cy="6" r="1.2"/><circle cx="15" cy="6" r="1.2"/><circle cx="9" cy="12" r="1.2"/><circle cx="15" cy="12" r="1.2"/><circle cx="9" cy="18" r="1.2"/><circle cx="15" cy="18" r="1.2"/>'
   };
   const FILLED = new Set(["play", "pause", "stop", "more", "grip"]);
-  function inner(name) { return SET[name] || SET.info; }
+  let OVR = null; // своя графика активного скина: имя → содержимое <svg>
+  function inner(name) { return (OVR && OVR[name]) || SET[name] || SET.info; }
   function attrs(name, size, cls) {
     const filled = FILLED.has(name);
     return 'class="ico' + (filled ? " ico-fill" : "") + (cls ? " " + cls : "") + '" viewBox="0 0 24 24" width="' + size + '" height="' + size + '" aria-hidden="true" focusable="false"';
@@ -75,11 +76,12 @@
   // Готовая разметка для вставки в строки JS
   function html(name, size, cls) { return "<svg " + attrs(name, size || 20, cls) + ' data-icon="' + name + '">' + inner(name) + "</svg>"; }
   // Заполняет <svg data-icon="..."> в статической разметке (и в любом динамически добавленном корне)
-  function hydrate(rootEl) {
+  function setOverrides(map) { OVR = map && typeof map === "object" ? map : null; }
+  function hydrate(rootEl, force) {
     const scope = rootEl || (typeof document !== "undefined" ? document : null); if (!scope) return;
     scope.querySelectorAll("svg[data-icon]").forEach((el) => {
       const name = el.getAttribute("data-icon");
-      if (el.dataset.icoDone === name) return;
+      if (!force && el.dataset.icoDone === name) return;
       el.setAttribute("viewBox", "0 0 24 24");
       el.setAttribute("aria-hidden", "true"); el.setAttribute("focusable", "false");
       el.classList.add("ico"); el.classList.toggle("ico-fill", FILLED.has(name));
@@ -87,7 +89,7 @@
     });
   }
   function names() { return Object.keys(SET); }
-  const api = { html, hydrate, names, has: (n) => Object.prototype.hasOwnProperty.call(SET, n) };
+  const api = { html, hydrate, setOverrides, names, has: (n) => Object.prototype.hasOwnProperty.call(SET, n) };
   root.Icons = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (typeof document !== "undefined") { if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => hydrate()); else hydrate(); }

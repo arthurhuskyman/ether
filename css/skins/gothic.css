@@ -1,0 +1,34 @@
+/* ============================ 6. ГОТИКА / ХОРРОР (gothic) ============================ */
+html[data-skin="gothic"] {
+  --sk-font: Garamond, "Palatino Linotype", Georgia, "Times New Roman", serif; --sk-tracking: 0.015em;
+  --sk-bw: 1px; --sk-radius: 3px; --sk-bubble-r: 3px 14px 3px 14px; --sk-tail: 3px; --sk-btn-r: 2px; --sk-field-r: 3px;
+  --sk-press-scale: .98;
+  --r-sm: 2px; --r-md: 3px; --r-lg: 4px; --r-xl: 6px;
+}
+html[data-skin="gothic"][data-scheme="dark"] {
+  --bg-0: #09060a; --bg-1: #110a10; --bg-2: #180e16; --bg-3: #22141f;
+  --line-1: rgba(193, 18, 31, 0.22); --line-2: rgba(193, 18, 31, 0.36);
+  --ink-0: #ece3d8; --ink-1: rgba(236, 227, 216, 0.94); --ink-2: rgba(236, 227, 216, 0.78); --ink-3: rgba(236, 227, 216, 0.66);
+  --accent: #ee4a58; --accent-hi: #ff6b78; --accent-lo: #d11a2a; --accent-ghost: rgba(209, 26, 42, 0.16); --text-link: #ff6b78;
+  --bubble-mine-bg: linear-gradient(160deg, #7e0d18, #4a0710); --bubble-mine-ink: #fdeceb; --bubble-theirs-bg: #1d121a; --bubble-theirs-ink: #ece3d8;
+  --card-bg: none; --card-base: #150c13; --card-border: #55101a; --card-shadow: 0 0 14px rgba(209, 26, 42, 0.18);
+  --select-popup-bg: #110a10; --select-popup-ink: #ece3d8; --input-bg: #110a10; --input-border: #55101a; --glass-border: #55101a;
+  --sk-line: #55101a; --sk-line-mine: #d11a2a; --sk-line-theirs: #3a1a24; --sk-panel: #150c13;
+  --sk-shadow: 0 0 14px rgba(209, 26, 42, 0.18); --sk-bubble-shadow: 0 0 10px rgba(209, 26, 42, 0.22); --sk-shadow-press: 0 0 4px rgba(209, 26, 42, 0.4);
+  --sk-btn-bg: linear-gradient(180deg, #a3121f, #6e0b14); --sk-btn-ink: #ffffff; --sk-panel-press: #22141f;
+  --sk-bg: radial-gradient(ellipse 80% 55% at 50% 110%, rgba(150, 12, 24, 0.38), transparent 70%), radial-gradient(ellipse 70% 40% at 50% -10%, rgba(90, 80, 110, 0.28), transparent 70%), #09060a;
+}
+html[data-skin="gothic"][data-scheme="light"] {
+  --bg-0: #d9d2cb; --bg-1: #e6dfd8; --bg-2: #f0eae4; --bg-3: #ddd4cb;
+  --line-1: rgba(90, 26, 34, 0.2); --line-2: rgba(90, 26, 34, 0.34);
+  --ink-0: #1b0f12; --ink-1: rgba(27, 15, 18, 0.94); --ink-2: rgba(27, 15, 18, 0.78); --ink-3: rgba(27, 15, 18, 0.68);
+  --accent: #9b111e; --accent-hi: #b8212f; --accent-lo: #740a15; --accent-ghost: rgba(155, 17, 30, 0.12); --text-link: #8a0f1b;
+  --bubble-mine-bg: linear-gradient(160deg, #a3121f, #7a0c17); --bubble-mine-ink: #ffffff; --bubble-theirs-bg: #f4eeea; --bubble-theirs-ink: #1b0f12;
+  --card-bg: none; --card-base: #f0eae4; --card-border: #5a1a22; --card-shadow: 0 2px 8px rgba(27, 15, 18, 0.22);
+  --select-popup-bg: #f0eae4; --select-popup-ink: #1b0f12; --input-bg: #f7f2ee; --input-border: #5a1a22; --glass-border: #5a1a22;
+  --sk-line: #5a1a22; --sk-line-mine: #5a1a22; --sk-panel: #f0eae4;
+  --sk-shadow: 0 2px 8px rgba(27, 15, 18, 0.22); --sk-bubble-shadow: 0 2px 6px rgba(27, 15, 18, 0.25); --sk-shadow-press: 0 1px 2px rgba(27, 15, 18, 0.3);
+  --sk-btn-bg: #1b0f12; --sk-btn-ink: #f3e9e2; --sk-panel-press: #ddd4cb;
+  --sk-bg: radial-gradient(ellipse 80% 55% at 50% 110%, rgba(155, 17, 30, 0.2), transparent 70%), radial-gradient(ellipse 90% 60% at 50% -10%, rgba(255, 255, 255, 0.55), transparent 70%), #d9d2cb;
+}
+html[data-skin="gothic"] :is(h1, h2, #chat-peer-name, .chat-row-name) { font-style: italic; }

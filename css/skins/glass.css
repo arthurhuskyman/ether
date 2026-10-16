@@ -1,0 +1,31 @@
+/* ============================ 10. СТЕКЛЯННЫЙ (glass) ============================ */
+html[data-skin="glass"] {
+  --sk-font: -apple-system, "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+  --sk-bw: 1px; --sk-radius: 24px; --sk-bubble-r: 22px; --sk-tail: 6px; --sk-btn-r: 18px; --sk-field-r: 22px;
+  --sk-blur: blur(26px) saturate(170%); --sk-blur-px: 26px; --sk-press-scale: .96;
+  --r-sm: 12px; --r-md: 16px; --r-lg: 22px; --r-xl: 28px;
+}
+html[data-skin="glass"][data-scheme="dark"] {
+  --bg-0: #0d0f2b; --bg-1: #14173a; --bg-2: #1b1f4c; --bg-3: #252a5e;
+  --line-1: rgba(255, 255, 255, 0.12); --line-2: rgba(255, 255, 255, 0.22);
+  --ink-0: #ffffff; --ink-1: rgba(255, 255, 255, 0.94); --ink-2: rgba(255, 255, 255, 0.78); --ink-3: rgba(255, 255, 255, 0.66);
+  --accent: #8cb4ff; --accent-hi: #a9c8ff; --accent-lo: #6a98f0; --accent-ghost: rgba(140, 180, 255, 0.18); --text-link: #a9c8ff;
+  --bubble-mine-bg: rgba(110, 160, 255, 0.4); --bubble-mine-ink: #ffffff; --bubble-theirs-bg: rgba(255, 255, 255, 0.12); --bubble-theirs-ink: #ffffff;
+  --card-bg: none; --card-base: rgba(255, 255, 255, 0.1); --card-border: rgba(255, 255, 255, 0.24); --card-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  --select-popup-bg: #14173a; --select-popup-ink: #ffffff; --input-bg: rgba(255, 255, 255, 0.1); --input-border: rgba(255, 255, 255, 0.24); --glass-border: rgba(255, 255, 255, 0.22);
+  --sk-line: rgba(255, 255, 255, 0.24); --sk-line-mine: rgba(255, 255, 255, 0.4); --sk-panel: rgba(255, 255, 255, 0.1); --sk-shadow: 0 8px 32px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2); --sk-bubble-shadow: 0 4px 18px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.2); --sk-shadow-press: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --sk-btn-bg: linear-gradient(135deg, rgba(140, 180, 255, 0.85), rgba(180, 140, 255, 0.85)); --sk-btn-ink: #0b0f33; --sk-panel-press: rgba(255, 255, 255, 0.18);
+  --sk-bg: radial-gradient(circle at 15% 15%, rgba(255, 90, 190, 0.5), transparent 38%), radial-gradient(circle at 85% 20%, rgba(70, 200, 255, 0.45), transparent 38%), radial-gradient(circle at 70% 90%, rgba(150, 90, 255, 0.5), transparent 40%), radial-gradient(circle at 10% 85%, rgba(60, 220, 180, 0.35), transparent 36%), #0d0f2b;
+}
+html[data-skin="glass"][data-scheme="light"] {
+  --bg-0: #dfe9ff; --bg-1: #eef3ff; --bg-2: #f7f9ff; --bg-3: #cfdcfb;
+  --line-1: rgba(20, 32, 58, 0.1); --line-2: rgba(20, 32, 58, 0.18);
+  --ink-0: #14203a; --ink-1: rgba(20, 32, 58, 0.94); --ink-2: rgba(20, 32, 58, 0.78); --ink-3: rgba(20, 32, 58, 0.68);
+  --accent: #2a62f0; --accent-hi: #4a7df5; --accent-lo: #1c4cc9; --accent-ghost: rgba(42, 98, 240, 0.12); --text-link: #1c4cc9;
+  --bubble-mine-bg: rgba(60, 120, 255, 0.3); --bubble-mine-ink: #0d1c44; --bubble-theirs-bg: rgba(255, 255, 255, 0.62); --bubble-theirs-ink: #14203a;
+  --card-bg: none; --card-base: rgba(255, 255, 255, 0.55); --card-border: rgba(255, 255, 255, 0.85); --card-shadow: 0 8px 32px rgba(40, 70, 140, 0.18);
+  --select-popup-bg: #f7f9ff; --select-popup-ink: #14203a; --input-bg: rgba(255, 255, 255, 0.6); --input-border: rgba(20, 32, 58, 0.18); --glass-border: rgba(255, 255, 255, 0.85);
+  --sk-line: rgba(255, 255, 255, 0.9); --sk-line-mine: rgba(255, 255, 255, 0.8); --sk-panel: rgba(255, 255, 255, 0.55); --sk-shadow: 0 8px 32px rgba(40, 70, 140, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.9); --sk-bubble-shadow: 0 4px 16px rgba(40, 70, 140, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.8); --sk-shadow-press: 0 2px 8px rgba(40, 70, 140, 0.2);
+  --sk-btn-bg: linear-gradient(135deg, #5b8cff, #8fa8ff); --sk-btn-ink: #0b1a44; --sk-panel-press: rgba(255, 255, 255, 0.8);
+  --sk-bg: radial-gradient(circle at 15% 15%, rgba(255, 150, 210, 0.7), transparent 38%), radial-gradient(circle at 85% 20%, rgba(120, 210, 255, 0.7), transparent 38%), radial-gradient(circle at 70% 90%, rgba(190, 150, 255, 0.7), transparent 40%), radial-gradient(circle at 10% 85%, rgba(150, 240, 200, 0.6), transparent 36%), #dfe9ff;
+}

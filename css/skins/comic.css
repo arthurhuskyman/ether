@@ -1,0 +1,32 @@
+/* ============================ 2. КОМИКС (comic) ============================ */
+html[data-skin="comic"] {
+  --sk-font: "Bangers", "Comic Neue", "Comic Sans MS", "Chalkboard SE", Impact, system-ui, sans-serif; --sk-tracking: 0.02em;
+  --sk-bw: 3px; --sk-radius: 6px; --sk-bubble-r: 12px 12px 12px 12px / 14px 14px 14px 14px; --sk-tail: 0px; --sk-btn-r: 4px; --sk-field-r: 8px;
+  --sk-press-x: 4px; --sk-press-y: 4px; --sk-press-scale: 1;
+  --r-sm: 4px; --r-md: 6px; --r-lg: 8px; --r-xl: 12px;
+}
+html[data-skin="comic"][data-scheme="light"] {
+  --bg-0: #fff4d1; --bg-1: #fffaf0; --bg-2: #ffffff; --bg-3: #ffe9a8;
+  --line-1: rgba(17, 17, 17, 0.25); --line-2: rgba(17, 17, 17, 0.45);
+  --ink-0: #111111; --ink-1: rgba(17, 17, 17, 0.92); --ink-2: rgba(17, 17, 17, 0.74); --ink-3: rgba(17, 17, 17, 0.64);
+  --accent: #d62839; --accent-hi: #ef4452; --accent-lo: #a81a29; --accent-ghost: rgba(214, 40, 57, 0.14); --text-link: #a81a29;
+  --bubble-mine-bg: #ffe14d; --bubble-mine-ink: #111111; --bubble-theirs-bg: #ffffff; --bubble-theirs-ink: #111111;
+  --card-bg: none; --card-base: #ffffff; --card-border: #111111; --card-shadow: 5px 5px 0 #111111;
+  --select-popup-bg: #fffaf0; --select-popup-ink: #111111; --input-bg: #ffffff; --input-border: #111111; --glass-border: #111111;
+  --sk-line: #111111; --sk-panel: #ffffff; --sk-shadow: 5px 5px 0 #111111; --sk-shadow-press: 1px 1px 0 #111111; --sk-bubble-shadow: 4px 4px 0 #111111;
+  --sk-btn-bg: #d62839; --sk-btn-ink: #ffffff; --sk-panel-press: #ffe9a8;
+  --sk-bg: radial-gradient(#ff8f9c 1.7px, transparent 2.3px) 0 0 / 11px 11px, #fff4d1;
+}
+html[data-skin="comic"][data-scheme="dark"] {
+  --bg-0: #14141e; --bg-1: #1c1c2a; --bg-2: #26263a; --bg-3: #31314a;
+  --line-1: rgba(255, 255, 255, 0.14); --line-2: rgba(255, 255, 255, 0.24);
+  --ink-0: #f7f7f7; --ink-1: rgba(247, 247, 247, 0.94); --ink-2: rgba(247, 247, 247, 0.78); --ink-3: rgba(247, 247, 247, 0.66);
+  --accent: #ffd60a; --accent-hi: #ffe44d; --accent-lo: #d9b300; --accent-ghost: rgba(255, 214, 10, 0.16); --text-link: #ffd60a;
+  --bubble-mine-bg: #cf2535; --bubble-mine-ink: #ffffff; --bubble-theirs-bg: #34344f; --bubble-theirs-ink: #f7f7f7;
+  --card-bg: none; --card-base: #26263a; --card-border: #000000; --card-shadow: 5px 5px 0 #000000;
+  --select-popup-bg: #1c1c2a; --select-popup-ink: #f7f7f7; --input-bg: #26263a; --input-border: #000000; --glass-border: #000000;
+  --sk-line: #000000; --sk-panel: #26263a; --sk-shadow: 5px 5px 0 #000000; --sk-shadow-press: 1px 1px 0 #000000; --sk-bubble-shadow: 4px 4px 0 #000000;
+  --sk-btn-bg: #ffd60a; --sk-btn-ink: #111111; --sk-panel-press: #31314a;
+  --sk-bg: radial-gradient(#2d2d48 1.7px, transparent 2.3px) 0 0 / 11px 11px, #14141e;
+}
+html[data-skin="comic"] .bubble { font-weight: 700; }

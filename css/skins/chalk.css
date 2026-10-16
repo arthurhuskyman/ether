@@ -1,0 +1,31 @@
+/* ============================ 11. МЕЛОВОЙ / ШКОЛЬНАЯ ДОСКА (chalk) ============================ */
+html[data-skin="chalk"] {
+  --sk-font: "Chalkduster", "Bradley Hand", "Segoe Print", "Comic Neue", "Comic Sans MS", "Marker Felt", cursive; --sk-tracking: 0.02em;
+  --sk-bw: 2px; --sk-bs: dashed; --sk-radius: 18px 6px 20px 8px / 8px 20px 6px 18px; --sk-bubble-r: 18px 8px 20px 10px / 10px 20px 8px 18px; --sk-tail: 3px; --sk-btn-r: 14px 6px 16px 8px / 8px 16px 6px 14px; --sk-field-r: 18px 8px 20px 8px / 8px 20px 8px 18px;
+  --sk-press-scale: .96;
+  --r-sm: 8px; --r-md: 12px; --r-lg: 18px; --r-xl: 22px;
+}
+html[data-skin="chalk"][data-scheme="dark"] {
+  --bg-0: #1a2a23; --bg-1: #20342b; --bg-2: #263d33; --bg-3: #2f4a3d;
+  --line-1: rgba(255, 255, 255, 0.16); --line-2: rgba(255, 255, 255, 0.28);
+  --ink-0: #f4f0e2; --ink-1: rgba(244, 240, 226, 0.95); --ink-2: rgba(244, 240, 226, 0.8); --ink-3: rgba(244, 240, 226, 0.68);
+  --accent: #ffd86b; --accent-hi: #ffe49a; --accent-lo: #f0c040; --accent-ghost: rgba(255, 216, 107, 0.16); --text-link: #9fe0ff;
+  --bubble-mine-bg: rgba(255, 216, 107, 0.14); --bubble-mine-ink: #fff7d6; --bubble-theirs-bg: rgba(255, 255, 255, 0.07); --bubble-theirs-ink: #f4f0e2;
+  --card-bg: none; --card-base: rgba(255, 255, 255, 0.05); --card-border: rgba(255, 255, 255, 0.55); --card-shadow: none;
+  --select-popup-bg: #20342b; --select-popup-ink: #f4f0e2; --input-bg: rgba(255, 255, 255, 0.06); --input-border: rgba(255, 255, 255, 0.55); --glass-border: rgba(255, 255, 255, 0.5);
+  --sk-line: rgba(255, 255, 255, 0.55); --sk-line-mine: #ffd86b; --sk-line-theirs: rgba(255, 255, 255, 0.55); --sk-panel: rgba(255, 255, 255, 0.05); --sk-shadow: none; --sk-bubble-shadow: none; --sk-shadow-press: none;
+  --sk-btn-bg: #ffd86b; --sk-btn-ink: #1a2a23; --sk-panel-press: rgba(255, 255, 255, 0.12);
+  --sk-bg: radial-gradient(ellipse 70% 40% at 30% 20%, rgba(255, 255, 255, 0.07), transparent 70%), radial-gradient(ellipse 60% 40% at 80% 75%, rgba(255, 255, 255, 0.05), transparent 70%), repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.015) 0 2px, transparent 2px 5px), #1a2a23;
+}
+html[data-skin="chalk"][data-scheme="light"] {
+  --bg-0: #f5f6f0; --bg-1: #ffffff; --bg-2: #fbfbf7; --bg-3: #e9ece1;
+  --line-1: rgba(27, 42, 73, 0.14); --line-2: rgba(27, 42, 73, 0.26);
+  --ink-0: #1b2a49; --ink-1: rgba(27, 42, 73, 0.94); --ink-2: rgba(27, 42, 73, 0.78); --ink-3: rgba(27, 42, 73, 0.68);
+  --accent: #1e63d0; --accent-hi: #3b7ce0; --accent-lo: #164ea8; --accent-ghost: rgba(30, 99, 208, 0.12); --text-link: #164ea8;
+  --bubble-mine-bg: rgba(30, 99, 208, 0.09); --bubble-mine-ink: #12275a; --bubble-theirs-bg: rgba(214, 69, 61, 0.06); --bubble-theirs-ink: #1b2a49;
+  --card-bg: none; --card-base: #ffffff; --card-border: #1b2a49; --card-shadow: none;
+  --select-popup-bg: #ffffff; --select-popup-ink: #1b2a49; --input-bg: #ffffff; --input-border: #1b2a49; --glass-border: #1b2a49;
+  --sk-line: #1b2a49; --sk-line-mine: #1e63d0; --sk-line-theirs: #d6453d; --sk-panel: #ffffff; --sk-shadow: none; --sk-bubble-shadow: none; --sk-shadow-press: none;
+  --sk-btn-bg: #c93a32; --sk-btn-ink: #ffffff; --sk-panel-press: #e9ece1;
+  --sk-bg: radial-gradient(ellipse 70% 40% at 30% 20%, rgba(255, 255, 255, 0.9), transparent 70%), repeating-linear-gradient(0deg, rgba(27, 42, 73, 0.025) 0 1px, transparent 1px 28px), #f5f6f0;
+}

@@ -1,0 +1,37 @@
+/* ============================ 8. ЛЕГО / КОНСТРУКТОР (lego) ============================ */
+html[data-skin="lego"] {
+  --sk-font: "Arial Rounded MT Bold", "Trebuchet MS", ui-rounded, "Segoe UI", system-ui, sans-serif;
+  --sk-bw: 2px; --sk-radius: 8px; --sk-bubble-r: 8px; --sk-tail: 2px; --sk-btn-r: 6px; --sk-field-r: 8px;
+  --sk-press-y: 3px; --sk-press-scale: 1;
+  --r-sm: 4px; --r-md: 6px; --r-lg: 8px; --r-xl: 12px;
+}
+html[data-skin="lego"][data-scheme="light"] {
+  --bg-0: #dde5ee; --bg-1: #e9eff5; --bg-2: #ffffff; --bg-3: #cfd9e4;
+  --line-1: rgba(0, 0, 0, 0.14); --line-2: rgba(0, 0, 0, 0.26);
+  --ink-0: #14181f; --ink-1: rgba(20, 24, 31, 0.94); --ink-2: rgba(20, 24, 31, 0.78); --ink-3: rgba(20, 24, 31, 0.68);
+  --accent: #0055bf; --accent-hi: #1a6fd9; --accent-lo: #00419a; --accent-ghost: rgba(0, 85, 191, 0.12); --text-link: #00419a;
+  --bubble-mine-bg: #d01012; --bubble-mine-ink: #ffffff; --bubble-theirs-bg: #f5cd2a; --bubble-theirs-ink: #1a1a1a;
+  --card-bg: none; --card-base: #ffffff; --card-border: rgba(0, 0, 0, 0.3); --card-shadow: 0 4px 0 rgba(0, 0, 0, 0.25);
+  --select-popup-bg: #ffffff; --select-popup-ink: #14181f; --input-bg: #ffffff; --input-border: rgba(0, 0, 0, 0.3); --glass-border: rgba(0, 0, 0, 0.3);
+  --sk-line: rgba(0, 0, 0, 0.3); --sk-panel: #ffffff; --sk-shadow: 0 4px 0 rgba(0, 0, 0, 0.25); --sk-bubble-shadow: 0 4px 0 rgba(0, 0, 0, 0.28); --sk-shadow-press: 0 1px 0 rgba(0, 0, 0, 0.25);
+  --sk-btn-bg: #237841; --sk-btn-ink: #ffffff; --sk-panel-press: #e9eff5;
+  --sk-bg: radial-gradient(circle at 14px 14px, rgba(255, 255, 255, 0.85) 0 6px, rgba(0, 0, 0, 0.07) 6.5px 8px, transparent 8.5px) 0 0 / 28px 28px, #dde5ee;
+}
+html[data-skin="lego"][data-scheme="dark"] {
+  --bg-0: #13202f; --bg-1: #192a3c; --bg-2: #213650; --bg-3: #2a4565;
+  --line-1: rgba(255, 255, 255, 0.12); --line-2: rgba(255, 255, 255, 0.22);
+  --ink-0: #ffffff; --ink-1: rgba(255, 255, 255, 0.95); --ink-2: rgba(255, 255, 255, 0.8); --ink-3: rgba(255, 255, 255, 0.68);
+  --accent: #ffd01f; --accent-hi: #ffe052; --accent-lo: #e0b400; --accent-ghost: rgba(255, 208, 31, 0.16); --text-link: #7cc1ff;
+  --bubble-mine-bg: #d01012; --bubble-mine-ink: #ffffff; --bubble-theirs-bg: #0055bf; --bubble-theirs-ink: #ffffff;
+  --card-bg: none; --card-base: #213650; --card-border: rgba(0, 0, 0, 0.55); --card-shadow: 0 4px 0 rgba(0, 0, 0, 0.45);
+  --select-popup-bg: #192a3c; --select-popup-ink: #ffffff; --input-bg: #213650; --input-border: rgba(0, 0, 0, 0.55); --glass-border: rgba(0, 0, 0, 0.55);
+  --sk-line: rgba(0, 0, 0, 0.55); --sk-panel: #213650; --sk-shadow: 0 4px 0 rgba(0, 0, 0, 0.45); --sk-bubble-shadow: 0 4px 0 rgba(0, 0, 0, 0.45); --sk-shadow-press: 0 1px 0 rgba(0, 0, 0, 0.45);
+  --sk-btn-bg: #f5cd2a; --sk-btn-ink: #1a1a1a; --sk-panel-press: #2a4565;
+  --sk-bg: radial-gradient(circle at 14px 14px, rgba(255, 255, 255, 0.1) 0 6px, rgba(0, 0, 0, 0.3) 6.5px 8px, transparent 8.5px) 0 0 / 28px 28px, #13202f;
+}
+/* «шипы» кирпичика на верхней грани пузырей и кнопок */
+html[data-skin="lego"] :is(.bubble-row .bubble, .btn-primary, .send-btn) {
+  background-image: radial-gradient(circle at 13px 7px, rgba(255, 255, 255, 0.4) 0 4.5px, rgba(0, 0, 0, 0.16) 5px 6px, transparent 6.5px);
+  background-size: 26px 100%; background-repeat: repeat-x;
+}
+html[data-skin="lego"] .send-btn { background-size: 26px 100%; border-radius: 8px; }

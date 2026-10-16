@@ -1,0 +1,61 @@
+/* ============================ 12. НОВОГОДНИЙ (newyear) ============================ */
+html[data-skin="newyear"] {
+  --sk-font: "Trebuchet MS", "Gill Sans", ui-rounded, "Segoe UI", system-ui, sans-serif;
+  --sk-bw: 2px; --sk-radius: 18px; --sk-bubble-r: 20px; --sk-tail: 4px; --sk-btn-r: 16px; --sk-field-r: 22px;
+  --sk-press-scale: .96;
+  --r-sm: 10px; --r-md: 14px; --r-lg: 18px; --r-xl: 24px;
+}
+html[data-skin="newyear"][data-scheme="dark"] {
+  --bg-0: #0b1a3a; --bg-1: #112448; --bg-2: #17325e; --bg-3: #1f4075;
+  --line-1: rgba(255, 255, 255, 0.14); --line-2: rgba(255, 255, 255, 0.24);
+  --ink-0: #f4f9ff; --ink-1: rgba(244, 249, 255, 0.95); --ink-2: rgba(244, 249, 255, 0.8); --ink-3: rgba(244, 249, 255, 0.68);
+  --accent: #ff6f7d; --accent-hi: #ff8f99; --accent-lo: #e03447; --accent-ghost: rgba(255, 90, 106, 0.16); --text-link: #ffd86b;
+  --bubble-mine-bg: linear-gradient(160deg, #e0293f, #a3162a); --bubble-mine-ink: #ffffff; --bubble-theirs-bg: #1d3c6d; --bubble-theirs-ink: #f4f9ff;
+  --card-bg: none; --card-base: #17325e; --card-border: #f4c430; --card-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+  --select-popup-bg: #112448; --select-popup-ink: #f4f9ff; --input-bg: #112448; --input-border: #f4c430; --glass-border: #f4c430;
+  --sk-line: rgba(244, 196, 48, 0.75); --sk-line-mine: #ffd86b; --sk-line-theirs: rgba(244, 196, 48, 0.45); --sk-panel: #15305a; --sk-shadow: 0 6px 16px rgba(0, 0, 0, 0.4); --sk-bubble-shadow: 0 3px 10px rgba(0, 0, 0, 0.35); --sk-shadow-press: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --sk-btn-bg: linear-gradient(180deg, #2fc77a, #23b06a); --sk-btn-ink: #04200f; --sk-panel-press: #1f4075;
+  --sk-bg: radial-gradient(ellipse 90% 50% at 50% 0%, rgba(80, 130, 255, 0.28), transparent 70%), linear-gradient(180deg, #0b1a3a, #0f2552 60%, #14305f);
+}
+html[data-skin="newyear"][data-scheme="light"] {
+  --bg-0: #e9f3ff; --bg-1: #f4f9ff; --bg-2: #ffffff; --bg-3: #d6e7fb;
+  --line-1: rgba(15, 42, 74, 0.12); --line-2: rgba(15, 42, 74, 0.22);
+  --ink-0: #0f2a4a; --ink-1: rgba(15, 42, 74, 0.94); --ink-2: rgba(15, 42, 74, 0.78); --ink-3: rgba(15, 42, 74, 0.68);
+  --accent: #c8102e; --accent-hi: #e03049; --accent-lo: #9c0b22; --accent-ghost: rgba(200, 16, 46, 0.12); --text-link: #0f6a3a;
+  --bubble-mine-bg: linear-gradient(160deg, #d9283f, #b20f25); --bubble-mine-ink: #ffffff; --bubble-theirs-bg: #ffffff; --bubble-theirs-ink: #0f2a4a;
+  --card-bg: none; --card-base: #ffffff; --card-border: #1b9e5a; --card-shadow: 0 6px 16px rgba(15, 42, 74, 0.14);
+  --select-popup-bg: #ffffff; --select-popup-ink: #0f2a4a; --input-bg: #ffffff; --input-border: #1b9e5a; --glass-border: #1b9e5a;
+  --sk-line: #1b9e5a; --sk-line-mine: #8c0b1f; --sk-line-theirs: #1b9e5a; --sk-panel: #ffffff; --sk-shadow: 0 6px 16px rgba(15, 42, 74, 0.14); --sk-bubble-shadow: 0 3px 10px rgba(15, 42, 74, 0.16); --sk-shadow-press: 0 1px 3px rgba(15, 42, 74, 0.2);
+  --sk-btn-bg: linear-gradient(180deg, #2fc77a, #23b06a); --sk-btn-ink: #04200f; --sk-panel-press: #d6e7fb;
+  --sk-bg: radial-gradient(ellipse 90% 50% at 50% 0%, rgba(255, 255, 255, 0.95), transparent 70%), linear-gradient(180deg, #e9f3ff, #d9eafb);
+}
+/* гирлянда вдоль верхнего края и падающий снег (только пока анимации разрешены) */
+html[data-skin="newyear"] body::after {
+  content: ""; position: fixed; top: 0; left: 0; right: 0; height: 18px; pointer-events: none; z-index: 60;
+  background:
+    radial-gradient(circle at 12px 11px, #ff4d5e 0 4.5px, transparent 5.5px),
+    radial-gradient(circle at 32px 13px, #ffd23f 0 4.5px, transparent 5.5px),
+    radial-gradient(circle at 52px 11px, #3ddc84 0 4.5px, transparent 5.5px),
+    radial-gradient(circle at 72px 13px, #4aa8ff 0 4.5px, transparent 5.5px),
+    linear-gradient(#2a2a2a, #2a2a2a) 0 4px / 100% 1.5px no-repeat;
+  background-size: 80px 18px, 80px 18px, 80px 18px, 80px 18px, 100% 100%;
+  background-repeat: repeat-x, repeat-x, repeat-x, repeat-x, no-repeat;
+  animation: skTwinkle 2.4s ease-in-out infinite alternate;
+}
+html[data-skin="newyear"] body::before {
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.9) 1.6px, transparent 2.4px) 0 0 / 90px 90px,
+    radial-gradient(circle, rgba(255, 255, 255, 0.7) 1.2px, transparent 2px) 30px 40px / 60px 60px,
+    radial-gradient(circle, rgba(255, 255, 255, 0.55) 1px, transparent 1.8px) 10px 20px / 40px 40px,
+    var(--sk-bg);
+  animation: skSnow 14s linear infinite;
+}
+@keyframes skSnow { from { background-position: 0 0, 30px 40px, 10px 20px, 0 0; } to { background-position: 20px 90px, 10px 100px, -10px 60px, 0 0; } }
+@keyframes skTwinkle { from { filter: brightness(0.75) saturate(1); } to { filter: brightness(1.25) saturate(1.3); } }
+html[data-skin="newyear"][data-scheme="light"] body::before { background-image: radial-gradient(circle, rgba(120, 160, 215, 0.55) 1.6px, transparent 2.4px), radial-gradient(circle, rgba(120, 160, 215, 0.4) 1.2px, transparent 2px), radial-gradient(circle, rgba(120, 160, 215, 0.3) 1px, transparent 1.8px), linear-gradient(180deg, #e9f3ff, #d9eafb); }
+@media (prefers-reduced-motion: reduce) { html[data-skin="newyear"] body::before, html[data-skin="newyear"] body::after { animation: none; } }
+html[data-calm-mode="1"][data-skin="newyear"] body::before, html[data-calm-mode="1"][data-skin="newyear"] body::after { animation: none; }
+
+/* вложенные панели (колонки и карточки задачи) красятся «панельным» фоном — текст на них берём из палитры, а не из пузыря */
+html[data-skin] .bubble :is(.board-col, .board-card, .board-col-h, .board-col-name, .board-add, .board-card-t) { color: var(--ink-0); }
+html[data-skin] .bubble .board-title { color: inherit; }

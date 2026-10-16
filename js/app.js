@@ -1438,6 +1438,7 @@ function quietNow(date) {
 }
 function playMessageSound(contactId) {
   if (!Store.soundsEnabled || quietNow()) return;
+  if (typeof Skins !== "undefined" && Skins.sfx("in")) return; // у скина свой звук входящего
   const style = messageSoundStyleForContact(contactId);
   // Гибридная схема: в foreground (приложение видно) играем через Web Audio
   // — быстро, точно, не зависит от разблокировки пула. В background — через
@@ -1515,6 +1516,7 @@ function playMessageSound(contactId) {
 
 function playOutgoingSound() {
   if (!Store.soundsEnabled) return;
+  if (typeof Skins !== "undefined" && Skins.sfx("out")) return;
   const ctx = ensureAudioCtx();
   if (!ctx) return;
   try {

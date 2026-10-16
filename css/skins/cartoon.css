@@ -1,0 +1,33 @@
+/* ============================ 1. МУЛЬТЯШНЫЙ (cartoon) ============================ */
+html[data-skin="cartoon"] {
+  --sk-font: "Baloo 2", "Chalkboard SE", "Comic Sans MS", "Marker Felt", ui-rounded, "Nunito", system-ui, sans-serif;
+  --sk-bw: 3px; --sk-radius: 20px; --sk-bubble-r: 22px; --sk-tail: 4px; --sk-btn-r: 18px; --sk-field-r: 22px;
+  --sk-press-x: 3px; --sk-press-y: 3px; --sk-press-scale: 1;
+  --r-sm: 12px; --r-md: 16px; --r-lg: 20px; --r-xl: 26px;
+}
+html[data-skin="cartoon"][data-scheme="light"] {
+  --bg-0: #fff1cf; --bg-1: #fff8e6; --bg-2: #ffffff; --bg-3: #ffe9b0;
+  --line-1: rgba(42, 37, 80, 0.25); --line-2: rgba(42, 37, 80, 0.4);
+  --ink-0: #2a2550; --ink-1: rgba(42, 37, 80, 0.92); --ink-2: rgba(42, 37, 80, 0.74); --ink-3: rgba(42, 37, 80, 0.64);
+  --accent: #1366c0; --accent-hi: #1f86e8; --accent-lo: #0e4f9a; --accent-ghost: rgba(31, 134, 232, 0.14); --text-link: #135cb0;
+  --bubble-mine-bg: #5bbcff; --bubble-mine-ink: #0d1f4d; --bubble-theirs-bg: #ffffff; --bubble-theirs-ink: #2a2550;
+  --card-bg: none; --card-base: #ffffff; --card-border: #2a2550; --card-shadow: 4px 4px 0 #2a2550;
+  --select-popup-bg: #fffdf5; --select-popup-ink: #2a2550; --input-bg: #ffffff; --input-border: #2a2550; --glass-border: #2a2550;
+  --sk-line: #2a2550; --sk-panel: #ffffff; --sk-shadow: 4px 4px 0 #2a2550; --sk-shadow-press: 1px 1px 0 #2a2550; --sk-bubble-shadow: 3px 3px 0 #2a2550;
+  --sk-btn-bg: #ffd23f; --sk-btn-ink: #2a2550; --sk-panel-press: #fff0b8;
+  --sk-bg: radial-gradient(#f2c35a 1.6px, transparent 2.2px) 0 0 / 18px 18px, #fff1cf;
+}
+html[data-skin="cartoon"][data-scheme="dark"] {
+  --bg-0: #1d1a3d; --bg-1: #26234f; --bg-2: #312d63; --bg-3: #3c3778;
+  --line-1: rgba(255, 247, 224, 0.15); --line-2: rgba(255, 247, 224, 0.25);
+  --ink-0: #fff7e0; --ink-1: rgba(255, 247, 224, 0.94); --ink-2: rgba(255, 247, 224, 0.78); --ink-3: rgba(255, 247, 224, 0.66);
+  --accent: #ffd23f; --accent-hi: #ffe07a; --accent-lo: #f0b800; --accent-ghost: rgba(255, 210, 63, 0.16); --text-link: #8fd0ff;
+  --bubble-mine-bg: #3aa8ff; --bubble-mine-ink: #04183a; --bubble-theirs-bg: #3c3778; --bubble-theirs-ink: #fff7e0;
+  --card-bg: none; --card-base: #312d63; --card-border: #0c0a24; --card-shadow: 4px 4px 0 #0c0a24;
+  --select-popup-bg: #26234f; --select-popup-ink: #fff7e0; --input-bg: #312d63; --input-border: #0c0a24; --glass-border: #0c0a24;
+  --sk-line: #0c0a24; --sk-panel: #312d63; --sk-shadow: 4px 4px 0 #0c0a24; --sk-shadow-press: 1px 1px 0 #0c0a24; --sk-bubble-shadow: 3px 3px 0 #0c0a24;
+  --sk-btn-bg: #ffd23f; --sk-btn-ink: #2a2550; --sk-panel-press: #3c3778;
+  --sk-bg: radial-gradient(#2d2a62 1.6px, transparent 2.2px) 0 0 / 18px 18px, #1d1a3d;
+}
+html[data-skin="cartoon"] .avatar { box-shadow: 2px 2px 0 var(--sk-line); }
+html[data-skin="cartoon"] .bubble { font-weight: 600; }

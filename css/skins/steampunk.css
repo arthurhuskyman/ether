@@ -1,0 +1,31 @@
+/* ============================ 5. СТИМПАНК (steampunk) ============================ */
+html[data-skin="steampunk"] {
+  --sk-font: Georgia, "Palatino Linotype", "Book Antiqua", Cambria, "Times New Roman", serif; --sk-tracking: 0.01em;
+  --sk-bw: 4px; --sk-bs: double; --sk-radius: 8px; --sk-bubble-r: 8px; --sk-tail: 2px; --sk-btn-r: 6px; --sk-field-r: 8px;
+  --sk-press-y: 2px; --sk-press-scale: .98;
+  --r-sm: 4px; --r-md: 6px; --r-lg: 8px; --r-xl: 12px;
+}
+html[data-skin="steampunk"][data-scheme="light"] {
+  --bg-0: #e6d5ae; --bg-1: #efe2c2; --bg-2: #f6ecd2; --bg-3: #ead9b0;
+  --line-1: rgba(90, 52, 16, 0.22); --line-2: rgba(90, 52, 16, 0.38);
+  --ink-0: #34200c; --ink-1: rgba(52, 32, 12, 0.94); --ink-2: rgba(52, 32, 12, 0.78); --ink-3: rgba(52, 32, 12, 0.68);
+  --accent: #95581a; --accent-hi: #b37226; --accent-lo: #6e3f0f; --accent-ghost: rgba(149, 88, 26, 0.14); --text-link: #7a440f;
+  --bubble-mine-bg: linear-gradient(180deg, #e0b25e, #bf8530); --bubble-mine-ink: #2a1706; --bubble-theirs-bg: #f8eed6; --bubble-theirs-ink: #34200c;
+  --card-bg: none; --card-base: #f6ecd2; --card-border: #7a4b1e; --card-shadow: inset 0 0 0 1px #d6b06a, 0 4px 8px rgba(52, 32, 12, 0.35);
+  --select-popup-bg: #f6ecd2; --select-popup-ink: #34200c; --input-bg: #fbf3df; --input-border: #7a4b1e; --glass-border: #7a4b1e;
+  --sk-line: #7a4b1e; --sk-panel: #f6ecd2; --sk-shadow: inset 0 0 0 1px #d6b06a, 0 4px 8px rgba(52, 32, 12, 0.35); --sk-bubble-shadow: 0 3px 6px rgba(52, 32, 12, 0.3); --sk-shadow-press: inset 0 0 0 1px #d6b06a, 0 1px 2px rgba(52, 32, 12, 0.4);
+  --sk-btn-bg: linear-gradient(180deg, #d9a043, #c98d38); --sk-btn-ink: #2a1706; --sk-panel-press: #ead9b0;
+  --sk-bg: repeating-linear-gradient(45deg, rgba(90, 52, 16, 0.045) 0 2px, transparent 2px 6px), radial-gradient(ellipse 90% 70% at 50% 40%, rgba(255, 244, 214, 0.7), transparent 80%), #e6d5ae;
+}
+html[data-skin="steampunk"][data-scheme="dark"] {
+  --bg-0: #1f150d; --bg-1: #2a1d13; --bg-2: #35251a; --bg-3: #422f21;
+  --line-1: rgba(212, 160, 70, 0.18); --line-2: rgba(212, 160, 70, 0.3);
+  --ink-0: #f2e2bb; --ink-1: rgba(242, 226, 187, 0.94); --ink-2: rgba(242, 226, 187, 0.78); --ink-3: rgba(242, 226, 187, 0.66);
+  --accent: #dca044; --accent-hi: #efb95f; --accent-lo: #b8862b; --accent-ghost: rgba(220, 160, 68, 0.16); --text-link: #efb95f;
+  --bubble-mine-bg: linear-gradient(180deg, #9a6521, #6f4513); --bubble-mine-ink: #fff4d6; --bubble-theirs-bg: #402d20; --bubble-theirs-ink: #f2e2bb;
+  --card-bg: none; --card-base: #35251a; --card-border: #b8862b; --card-shadow: inset 0 0 0 1px #5e4220, 0 4px 10px rgba(0, 0, 0, 0.5);
+  --select-popup-bg: #2a1d13; --select-popup-ink: #f2e2bb; --input-bg: #2a1d13; --input-border: #b8862b; --glass-border: #b8862b;
+  --sk-line: #b8862b; --sk-panel: #35251a; --sk-shadow: inset 0 0 0 1px #5e4220, 0 4px 10px rgba(0, 0, 0, 0.5); --sk-bubble-shadow: 0 3px 8px rgba(0, 0, 0, 0.45); --sk-shadow-press: inset 0 0 0 1px #5e4220, 0 1px 2px rgba(0, 0, 0, 0.5);
+  --sk-btn-bg: linear-gradient(180deg, #d9a043, #a2701f); --sk-btn-ink: #1c1208; --sk-panel-press: #422f21;
+  --sk-bg: repeating-linear-gradient(45deg, rgba(212, 160, 70, 0.05) 0 2px, transparent 2px 6px), radial-gradient(ellipse 90% 70% at 50% 40%, rgba(120, 80, 30, 0.35), transparent 80%), #1f150d;
+}

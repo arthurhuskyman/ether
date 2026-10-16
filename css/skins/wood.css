@@ -1,0 +1,31 @@
+/* ============================ 9. ДЕРЕВЯННЫЙ / ЭКО (wood) ============================ */
+html[data-skin="wood"] {
+  --sk-font: "Trebuchet MS", "Gill Sans", Candara, ui-rounded, system-ui, sans-serif;
+  --sk-bw: 2px; --sk-radius: 14px; --sk-bubble-r: 16px; --sk-tail: 4px; --sk-btn-r: 12px; --sk-field-r: 16px;
+  --sk-press-y: 2px; --sk-press-scale: .98;
+  --r-sm: 8px; --r-md: 12px; --r-lg: 14px; --r-xl: 20px;
+}
+html[data-skin="wood"][data-scheme="light"] {
+  --bg-0: #ecdcbc; --bg-1: #f4e8cf; --bg-2: #faf1dc; --bg-3: #e8d6b0;
+  --line-1: rgba(110, 76, 36, 0.2); --line-2: rgba(110, 76, 36, 0.34);
+  --ink-0: #36250f; --ink-1: rgba(54, 37, 15, 0.94); --ink-2: rgba(54, 37, 15, 0.78); --ink-3: rgba(54, 37, 15, 0.68);
+  --accent: #3f7a2d; --accent-hi: #55943f; --accent-lo: #2f5e21; --accent-ghost: rgba(63, 122, 45, 0.14); --text-link: #2f5e21;
+  --bubble-mine-bg: linear-gradient(180deg, #a6cf7d, #86b85c); --bubble-mine-ink: #17290a; --bubble-theirs-bg: #f7ebcf; --bubble-theirs-ink: #36250f;
+  --card-bg: none; --card-base: #faf1dc; --card-border: #8c6a3c; --card-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 3px 0 rgba(110, 76, 36, 0.35);
+  --select-popup-bg: #faf1dc; --select-popup-ink: #36250f; --input-bg: #fdf7e8; --input-border: #8c6a3c; --glass-border: #8c6a3c;
+  --sk-line: #8c6a3c; --sk-panel: #faf1dc; --sk-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 3px 0 rgba(110, 76, 36, 0.35); --sk-bubble-shadow: 0 2px 0 rgba(110, 76, 36, 0.35); --sk-shadow-press: 0 1px 0 rgba(110, 76, 36, 0.35);
+  --sk-btn-bg: linear-gradient(180deg, #7fb057, #6fa04a); --sk-btn-ink: #0f1d08; --sk-panel-press: #e8d6b0;
+  --sk-bg: repeating-linear-gradient(90deg, rgba(110, 76, 36, 0.07) 0 2px, transparent 2px 11px), repeating-linear-gradient(90deg, rgba(110, 76, 36, 0.04) 0 1px, transparent 1px 5px), #ecdcbc;
+}
+html[data-skin="wood"][data-scheme="dark"] {
+  --bg-0: #281a10; --bg-1: #33231a; --bg-2: #402c1f; --bg-3: #4e3727;
+  --line-1: rgba(235, 200, 150, 0.16); --line-2: rgba(235, 200, 150, 0.28);
+  --ink-0: #f4e4c8; --ink-1: rgba(244, 228, 200, 0.94); --ink-2: rgba(244, 228, 200, 0.78); --ink-3: rgba(244, 228, 200, 0.66);
+  --accent: #8fd16a; --accent-hi: #a9e286; --accent-lo: #6fb04a; --accent-ghost: rgba(143, 209, 106, 0.16); --text-link: #a9e286;
+  --bubble-mine-bg: linear-gradient(180deg, #4a7a30, #3b6626); --bubble-mine-ink: #ffffff; --bubble-theirs-bg: #4b3626; --bubble-theirs-ink: #f4e4c8;
+  --card-bg: none; --card-base: #402c1f; --card-border: #7a5632; --card-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 3px 0 rgba(0, 0, 0, 0.4);
+  --select-popup-bg: #33231a; --select-popup-ink: #f4e4c8; --input-bg: #33231a; --input-border: #7a5632; --glass-border: #7a5632;
+  --sk-line: #7a5632; --sk-panel: #402c1f; --sk-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 3px 0 rgba(0, 0, 0, 0.4); --sk-bubble-shadow: 0 2px 0 rgba(0, 0, 0, 0.4); --sk-shadow-press: 0 1px 0 rgba(0, 0, 0, 0.4);
+  --sk-btn-bg: linear-gradient(180deg, #78b650, #55893a); --sk-btn-ink: #0f1d08; --sk-panel-press: #4e3727;
+  --sk-bg: repeating-linear-gradient(90deg, rgba(255, 220, 170, 0.05) 0 2px, transparent 2px 11px), repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.12) 0 1px, transparent 1px 5px), #281a10;
+}

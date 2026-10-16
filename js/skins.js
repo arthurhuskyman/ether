@@ -22,6 +22,14 @@ const Skins = (() => {
     { id: "newyear", emoji: "🎄", light: ["#e9f3ff", "#ffffff", "#c8102e"], dark: ["#0b1a3a", "#17325e", "#ff5a6a"], bar: { light: "#e9f3ff", dark: "#0b1a3a" } },
   ];
   const IDS = LIST.map((s) => s.id);
+  // Реестр «характера» скина: js/skins/<id>.js вызывает Skins.register(id, spec). spec:
+  //   icons: { имя: "<path…/>" } — своя графика иконок (ключи из Icons.names()), остальные остаются обычными;
+  //   sound: { in, out, tap, tab, react, error } — партитуры звуков (см. play ниже);
+  //   deco(layer, { scheme, calm }) — рисует декор в фиксированном слое #skin-deco (шестерни, снег, огни…), может вернуть функцию очистки;
+  //   haptic: { tap: [мс…] } — своя вибрация на тап.
+  const REG = {};
+  function register(id, spec) { if (IDS.includes(id)) REG[id] = spec || {}; }
+  const spec = () => REG[get()] || null;
   const valid = (id) => IDS.includes(id);
   const get = () => { let v = "default"; try { v = localStorage.getItem(KEY) || "default"; } catch (e) {} return valid(v) ? v : "default"; };
   const live = () => typeof document !== "undefined" && !!document && !!document.documentElement; // окно может уже закрыться (тесты, выгрузка страницы)
@@ -36,6 +44,75 @@ const Skins = (() => {
     const dark = s.id === "default" && document.documentElement.dataset.theme === "oled" ? "#000000" : s.bar.dark;
     meta.setAttribute("content", scheme() === "light" ? s.bar.light : dark);
   }
+
+  // ---------- Звуки скина: партитура — массив нот {f|[f0,f1], t, d, v, w, lp, hp, q, n}; w: sine|square|sawtooth|triangle|noise ----------
+  let lastTap = 0;
+  function play(score, ctx) {
+    const t0 = ctx.currentTime + 0.005;
+    for (const n of score) {
+      const at = t0 + (n.t || 0), dur = Math.max(0.02, n.d || 0.12), vol = Math.min(0.3, n.v == null ? 0.1 : n.v);
+      const g = ctx.createGain(); let src;
+      if (n.w === "noise") {
+        const len = Math.max(1, Math.floor(ctx.sampleRate * dur)), buf = ctx.createBuffer(1, len, ctx.sampleRate), ch = buf.getChannelData(0);
+        for (let i = 0; i < len; i++) ch[i] = Math.random() * 2 - 1;
+        src = ctx.createBufferSource(); src.buffer = buf;
+      } else {
+        src = ctx.createOscillator(); src.type = n.w || "sine";
+        const f = n.f, f0 = Array.isArray(f) ? f[0] : f, f1 = Array.isArray(f) ? f[1] : f;
+        src.frequency.setValueAtTime(f0, at);
+        if (f1 !== f0) src.frequency.exponentialRampToValueAtTime(Math.max(20, f1), at + dur);
+      }
+      let node = src;
+      if (n.lp) { const b = ctx.createBiquadFilter(); b.type = "lowpass"; b.frequency.value = n.lp; b.Q.value = n.q || 0.7; node.connect(b); node = b; }
+      if (n.hp) { const b = ctx.createBiquadFilter(); b.type = "highpass"; b.frequency.value = n.hp; b.Q.value = n.q || 0.7; node.connect(b); node = b; }
+      node.connect(g); g.connect(ctx.destination);
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol), at + Math.min(0.012, dur / 3));
+      g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+      src.start(at); src.stop(at + dur + 0.03);
+    }
+  }
+  // true — звук скина сыгран (тогда обычный сигнал не нужен); false — у скина нет такого звука или звук сейчас недоступен
+  function sfx(kind) {
+    try {
+      const sp = spec(); const score = sp && sp.sound && sp.sound[kind]; if (!score) return false;
+      if (typeof Store === "undefined" || !Store.soundsEnabled) return false;
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return false;
+      const ctx = typeof ensureGlobalAudioCtx === "function" ? ensureGlobalAudioCtx() : null;
+      if (!ctx || ctx.state !== "running") return false;
+      play(score, ctx); return true;
+    } catch (e) { return false; }
+  }
+  function onTap(e) {
+    if (!live() || get() === "default") return;
+    const el = e.target && e.target.closest ? e.target.closest("button, .tab-btn, .chat-row, .settings-row, .chip, .composer-menu-item, [role=button]") : null;
+    if (!el || el.disabled) return;
+    const now = Date.now(); if (now - lastTap < 80) return; lastTap = now;
+    const sp = spec();
+    if (sp && sp.haptic && sp.haptic.tap && typeof vibrate === "function") { try { vibrate(sp.haptic.tap); } catch (err) {} }
+    sfx(el.classList.contains("tab-btn") ? "tab" : "tap") || (el.classList.contains("tab-btn") && sfx("tap"));
+  }
+
+  // ---------- Декор: фиксированный слой под интерфейсом, который скин наполняет сам ----------
+  let decoCleanup = null;
+  function applyDeco(id) {
+    if (!live()) return;
+    if (decoCleanup) { try { decoCleanup(); } catch (e) {} decoCleanup = null; }
+    let layer = document.getElementById("skin-deco");
+    if (!layer) { layer = document.createElement("div"); layer.id = "skin-deco"; layer.setAttribute("aria-hidden", "true"); document.body.insertBefore(layer, document.body.firstChild); }
+    layer.innerHTML = ""; layer.dataset.skin = id;
+    const sp = REG[id];
+    if (sp && typeof sp.deco === "function") {
+      let calm = false; try { calm = !!(Store && Store.calmMode); } catch (e) {}
+      try { const r = sp.deco(layer, { scheme: scheme(), calm }); if (typeof r === "function") decoCleanup = r; } catch (e) {}
+    }
+  }
+  // иконки: свой набор скина поверх обычного
+  function applyIcons(id) {
+    if (typeof Icons === "undefined" || !Icons.setOverrides) return;
+    const sp = REG[id]; Icons.setOverrides(sp && sp.icons ? sp.icons : null);
+    try { Icons.hydrate(document, true); } catch (e) {}
+  }
   function apply(id) {
     id = valid(id) ? id : "default";
     if (!live()) return id;
@@ -43,6 +120,7 @@ const Skins = (() => {
     if (id === "default") root.removeAttribute("data-skin"); else root.setAttribute("data-skin", id);
     syncMeta();
     markActive(id);
+    applyIcons(id); applyDeco(id);
     return id;
   }
   function set(id) {
@@ -73,6 +151,13 @@ const Skins = (() => {
     }
     markActive(cur);
   }
-  function wire() { render(); }
-  return { LIST, IDS, KEY, valid, get, apply, set, render, wire, syncMeta, name };
+  let tapWired = false;
+  function wire() {
+    render();
+    if (!tapWired && live()) { tapWired = true; document.addEventListener("click", onTap, true); }
+    // схема (светлая/тёмная) могла смениться — декор зависит от неё
+    if (live() && typeof MutationObserver !== "undefined" && !wire.mo) { wire.mo = new MutationObserver(() => { if (get() !== "default") applyDeco(get()); }); wire.mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-scheme"] }); }
+    apply(get());
+  }
+  return { LIST, IDS, KEY, valid, get, apply, set, render, wire, syncMeta, name, register, sfx, play, spec };
 })();
