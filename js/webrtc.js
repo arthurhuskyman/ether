@@ -197,7 +197,7 @@ const ICE_GATHER_TIMEOUT_MS = 2500;
 // рвалась, хотя была жива. 60 секунд позволяют пережить короткий
 // background-период. При полной заморозке дольше 60с — да, рвём, но
 // пересоединение установит всё заново быстрее, чем реальный перерыв.
-const HEARTBEAT_TIMEOUT_MS = 20000;
+const HEARTBEAT_TIMEOUT_MS = 60000;
 const DISCONNECT_GRACE_MS = 7000; // сколько ждём самовосстановления ICE, прежде чем считать линк отключённым
 
 function waitForIceGathering(pc) {
@@ -584,10 +584,14 @@ class PeerLink extends EventTarget {
       this._pingTimer = setInterval(() => {
         if (this._closed) return;
         if (this._lastPongAt && Date.now() - this._lastPongAt > HEARTBEAT_TIMEOUT_MS) {
+          // После заморозки таймеров (iOS) первый «просроченный» тик ещё не доказывает смерть линка: ответы могли лежать в очереди.
+          // Шлём ping и даём один дополнительный интервал; если за него не пришло ничего — только тогда рвём.
+          if (!this._staleGrace) { this._staleGrace = true; this.send({ kind: "ping", t: Date.now(), rc: 1 }); return; }
           this._log("warn", "[webrtc]", this.id.slice(0, 10) + "…", "no pong for " + Math.round((Date.now() - this._lastPongAt) / 1000) + "s — closing");
           this._setStatus("disconnected");
           return;
         }
+        this._staleGrace = false;
         this.send({ kind: "ping", t: Date.now(), rc: 1 });
       }, 5000);
       // Трек мог быть добавлен ДО того, как канал открылся — тогда
@@ -610,6 +614,8 @@ class PeerLink extends EventTarget {
       let payload;
       try { payload = JSON.parse(ev.data); } catch (e) { return; }
       if (!payload) return;
+      // Любой входящий трафик по каналу — признак живого линка (в т.ч. ping собеседника), а не только pong на наш ping.
+      this._lastPongAt = Date.now(); this._staleGrace = false;
       if ((payload.kind === "ping" || payload.kind === "pong") && payload.rc && !this.peerRatchet) {
         this.peerRatchet = true; // собеседник умеет Double Ratchet — приложение запомнит это в контакте
         this.dispatchEvent(new CustomEvent("caps", { detail: { rc: true } }));
@@ -773,14 +779,14 @@ class PeerLink extends EventTarget {
     if (this.pc.signalingState !== "stable") {
       // Сейчас не момент создавать offer — сами ещё разбираем чужой/
       // предыдущий; без этой проверки здесь и вылезал InvalidStateError.
+      // Запрос ICE-restart запоминаем, даже если таймер уже заведён другим путём: иначе он терялся.
+      this._retryRestart = this._retryRestart || !!iceRestart;
       if (!this._renegotiationRetryTimer) {
-        this._renegotiationRetryTimer = setTimeout(() => {
-          this._renegotiationRetryTimer = null;
-          this._negotiate(iceRestart);
-        }, 300);
+        this._renegotiationRetryTimer = setTimeout(() => this._retryNegotiate(iceRestart), 300);
       }
       return;
     }
+    let scheduledRetry = false; // true — ЭТОТ вызов завёл retry-таймер и оставляет _pendingNegotiation до его срабатывания
     this._pendingNegotiation = true;
     this._makingOffer = true;
     try {
@@ -812,16 +818,19 @@ class PeerLink extends EventTarget {
       // по спеке WebRTC обнулится, и .sdp на null бросил бы TypeError
       // (падение ушло бы в catch как warning, но без отката состояния).
       if (this._closed) return;
-      const offerSdp = this.pc.localDescription.sdp;
+      // SDP читаем ПОСЛЕ ожидания сбора кандидатов: при ICE-restart новые кандидаты попадают в localDescription только
+      // после gathering, а прежнее чтение до await отправляло offer без них. Опасность подмены localDescription
+      // встречным offer (см. выше) закрыта проверкой signalingState сразу после await и до чтения.
       if (iceRestart) await waitForIceGathering(this.pc);
       if (this._closed) return;
-      if (this.pc.signalingState !== "have-local-offer") {
+      if (this.pc.signalingState !== "have-local-offer" || !this.pc.localDescription) {
         // Кто-то другой (глубже — "вежливая" сторона в _handleRemoteSdp)
         // перехватил пересогласование за время ожидания — finally ниже
         // сам корректно сбросит _makingOffer/_pendingNegotiation.
         this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "негоциация перехвачена встречным offer во время ICE-gathering — не отправляем");
         return;
       }
+      const offerSdp = this.pc.localDescription.sdp;
       const ok = this.send({ kind: "sdp", sdpType: "offer", sdp: offerSdp });
       if (!ok && !this._closed) {
         // Критично: setLocalDescription(offer) уже перевёл signalingState в
@@ -831,19 +840,19 @@ class PeerLink extends EventTarget {
         // бесконечный цикл, не гипотетический). Откатываем локальный offer,
         // чтобы повторная попытка стартовала с чистого stable-состояния.
         try { await this.pc.setLocalDescription({ type: "rollback" }); } catch (e) {}
-        this._renegotiationRetryTimer = setTimeout(() => {
-          this._renegotiationRetryTimer = null;
-          this._pendingNegotiation = false;
-          this._makingOffer = false;
-          this._negotiate(iceRestart);
-        }, 500);
+        if (this._renegotiationRetryTimer) clearTimeout(this._renegotiationRetryTimer);
+        this._retryRestart = this._retryRestart || !!iceRestart;
+        scheduledRetry = true;
+        this._renegotiationRetryTimer = setTimeout(() => this._retryNegotiate(iceRestart), 500);
         return;
       }
     } catch (e) {
       this._log("warn", "[webrtc] пересогласование:", String(e));
     } finally {
       this._makingOffer = false;
-      if (!this._renegotiationRetryTimer) {
+      // Флаг сбрасываем всегда, кроме случая, когда retry завёл именно этот вызов (его таймер сбросит флаг сам). Раньше проверялось
+      // «есть ли вообще таймер», а таймер могли завести другие пути (неудачный встречный offer, non-stable ветка) — флаг залипал.
+      if (!scheduledRetry) {
         this._pendingNegotiation = false;
         if (this._negotiationQueuedIceRestart) {
           this._negotiationQueuedIceRestart = false;
@@ -851,6 +860,16 @@ class PeerLink extends EventTarget {
         }
       }
     }
+  }
+
+  // Общий обработчик retry-таймеров пересогласования (все три пути используют один таймер).
+  _retryNegotiate(iceRestart) {
+    this._renegotiationRetryTimer = null;
+    // Сбрасываем залипший флаг, но не посреди собственного createOffer/setLocalDescription другого вызова.
+    if (!this._makingOffer) this._pendingNegotiation = false;
+    const restart = !!(iceRestart || this._retryRestart);
+    this._retryRestart = false;
+    return this._negotiate(restart);
   }
 
   async _renegotiateOverDataChannel() {
@@ -891,7 +910,7 @@ class PeerLink extends EventTarget {
         // в промежуточном состоянии (have-local-offer/have-remote-offer) без единого пакета в сети.
         try { await this.pc.setLocalDescription({ type: "rollback" }); } catch (e2) {}
         if (!this._closed && !this._renegotiationRetryTimer) {
-          this._renegotiationRetryTimer = setTimeout(() => { this._renegotiationRetryTimer = null; this._negotiate(false); }, 500);
+          this._renegotiationRetryTimer = setTimeout(() => this._retryNegotiate(false), 500);
         }
         if (!this._closed) this._setStatus("disconnected");
         return;
