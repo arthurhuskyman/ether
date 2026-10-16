@@ -89,13 +89,13 @@ test("треды: плашка «N ответов», лист с цепочко�
   assert.match(chip.textContent.replace(/ /g, " "), /Ответов: 1/);
   chip.click();
   assert.ok(!d.querySelector("#thread-sheet").classList.contains("hidden"));
-  assert.equal(d.querySelectorAll("#thread-list .thread-msg").length, 3, "корень и вся цепочка");
+  assert.equal(d.querySelectorAll("#thread-sheet .thread-msg").length, 3, "корень и вся цепочка");
   d.querySelector("#thread-input").value = "из треда";
   d.querySelector("#thread-send-btn").click();
   await sleep(30);
   const sent = a.run(`state.contacts.get("alice").messages.find((m) => m.text === "из треда")`);
   assert.ok(sent && sent.replyTo && sent.replyTo.id === "r1", "ответ привязан к корню");
-  assert.equal(d.querySelectorAll("#thread-list .thread-msg").length, 4, "лист обновился");
+  assert.equal(d.querySelectorAll("#thread-sheet .thread-msg").length, 4, "лист обновился");
   a.close();
 });
 
@@ -241,11 +241,11 @@ test("звук при запуске: пул разблокируется тих
   a.close();
 });
 
-test("меню «+»: порядок Эмодзи, Камера, Файл, Опрос, Доска, Заметка; плашки якорятся над кнопкой", async () => {
+test("меню «+»: порядок Эмодзи, Камера, Файл, Опрос, Доска, Заметка, Сводка; плашки якорятся над кнопкой", async () => {
   const a = await booted("ru");
   const d = a.document;
   const ids = Array.from(d.querySelectorAll("#composer-menu-sheet .composer-menu-item")).map((b) => b.id);
-  assert.deepEqual(ids, ["chat-emoji-btn", "chat-camera-btn", "chat-attach-btn", "chat-poll-btn", "chat-board-btn", "chat-note-btn"]);
+  assert.deepEqual(ids, ["chat-emoji-btn", "chat-camera-btn", "chat-attach-btn", "chat-poll-btn", "chat-board-btn", "chat-note-btn", "chat-summary-btn"]);
   assert.equal(d.querySelector("#chat-attach-btn span").textContent, "Файл");
   a.close();
 });

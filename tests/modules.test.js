@@ -61,3 +61,36 @@ test("I18N: переключение языка и подстановка пар
   assert.match(a.run(`T("toast.groupTooBig", { max: 42 })`), /42/);
   a.close();
 });
+
+
+test("CryptoHelper: конверт v2 с AAD привязан к паре и направлению; v1 по-прежнему расшифровывается", async () => {
+  const a = createApp(); await a.ready;
+  a.window.__out = null;
+  await a.run(`(async () => {
+    const A = await CryptoHelper.generateKeyPair(), B = await CryptoHelper.generateKeyPair();
+    const kA = await CryptoHelper.deriveSharedKey(A.privateKeyJwk, B.publicKeyJwk);
+    const kB = await CryptoHelper.deriveSharedKey(B.privateKeyJwk, A.publicKeyJwk);
+    const v1 = await CryptoHelper.encryptJson(kA, { n: 1 });
+    const v2 = await CryptoHelper.encryptJson(kA, { n: 2 }, CryptoHelper.envAad("alice", "bob"));
+    const fails = async (f) => { try { await f(); return false; } catch (e) { return true; } };
+    window.__out = {
+      v1v: v1.v, v2v: v2.v,
+      v1ok: (await CryptoHelper.decryptJson(kB, v1)).n,
+      v1ignoresAad: (await CryptoHelper.decryptJson(kB, v1, CryptoHelper.envAad("x", "y"))).n,
+      v2ok: (await CryptoHelper.decryptJson(kB, v2, CryptoHelper.envAad("alice", "bob"))).n,
+      v2NoAad: await fails(() => CryptoHelper.decryptJson(kB, v2)),
+      v2Reversed: await fails(() => CryptoHelper.decryptJson(kB, v2, CryptoHelper.envAad("bob", "alice"))),
+      v2OtherRecipient: await fails(() => CryptoHelper.decryptJson(kB, v2, CryptoHelper.envAad("alice", "carol"))),
+      v3: await fails(() => CryptoHelper.decryptJson(kB, { ...v2, v: 3 }, CryptoHelper.envAad("alice", "bob"))),
+      aadText: new TextDecoder().decode(CryptoHelper.envAad("alice", "bob")),
+    };
+  })()`);
+  const o = a.window.__out;
+  assert.equal(o.v1v, 1, "без aad — формат v1 (резервные копии и старые клиенты)");
+  assert.equal(o.v2v, 2);
+  assert.equal(o.v1ok, 1); assert.equal(o.v1ignoresAad, 1);
+  assert.equal(o.v2ok, 2);
+  assert.equal(o.v2NoAad, true); assert.equal(o.v2Reversed, true); assert.equal(o.v2OtherRecipient, true); assert.equal(o.v3, true);
+  assert.equal(o.aadText, "ether-env-v2|alice|bob");
+  a.close();
+});

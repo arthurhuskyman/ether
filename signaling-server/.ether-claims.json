@@ -1,1 +1,1 @@
-{"v":1,"claims":[]}
+{"v":1,"claims":[["alice-srv",{"h":"d5c17f81f057e5ad4c7ada3575439eae7130ce3515d860e4afeff1641de4fb8f","seen":1792194278787}],["bob-srv",{"h":"ecb2f9809da1abac5af5e8fa2060ace70a59f9216dc6efdcb3772c7e0b6c38b2","seen":1792194281307}],["alice-old",{"h":"0d542d0bcaa6b38d53ddfe1f666780c7b937b37ed7e32b161b95f718f322a1a3","seen":1792194285341}],["bob-old",{"h":"661f800a7dbb1a7a95bfaeca11ba249cd5c9331d872a24a08da13b38fdb8c23a","seen":1792194288134}]]}

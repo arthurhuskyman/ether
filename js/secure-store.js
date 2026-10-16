@@ -10,7 +10,7 @@
 // =====================================================================
 const SecureStore = (() => {
   const KEYS = ["ether.contacts", "ether.outbox", "ether.ratchet", "ether.pendingNoKey", "ether.heldDeliveries", "ether.drafts", "ether.stories",
-    "ether.privKey", "ether.callLog", "ether.scheduledMessages", "ether.groupDeliveryMap", "ether.recentlyDeleted", "ether.lastSeen", "ether.translateApiKey"];
+    "ether.privKey", "ether.callLog", "ether.scheduledMessages", "ether.groupDeliveryMap", "ether.recentlyDeleted", "ether.lastSeen", "ether.translateApiKey", "ether.claimToken"];
   const PREFIX = "enc1:", ITER = 250000, MIN_PIN = 6;
   const FLAG = "ether.sec.on", SALT = "ether.sec.salt", CHECK = "ether.sec.check";
   const te = new TextEncoder(), td = new TextDecoder();

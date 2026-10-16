@@ -221,3 +221,41 @@ test("prekey: при регистрации приложение выклады�
   await new Promise((r) => setTimeout(r, 400));
   assert.equal(JSON.parse(A.run(`JSON.stringify(window.__ws.filter((m) => m.type === "prekey-upload").length)`)), 2, "prekey-low вызывает пополнение");
 });
+
+
+// ---- конверт офлайн-очереди v2 (AAD): выпускается только получателю, заведомо умеющему его, и только если сервер пропускает формат ----
+async function plainSetup() { // без ratchet-флагов: идёт прежний (статический ECDH) путь
+  const { A, B, pubA, pubB } = await setup();
+  return { A, B, pubA, pubB };
+}
+test("env2: пока получатель не объявил поддержку, уходит v1 (старые клиенты не теряют сообщения), и конверт несёт флаг e2", async () => {
+  const { A, B, pubA } = await plainSetup();
+  A.run(`signaling.features = ["env2"];`); // ratchet2 нет → путь статического ECDH
+  const e1 = await sendOffline(A, B, "alice-id", "bob-id", pubA, "w1", chat("w-c1", "раз"));
+  assert.equal(e1.v, 1); assert.equal(e1.e2, 1);
+  assert.ok(has(B, "alice-id", "w-c1"));
+  assert.equal(B.run(`!!state.contacts.get("alice-id").e2`), true, "Боб узнал из флага e2, что Алиса умеет v2");
+});
+test("env2: получатель умеет и сервер объявил env2 — конверт v2 с AAD, расшифровывается; без feature сервера остаётся v1", async () => {
+  const { A, B, pubA, pubB } = await plainSetup();
+  A.run(`signaling.features = ["env2"]; state.contacts.get("bob-id").e2 = true;`);
+  const e2 = await sendOffline(A, B, "alice-id", "bob-id", pubA, "w2", chat("w-c2", "два"));
+  assert.equal(e2.v, 2); assert.ok(!e2.h, "это не Double Ratchet");
+  assert.ok(has(B, "alice-id", "w-c2"), "Боб расшифровал v2 с AAD");
+  // старый сервер (нет feature env2): v1, иначе он отбросил бы конверт
+  A.run(`signaling.features = []; state.contacts.get("bob-id").e2 = true;`);
+  const e3 = await sendOffline(A, B, "alice-id", "bob-id", pubA, "w3", chat("w-c3", "три"));
+  assert.equal(e3.v, 1);
+  assert.ok(has(B, "alice-id", "w-c3"));
+});
+test("env2: конверт нельзя перенаправить — подмена отправителя/адресата не расшифровывается", async () => {
+  const { A, B, pubA } = await plainSetup();
+  A.run(`signaling.features = ["env2"]; state.contacts.get("bob-id").e2 = true;`);
+  const env = await ev(A, `return await encryptForContact(state.contacts.get("bob-id"), "w4", ${JSON.stringify(chat("w-c4", "секрет"))});`);
+  assert.equal(env.v, 2);
+  // тот же конверт, но "от" другого id (сервер/злоумышленник подставляет другого отправителя)
+  B.run(`ensureContactEntry("mallory-id", "M").publicKey = ${JSON.stringify(pubA)};`);
+  B.run(`signaling.dispatchEvent(new CustomEvent("deliver", { detail: { from: "mallory-id", msgId: "w4x", envelope: ${JSON.stringify(env)}, fromPublicKey: ${JSON.stringify(pubA)}, kind: "chat" } }))`);
+  await new Promise((r) => setTimeout(r, 300));
+  assert.ok(!has(B, "mallory-id", "w-c4"), "AAD включает id отправителя — чужой отправитель не проходит");
+});

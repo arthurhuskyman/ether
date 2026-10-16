@@ -265,10 +265,9 @@ function wireChatSummary() {
   const sheet = document.getElementById("summary-sheet"); if (!sheet) return;
   sheet.querySelectorAll(".summary-period").forEach((b) => b.addEventListener("click", () => { sheet.dataset.period = b.dataset.period; renderChatSummary(); }));
   const cp = document.getElementById("summary-copy"); if (cp) cp.addEventListener("click", () => { try { const b = document.getElementById("summary-body"); copyText(b.innerText || b.textContent, T("toast.msgCopied")); } catch (e) {} });
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !sheet.classList.contains("hidden")) sheet.classList.add("hidden"); });
   for (const id of ["chat-summary-btn", "contact-summary-btn"]) {
     const btn = document.getElementById(id);
-    if (btn) btn.addEventListener("click", () => { const cid = state.chatId || state.contactCardId; if (cid) openChatSummary(cid); });
+    if (btn) btn.addEventListener("click", () => { try { collapseComposerPlus(); } catch (e) {} const cid = state.chatId || state.contactCardId; if (cid) openChatSummary(cid); });
   }
 }
 function wireLocalAi() {

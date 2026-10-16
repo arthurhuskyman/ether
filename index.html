@@ -903,6 +903,16 @@
   <div class="sheet-panel glass-content">
     <div class="sheet-handle"></div>
     <h3 id="story-sheet-title" class="sheet-title" data-i18n="stories.new">New story</h3>
+    <div class="story-photo-actions">
+      <button type="button" id="story-photo-pick" class="btn-secondary story-photo-btn"><svg data-icon="image" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"></svg><span data-i18n="stories.photo.pick">Choose photo</span></button>
+      <button type="button" id="story-photo-camera" class="btn-secondary story-photo-btn"><svg data-icon="camera" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"></svg><span data-i18n="stories.photo.camera">Take photo</span></button>
+    </div>
+    <input id="story-photo-input" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" style="display:none;" />
+    <input id="story-camera-input" type="file" accept="image/*" capture="environment" style="display:none;" />
+    <div id="story-photo-preview" class="story-photo-preview hidden">
+      <img id="story-photo-preview-img" alt="" />
+      <button type="button" id="story-photo-remove" class="icon-btn story-photo-remove" aria-label="Remove photo" data-i18n-aria="stories.photo.remove"><svg data-icon="x" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"></svg></button>
+    </div>
     <textarea id="story-input" class="rich-input" rows="3" maxlength="280" data-i18n-ph="stories.placeholder" placeholder="What's on your mind?"></textarea>
     <div id="story-swatches" class="story-swatches" role="group"></div>
     <p class="fine muted" data-i18n="stories.hint">Visible to your contacts for 24 hours. Delivered end-to-end encrypted.</p>
@@ -916,6 +926,7 @@
   <div class="story-top"><b id="story-who"></b><span id="story-time"></span>
     <button type="button" id="story-delete-btn" class="icon-btn hidden" aria-label="Delete" data-i18n-aria="stories.delete"><svg data-icon="trash" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"></svg></button>
     <button type="button" id="story-close-btn" class="icon-btn" aria-label="Close" data-i18n-aria="sys.close"><svg data-icon="x" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg></button></div>
+  <img id="story-photo" class="story-photo hidden" alt="" />
   <div id="story-text" class="story-text"></div>
   <form id="story-reply" class="story-reply hidden" autocomplete="off">
     <input id="story-reply-input" type="text" maxlength="500" placeholder="Reply…" data-i18n-ph="stories.reply" aria-label="Reply" data-i18n-aria="stories.reply">
@@ -956,7 +967,8 @@
   <div class="sheet-backdrop"></div>
   <div class="sheet-panel glass-content">
     <div class="sheet-handle"></div>
-    <div class="thread-head"><h3 id="thread-sheet-title" class="sheet-title" data-i18n="chat.thread.title">Thread</h3><button type="button" id="thread-close-btn" class="icon-btn" aria-label="Close" data-i18n-aria="sys.close"><svg data-icon="x" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"></svg></button></div>
+    <div class="thread-head"><h3 id="thread-sheet-title" class="sheet-title" data-i18n="chat.thread.title">Thread</h3><button type="button" id="thread-close-btn" class="icon-btn" aria-label="Close thread" data-i18n-aria="chat.thread.close"><svg data-icon="x" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"></svg></button></div>
+    <div id="thread-root" class="thread-root"></div>
     <div id="thread-list" class="thread-list" aria-live="polite"></div>
     <div class="thread-compose"><input id="thread-input" type="text" class="rich-input" maxlength="4000" autocomplete="off" placeholder="Reply in thread" data-i18n-ph="chat.thread.placeholder" /><button type="button" id="thread-send-btn" class="send-btn" aria-label="Send" data-i18n-aria="chat.thread.send"><svg data-icon="send" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"></svg></button></div>
   </div>

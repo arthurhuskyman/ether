@@ -2685,3 +2685,44 @@ html.theme-fading, html.theme-fading *, html.theme-fading *::before, html.theme-
 .skin-sw { display: flex; gap: 6px; }
 .skin-sw > span { display: inline-flex; padding: 2px; border-radius: 8px; border: 1px solid var(--line-2); gap: 2px; }
 .skin-sw i { width: 10px; height: 10px; border-radius: 50%; display: block; border: 1px solid rgba(128,128,128,.35); }
+
+/* ===== Фото-истории, шторка треда, сводка чата (логические свойства — работает и в RTL) ===== */
+.story-photo-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-block: 4px 10px; }
+.story-photo-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex: 1 1 140px; min-height: 44px; }
+.story-photo-preview { position: relative; margin-block: 0 10px; border-radius: var(--radius-m, 12px); overflow: hidden; background: var(--bg-2); max-height: 220px; display: grid; place-items: center; }
+.story-photo-preview img { max-width: 100%; max-height: 220px; object-fit: contain; display: block; }
+.story-photo-remove { position: absolute; inset-block-start: 6px; inset-inline-end: 6px; min-width: 44px; min-height: 44px; border-radius: 50%; background: rgba(0,0,0,.55); color: #fff; }
+.story-thumb[data-story-photo] { background-size: cover; background-position: center; }
+.story-viewer.has-photo { background: #000; }
+.story-photo { flex: 1 1 0; min-height: 0; width: 100%; object-fit: contain; display: block; }
+.story-photo.hidden { display: none; }
+.story-viewer.has-photo .story-text { flex: 0 0 auto; display: block; font-size: 17px; font-weight: 500; padding: 12px 20px; background: linear-gradient(to top, rgba(0,0,0,.6), transparent); }
+.story-viewer.has-photo .story-text:empty { display: none; }
+.story-viewer .story-top .icon-btn { min-width: 44px; min-height: 44px; }
+.story-reply .icon-btn { min-width: 44px; min-height: 44px; color: #fff; }
+
+.thread-root { padding-block: 0 4px; }
+.thread-root-label { font-size: var(--t-meta, 12px); opacity: .7; margin-block-end: 4px; }
+.thread-none { margin: 8px 0; text-align: center; opacity: .7; font-size: var(--fs-sm, 14px); }
+.thread-head .icon-btn { min-width: 44px; min-height: 44px; }
+#thread-send-btn, .thread-compose .send-btn { min-width: 44px; min-height: 44px; }
+.thread-compose input:disabled, #thread-send-btn:disabled { opacity: .5; }
+@media (min-width: 900px) { #thread-sheet .thread-root { flex: none; } }
+
+.summary-panel { max-height: 86vh; overflow-y: auto; }
+.summary-periods { display: flex; gap: 6px; margin-block: 4px 12px; }
+.summary-period { flex: 1; min-height: 44px; border-radius: 22px; border: 1px solid var(--line-2, rgba(128,128,128,.35)); background: transparent; color: inherit; font: inherit; font-size: var(--fs-sm, 14px); cursor: pointer; }
+.summary-period.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.summary-body { margin-block-end: 8px; }
+.summary-count { font-weight: 600; margin: 0 0 8px; }
+.summary-sec { margin-block: 10px; }
+.summary-sec h4 { margin: 0 0 4px; font-size: var(--fs-sm, 14px); opacity: .75; font-weight: 600; }
+.summary-list { margin: 0; padding-inline-start: 18px; }
+.summary-list li { margin-block: 2px; overflow-wrap: anywhere; }
+.summary-key { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.summary-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.summary-chip { padding: 4px 10px; border-radius: 999px; background: var(--accent-ghost, color-mix(in srgb, var(--accent) 16%, transparent)); font-size: var(--fs-sm, 14px); }
+.summary-url { font-size: var(--fs-sm, 14px); word-break: break-all; }
+.summary-empty { text-align: center; opacity: .75; padding-block: 16px; }
+html[data-calm-mode="1"] .story-bars span.cur::after { animation: none; transform: scaleX(1); }
+@media (prefers-reduced-motion: reduce) { #thread-sheet .sheet-panel, #summary-sheet .sheet-panel { transition: none; animation: none; } }

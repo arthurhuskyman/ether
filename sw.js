@@ -174,6 +174,11 @@ self.addEventListener("message", (event) => {
     self.skipWaiting();
     return;
   }
+  // Страница спрашивает, какая версия оболочки у активного SW (сверка с версией загруженного JS: расхождение = пользователь сидит на старом коде)
+  if (data.type === "GET_VERSION") {
+    try { if (event.source && event.source.postMessage) event.source.postMessage({ type: "sw-version", version: CACHE_VERSION }); } catch (e) {}
+    return;
+  }
 
   // Список заблокированных контактов — Web Push от них не должен показываться (сервер о блокировке не знает)
   if (data.type === "blocked-ids") {

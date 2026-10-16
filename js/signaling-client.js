@@ -32,7 +32,7 @@ function normalizeRosterEntry(u) {
   if (!u) return null;
   if (typeof u === "string") return { id: u, name: "", visible: true, publicKey: null };
   if (typeof u !== "object" || typeof u.id !== "string") return null;
-  return { id: u.id, name: u.name || "", visible: u.visible !== false, publicKey: u.publicKey || null };
+  return { id: u.id, name: u.name || "", visible: u.visible !== false, publicKey: u.publicKey || null, caps: Array.isArray(u.caps) ? u.caps.filter((x) => typeof x === "string").slice(0, 8) : [] };
 }
 
 const CONNECT_TIMEOUT_MS = 7000;
@@ -138,6 +138,10 @@ class SignalingClient extends EventTarget {
         name: this.name,
         visible: this.visible,
         publicKey: this.publicKey,
+        // Доказательство владения id (sha256 от секрета устройства, не сам секрет); старый сервер поле игнорирует
+        claim: this.claim || undefined,
+        // Что умеет этот клиент (env2 — офлайн-конверты v2 с AAD)
+        caps: ["env2"],
         // Контакты, чьё присутствие нужно видеть: сервер не раскрывает остальных (старый сервер поле просто игнорирует)
         watch: this.watchIds ? this.watchIds() : undefined,
       }));
@@ -165,6 +169,12 @@ class SignalingClient extends EventTarget {
       } else if (msg.type === "watch-result") {
         const users = (Array.isArray(msg.online) ? msg.online : []).map(normalizeRosterEntry).filter(Boolean);
         this.dispatchEvent(new CustomEvent("online-list", { detail: { users } }));
+      } else if (msg.type === "register-error") {
+        // Сервер отказал в регистрации (id-claimed: id закреплён за другим устройством). Повторять смысла нет — останавливаемся.
+        etherLog("warn", "[signaling] регистрация отклонена:", String(msg.error || "").slice(0, 40));
+        this.lastRegisterError = typeof msg.error === "string" ? msg.error.slice(0, 40) : "error";
+        if (msg.error === "id-claimed") this.stop();
+        this.dispatchEvent(new CustomEvent("register-error", { detail: { error: this.lastRegisterError } }));
       } else if (msg.type === "register-rate-limited") {
         // Сервер отклонил регистрацию по лимиту попыток — раньше клиент
         // это молча игнорировал, и пользователь просто видел "офлайн" без
@@ -182,7 +192,7 @@ class SignalingClient extends EventTarget {
       } else if (msg.type === "presence" && typeof msg.id === "string") {
         etherLog("info", "[signaling] presence:", msg.id.slice(0, 10) + "…", msg.online ? "online" : "offline");
         this.dispatchEvent(new CustomEvent("presence", {
-          detail: { id: msg.id, online: !!msg.online, name: msg.name, visible: msg.visible, publicKey: msg.publicKey },
+          detail: { id: msg.id, online: !!msg.online, name: msg.name, visible: msg.visible, publicKey: msg.publicKey, caps: Array.isArray(msg.caps) ? msg.caps.filter((x) => typeof x === "string").slice(0, 8) : [] },
         }));
       } else if (msg.type === "signal" && typeof msg.from === "string") {
         etherLog("info", "[signaling] сигнал от", msg.from.slice(0, 10) + "…", msg.data && msg.data.t);

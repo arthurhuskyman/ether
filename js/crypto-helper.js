@@ -53,29 +53,32 @@ const CryptoHelper = (() => {
     return bytes;
   }
 
-  // v: 1 — версия формата конверта (не самого алгоритма AES-GCM/ECDH,
-  // а именно структуры {iv, ct, v}). Если формат когда-нибудь придётся
-  // менять, decryptJson сможет отличить старые сообщения от новых,
-  // вместо того чтобы просто упасть на непонятной структуре.
-  const ENVELOPE_VERSION = 1;
-  async function encryptJson(sharedKey, obj) {
+  // v — версия формата конверта (не самого алгоритма AES-GCM/ECDH, а структуры {iv, ct, v}).
+  //   v:1 — без AAD (формат с самого начала; им же шифруются резервные копии).
+  //   v:2 — AES-GCM с additionalData = utf8("ether-env-v2|"+fromId+"|"+toId): шифртекст привязан к направлению и паре участников, поэтому
+  //         перехваченный конверт нельзя подсунуть другому адресату или выдать за сообщение в обратном направлении. Выпускается ТОЛЬКО когда
+  //         вызывающий передал aad (приложение делает это, лишь если получатель заведомо умеет v2), иначе остаётся v1 — старые клиенты не теряют сообщения.
+  // decryptJson принимает оба формата; v > ENVELOPE_VERSION — явная ошибка. Для v:2 без переданного aad расшифровка невозможна (бросает).
+  const ENVELOPE_VERSION = 2;
+  function envAad(fromId, toId) { return new TextEncoder().encode("ether-env-v2|" + fromId + "|" + toId); }
+  async function encryptJson(sharedKey, obj, aad) {
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const bytes = new TextEncoder().encode(JSON.stringify(obj));
-    const cipherBuf = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, sharedKey, bytes);
-    return { iv: toBase64(iv), ct: toBase64(new Uint8Array(cipherBuf)), v: ENVELOPE_VERSION };
+    const params = { name: "AES-GCM", iv };
+    if (aad) params.additionalData = aad;
+    const cipherBuf = await crypto.subtle.encrypt(params, sharedKey, bytes);
+    return { iv: toBase64(iv), ct: toBase64(new Uint8Array(cipherBuf)), v: aad ? 2 : 1 };
   }
 
-  async function decryptJson(sharedKey, { iv, ct, v }) {
-    // v отсутствует — конверт от версии до введения этого поля;
-    // обрабатываем как v1 (единственный формат, который когда-либо
-    // существовал). Неизвестная БУДУЩАЯ версия (v > текущей) — явная
-    // ошибка, а не попытка расшифровать несовместимый формат вслепую.
+  async function decryptJson(sharedKey, { iv, ct, v }, aad) {
+    // v отсутствует — конверт от версии до введения этого поля; обрабатываем как v1. Неизвестная БУДУЩАЯ версия — явная ошибка.
     if (v !== undefined && v > ENVELOPE_VERSION) throw new Error("unsupported envelope version: " + v);
-    const plainBuf = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: fromBase64(iv) },
-      sharedKey,
-      fromBase64(ct)
-    );
+    const params = { name: "AES-GCM", iv: fromBase64(iv) };
+    if (v === 2) {
+      if (!aad) throw new Error("envelope v2 requires aad");
+      params.additionalData = aad;
+    }
+    const plainBuf = await crypto.subtle.decrypt(params, sharedKey, fromBase64(ct));
     return JSON.parse(new TextDecoder().decode(plainBuf));
   }
 
@@ -109,5 +112,5 @@ const CryptoHelper = (() => {
     return groups;
   }
 
-  return { generateKeyPair, deriveSharedKey, encryptJson, decryptJson, computeSafetyNumber };
+  return { generateKeyPair, deriveSharedKey, encryptJson, decryptJson, envAad, computeSafetyNumber, ENVELOPE_VERSION };
 })();

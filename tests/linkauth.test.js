@@ -143,6 +143,66 @@ test("приложение: раньше проверку проходил, а �
   assert.deepEqual(sc.link().removed, ["bob-id"]);
 });
 
+const sysKeys = (sc) => JSON.parse(sc.A.run(`JSON.stringify(state.contacts.get("bob-id").messages.filter((m) => m.from === "system").map((m) => m.textKey))`));
+
+test("даунгрейд: авторизованный ранее контакт молчит — канал закрыт, в чате системное сообщение о блокировке", async () => {
+  const sc = await scenario();
+  sc.A.run(`state.contacts.get("bob-id").authSeen = true; startLinkAuth("bob-id"); authTimeout("bob-id", mesh.get("bob-id"))`);
+  assert.deepEqual(sc.link().removed, ["bob-id"]);
+  assert.ok(sysKeys(sc).includes("sys.linkAuthDowngrade"), "понятное сообщение в чате");
+  assert.match(sc.A.run(`state.contacts.get("bob-id").messages.filter((m) => m.textKey === "sys.linkAuthDowngrade")[0].text`), /Bob/);
+});
+
+test("даунгрейд: без отпечатков DTLS в SDP для authSeen-контакта это провал, а не «непроверен»", async () => {
+  const sc = await scenario();
+  sc.A.run(`state.contacts.get("bob-id").authSeen = true; mesh.get("bob-id").fingerprints = () => ({}); startLinkAuth("bob-id");`);
+  sc.send({ kind: "auth", s: 1, n: sc.nb });
+  await wait(200);
+  assert.deepEqual(sc.link().removed, ["bob-id"]);
+  assert.ok(sysKeys(sc).includes("sys.linkAuthDowngrade"));
+  // для ни разу не проверявшегося контакта то же самое остаётся «непроверен» (совместимость)
+  const sc2 = await scenario();
+  sc2.A.run(`mesh.get("bob-id").fingerprints = () => ({}); startLinkAuth("bob-id");`);
+  sc2.send({ kind: "auth", s: 1, n: sc2.nb });
+  await wait(200);
+  assert.equal(sc2.link().state, "unverified"); assert.deepEqual(sc2.link().removed, []);
+});
+
+test("даунгрейд: у authSeen-контакта проверка не стартовала (нет ключа) — данные не пропускаются, канал закрыт", async () => {
+  const sc = await scenario();
+  sc.A.run(`const c = state.contacts.get("bob-id"); c.authSeen = true; c.publicKey = null; startLinkAuth("bob-id");`);
+  assert.deepEqual(sc.link().removed, ["bob-id"]);
+  assert.ok(sysKeys(sc).includes("sys.linkAuthDowngrade"));
+  // для контакта, не проходившего проверку, ключа нет — шлюз просто выключен
+  const A = await booted("alice-id", "Alice");
+  A.run(`ensureContactEntry("zed-id", "Zed"); mesh.links.set("zed-id", { id: "zed-id", status: "connected", authGate: undefined, dc: { readyState: "open" }, send() { return true; }, fingerprints() { return {}; } }); startLinkAuth("zed-id");`);
+  assert.equal(A.run(`mesh.get("zed-id").authGate`), null);
+});
+
+test("даунгрейд: сообщение пришло раньше старта проверки, а контакт authSeen — не принимается", async () => {
+  const sc = await scenario();
+  sc.A.run(`state.contacts.get("bob-id").authSeen = true; mesh.get("bob-id").dc = { readyState: "connecting" };`); // канал ещё не открыт → проверка не стартует
+  sc.send({ kind: "chat", id: "sneak1", text: "до проверки", ts: Date.now() });
+  await wait(100);
+  assert.equal(sc.A.run(`state.contacts.get("bob-id").messages.some((m) => m.id === "sneak1")`), false);
+});
+
+test("даунгрейд: неверный тег у authSeen-контакта — это «mismatch» (прежний тост), а не даунгрейд", async () => {
+  const sc = await scenario();
+  sc.A.run(`state.contacts.get("bob-id").authSeen = true; startLinkAuth("bob-id");`);
+  await bobAnswers(sc, { local: "sha-256 de:ad:02", remote: "sha-256 de:ad:01" });
+  assert.deepEqual(sc.link().removed, ["bob-id"]);
+  assert.ok(!sysKeys(sc).includes("sys.linkAuthDowngrade"));
+});
+
+test("даунгрейд: i18n-ключи заданы в en и ru", async () => {
+  const fs = require("fs"), path = require("path");
+  for (const lang of ["en", "ru"]) {
+    const src = fs.readFileSync(path.join(__dirname, "..", "js", "lang", lang + ".js"), "utf8");
+    for (const k of ["toast.linkAuthDowngrade", "sys.linkAuthDowngrade", "toast.idClaimed", "status.idClaimed"]) assert.ok(src.includes('"' + k + '"'), lang + ": " + k);
+  }
+});
+
 test("приложение: контакт без ключа — шлюз не включается", async () => {
   const A = await booted("alice-id", "Alice");
   A.run(`ensureContactEntry("zed-id", "Zed"); mesh.links.set("zed-id", { id: "zed-id", status: "connected", authGate: undefined, dc: { readyState: "open" }, send() { return true; }, fingerprints() { return {}; } }); startLinkAuth("zed-id");`);

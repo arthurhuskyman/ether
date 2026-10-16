@@ -586,13 +586,13 @@ class PeerLink extends EventTarget {
         if (this._lastPongAt && Date.now() - this._lastPongAt > HEARTBEAT_TIMEOUT_MS) {
           // После заморозки таймеров (iOS) первый «просроченный» тик ещё не доказывает смерть линка: ответы могли лежать в очереди.
           // Шлём ping и даём один дополнительный интервал; если за него не пришло ничего — только тогда рвём.
-          if (!this._staleGrace) { this._staleGrace = true; this.send({ kind: "ping", t: Date.now(), rc: 1 }); return; }
+          if (!this._staleGrace) { this._staleGrace = true; this.send({ kind: "ping", t: Date.now(), rc: 1, e2: 1 }); return; }
           this._log("warn", "[webrtc]", this.id.slice(0, 10) + "…", "no pong for " + Math.round((Date.now() - this._lastPongAt) / 1000) + "s — closing");
           this._setStatus("disconnected");
           return;
         }
         this._staleGrace = false;
-        this.send({ kind: "ping", t: Date.now(), rc: 1 });
+        this.send({ kind: "ping", t: Date.now(), rc: 1, e2: 1 });
       }, 5000);
       // Трек мог быть добавлен ДО того, как канал открылся — тогда
       // negotiationneeded сработал вхолостую (событие одноразовое) и
@@ -620,7 +620,11 @@ class PeerLink extends EventTarget {
         this.peerRatchet = true; // собеседник умеет Double Ratchet — приложение запомнит это в контакте
         this.dispatchEvent(new CustomEvent("caps", { detail: { rc: true } }));
       }
-      if (payload.kind === "ping") { this.send({ kind: "pong", t: payload.t, rc: 1 }); return; }
+      if ((payload.kind === "ping" || payload.kind === "pong") && payload.e2 && !this.peerEnv2) {
+        this.peerEnv2 = true; // собеседник умеет офлайн-конверты v2 (AES-GCM с AAD «отправитель|получатель»)
+        this.dispatchEvent(new CustomEvent("caps", { detail: { e2: true } }));
+      }
+      if (payload.kind === "ping") { this.send({ kind: "pong", t: payload.t, rc: 1, e2: 1 }); return; }
       if (payload.kind === "pong") { this._lastPongAt = Date.now(); return; }
       if (payload.kind === "sdp") {
         this._handleRemoteSdp(payload).catch((e) => this._log("warn", "[webrtc] пересогласование:", String(e)));

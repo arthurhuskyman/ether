@@ -234,6 +234,7 @@ const CRITICAL_LS_KEYS = [
   "ether.translateEndpoint", "ether.translateApiKey",
   "ether.readable", "ether.fxInit", "ether.requireVerifiedCalls", "ether.localAi", "ether.localAiLang", "ether.stories", "ether.quietOn", "ether.quietFrom", "ether.quietTo", "ether.wpColor1", "ether.wpColor2", "ether.chatWallpaper", "ether.voiceSpeed", "ether.deadManEnabled", "ether.deadManThresholdDays", "ether.deadManContactId", "ether.deadManLastSentAt",
   "ether.panicShakeEnabled", "ether.fx", "ether.sigKey", "ether.fx.aurora", "ether.keyInfo",
+  "ether.claimToken",
 ];
 
 // Резервная копия ключей в IndexedDB берёт значения «как лежат на диске» (при включённом шифровании — шифртекст), а не расшифрованные из памяти
@@ -271,6 +272,19 @@ const Store = {
   set myIdentityRaw(v) { localStorage.setItem("ether.identityRaw", v); scheduleIDBBackup(); },
   get myId() { return localStorage.getItem("ether.myId") || ""; },
   set myId(v) { localStorage.setItem("ether.myId", v); scheduleIDBBackup(); },
+  // Claim-токен id (TOFU, см. signaling-server/server.js): случайный секрет устройства, создаётся при первой регистрации и едет в резервной копии.
+  // По сети уходит только claimProof() = sha256("ether-claim-v1|"+токен), сам токен — никогда. Пока хранилище заблокировано PIN-кодом, токен недоступен ("").
+  get claimToken() {
+    try {
+      if (typeof SecureStore !== "undefined" && SecureStore.isOn() && !SecureStore.isActive()) return "";
+      let t = localStorage.getItem("ether.claimToken") || "";
+      if (!/^[0-9a-f]{64}$/.test(t)) {
+        t = Array.from(crypto.getRandomValues(new Uint8Array(32)), (x) => x.toString(16).padStart(2, "0")).join("");
+        localStorage.setItem("ether.claimToken", t); scheduleIDBBackup();
+      }
+      return t;
+    } catch (e) { return ""; }
+  },
   get signalingUrl() { return localStorage.getItem("ether.signalingUrl") || ""; },
   set signalingUrl(v) { localStorage.setItem("ether.signalingUrl", v); },
   get discoverable() { return localStorage.getItem("ether.discoverable") !== "0"; },
@@ -2610,14 +2624,41 @@ function wireServiceWorker() {
 // Подписка на события конкретной регистрации: либо SW уже waiting
 // (пользователь вернулся, когда обновление скачалось в прошлой сессии),
 // либо ещё в процессе install — ждём statechange.
+// Автоприменение обновления: баннер можно отложить, но «вечно сидеть на старом JS» нельзя. Если новый SW ждёт дольше UPDATE_AUTO_AFTER_MS
+// и приложение скрыто (свёрнуто/в другой вкладке), нет звонка и нет недописанного текста — активируем его сами (страница перезагрузится незаметно).
+const UPDATE_AUTO_AFTER_MS = 10 * 60 * 1000;
+function shouldAutoApplyUpdate(o) {
+  return !!(o && o.waitingSince && o.now - o.waitingSince >= UPDATE_AUTO_AFTER_MS && o.hidden && !o.inCall && !o.hasDraft);
+}
+let __swWaitingSince = 0;
+function swHasUnsavedInput() {
+  try { const ci = document.getElementById("chat-input") || document.querySelector("textarea.chat-input, #composer-input"); return !!(ci && String(ci.value || "").trim()); } catch (e) { return false; }
+}
+function maybeAutoApplyUpdate(reg) {
+  try {
+    if (!reg || !reg.waiting) return false;
+    if (!shouldAutoApplyUpdate({ waitingSince: __swWaitingSince, now: Date.now(), hidden: document.visibilityState === "hidden", inCall: !!state.callId, hasDraft: swHasUnsavedInput() })) return false;
+    reg.waiting.postMessage({ type: "SKIP_WAITING" });
+    return true;
+  } catch (e) { return false; }
+}
+function noteWaitingSW(reg) {
+  if (!__swWaitingSince) __swWaitingSince = Date.now();
+  showUpdateBanner(reg);
+  if (!noteWaitingSW._wired) {
+    noteWaitingSW._wired = true;
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") maybeAutoApplyUpdate(reg); });
+    setInterval(() => maybeAutoApplyUpdate(reg), 5 * 60 * 1000);
+  }
+}
 function watchForWaitingSW(reg) {
-  if (reg.waiting) { showUpdateBanner(reg); return; }
+  if (reg.waiting) { noteWaitingSW(reg); return; }
   reg.addEventListener("updatefound", () => {
     const newSW = reg.installing;
     if (!newSW) return;
     newSW.addEventListener("statechange", () => {
       if (newSW.state === "installed" && navigator.serviceWorker.controller) {
-        showUpdateBanner(reg);
+        noteWaitingSW(reg);
       }
     });
   });
@@ -2875,7 +2916,7 @@ function loadContacts() {
     state.contacts.set(c.id, {
       id: c.id, name: c.name || "", raw: c.raw || "",
       managed: true, publicKey: c.publicKey || null,
-      rc: !!c.rc || undefined, verifiedKey: c.verifiedKey || undefined,
+      rc: !!c.rc || undefined, e2: !!c.e2 || undefined, verifiedKey: c.verifiedKey || undefined,
       pendingKey: c.pendingKey && c.pendingKey.key ? { key: c.pendingKey.key, at: c.pendingKey.at || 0 } : undefined,
       rejectedKey: c.rejectedKey || undefined, authSeen: !!c.authSeen || undefined,
       online: false, status: "disconnected",
@@ -3036,7 +3077,7 @@ function persistContacts() {
   try { syncWatch(false); } catch (e) {}
   __contactsPersistPending = Array.from(state.contacts.values()).filter((c) => c.managed).map((c) => ({
     id: c.id, name: c.name, raw: c.raw, publicKey: c.publicKey,
-    rc: c.rc || undefined, verifiedKey: c.verifiedKey || undefined, pendingKey: c.pendingKey || undefined, rejectedKey: c.rejectedKey || undefined, authSeen: c.authSeen || undefined,
+    rc: c.rc || undefined, e2: c.e2 || undefined, verifiedKey: c.verifiedKey || undefined, pendingKey: c.pendingKey || undefined, rejectedKey: c.rejectedKey || undefined, authSeen: c.authSeen || undefined,
     messages: c.messages, lastActivity: c.lastActivity,
     archived: c.archived, muted: c.muted, muteUntil: c.muteUntil || undefined, blocked: c.blocked, vibrateOnly: c.vibrateOnly || undefined,
     pinned: c.pinned || undefined, pinnedMessageId: c.pinnedMessageId || undefined,
@@ -4532,7 +4573,7 @@ if (m.replyTo) {
     const translationHtml = (m.translation && m.translation.text)
       ? `<div class="bubble-translation"><span class="bubble-translation-label">${escapeHtml(T("chat.translated"))}</span> ${linkifyAndHighlight(m.translation.text, q)}</div>` : "";
     if (typeof m.text === "string" && (m.text.length > 140 || (m.text.match(/\n/g) || []).length >= 3)) inner.classList.add("bubble-long");
-    const threadChip = replyCounts.get(m.id) ? `<button type="button" class="thread-chip" data-thread="${escapeHtml(m.id)}">${Icons.html("chat", 13)}<span>${escapeHtml(T("chat.thread.replies", { n: replyCounts.get(m.id) }))}</span></button>` : "";
+    const threadChip = replyCounts.get(m.id) ? `<button type="button" class="thread-chip" data-thread="${escapeHtml(m.id)}" aria-haspopup="dialog" aria-label="${escapeHtml(T("chat.thread.aria", { n: replyCounts.get(m.id) }))}">${Icons.html("chat", 13)}<span>${escapeHtml(T("chat.thread.replies", { n: replyCounts.get(m.id) }))}</span></button>` : "";
     inner.innerHTML = `${senderLabel}${fwdMark}${replyHtml}${body}${threadChip}${translationHtml}${previewSlotHtml}<span class="bubble-time">${ttlMark}${favMark}${formatTime(m.ts)}${editedMark}${tick}</span>${reactionsHtml}`;
     // Долгое нажатие — открывает обычное меню действий (ответить/
     // переслать/удалить), для ЛЮБОГО типа сообщения, как в большинстве
@@ -5283,40 +5324,154 @@ async function deleteMessageForBoth(contactId, msgId) {
 }
 // Пересылка контакта другому контакту — карточка со своим видом в
 // пузыре сообщения (имя + кнопка "Добавить"), не обычный текст.
-// ===== Истории: короткая текстовая история на 24 часа для всех контактов (сквозное шифрование — тот же канал, что у сообщений) =====
+// ===== Истории: короткая история на 24 часа (текст или фото с подписью) для всех контактов (сквозное шифрование — тот же канал, что у сообщений) =====
 const STORY_TTL_MS = 24 * 3600e3, STORY_MAX_LEN = 280, STORY_BG_COUNT = 6;
-let storiesList = null; // [{ id, owner ("me" или id контакта), text, bg, ts, seen }]
+const STORY_PHOTO_MAX_DIM = 1080;            // длинная сторона отправляемого фото
+const STORY_PHOTO_TARGET_BYTES = 400 * 1024; // к этому размеру сжимаем при публикации
+const STORY_PHOTO_MAX_BYTES = 512 * 1024;    // жёсткий потолок при приёме (с запасом над целью)
+const STORY_PHOTO_MAX_SIDE = 4096;           // заявленные размеры сверх этого — мусор
+const STORY_PER_OWNER_MAX = 20, STORY_PHOTO_MIMES = ["image/jpeg", "image/png", "image/webp"];
+let storiesList = null; // [{ id, owner ("me" или id контакта), text, bg, ts, seen, photo?: { mime, w, h, size } }]
+// Ключ IndexedDB с данными фото: свои — "file:<id>" (по нему же очередь отправки достаёт файл), чужие — в отдельном пространстве
+// "file:story:<от кого>:<id>", чтобы присланный id не мог затереть чужое вложение. Префикс "file:" — значит, под PIN-шифрование попадает так же, как вложения.
+function storyPhotoKey(st) { return st.owner === "me" ? "file:" + st.id : "file:story:" + st.owner + ":" + st.id; }
+const storyPhotoUrls = new Map(); // id истории -> object URL (отзывается при удалении/истечении)
+function dropStoryPhotos(list) {
+  for (const st of list) {
+    if (!st || !st.photo) continue;
+    const u = storyPhotoUrls.get(st.id); if (u) { try { URL.revokeObjectURL(u); } catch (e) {} storyPhotoUrls.delete(st.id); }
+    try { Promise.resolve(IDB.del(storyPhotoKey(st))).catch(() => {}); } catch (e) {}
+  }
+}
+function sanitizeStoryPhotoMeta(p) {
+  if (!p || typeof p !== "object" || !STORY_PHOTO_MIMES.includes(p.mime)) return null;
+  const dim = (v) => (Number.isInteger(v) && v > 0 && v <= STORY_PHOTO_MAX_SIDE ? v : 0);
+  const size = Number.isInteger(p.size) && p.size > 0 && p.size <= STORY_PHOTO_MAX_BYTES ? p.size : 0;
+  return { mime: p.mime, w: dim(p.w), h: dim(p.h), size };
+}
 function loadStories() {
   if (storiesList) return storiesList;
-  try { storiesList = (JSON.parse(Store.storiesJson) || []).filter((x) => x && typeof x.id === "string" && typeof x.text === "string"); } catch (e) { storiesList = []; }
+  try {
+    storiesList = (JSON.parse(Store.storiesJson) || []).filter((x) => x && typeof x.id === "string" && typeof x.text === "string" && Number.isFinite(x.ts))
+      .map((x) => { if (x.photo) { x.photo = sanitizeStoryPhotoMeta(x.photo); if (!x.photo && !x.text) return null; } return x; }).filter(Boolean);
+  } catch (e) { storiesList = []; }
   return storiesList;
 }
 function pruneStories() {
   const list = loadStories(), now = Date.now(), n = list.length;
-  storiesList = list.filter((x) => now - x.ts < STORY_TTL_MS && x.ts <= now + 60000);
-  if (storiesList.length !== n) persistStories();
+  const keep = [], gone = [];
+  for (const x of list) (now - x.ts < STORY_TTL_MS && x.ts <= now + 60000 ? keep : gone).push(x);
+  storiesList = keep;
+  if (gone.length) { dropStoryPhotos(gone); persistStories(); }
   return storiesList;
 }
-function persistStories() { try { Store.storiesJson = JSON.stringify(loadStories().slice(-300)); } catch (e) { handlePersistError(e, "stories"); } }
-async function publishStory(text, bg) {
-  text = String(text || "").trim().slice(0, STORY_MAX_LEN); if (!text) return false;
+function persistStories() {
+  try {
+    const all = loadStories();
+    if (all.length > 300) { const cut = all.splice(0, all.length - 300); dropStoryPhotos(cut); }
+    Store.storiesJson = JSON.stringify(all);
+  } catch (e) { handlePersistError(e, "stories"); }
+}
+// Проверка присланных байтов по сигнатуре: заявленный mime должен совпадать с реальным форматом файла
+function storyPhotoBytesOk(bytes, mime) {
+  if (!bytes || bytes.length < 12 || bytes.length > STORY_PHOTO_MAX_BYTES) return false;
+  if (mime === "image/jpeg") return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  if (mime === "image/png") return bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 && bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a;
+  if (mime === "image/webp") return bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50;
+  return false;
+}
+// Фото из галереи/камеры → JPEG до 1080 px по длинной стороне и ≈400 КБ (заодно пропадают EXIF и геометки).
+// Слишком вытянутые кадры обрезаются по центру до 2:1. Возвращает { blob, w, h } или null.
+async function prepareStoryPhoto(file) {
+  if (!file || fileKindFromMime(file.type) !== "image" || !(file.size > 0) || file.size > MAX_FILE_SIZE_INPUT) return null;
+  let bmp;
+  try { bmp = await createImageBitmap(file); } catch (e) { return null; }
+  try {
+    const w = bmp.width, h = bmp.height; if (!(w > 0 && h > 0)) return null;
+    let sx = 0, sy = 0, sw = w, sh = h;
+    if (h / w > 2) { sh = Math.round(w * 2); sy = Math.round((h - sh) / 2); } else if (w / h > 2) { sw = Math.round(h * 2); sx = Math.round((w - sw) / 2); }
+    let scale = Math.min(1, STORY_PHOTO_MAX_DIM / Math.max(sw, sh));
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const dw = Math.max(1, Math.round(sw * scale)), dh = Math.max(1, Math.round(sh * scale));
+      const canvas = document.createElement("canvas"); canvas.width = dw; canvas.height = dh;
+      const ctx = canvas.getContext("2d"); if (!ctx) return null;
+      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, dw, dh);
+      ctx.drawImage(bmp, sx, sy, sw, sh, 0, 0, dw, dh);
+      for (const q of [0.82, 0.68, 0.5]) {
+        const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", q));
+        if (blob && blob.size > 0 && blob.size <= STORY_PHOTO_TARGET_BYTES) return { blob, w: dw, h: dh };
+      }
+      scale *= 0.75;
+    }
+    return null;
+  } finally { try { bmp.close && bmp.close(); } catch (e) {} }
+}
+async function publishStory(text, bg, photo) {
+  text = String(text || "").trim().slice(0, STORY_MAX_LEN);
+  if (photo && !(photo.blob && photo.blob.size > 0 && photo.blob.size <= STORY_PHOTO_MAX_BYTES && photo.blob.type === "image/jpeg")) photo = null;
+  if (!text && !photo) return false;
   bg = Math.max(0, Math.min(STORY_BG_COUNT - 1, bg | 0));
   const id = crypto.randomUUID(), ts = Date.now();
-  loadStories().push({ id, owner: "me", text, bg, ts, seen: true }); persistStories();
+  let b64 = "";
+  const rec = { id, owner: "me", text, bg, ts, seen: true };
+  if (photo) {
+    try {
+      const buf = await photo.blob.arrayBuffer();
+      if (!storyPhotoBytesOk(new Uint8Array(buf), "image/jpeg")) return false;
+      b64 = arrayBufferToBase64(buf);
+      await IDB.set("file:" + id, new Blob([buf], { type: "image/jpeg" }));
+    } catch (e) { toast(T("stories.photo.bad")); return false; }
+    const w = Number.isInteger(photo.w) && photo.w > 0 && photo.w <= STORY_PHOTO_MAX_SIDE ? photo.w : 0, h = Number.isInteger(photo.h) && photo.h > 0 && photo.h <= STORY_PHOTO_MAX_SIDE ? photo.h : 0;
+    rec.photo = { mime: "image/jpeg", w, h, size: photo.blob.size };
+  }
+  loadStories().push(rec); persistStories();
   const targets = Array.from(state.contacts.values()).filter((c) => c.managed && !c.isGroup && !c.isSelf && !c.blocked && c.publicKey); // без ключа не шлём: иначе тост «ждём ключ» на каждого
-  for (const c of targets) await trySendOrQueue(c, crypto.randomUUID(), { kind: "story", id, text, bg, ts });
+  for (const c of targets) {
+    const payload = { kind: "story", id, text, bg, ts };
+    if (photo) { payload.mime = "image/jpeg"; payload.w = rec.photo.w; payload.h = rec.photo.h; payload.dataB64 = b64; }
+    await trySendOrQueue(c, crypto.randomUUID(), payload);
+  }
   renderStoriesRow();
   return true;
 }
+const storyReceiving = new Set(); // id историй с фото, которые сейчас записываются (защита от дублей при гонке)
+// Всё входящее — недоверенные данные: id, подпись, mime, размер, сигнатура файла и количество проверяются здесь
 function receiveStory(from, payload) {
   const c = state.contacts.get(from); if (!c || c.blocked || c.isGroup) return;
-  const text = typeof payload.text === "string" ? payload.text.trim().slice(0, STORY_MAX_LEN) : ""; if (!text || typeof payload.id !== "string") return;
+  if (!payload || typeof payload.id !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(payload.id)) return;
+  const text = typeof payload.text === "string" ? payload.text.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "").trim().slice(0, STORY_MAX_LEN) : "";
+  const hasPhoto = payload.dataB64 !== undefined || payload.mime !== undefined;
+  if (!text && !hasPhoto) return;
   const ts = Math.min(Number(payload.ts) || Date.now(), Date.now());
-  if (Date.now() - ts >= STORY_TTL_MS) return;
-  const list = loadStories(); if (list.some((x) => x.id === payload.id)) return;
-  list.push({ id: payload.id, owner: from, text, bg: Math.max(0, Math.min(STORY_BG_COUNT - 1, payload.bg | 0)), ts, seen: false });
-  persistStories();
-  if (state.tab === "chats" && !state.chatId) renderStoriesRow();
+  if (!Number.isFinite(ts) || Date.now() - ts >= STORY_TTL_MS) return;
+  const list = loadStories(); if (list.some((x) => x.id === payload.id && x.owner === from) || storyReceiving.has(from + ":" + payload.id)) return;
+  if (list.some((x) => x.id === payload.id)) return; // чужой id уже занят (в том числе нашей историей)
+  const bg = Math.max(0, Math.min(STORY_BG_COUNT - 1, payload.bg | 0));
+  const commit = (photo, blob) => {
+    const cur = loadStories(); if (cur.some((x) => x.id === payload.id)) return;
+    const mine = cur.filter((x) => x.owner === from);
+    if (mine.length >= STORY_PER_OWNER_MAX) { const old = mine.sort((a, b) => a.ts - b.ts).slice(0, mine.length - STORY_PER_OWNER_MAX + 1); storiesList = cur.filter((x) => !old.includes(x)); dropStoryPhotos(old); }
+    const rec = { id: payload.id, owner: from, text, bg, ts, seen: false };
+    if (photo) rec.photo = photo;
+    loadStories().push(rec); persistStories();
+    if (state.tab === "chats" && !state.chatId) renderStoriesRow();
+  };
+  if (!hasPhoto) { commit(null); return; }
+  // Фото: строгая проверка. Только растровые mime (jpeg/png/webp, см. fileKindFromMime), размер, base64 и сигнатура.
+  const mime = typeof payload.mime === "string" ? payload.mime.toLowerCase() : "";
+  if (!STORY_PHOTO_MIMES.includes(mime) || fileKindFromMime(mime) !== "image") return;
+  const b64 = payload.dataB64;
+  if (typeof b64 !== "string" || b64.length < 16 || b64.length > Math.ceil(STORY_PHOTO_MAX_BYTES * 4 / 3) + 8 || !/^[A-Za-z0-9+/]+={0,2}$/.test(b64)) return;
+  let bytes; try { bytes = base64ToUint8Array(b64); } catch (e) { return; }
+  if (!storyPhotoBytesOk(bytes, mime)) return;
+  const dim = (v) => (Number.isInteger(v) && v > 0 && v <= STORY_PHOTO_MAX_SIDE ? v : 0);
+  const photo = { mime, w: dim(payload.w), h: dim(payload.h), size: bytes.length };
+  const key = from + ":" + payload.id; storyReceiving.add(key);
+  const blob = new Blob([bytes], { type: mime });
+  Promise.resolve(IDB.set("file:story:" + from + ":" + payload.id, blob))
+    .then(() => { commit(photo, blob); })
+    .catch((e) => { etherLog("warn", "[story] photo not stored:", String(e)); })
+    .finally(() => storyReceiving.delete(key));
 }
 function renderStoriesRow() {
   const row = $("#stories-row"); if (!row) return;
@@ -5328,7 +5483,7 @@ function renderStoriesRow() {
   row.classList.remove("hidden");
   const bubble = (id, name, ring, inner, label) => `<button type="button" class="story-item${ring}" data-story-owner="${escapeHtml(id)}" aria-label="${escapeHtml(label)}"><span class="story-ring">${inner}</span><span class="story-name">${escapeHtml(name)}</span></button>`;
   const mineLast = list.filter((x) => x.owner === "me").sort((a, b) => b.ts - a.ts)[0];
-  const mineInner = mineLast ? `<span class="story-thumb story-bg-${mineLast.bg | 0}">${escapeHtml(String(mineLast.text || "").slice(0, 18))}</span>` : `<span class="story-plus">${Icons.html("plus", 20)}</span>`;
+  const mineInner = mineLast ? `<span class="story-thumb story-bg-${mineLast.bg | 0}"${mineLast.photo ? ` data-story-photo="${escapeHtml(mineLast.id)}"` : ""}>${mineLast.photo && !mineLast.text ? Icons.html("camera", 18) : escapeHtml(String(mineLast.text || "").slice(0, 18))}</span>` : `<span class="story-plus">${Icons.html("plus", 20)}</span>`;
   let html = bubble("__new__", hasMine ? T("stories.mine") : T("stories.add"), hasMine ? " is-mine" : " is-add", mineInner, hasMine ? T("stories.mine") : T("stories.add"));
   if (hasMine) html = html.replace("</button>", `<span class="story-add-badge" data-story-add="1" role="button" aria-label="${escapeHtml(T("stories.add"))}">${Icons.html("plus", 12)}</span></button>`);
   for (const id of owners) {
@@ -5342,6 +5497,18 @@ function renderStoriesRow() {
     if (owner === "__new__") { if (hasMine && list.some((x) => x.owner === "me")) openStoryViewer("me"); else openStoryComposer(); }
     else openStoryViewer(owner);
   }));
+  const th = row.querySelector("[data-story-photo]");
+  if (th && mineLast && mineLast.photo) getStoryPhotoUrl(mineLast).then((u) => { if (u && th.isConnected) { th.style.backgroundImage = `url('${u}')`; th.style.backgroundSize = "cover"; th.style.backgroundPosition = "center"; } });
+}
+// Object URL фото истории из IndexedDB (кэш на время жизни истории); null, если данных нет
+async function getStoryPhotoUrl(st) {
+  if (!st || !st.photo) return null;
+  const cached = storyPhotoUrls.get(st.id); if (cached) return cached;
+  let blob = null; try { blob = await IDB.get(storyPhotoKey(st)); } catch (e) {}
+  if (!blob || typeof blob.size !== "number" || !STORY_PHOTO_MIMES.includes(st.photo.mime)) return null;
+  const url = URL.createObjectURL(blob.type === st.photo.mime ? blob : new Blob([blob], { type: st.photo.mime }));
+  storyPhotoUrls.set(st.id, url);
+  return url;
 }
 let __storyViewer = null;
 function openStoryViewer(owner) {
@@ -5349,6 +5516,7 @@ function openStoryViewer(owner) {
   const ov = $("#story-viewer"); if (!ov || !items.length) { if (owner === "me") openStoryComposer(); return; }
   __storyViewer = { owner, items, i: Math.max(0, items.findIndex((x) => !x.seen)) , timer: null };
   ov.classList.remove("hidden"); showStory();
+  setTimeout(() => { try { const b = $("#story-close-btn"); if (b && __storyViewer) b.focus(); } catch (e) {} }, 30);
 }
 function showStory() {
   const v = __storyViewer, ov = $("#story-viewer"); if (!v || !ov) return;
@@ -5356,8 +5524,20 @@ function showStory() {
   if (v.i >= v.items.length) { closeStoryViewer(); return; }
   const st = v.items[v.i]; st.seen = true; persistStories();
   const c = state.contacts.get(st.owner);
-  ov.className = "story-viewer story-bg-" + st.bg;
-  $("#story-text").textContent = st.text;
+  ov.className = "story-viewer story-bg-" + (st.photo ? 4 : st.bg) + (st.photo ? " has-photo" : "");
+  const img = $("#story-photo");
+  if (img) {
+    img.classList.add("hidden"); img.removeAttribute("src"); img.alt = "";
+    if (st.photo) {
+      getStoryPhotoUrl(st).then((u) => {
+        const cur = __storyViewer && __storyViewer.items[__storyViewer.i];
+        if (!cur || cur.id !== st.id) return; // успели перелистнуть
+        if (u) { img.src = u; img.alt = st.text || T("stories.photo.alt"); img.classList.remove("hidden"); }
+        else { $("#story-text").textContent = st.text ? st.text + " · " + T("chat.file.unavailable") : T("chat.file.unavailable"); }
+      });
+    }
+  }
+  $("#story-text").textContent = st.text; // textContent: подпись никогда не разбирается как HTML
   $("#story-who").textContent = st.owner === "me" ? T("stories.mine") : ((c && c.name) || T("sys.someone"));
   $("#story-time").textContent = formatTime(st.ts);
   $("#story-bars").innerHTML = v.items.map((_, k) => `<span class="${k < v.i ? "done" : k === v.i ? "cur" : ""}"></span>`).join("");
@@ -5368,13 +5548,32 @@ function showStory() {
 function closeStoryViewer() {
   if (__storyViewer) clearTimeout(__storyViewer.timer); __storyViewer = null;
   const ov = $("#story-viewer"); if (ov) ov.classList.add("hidden");
+  const img = $("#story-photo"); if (img) { img.removeAttribute("src"); img.classList.add("hidden"); }
   renderStoriesRow();
+}
+let __storyDraftPhoto = null; // { blob, w, h, url } — выбранное, ещё не опубликованное фото
+function setStoryDraftPhoto(p) {
+  if (__storyDraftPhoto && __storyDraftPhoto.url) { try { URL.revokeObjectURL(__storyDraftPhoto.url); } catch (e) {} }
+  __storyDraftPhoto = p ? { blob: p.blob, w: p.w, h: p.h, url: URL.createObjectURL(p.blob) } : null;
+  const box = $("#story-photo-preview"), img = $("#story-photo-preview-img"), inp = $("#story-input");
+  if (box) box.classList.toggle("hidden", !__storyDraftPhoto);
+  if (img) { img.alt = T("stories.photo.alt"); if (__storyDraftPhoto) img.src = __storyDraftPhoto.url; else img.removeAttribute("src"); }
+  if (inp) inp.placeholder = T(__storyDraftPhoto ? "stories.caption.placeholder" : "stories.placeholder");
 }
 function openStoryComposer() {
   const sheet = $("#story-sheet"); if (!sheet) return;
-  $("#story-input").value = ""; sheet.dataset.bg = "0";
+  $("#story-input").value = ""; sheet.dataset.bg = "0"; setStoryDraftPhoto(null);
   $$("#story-swatches .story-swatch").forEach((b, i) => b.classList.toggle("on", i === 0));
   sheet.classList.remove("hidden"); setTimeout(() => { try { $("#story-input").focus(); } catch (e) {} }, 60);
+}
+async function pickStoryPhoto(file) {
+  if (!file) return;
+  const sheet = $("#story-sheet"); if (sheet) sheet.setAttribute("aria-busy", "true");
+  try {
+    const p = await prepareStoryPhoto(file);
+    if (!p) { toast(T("stories.photo.bad")); return; }
+    setStoryDraftPhoto(p);
+  } finally { if (sheet) sheet.removeAttribute("aria-busy"); }
 }
 function wireStories() {
   const sw = $("#story-swatches");
@@ -5382,7 +5581,16 @@ function wireStories() {
     for (let i = 0; i < STORY_BG_COUNT; i++) { const b = document.createElement("button"); b.type = "button"; b.className = "story-swatch story-bg-" + i + (i === 0 ? " on" : ""); b.setAttribute("aria-label", "#" + (i + 1)); b.addEventListener("click", () => { $("#story-sheet").dataset.bg = String(i); $$("#story-swatches .story-swatch").forEach((x, k) => x.classList.toggle("on", k === i)); }); sw.appendChild(b); }
   }
   const pub = $("#story-publish-btn");
-  if (pub) pub.addEventListener("click", async () => { if (await publishStory($("#story-input").value, parseInt($("#story-sheet").dataset.bg, 10) || 0)) $("#story-sheet").classList.add("hidden"); });
+  if (pub) pub.addEventListener("click", async () => {
+    if (pub.disabled) return; pub.disabled = true;
+    try { if (await publishStory($("#story-input").value, parseInt($("#story-sheet").dataset.bg, 10) || 0, __storyDraftPhoto)) { $("#story-sheet").classList.add("hidden"); setStoryDraftPhoto(null); } }
+    finally { pub.disabled = false; }
+  });
+  const pickBtn = $("#story-photo-pick"), camBtn = $("#story-photo-camera"), pickIn = $("#story-photo-input"), camIn = $("#story-camera-input"), rmBtn = $("#story-photo-remove");
+  if (pickBtn && pickIn) pickBtn.addEventListener("click", () => pickIn.click());
+  if (camBtn && camIn) camBtn.addEventListener("click", () => camIn.click());
+  for (const inp of [pickIn, camIn]) if (inp) inp.addEventListener("change", () => { const f = inp.files && inp.files[0]; inp.value = ""; pickStoryPhoto(f); });
+  if (rmBtn) rmBtn.addEventListener("click", () => setStoryDraftPhoto(null));
   const ov = $("#story-viewer");
   if (ov) {
     ov.addEventListener("click", (e) => { if (e.target.closest("#story-close-btn") || e.target.closest("#story-delete-btn")) return; if (__storyViewer) { __storyViewer.i++; showStory(); } });
@@ -5395,13 +5603,13 @@ function wireStories() {
         e.preventDefault(); const v = __storyViewer, text = ri.value.trim(); if (!v || !text) return;
         const st = v.items[v.i], c = state.contacts.get(st.owner); if (!c) return;
         ri.value = ""; ri.blur(); closeStoryViewer();
-        await sendChatMessage(c.id, text, { msgId: "story:" + st.id, text: "📖 " + st.text.slice(0, 80), authorName: c.name });
+        await sendChatMessage(c.id, text, { msgId: "story:" + st.id, text: "📖 " + (st.text || T("stories.photo.alt")).slice(0, 80), authorName: c.name });
         toast(T("stories.replySent"));
       });
     }
     $("#story-delete-btn").addEventListener("click", (e) => {
       e.stopPropagation(); const v = __storyViewer; if (!v) return;
-      const st = v.items[v.i]; storiesList = loadStories().filter((x) => x.id !== st.id); persistStories(); closeStoryViewer();
+      const st = v.items[v.i]; storiesList = loadStories().filter((x) => x.id !== st.id); dropStoryPhotos([st]); persistStories(); closeStoryViewer();
     });
     document.addEventListener("keydown", (e) => { if (e.key === "Escape" && __storyViewer) closeStoryViewer(); });
   }
@@ -5430,11 +5638,19 @@ function renderThreadSheet() {
   const c = state.contacts.get(tr.cid), msgs = c && threadMessages(c, tr.rootId);
   if (!msgs) { closeThreadSheet(); return; }
   const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 40;
-  list.innerHTML = msgs.map((m, i) => {
+  const item = (m, i) => {
     const who = m.from === "me" ? T("chat.poll.you") : (m.fromName || c.name || T("sys.someone"));
     const text = m.text ? escapeHtml(m.text) : escapeHtml(T("chat.thread.attachment"));
-    return `<div class="thread-msg${i === 0 ? " is-root" : ""}${m.from === "me" ? " mine" : ""}"><div class="thread-msg-h"><b>${escapeHtml(who)}</b><span>${escapeHtml(formatTime(m.ts))}</span></div><div class="thread-msg-t">${text}</div></div>`;
-  }).join("");
+    return `<div class="thread-msg${i === 0 ? " is-root" : ""}${m.from === "me" ? " mine" : ""}" data-thread-msg="${escapeHtml(m.id)}"><div class="thread-msg-h"><b>${escapeHtml(who)}</b><span>${escapeHtml(formatTime(m.ts))}</span></div><div class="thread-msg-t">${text}</div></div>`;
+  };
+  const n = msgs.length - 1;
+  const rootEl = $("#thread-root");
+  if (rootEl) rootEl.innerHTML = `<div class="thread-root-label">${escapeHtml(T("chat.thread.original"))}</div>${item(msgs[0], 0)}`;
+  list.innerHTML = n ? msgs.slice(1).map((m, i) => item(m, i + 1)).join("") : `<p class="thread-none">${escapeHtml(T("chat.thread.none"))}</p>`;
+  const title = $("#thread-sheet-title"); if (title) title.textContent = T("chat.thread.title") + (n ? " · " + n : "");
+  // писать в тред нельзя там, где нельзя писать в чат (заблокированный контакт, группа «пишут только админы»)
+  const canWrite = !(c.blocked && !isGroup(c)) && !(isGroup(c) && typeof isGroupWriteAllowed === "function" && !isGroupWriteAllowed(c, Store.myId));
+  const inp = $("#thread-input"), btn = $("#thread-send-btn"); if (inp) inp.disabled = !canWrite; if (btn) btn.disabled = !canWrite;
   if (atBottom || list.dataset.fresh !== tr.rootId) { list.scrollTop = list.scrollHeight; list.dataset.fresh = tr.rootId; }
 }
 function sendThreadReply() {
@@ -5449,6 +5665,13 @@ function wireThreadSheet() {
   const btn = $("#thread-send-btn"); if (btn) btn.addEventListener("click", sendThreadReply);
   const inp = $("#thread-input"); if (inp) inp.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendThreadReply(); } });
   const close = $("#thread-close-btn"); if (close) close.addEventListener("click", closeThreadSheet);
+  // свайп вниз за шапку закрывает шторку (на широком экране панель боковая — там только крестик и Esc)
+  const head = $(".thread-head");
+  if (head) {
+    let y0 = null;
+    head.addEventListener("touchstart", (e) => { y0 = e.touches[0].clientY; }, { passive: true });
+    head.addEventListener("touchend", (e) => { const t = e.changedTouches[0]; if (y0 !== null && t && t.clientY - y0 > 60) closeThreadSheet(); y0 = null; });
+  }
   const sheet = $("#thread-sheet");
   if (sheet && typeof MutationObserver !== "undefined") new MutationObserver(() => { if (sheet.classList.contains("hidden")) state.threadRoot = null; }).observe(sheet, { attributes: true, attributeFilter: ["class"] });
 }
@@ -5586,10 +5809,10 @@ function applyIncomingRich(from, envelopeMsgId, payload) {
   const m = c.messages.find((x) => x.id === payload.id); if (!m) return;
   let changed = false;
   // Закрытие опроса по времени проверяем по НАШЕМУ времени получения, а не по заявленному отправителем (иначе «ts: 1» обходил бы срок)
-  if (kind === "poll-vote") changed = !EtherRich.isClosed(m) && EtherRich.applyVote(m, from, payload.opts, Math.min(Math.max(Number(payload.ts) || Date.now(), m.ts || 0), Date.now()));
+  if (kind === "poll-vote") changed = !EtherRich.isClosed(m) && EtherRich.applyVote(m, from, payload.opts, Math.max(clampOpTs(payload.ts, Date.now()), m.ts || 0));
   else if (kind === "poll-close") { const authorId = c.isGroup ? m.fromId : c.id; changed = m.from === "them" && authorId === from && EtherRich.closePoll(m); }
-  else if (kind === "note-op") changed = !!payload.op && EtherRich.applyNoteOp(m, payload.op, Math.min(Number(payload.ts) || Date.now(), Date.now() + 60000));
-  else if (kind === "board-op") changed = EtherRich.applyBoardOp(m, payload.op, Math.min(Number(payload.ts) || Date.now(), Date.now() + 60000));
+  else if (kind === "note-op") changed = !!payload.op && EtherRich.applyNoteOp(m, payload.op, clampOpTs(payload.ts, Date.now()));
+  else if (kind === "board-op") changed = EtherRich.applyBoardOp(m, payload.op, clampOpTs(payload.ts, Date.now()));
   if (!changed) return;
   persistContacts();
   if (state.chatId === c.id) renderChatThread();
@@ -6729,6 +6952,16 @@ function fileBubbleHtml(msgId, fileInfo) {
 // Числовые поля из чужих данных (длительность, таймер): только конечные неотрицательные числа в разумных пределах
 // Время сообщения от собеседника: конечное число не из далёкого будущего (иначе сообщение «прилипнет» к низу ленты, а его заметка/доска
 // получит метку времени, которую уже никто не сможет перебить)
+// Часы LWW (poll-vote / note-op / board-op): берём время ОТПРАВИТЕЛЯ (оффлайн-доставка бывает через дни — время получения исказило бы порядок правок),
+// но не позже времени получения + допуск на расхождение часов (OP_TS_SKEW_MS): иначе правка с ts «из будущего» навсегда выигрывала бы у всех честных.
+// Не число / нет ts → время получения. Слишком старое (старше срока хранения ящика) → тоже время получения, чтобы «ts: 1» не терял честные правки.
+const OP_TS_SKEW_MS = 30000, OP_TS_MAX_AGE_MS = 15 * 86400000;
+function clampOpTs(claimed, receivedAt) {
+  const now = Number.isFinite(receivedAt) ? receivedAt : Date.now();
+  const n = Number(claimed);
+  if (!Number.isFinite(n) || n <= 0 || n < now - OP_TS_MAX_AGE_MS) return now;
+  return Math.min(n, now + OP_TS_SKEW_MS);
+}
 function safeMsgTs(v) { const n = Number(v), now = Date.now(); return Number.isFinite(n) && n > now - 400 * 86400000 && n <= now + 5 * 60000 ? n : now; }
 function safeDuration(v) { const n = Number(v); return Number.isFinite(n) && n >= 0 && n < 86400 ? n : 0; }
 function safeTtl(v) { const n = Number(v); return Number.isFinite(n) && n >= 1000 && n <= 400 * 86400000 ? n : 0; }
@@ -7784,9 +8017,13 @@ async function encryptForContact(contact, msgId, payload, forceV1) {
   }
   if (!envelope) {
     const sharedKey = await CryptoHelper.deriveSharedKey(Store.myPrivateKeyJwk, contact.publicKey);
-    envelope = await CryptoHelper.encryptJson(sharedKey, payload);
+    // v2 (AES-GCM с AAD «ether-env-v2|от|кому»: конверт нельзя перенаправить другому адресату/направлению) — только если получатель заведомо умеет
+    // (contact.e2) и сервер пропускает такой формат (feature env2); иначе прежний v1, чтобы старые клиенты не теряли сообщения.
+    const env2Ok = !!(contact.e2 && signaling && Array.isArray(signaling.features) && signaling.features.includes("env2"));
+    envelope = await CryptoHelper.encryptJson(sharedKey, payload, env2Ok ? CryptoHelper.envAad(Store.myId, contact.id) : undefined);
     envelope.rc = 1; // «я умею Double Ratchet» — собеседник запомнит и дальше отвечает уже им
   }
+  envelope.e2 = 1; // «я умею конверты v2»
   envelopeCache.set(msgId, envelope);
   trimMap(envelopeCache, 200);
   return envelope;
@@ -7819,6 +8056,12 @@ function fetchPrekeyBundle(id, timeoutMs) {
     signaling.addEventListener("prekey-bundle", handler);
     if (!signaling.fetchPrekeys(id, rid)) finish(null);
   });
+}
+// Контакт умеет офлайн-конверты v2 (AAD) — узнаём из флага e2 в конверте, из ping/pong по каналу и из caps в присутствии
+function markContactEnv2(c) {
+  if (!c || c.e2 || isGroup(c)) return;
+  c.e2 = true; persistContacts();
+  etherLog("info", "[env2] " + String(c.id).slice(0, 10) + "… поддерживает конверты v2");
 }
 function markContactRatchet(c) {
   if (!c || c.rc) return;
@@ -8327,11 +8570,23 @@ function initSignaling() {
   if (!url) { updateSignalingStatusUI("off", "—"); renderChatsList(); renderOnlineRosterList(); return; }
   updateSignalingStatusUI("connecting", "…");
   etherLog("info", "[signaling] connecting to " + url);
-  signaling = new SignalingClient(url, Store.myId, { name: Store.name, visible: Store.discoverable, publicKey: Store.myPublicKeyJwk });
-  signaling.watchIds = watchedContactIds;
-  signalingCleanup = wireSignalingEvents(signaling);
-  signaling.addEventListener("slow-connect", () => { if (!signaling.connected) updateSignalingStatusUI("connecting", T("status.waking")); });
-  signaling.start();
+  const sig = signaling = new SignalingClient(url, Store.myId, { name: Store.name, visible: Store.discoverable, publicKey: Store.myPublicKeyJwk });
+  sig.watchIds = watchedContactIds;
+  signalingCleanup = wireSignalingEvents(sig);
+  sig.addEventListener("slow-connect", () => { if (!sig.connected) updateSignalingStatusUI("connecting", T("status.waking")); });
+  // Доказательство владения id (claim) считается асинхронно (SHA-256); результат кешируется, поэтому повторные подключения стартуют синхронно.
+  const cached = claimProofCached();
+  if (cached !== null) { sig.claim = cached || undefined; sig.start(); }
+  else claimProof().then((p) => p, () => "").then((p) => { if (signaling !== sig) return; sig.claim = p || undefined; sig.start(); });
+}
+let __claimProofCache = null, __claimProofFor = "";
+function claimProofCached() { const t = Store.claimToken; if (!t) return ""; return __claimProofFor === t ? __claimProofCache : null; }
+async function claimProof() {
+  const t = Store.claimToken; if (!t) return "";
+  if (__claimProofFor === t && __claimProofCache) return __claimProofCache;
+  const d = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode("ether-claim-v1|" + t)));
+  __claimProofCache = Array.from(d, (x) => x.toString(16).padStart(2, "0")).join(""); __claimProofFor = t;
+  return __claimProofCache;
 }
 // Общая обработка входящего offer/answer — используется и для сигнального
 // сервера, и для релея через общий контакт (см. ниже): сама логика
@@ -8459,6 +8714,13 @@ function wireSignalingEvents(sig) {
       }, 60 * 60 * 1000);
     }
   }));
+  subs.push(on("register-error", (ev) => {
+    // id закреплён за другим устройством (claim): соединение остановлено клиентом, повторные попытки бессмысленны до истечения claim
+    if (ev.detail && ev.detail.error === "id-claimed") {
+      updateSignalingStatusUI("off", T("status.idClaimed"));
+      toast(T("toast.idClaimed"));
+    }
+  }));
   subs.push(on("register-rate-limited", () => {
     updateSignalingStatusUI("off", T("status.rateLimited"));
     toast(T("toast.registerRateLimited"));
@@ -8522,6 +8784,7 @@ function wireSignalingEvents(sig) {
       const c = state.contacts.get(u.id);
       if (c && c.managed) {
         c.online = true;
+        if (Array.isArray(u.caps) && u.caps.includes("env2")) markContactEnv2(c);
         if (u.publicKey && keysDiffer(u.publicKey, c.publicKey)) { if (noteContactKey(c, u.publicKey)) { persistContacts(); flushPendingNoKey(u.id); } }
         scheduleAutoConnect(u.id);
       }
@@ -8530,7 +8793,8 @@ function wireSignalingEvents(sig) {
     if (state.tab === "connect") { renderContactsList(); renderOnlineRosterList(); }
   }));
   subs.push(on("presence", (ev) => {
-    const { id, online, name, visible, publicKey } = ev.detail;
+    const { id, online, name, visible, publicKey, caps } = ev.detail;
+    if (online && Array.isArray(caps) && caps.includes("env2")) { const cc = state.contacts.get(id); if (cc && cc.managed) markContactEnv2(cc); }
     if (online) {
       onlineSet.add(id);
       onlineRoster.set(id, { name, visible: visible !== false, publicKey: publicKey || null });
@@ -8715,7 +8979,11 @@ function startLinkAuth(id) {
   const link = mesh.get(id), c = state.contacts.get(id);
   if (!link || link._authStarted) return;
   if (!link.dc || link.dc.readyState !== "open") return; // статус connected приходит раньше открытия канала данных — стартуем по dc-open
-  if (!c || isGroup(c) || !c.publicKey || !Store.myPrivateKeyJwk || typeof LinkAuth === "undefined") { link.authGate = null; return; }
+  if (!c || isGroup(c) || !c.publicKey || !Store.myPrivateKeyJwk || typeof LinkAuth === "undefined") {
+    // Защита от даунгрейда: если с этим контактом проверка уже проходила, отсутствие ключа/модуля не должно открывать канал
+    if (c && c.authSeen && !isGroup(c)) { link.authState = "fail"; link.authGate = "closed"; link._authBuf = []; authDowngradeNotice(id, "downgrade"); try { mesh.remove(id); } catch (e) {} return; }
+    link.authGate = null; return;
+  }
   link._authStarted = true; link.authGate = "pending"; link.authState = "pending";
   link._authBuf = []; link._myNonce = LinkAuth.nonce(); link._peerNonce = null; link._peerTag = null; link._tagSent = false;
   link.send({ kind: "auth", s: 1, n: link._myNonce });
@@ -8741,7 +9009,7 @@ async function progressAuth(id, link) {
   const c = state.contacts.get(id);
   if (!c || link.authGate !== "pending" || !link._peerNonce) return;
   const fp = link.fingerprints();
-  if (!fp.local || !fp.remote) { etherLog("warn", "[auth] нет отпечатков DTLS в SDP — проверка невозможна"); finishAuth(id, link, "unverified"); return; }
+  if (!fp.local || !fp.remote) { etherLog("warn", "[auth] нет отпечатков DTLS в SDP — проверка невозможна"); finishAuth(id, link, "unverified"); return; } // для контакта с authSeen finishAuth превратит это в «fail» (даунгрейд)
   const key = await LinkAuth.secret(Store.myPrivateKeyJwk, c.publicKey, Store.myId, id);
   if (!link._tagSent) {
     link._tagSent = true;
@@ -8756,18 +9024,36 @@ function authTimeout(id, link) {
   if (link.authGate !== "pending") return;
   const c = state.contacts.get(id);
   // Раньше этот собеседник проходил проверку, а теперь молчит — похоже на отключение проверки "по дороге", не пускаем
-  finishAuth(id, link, c && c.authSeen ? "fail" : "unverified");
+  finishAuth(id, link, c && c.authSeen ? "fail" : "unverified", "downgrade");
 }
-function finishAuth(id, link, result) {
+// Системное сообщение в чате + тост о том, что проверка подлинности канала не пройдена (reason: "downgrade" — раньше проходила, а теперь
+// собеседник молчит/не отвечает/без отпечатков; "mismatch" — тег не сошёлся). Не чаще раза в 10 минут на контакт.
+function authDowngradeNotice(id, reason) {
+  const c = state.contacts.get(id); if (!c || c.pendingKey) return;
+  const last = authToastAt.get(id) || 0;
+  if (Date.now() - last <= 600000) return;
+  authToastAt.set(id, Date.now());
+  const name = c.name || T("sys.someone");
+  try {
+    if (reason === "downgrade") {
+      c.messages.push({ id: crypto.randomUUID(), from: "system", text: T("sys.linkAuthDowngrade", { name }), textKey: "sys.linkAuthDowngrade", textParams: { name }, ts: Date.now() });
+      trimMessages(c); persistContacts();
+      if (state.chatId === id) renderChatThread();
+      toast(T("toast.linkAuthDowngrade", { name }));
+    } else toast(T("toast.linkAuthFailed", { name }));
+  } catch (e) {}
+}
+function finishAuth(id, link, result, reason) {
   if (link.authGate !== "pending") return;
   clearTimeout(link._authTimer);
   const c = state.contacts.get(id);
+  // Даунгрейд: контакт раньше проходил проверку (authSeen) — «не поддерживает/не ответил» больше не равно «непроверен», а равно провалу
+  if (result === "unverified" && c && c.authSeen) { result = "fail"; reason = "downgrade"; }
   link.authState = result;
   if (result === "fail") {
     link.authGate = "closed"; link._authBuf = [];
-    etherLog("warn", "[auth] канал с " + String(id).slice(0, 10) + "… НЕ прошёл проверку — закрываю");
-    const last = authToastAt.get(id) || 0;
-    if (c && !c.pendingKey && Date.now() - last > 600000) { authToastAt.set(id, Date.now()); try { toast(T("toast.linkAuthFailed", { name: c.name || T("sys.someone") })); } catch (e) {} }
+    etherLog("warn", "[auth] канал с " + String(id).slice(0, 10) + "… НЕ прошёл проверку (" + (reason || "mismatch") + ") — закрываю");
+    authDowngradeNotice(id, reason === "downgrade" ? "downgrade" : "mismatch");
     try { mesh.remove(id); } catch (e) {}
     return;
   }
@@ -8814,14 +9100,16 @@ async function handleDeliver(detail, replay) {
     }
     const theirKey = (c0 && c0.publicKey) || fromPublicKey;
     if (!theirKey) throw new Error("no key");
-    if (envelope && envelope.v === 2) {
+    if (envelope && envelope.v === 2 && envelope.h) {
       payload = await Ratchet.decrypt({ contactId: from, myId: Store.myId, myPrivJwk: Store.myPrivateKeyJwk, theirPubJwk: theirKey }, envelope);
       markContactRatchet(c0);
     } else {
       const sharedKey = await CryptoHelper.deriveSharedKey(Store.myPrivateKeyJwk, theirKey);
-      payload = await CryptoHelper.decryptJson(sharedKey, envelope);
+      // v2 без поля h — конверт с AAD (отправитель = from, получатель = я); v1 расшифровывается как раньше
+      payload = await CryptoHelper.decryptJson(sharedKey, envelope, envelope && envelope.v === 2 ? CryptoHelper.envAad(from, Store.myId) : undefined);
       if (envelope && envelope.rc) markContactRatchet(c0);
     }
+    if (envelope && envelope.e2) markContactEnv2(c0);
   } catch (e) { etherLog("error", "[crypto] decrypt failed:", String(e)); return; }
 
   applyIncomingPayload(from, msgId, payload, true, kind);
@@ -13753,6 +14041,7 @@ function wireMeshEvents() {
   mesh.addEventListener("link-caps", (ev) => {
     const c = state.contacts.get(ev.detail.id);
     if (c && ev.detail.rc) markContactRatchet(c);
+    if (c && ev.detail.e2) markContactEnv2(c);
   });
   mesh.addEventListener("link-status", (ev) => {
     try {
@@ -13855,6 +14144,7 @@ function wireMeshEvents() {
       { // шлюз аутентификации канала
         const lk = mesh.get(id);
         if (payload && payload.kind === "auth") { if (lk) onAuthMessage(id, lk, payload); return; }
+        if (lk && c.authSeen && !lk._authStarted && lk.authGate !== "closed" && !isGroup(c)) { try { startLinkAuth(id); } catch (e) {} if (!lk._authStarted && lk.authGate !== "closed") return; } // проверка ещё не стартовала, а контакт уже проходил её: ничего не пропускаем
         if (lk && lk.authGate === "closed") return;
         if (lk && lk.authGate === "pending" && !AUTH_PASS.has(payload && payload.kind)) { if (lk._authBuf && lk._authBuf.length < 100) lk._authBuf.push(payload); return; }
       }

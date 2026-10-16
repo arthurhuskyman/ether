@@ -1114,7 +1114,7 @@ function safeSend(ws, obj) {
 }
 function rosterEntry(id) {
   const c = clients.get(id);
-  return c ? { id, name: c.name || "", visible: c.visible !== false, publicKey: c.publicKey || null } : null;
+  return c ? { id, name: c.name || "", visible: c.visible !== false, publicKey: c.publicKey || null, caps: c.caps || [] } : null;
 }
 // Кто кого видит в списке «онлайн» (A3). Раньше каждый зарегистрировавшийся получал ВСЕХ: id (хэш телефона/почты без соли — перебирается
 // за минуты), имена и ключи — в том числе скрытых («не показывать меня»). Теперь клиент присылает watch — список id своих контактов, и видит
@@ -1230,6 +1230,7 @@ function cleanEnvelope(env) {
     if (typeof env.v === "number" || typeof env.v === "string") out.v = typeof env.v === "string" ? env.v.slice(0, 8) : env.v;
   }
   if (typeof env.rc === "number" || typeof env.rc === "boolean") out.rc = env.rc;
+  if (typeof env.e2 === "number" || typeof env.e2 === "boolean") out.e2 = env.e2; // «я умею конверты v2 с AAD» (как rc для Double Ratchet)
   return out;
 }
 function cleanKind(k) { return typeof k === "string" && k.length <= 24 && /^[a-z0-9-]+$/i.test(k) ? k : "chat"; }
@@ -1320,6 +1321,8 @@ wss.on("connection", (ws, req) => {
         ws, ip: ipAddr, since: Date.now(),
         name: String(msg.name || "").slice(0, 60),
         visible: msg.visible !== false,
+        // Возможности клиента (напр. "env2"): короткий белый список строк, рассылается наблюдателям вместе с присутствием
+        caps: Array.isArray(msg.caps) ? msg.caps.filter((x) => typeof x === "string" && /^[a-z0-9]{1,12}$/.test(x)).slice(0, 8) : [],
         publicKey: validPublicKeyJwk(msg.publicKey) ? msg.publicKey : null, // раньше без проверки типа/размера и рассылалось всем наблюдателям
         // Новый клиент передаёт список контактов уже при регистрации — первый ростер сразу урезан (иначе до отдельного watch он бы получил всех)
         watch: Array.isArray(msg.watch) ? new Set(msg.watch.filter((x) => typeof x === "string" && x.length > 0 && x.length <= 128).slice(0, WATCH_MAX)) : null,

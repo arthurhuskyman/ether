@@ -3,4 +3,6 @@ coverage/
 .ether-push-subs.json
 .ether-mailbox.json
 .ether-mailbox.json.tmp
+.ether-claims.json
+.ether-claims.json.tmp
 .claude/worktrees/
