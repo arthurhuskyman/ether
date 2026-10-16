@@ -959,6 +959,7 @@ window.__LANG_DICTS["no"] = {
     "help.groups.body": "Trykk på «Ny gruppe» i Kontakter-fanen, gi den et navn og velg opptil 9 personer. Grupper kobler deg direkte til hvert medlem (maks 10 totalt) — det finnes ingen gruppeserver. Tekst, svar, videresending, reaksjoner, filer, talemeldinger, avstemninger, tavler og notater fungerer i grupper, og du kan starte en gruppesamtale eller et talerom. Bare administratorer kan invitere nye medlemmer.",
     "help.calls.body": "Trykk på telefon- eller kameraikonet øverst i en chat for å ringe. Under en samtale kan du dempe, slå kameraet av eller på, bytte kamera og bytte mellom ørehøyttaler og høyttaler. Er personen frakoblet, får de et varsel, og du kan legge igjen en talepost. I en gruppe starter du en gruppesamtale med samtaleikonet.",
     "help.privacy.body": "Meldinger er ende-til-ende-krypterte med Double Ratchet — bare du og den andre kan lese dem, ikke serveren. Serveren hjelper bare enheter med å finne hverandre og holder en kryptert konvolutt i opptil 14 dager hvis mottakeren er frakoblet. I en kontakts profil åpner du sikkerhetsnummeret for å sammenligne det, eller skanner en QR personlig og merker kontakten som verifisert. I Innstillinger kan du sette en PIN og slå på «Krypter data på denne enheten» — da lagres meldinger, nøkler og filer kryptert med en nøkkel utledet fra PIN-koden (glemmer du PIN-koden, kan ikke dataene gjenopprettes).",
+    "settings.fontSize.system": "Følg systemet (Dynamic Type)",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("no");
