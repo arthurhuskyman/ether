@@ -21,6 +21,8 @@
       var light = t === "light" || (t === "auto" && window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches);
       document.documentElement.dataset.theme = t;
       document.documentElement.dataset.scheme = light ? "light" : "dark";
+      var sk = localStorage.getItem("ether.skin");
+      if (sk && /^[a-z]{3,12}$/.test(sk) && sk !== "default") document.documentElement.setAttribute("data-skin", sk);
     } catch (e) {}
   })();
 </script>
@@ -47,6 +49,7 @@
 <link rel="icon" href="icons/favicon-32.png" sizes="32x32" />
 <link rel="stylesheet" href="css/tokens.css" />
 <link rel="stylesheet" href="css/styles.css" />
+<link rel="stylesheet" href="css/skins.css" />
 </head>
 <body>
 <a class="skip-link" href="#content" data-i18n="a11y.skip">Skip to content</a>
@@ -480,6 +483,11 @@
             <button type="button" data-theme="oled" data-i18n="settings.theme.oled">OLED</button>
             <button type="button" data-theme="auto" class="active" data-i18n="settings.theme.auto">System</button>
           </div>
+        </div>
+        <div class="settings-row column skin-row">
+          <span data-i18n="skin.title">Skin</span>
+          <div id="skin-grid" class="skin-grid" role="radiogroup" aria-label="Skin"></div>
+          <p class="fine muted settings-hint" data-i18n="skin.hint">A skin changes shapes, outlines, fonts and background. Day or night version follows the Appearance setting above.</p>
         </div>
         <label class="settings-row"><span data-i18n="settings.readable">Easy-reading mode</span><input id="settings-readable-mode" type="checkbox" class="switch" /></label>
         <p class="fine muted settings-hint" data-i18n="settings.readable.hint">Larger text, stronger contrast, no decorative effects.</p>
@@ -1465,6 +1473,7 @@
 <script src="js/group-call.js"></script>
 <script src="js/rooms.js"></script>
 <script src="js/localai.js"></script>
+<script src="js/skins.js"></script>
 <script src="js/features.js"></script>
 <script src="js/features2.js"></script>
 <script src="js/easter.js"></script>

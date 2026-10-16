@@ -218,7 +218,7 @@ const CRITICAL_LS_KEYS = [
   "ether.pinHash", "ether.pinSalt", "ether.pinEnabled",
   "ether.contacts",
   "ether.outbox", "ether.pendingNoKey", "ether.recentlyDeleted",
-  "ether.theme", "ether.glassAlpha",
+  "ether.theme", "ether.skin", "ether.glassAlpha",
   "ether.notifications", "ether.sounds", "ether.ringtone", "ether.linkPreviews", "ether.linkPreviewMode",
   "ether.vapidPublicKey", "ether.pushSubscription",
   "ether.callLog", "ether.lastSeen", "ether.drafts",
@@ -415,6 +415,8 @@ const Store = {
   set myPublicKeyJwk(v) { localStorage.setItem("ether.pubKey", JSON.stringify(v)); scheduleIDBBackup(); },
   get glassAlpha() { const raw = parseFloat(localStorage.getItem("ether.glassAlpha") || "0.55"); if (!Number.isFinite(raw)) return 0.55; return Math.min(0.85, Math.max(0.18, raw)); },
   set glassAlpha(v) { if (!Number.isFinite(v)) return; localStorage.setItem("ether.glassAlpha", String(Math.min(0.85, Math.max(0.18, v)))); scheduleIDBBackup(); },
+  get skin() { return localStorage.getItem("ether.skin") || "default"; },
+  set skin(v) { localStorage.setItem("ether.skin", v); scheduleIDBBackup(); },
   get theme() { return localStorage.getItem("ether.theme") || "auto"; },
   set theme(v) { localStorage.setItem("ether.theme", v); scheduleIDBBackup(); },
   get callVolume() {
@@ -1226,6 +1228,7 @@ function applyTheme(theme) {
   // совпадают с meta[theme-color] — статус-бар iOS теперь всегда
   // сливается с фоном приложения.
   if (meta) meta.setAttribute("content", isLight ? "#fafafc" : (theme === "oled" ? "#000000" : "#08080a"));
+  try { if (typeof Skins !== "undefined") Skins.syncMeta(); } catch (e) {}
 }
 function applyChatAppearancePrefs() {
   const messages = $("#chat-messages");
@@ -2106,6 +2109,7 @@ function startApp() {
   try {
     applyGlassAlpha(Store.glassAlpha);
     applyTheme(Store.theme);
+    try { Skins.apply(Store.skin); Skins.wire(); } catch (e) { /* скины необязательны: без них приложение работает в обычном виде */ }
     const slider = $("#glass-slider"); if (slider) slider.value = alphaToTransparency(Store.glassAlpha).toFixed(2);
     $$(".theme-seg button").forEach((b) => b.classList.toggle("active", b.dataset.theme === Store.theme));
     const sn = $("#settings-name"); if (sn) sn.value = Store.name;
@@ -2191,6 +2195,7 @@ function startApp() {
 }
 
 function applyStaticTranslations() {
+  try { if (typeof Skins !== "undefined") Skins.render(); } catch (e) {}
   $$("[data-i18n]").forEach((el) => {
     const k = el.getAttribute("data-i18n");
     if (!k) return;
@@ -14016,6 +14021,7 @@ function wireChatEdgeBackGesture() {
 // Boot-recovery
 // =====================================================================
 function showBootRecovery() {
+  if (typeof document === "undefined" || !document || !document.getElementById) return; // страница уже выгружена — показывать нечего
   const o = document.getElementById("onboarding"); if (o) o.classList.add("hidden");
   const a = document.getElementById("app-shell"); if (a) a.classList.add("hidden");
   const l = document.getElementById("lock-screen"); if (l) l.classList.add("hidden");
