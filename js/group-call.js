@@ -14,6 +14,8 @@ const GC = {
   muted: false,
   video: false,
   peers: new Map(),    // peerId -> { name, stream, hasVideo, muted }
+  joined: new Set(),   // кто явно объявил join в этом звонке (только таких регистрируем по треку)
+  joining: false,      // идёт запрос микрофона/вход (защита от двойного нажатия)
   sentJoin: new Set(), // кому уже отправили join в этой сессии звонка
   startedAt: 0,
   everConnected: false,
@@ -41,7 +43,10 @@ function gcallBroadcast(payload) {
 // ---------- старт / вступление ----------
 async function gcallAcquire(withVideo) {
   try {
-    GC.stream = await navigator.mediaDevices.getUserMedia(withVideo ? { audio: true, video: { facingMode: "user" } } : { audio: true });
+    const got = await navigator.mediaDevices.getUserMedia(withVideo ? { audio: true, video: { facingMode: "user" } } : { audio: true });
+    // за время запроса разрешения мы уже могли войти в другой звонок — не затираем и не теряем поток
+    if (GC.gid || state.callId) { try { got.getTracks().forEach((t) => t.stop()); } catch (e) {} return false; }
+    GC.stream = got;
   } catch (e) {
     const name = e && e.name;
     if (name === "NotAllowedError" || name === "PermissionDeniedError") toast(T("toast.callPermissionDenied"));
@@ -57,8 +62,13 @@ async function startGroupCall(gid, withVideo) {
   const g = gcallGroup(gid); if (!g) return;
   if (state.callId || GC.gid) { toast(T("toast.alreadyInCall")); return; }
   if (!g.members.some((m) => m.id !== Store.myId && gcallLinkOk(m.id))) { toast(T("gcall.noOneOnline")); return; }
-  if (!(await gcallAcquire(!!withVideo))) return;
-  gcallEnter(gid);
+  if (GC.joining) return;
+  GC.joining = true;
+  try {
+    if (!(await gcallAcquire(!!withVideo))) return;
+    if (GC.gid || state.callId) return;
+    gcallEnter(gid);
+  } finally { GC.joining = false; }
   gcallBroadcast({ t: "invite", name: g.name || "", from: Store.name || "" });
 }
 
@@ -66,14 +76,20 @@ async function joinGroupCall(gid) {
   gcallStopRing();
   GC.invites.delete(gid); gcallRenderInvite();
   const g = gcallGroup(gid); if (!g || GC.gid || state.callId) return;
-  if (!(await gcallAcquire(false))) return;
-  gcallEnter(gid);
+  if (GC.joining) return;
+  GC.joining = true;
+  try {
+    if (!(await gcallAcquire(false))) return;
+    if (GC.gid || state.callId) return;
+    gcallEnter(gid);
+  } finally { GC.joining = false; }
   gcallBroadcast({ t: "join" });
   g.members.forEach((m) => { if (m.id !== Store.myId && gcallLinkOk(m.id)) GC.sentJoin.add(m.id); });
 }
 
 function gcallEnter(gid) {
-  GC.gid = gid; GC.peers = new Map(); GC.sentJoin = new Set(); GC.muted = false;
+  if (GC.timer) { clearInterval(GC.timer); GC.timer = null; }
+  GC.gid = gid; GC.peers = new Map(); GC.sentJoin = new Set(); GC.joined = new Set(); GC.muted = false;
   GC.startedAt = Date.now(); GC.everConnected = false;
   gcallRenderScreen();
   GC.timer = setInterval(gcallTick, 1000);
@@ -105,6 +121,7 @@ function handleGroupCallPayload(fromId, p) {
   if (p.t === "invite" || p.t === "join") {
     if (GC.gid === p.gid) {
       if (p.t === "invite") return;
+      GC.joined.add(fromId);
       gcallRegisterPeer(fromId, p.video, p.muted);
       if (!GC.sentJoin.has(fromId)) { GC.sentJoin.add(fromId); gcallSend(fromId, { t: "join", muted: GC.muted, video: GC.video }); }
       return;
@@ -122,7 +139,7 @@ function handleGroupCallPayload(fromId, p) {
   }
   if (p.t === "leave") {
     const peer = GC.peers.get(fromId);
-    GC.peers.delete(fromId); GC.sentJoin.delete(fromId);
+    GC.peers.delete(fromId); GC.sentJoin.delete(fromId); GC.joined.delete(fromId);
     const l = mesh.get(fromId); if (l && typeof l.removeGroupTracks === "function") l.removeGroupTracks();
     if (peer) toast(T("gcall.left", { name: peer.name }));
     gcallRenderScreen();
@@ -141,6 +158,7 @@ function gcallOnRemoteTrack(ev) {
   const { id, stream, track } = ev.detail || {};
   const g = gcallGroup(GC.gid);
   if (!g || !gcallIsMember(g, id) || !stream) return;
+  if (!GC.peers.has(id) && !GC.joined.has(id)) return; // трек без явного join не делает человека участником
   let p = GC.peers.get(id);
   if (!p) { if (!gcallRegisterPeer(id, null, null)) return; p = GC.peers.get(id); }
   p.stream = stream;
@@ -187,6 +205,7 @@ async function gcallToggleCamera() {
     let vs;
     try { vs = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } }); }
     catch (e) { toast(T("toast.callPermissionDenied")); return; }
+    if (!GC.gid || !GC.stream) { try { vs.getTracks().forEach((t) => t.stop()); } catch (e) {} return; }
     const vt = vs.getVideoTracks()[0]; if (!vt) return;
     GC.stream.addTrack(vt); GC.video = true;
     for (const id of GC.peers.keys()) { const l = mesh.get(id); if (l && l.addGroupTracks) l.addGroupTracks(GC.stream); }
@@ -205,7 +224,7 @@ function leaveGroupCall(opts) {
   for (const id of GC.peers.keys()) { const l = mesh && mesh.get(id); if (l && l.removeGroupTracks) l.removeGroupTracks(); }
   if (GC.stream) { try { GC.stream.getTracks().forEach((t) => { try { t.stop(); } catch (e) {} }); } catch (e) {} }
   clearInterval(GC.timer); GC.timer = null;
-  GC.gid = null; GC.stream = null; GC.peers = new Map(); GC.sentJoin = new Set(); GC.video = false; GC.muted = false;
+  GC.gid = null; GC.stream = null; GC.peers = new Map(); GC.sentJoin = new Set(); GC.joined = new Set(); GC.video = false; GC.muted = false;
   try { releaseWakeLock(); } catch (e) {}
   gcallRenderScreen();
   if (g && hadPeers && !(opts && opts.silent)) {

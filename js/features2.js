@@ -334,8 +334,9 @@ function fxdIn(from, p) {
     if (!FX.get("draw") || state.callId !== from || state.callPhase !== "active") { fx2Send(from, { kind: "fxdraw", t: "no" }); return; }
     fxdAsk(from);
   } else if (p.t === "ok") {
-    if (state.callId === from) fxdSetActive(true, from);
+    if (FXD.asked === from && FX.get("draw") && state.callId === from) { FXD.asked = null; fxdSetActive(true, from); }
   } else if (p.t === "no") {
+    if (FXD.asked === from) FXD.asked = null;
     const c = state.contacts.get(from); if (state.callId === from) toast(T("fx2.draw.declined", { name: (c && c.name) || "" }));
   } else if (p.t === "stop") {
     if (FXD.peer === from) fxdSetActive(false);
@@ -356,7 +357,7 @@ function fx2InjectDrawButton() {
     btn.addEventListener("click", () => {
       const id = state.callId; if (!id) return;
       if (FXD.active) { fx2Send(id, { kind: "fxdraw", t: "stop" }); fxdSetActive(false); }
-      else fx2Send(id, { kind: "fxdraw", t: "req" });
+      else { FXD.asked = id; fx2Send(id, { kind: "fxdraw", t: "req" }); }
     });
     menu.appendChild(btn);
   }
@@ -617,7 +618,11 @@ async function fxMakeReplay(contactId, year, month) {
 // Костёр: временная комната по QR (группа с «сроком горения»; срок едет в описании группы)
 // ---------------------------------------------------------------------
 const FX_CF = "⁣";
-function fxCampfireUntil(g) { const m = g && typeof g.description === "string" ? g.description.match(/⁣c:(\d{10,})⁣/) : null; return m ? +m[1] : 0; }
+// Локальный реестр костров: срок из описания группы учитывается только для групп, созданных на этом устройстве
+function fxCampfireIds() { try { const a = JSON.parse(localStorage.getItem("ether.fx.campfires") || "[]"); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+function fxCampfireMark(id) { try { const a = fxCampfireIds(); if (!a.includes(id)) { a.push(id); localStorage.setItem("ether.fx.campfires", JSON.stringify(a.slice(-50))); } } catch (e) {} }
+function fxCampfireIsLocal(g) { return !!g && (g.campfire === true || fxCampfireIds().includes(g.id)); }
+function fxCampfireUntil(g) { if (!fxCampfireIsLocal(g)) return 0; const m = g && typeof g.description === "string" ? g.description.match(/⁣c:(\d{10,})⁣/) : null; return m ? +m[1] : 0; }
 function fxCreateCampfire(hours) {
   const until = Date.now() + (hours || 4) * 3600 * 1000;
   const time = new Date(until).toLocaleTimeString(I18N.current, { hour: "2-digit", minute: "2-digit" });
@@ -627,6 +632,7 @@ function fxCreateCampfire(hours) {
     messages: [], lastActivity: Date.now(), archived: false, muted: false, createdBy: Store.myId, managed: true,
     description: "🔥 " + T("fx2.campfire.until", { time }) + FX_CF + "c:" + until + FX_CF,
   };
+  g.campfire = true; fxCampfireMark(id);
   state.contacts.set(id, g); persistContacts();
   try { openGroupInviteSheet(id); } catch (e) {}
   toast(T("fx2.campfire.created"));

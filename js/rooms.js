@@ -62,7 +62,7 @@ function roomSetEnabled(gid, on) {
 // Перехват входящих gcall-сообщений; true — сообщение разобрано здесь
 function roomHandle(fromId, p, g) {
   if (p.t === "presence") {
-    if (p.room === true && !g.room && typeof p.setRoom !== "boolean") g.room = true;
+    if (p.room === true && !g.room && typeof p.setRoom !== "boolean" && isGroupAdmin(g, fromId)) g.room = true;
     if (typeof p.setRoom === "boolean" && isGroupAdmin(g, fromId)) { g.room = p.room ? true : undefined; if (!p.room) ROOMS.present.delete(g.id); try { persistContacts(); } catch (e) {} }
     if (g.room) roomMarkPresent(g.id, fromId, String(p.name || "").slice(0, 40), !!p.on);
     roomRenderBar(); return true;

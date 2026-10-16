@@ -6,7 +6,8 @@
   "use strict";
   const LIM = { q: 200, opts: 6, opt: 80, title: 60, cols: 5, col: 24, cards: 100, card: 120, dead: 200 };
   const str = (s, n) => (typeof s === "string" ? s.replace(/[\u0000-\u0008\u000b-\u001f]/g, "").trim().slice(0, n) : "");
-  const idOk = (s) => typeof s === "string" && /^[A-Za-z0-9_-]{1,40}$/.test(s);
+  const RESERVED = new Set(["__proto__", "constructor", "prototype", "toString", "valueOf", "hasOwnProperty", "isPrototypeOf", "propertyIsEnumerable", "toLocaleString", "__defineGetter__", "__defineSetter__", "__lookupGetter__", "__lookupSetter__"]);
+  const idOk = (s) => typeof s === "string" && /^[A-Za-z0-9_-]{1,40}$/.test(s) && !RESERVED.has(s);
 
   function sanitizePoll(p) {
     if (!p || typeof p !== "object") return null;
@@ -35,17 +36,25 @@
     let ids = Array.from(new Set(optIds.filter((x) => valid.has(x))));
     if (!m.poll.multi) ids = ids.slice(0, 1);
     if (!m.pollVotes || typeof m.pollVotes !== "object") m.pollVotes = {};
-    const prev = m.pollVotes[voterId] || [];
-    if (prev.length === ids.length && prev.every((x) => ids.includes(x))) return false;
+    if (!m.pollVoteTs || typeof m.pollVoteTs !== "object") m.pollVoteTs = {};
+    const prev = Array.isArray(m.pollVotes[voterId]) ? m.pollVotes[voterId] : [];
+    const old = Object.prototype.hasOwnProperty.call(m.pollVoteTs, voterId) ? Number(m.pollVoteTs[voterId]) || 0 : 0;
+    // Порядок голосов: применяем только более новый (при равенстве времени — больший JSON набора), чтобы старая доставка не затирала новую
+    let ts = Number(at) || 0;
+    if (!ts) ts = Math.max(Date.now(), old + 1);
+    if (ts < old) return false;
+    if (ts === old && old && JSON.stringify(ids) <= JSON.stringify(prev)) return false;
+    if (prev.length === ids.length && prev.every((x) => ids.includes(x))) { m.pollVoteTs[voterId] = ts; return false; }
+    m.pollVoteTs[voterId] = ts;
     if (ids.length) m.pollVotes[voterId] = ids; else delete m.pollVotes[voterId];
     m.rv = (m.rv || 0) + 1;
     return true;
   }
   function tally(m) {
-    const counts = {}; for (const o of m.poll.opts) counts[o.id] = 0;
+    const counts = Object.create(null); for (const o of m.poll.opts) counts[o.id] = 0;
     const votes = m.pollVotes || {}; let voters = 0;
     for (const v of Object.values(votes)) { if (!Array.isArray(v) || !v.length) continue; voters++; for (const id of v) if (id in counts) counts[id]++; }
-    return { counts, voters };
+    return { counts: Object.assign({}, counts), voters };
   }
   function closePoll(m) { if (!m || !m.poll || m.poll.closed) return false; m.poll.closed = true; m.rv = (m.rv || 0) + 1; return true; }
 
@@ -69,10 +78,13 @@
     if (!b.pend || typeof b.pend !== "object") b.pend = {};
     const colOk = (c) => b.cols.some((x) => x.id === c);
     const find = (id) => b.cards.find((c) => c.id === id);
-    const setCol = (c, col, t) => { if (!colOk(col) || t < c.cu || c.col === col && t <= c.cu) return false; c.col = col; c.cu = t; return true; };
-    const setText = (c, text, t) => { text = str(text, LIM.card); if (!text || t < c.tu || c.t === text && t <= c.tu) return false; c.t = text; c.tu = t; return true; };
+    const setCol = (c, col, t) => { if (!colOk(col) || t < c.cu || c.col === col && t <= c.cu || t === c.cu && String(col) <= String(c.col)) return false; c.col = col; c.cu = t; return true; };
+    const setText = (c, text, t) => { text = str(text, LIM.card); if (!text || t < c.tu || c.t === text && t <= c.tu || t === c.tu && text <= c.t) return false; c.t = text; c.tu = t; return true; };
     const stash = (id, o) => {
       if (!idOk(id) || b.dead[id]) return;
+      if (o.t === "move") { if (typeof o.col !== "string" || !idOk(o.col)) return; }
+      else if (o.t === "edit") { o = { t: "edit", text: str(o.text, LIM.card), ts: o.ts }; if (!o.text) return; }
+      else return;
       const list = b.pend[id] || (b.pend[id] = []);
       if (list.length < 8) list.push(o);
       const keys = Object.keys(b.pend); if (keys.length > 100) delete b.pend[keys[0]];
@@ -118,7 +130,7 @@
     if (!m || !m.note || !op || op.t !== "set" || typeof op.text !== "string") return false;
     ts = Number(ts) || 0;
     const text = op.text.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "").slice(0, NOTE_MAX);
-    if (ts < (m.note.tu || 0) || (m.note.text === text && ts <= (m.note.tu || 0))) return false;
+    if (ts < (m.note.tu || 0) || (m.note.text === text && ts <= (m.note.tu || 0)) || (ts === (m.note.tu || 0) && ts > 0 && text <= m.note.text)) return false;
     m.note.text = text; m.note.tu = ts; m.rv = (m.rv || 0) + 1;
     return true;
   }

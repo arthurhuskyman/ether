@@ -381,7 +381,7 @@ function fxOpenSigilSheet(opts) {
     <h3>${escapeHtml(mine ? T("fx.mySigil") : T("fx.sigil.of", { name }))}</h3>
     <div class="fx-sigil-big">${sigilSvg(keyStr, 220)}</div>
     <div class="fx-sigil-fp" id="fx-sigil-fp">…</div>
-    <p class="fine muted fx-sigil-how">${escapeHtml(T("fx.sigil.verifyHow"))}</p>
+    <p class="fine muted fx-sigil-how">${escapeHtml(T(opts.noKey ? "toast.safetyNumberNoKey" : "fx.sigil.verifyHow"))}</p>
     <div class="row-actions"><button type="button" class="btn-tertiary fx-sigil-close">${escapeHtml(T("sys.close"))}</button><button type="button" class="btn-primary fx-sigil-share">${escapeHtml(T("fx.sigil.share"))}</button></div></div>`;
   document.body.appendChild(sh);
   const close = () => sh.remove();
@@ -572,7 +572,10 @@ async function verifySignedExport(obj) {
     const pub = await crypto.subtle.importKey("jwk", obj.publicKey, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
     const sig = new Uint8Array((obj.signature.match(/../g) || []).map((x) => parseInt(x, 16)));
     const ok = await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, pub, sig, new TextEncoder().encode(JSON.stringify(obj.meta)));
-    return ok ? { ok: true } : { ok: false, reason: "signature" };
+    if (!ok) return { ok: false, reason: "signature" };
+    // Ключ берётся из самого файла: это проверка внутренней согласованности, а не подтверждение личности автора
+    const fp = (await fxSha256Hex(JSON.stringify({ x: obj.publicKey.x, y: obj.publicKey.y }))).slice(0, 16).replace(/(.{4})(?=.)/g, "$1 ");
+    return { ok: true, fp };
   } catch (e) { return { ok: false, reason: "error" }; }
 }
 async function exportSignedChat(contactId) {
@@ -609,7 +612,7 @@ function fxDecorateContactCard() {
     if (!sg) { sg = document.createElement("div"); sg.id = "fx-sigil"; sg.className = "fx-sigil"; const nameEl = document.getElementById("contact-name"); if (nameEl) nameEl.insertAdjacentElement("afterend", sg); }
     sg.innerHTML = sigilSvg(fxKeyString(c), 44); sg.title = T("fx.sigil.hint");
     sg.setAttribute("role", "button"); sg.tabIndex = 0;
-    sg.onclick = () => { const cc = state.contactCardId ? state.contacts.get(state.contactCardId) : null; if (cc) fxOpenSigilSheet({ title: cc.name || "", keyStr: fxKeyString(cc), name: cc.name || "" }); };
+    sg.onclick = () => { const cc = state.contactCardId ? state.contacts.get(state.contactCardId) : null; if (cc) fxOpenSigilSheet({ title: cc.name || "", keyStr: fxKeyString(cc), name: cc.name || "", noKey: !cc.publicKey }); };
   } else if (sg) sg.remove();
   const grp = document.getElementById("contact-settings-group"); if (!grp) return;
   if (!document.getElementById("fx-birthday-row")) {
@@ -661,7 +664,7 @@ function fxInjectSettings() {
     const f = vf.files && vf.files[0]; vf.value = ""; if (!f) return;
     let obj = null; try { obj = JSON.parse(await f.text()); } catch (e) {}
     const r = await verifySignedExport(obj);
-    toast(r.ok ? T("fx.verify.ok", { name: (obj.meta && obj.meta.exporterName) || "" }) : T("fx.verify.bad"));
+    toast(r.ok ? T("fx.verify.ok", { fp: r.fp || "" }) : T("fx.verify.bad"));
   });
   if (typeof updateSettingsCategoryView === "function") updateSettingsCategoryView();
 }
