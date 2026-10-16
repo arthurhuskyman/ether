@@ -959,6 +959,7 @@ window.__LANG_DICTS["az"] = {
     "help.groups.body": "Kontaktlar bölməsində «Yeni qrup» düyməsinə toxunun, ad verin və 9 nəfərə qədər seçin. Qruplar sizi hər üzvlə birbaşa əlaqələndirir (cəmi 10-a qədər) — qrup serveri yoxdur. Mətn, cavablar, yönləndirmə, reaksiyalar, fayllar, səsli mesajlar, sorğular, lövhələr və qeydlər qruplarda işləyir, həmçinin qrup zəngi və ya səs otağı başlada bilərsiniz. Yeni üzvləri yalnız adminlər dəvət edə bilər.",
     "help.calls.body": "Zəng etmək üçün söhbətin yuxarısındakı telefon və ya kamera işarəsinə toxunun. Zəng zamanı mikrofonu söndürə, kameranı aça/bağlaya, kameraları dəyişə və qulaqcıq ilə dinamik arasında keçid edə bilərsiniz. Şəxs oflayndırsa ona bildiriş gedir və siz səsli mesaj qoya bilərsiniz. Qrupda qrup zəngi başlatmaq üçün zəng işarəsinə toxunun.",
     "help.privacy.body": "Mesajlar Double Ratchet ilə ucdan-uca şifrələnir — onları yalnız siz və o biri şəxs oxuya bilər, server yox. Server yalnız cihazların bir-birini tapmasına kömək edir və alıcı oflayn olduqda şifrələnmiş zərfi 14 günədək saxlayır. Kontaktın profilində təhlükəsizlik nömrəsini açıb müqayisə edin və ya QR-ı üz-üzə skan edib kontaktı təsdiqlənmiş kimi işarələyin. Tənzimləmələrdə PIN təyin edib «Bu cihazdakı məlumatları şifrələ» seçimini aktivləşdirə bilərsiniz — onda mesajlar, açarlar və fayllar PIN-dən yaradılmış açarla şifrələnmiş saxlanılır (PIN-i unutsanız, məlumatları bərpa etmək mümkün olmayacaq).",
+    "settings.fontSize.system": "Sistemə uyğun (Dynamic Type)",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("az");

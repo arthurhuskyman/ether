@@ -959,6 +959,7 @@ window.__LANG_DICTS["bs"] = {
     "help.groups.body": "Na kartici Kontakti dodirnite „Nova grupa“, dajte joj naziv i odaberite do 9 osoba. Grupe vas direktno povezuju sa svakim članom (ukupno do 10) — nema grupnog servera. U grupama rade tekst, odgovori, prosljeđivanje, reakcije, datoteke, glasovne poruke, ankete, table i bilješke, a možete pokrenuti i grupni poziv ili glasovnu sobu. Nove članove mogu pozivati samo administratori.",
     "help.calls.body": "Dodirnite ikonu telefona ili kamere pri vrhu razgovora da pozovete. Tokom poziva možete isključiti mikrofon, uključiti/isključiti kameru, promijeniti kameru i prebacivati između slušalice i zvučnika. Ako je osoba offline, dobija obavijest, a vi možete ostaviti govornu poštu. U grupi dodirnite ikonu poziva da pokrenete grupni poziv.",
     "help.privacy.body": "Poruke su end-to-end šifrovane pomoću Double Ratchet — samo vi i druga osoba možete ih čitati, ne i server. Server samo pomaže uređajima da pronađu jedni druge i čuva šifrovanu kovertu do 14 dana ako je primalac offline. U profilu kontakta otvorite sigurnosni broj da ga uporedite ili uživo skenirajte QR i označite kontakt kao potvrđen. U Postavkama možete postaviti PIN i uključiti „Šifruj podatke na ovom uređaju“ — tada se poruke, ključevi i datoteke čuvaju šifrovani ključem izvedenim iz vašeg PIN-a (ako zaboravite PIN, podaci se ne mogu povratiti).",
+    "settings.fontSize.system": "Prati sistem (Dynamic Type)",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("bs");
