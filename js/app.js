@@ -2577,6 +2577,7 @@ function wireServiceWorker() {
   // страницу, чтобы весь UI подхватил новые ресурсы. sessionStorage
   // защищает от петли перезагрузок.
   navigator.serviceWorker.addEventListener("controllerchange", () => {
+    __blockedSyncKey = ""; try { syncBlockedToSW(); } catch (e) {} // новый SW не знает список заблокированных — отправляем заново
     if (sessionStorage.getItem("ether.reloadingForUpdate")) return;
     sessionStorage.setItem("ether.reloadingForUpdate", "1");
     location.reload();
@@ -8980,6 +8981,8 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
       // будет каждый раз отфильтровываться только на рендере.
       if (payload.groupAvatar && AVATAR_DATAURL_RE.test(payload.groupAvatar)) g.avatar = payload.groupAvatar;
       if (payload.groupDescription) g.description = String(payload.groupDescription).slice(0, 200);
+      // «Костёр» (самоудаляющаяся группа): метка срока в описании НОВОЙ группы — её и помечаем локально; на уже существующие группы описание не влияет
+      try { if (g.description && /⁣c:\d{10,}⁣/.test(g.description) && typeof fxCampfireMark === "function") fxCampfireMark(g.id); } catch (e) {}
       state.contacts.set(payload.groupId, g);
       g.messages.push({ id: crypto.randomUUID(), from: "system", text: T("group.systemCreated", { name: g.name }), textKey: "group.systemCreated", textParams: { name: g.name }, ts: Date.now() });
       trimMessages(g);
