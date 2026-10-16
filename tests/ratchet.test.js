@@ -176,9 +176,9 @@ test("prekey: старт по пакету с одноразовым ключо�
   assert.deepEqual(await recv(a, b, r), { r: 1 });
   const e2 = await send(a, b, { t: 2 }); assert.equal(e2.h.p, undefined, "после ответа заголовок пакета больше не нужен");
   assert.deepEqual(await recv(b, a, e2), { t: 2 });
-  // повтор начального конверта после сброса сессий не проходит: одноразовый ключ уничтожен
+  // повтор начального конверта после сброса сессий не проходит: одноразовый ключ уничтожен (теперь ловится ещё раньше — журналом принятых начальных конвертов)
   b.R.reset(a.id);
-  await assert.rejects(recv(b, a, e1), /one-time prekey/);
+  await assert.rejects(recv(b, a, e1), /replayed initial|one-time prekey/);
 });
 
 test("prekey: пакет без одноразового ключа тоже работает (3DH)", async () => {

@@ -24,6 +24,7 @@ const Ratchet = (() => {
   const MAX_SKIP = 200;          // сколько пропущенных ключей сообщений готовы вычислить за раз
   const MAX_SKIPPED_STORED = 400; // сколько пропущенных ключей хранить в сессии
   const MAX_SESSIONS = 4;
+  const RI_MAX = 200;            // сколько идентификаторов уже принятых начальных конвертов помним на контакт
   const HIST = 8;                // сколько последних ключей собеседника помним (чтобы отличить повтор от новой сессии)
   const LS_KEY = "ether.ratchet";
   const te = new TextEncoder(), td = new TextDecoder();
@@ -36,18 +37,30 @@ const Ratchet = (() => {
   // ---------- хранилище ----------
   let store = {
     load() { try { const v = localStorage.getItem(LS_KEY); return v ? JSON.parse(v) : {}; } catch (e) { return {}; } },
-    save(obj) { try { localStorage.setItem(LS_KEY, JSON.stringify(obj)); } catch (e) { /* квота — состояние будет сохранено при следующей операции */ } },
+    // true — записано; false — не удалось (квота и т.п.). Внешние хранилища, вернувшие undefined, считаем успешными; throw = неудача.
+    save(obj) { try { localStorage.setItem(LS_KEY, JSON.stringify(obj)); return true; } catch (e) { return false; } },
   };
-  function setStore(s) { store = s; db = null; }
+  function setStore(s) { store = s; db = null; dirty = false; }
   let db = null;
+  // dirty: продвинутое состояние есть только в памяти (запись не удалась). Пока не удастся сохранить, encrypt() отказывается:
+  // иначе после перезагрузки ключ/IV сообщения могли бы быть использованы повторно (AES-GCM nonce reuse).
+  let dirty = false;
   function getDb() {
     if (!db) {
       const raw = store.load() || {};
-      db = { s: raw.s && typeof raw.s === "object" ? raw.s : {}, pk: raw.pk && typeof raw.pk === "object" ? raw.pk : {} };
+      db = { s: raw.s && typeof raw.s === "object" ? raw.s : {}, pk: raw.pk && typeof raw.pk === "object" ? raw.pk : {},
+        ri: raw.ri && typeof raw.ri === "object" ? raw.ri : {}, sg: raw.sg && typeof raw.sg === "object" ? raw.sg : {} };
     }
     return db;
   }
-  function persist() { store.save(getDb()); }
+  function persist() {
+    let ok = false;
+    try { ok = store.save(getDb()) !== false; } catch (e) { ok = false; }
+    if (!ok) { dirty = true; throw new Error("ratchet: persist failed"); }
+    dirty = false;
+  }
+  // Для операций, которые не расходуют ключи сообщений (prekeys, reset): неудача не бросается, но помечает состояние как «грязное».
+  function persistSoft() { try { persist(); } catch (e) { /* dirty уже выставлен */ } }
 
   // ---------- примитивы ----------
   // Подпись spk долговременным ключом личности (C2): сервер не может подменить prekey собеседника своим. Тот же P-256 ключ используется
@@ -216,20 +229,28 @@ const Ratchet = (() => {
   // Зашифровать объект для контакта. Состояние сохраняется ДО возврата: ключ нельзя использовать дважды даже при падении.
   function encrypt(ctx, plain) {
     return serial(ctx.contactId, async () => {
+      if (dirty) persist(); // прошлая запись не удалась: пробуем снова, иначе отказ (бросает 'ratchet: persist failed')
       const list = sessionsOf(ctx.contactId);
+      let sawSigned = false;
       if (!list.length) {
         let bundle = null;
         if (ctx.getBundle) { try { bundle = await ctx.getBundle(); } catch (e) { bundle = null; } }
         const okPub = (x) => Array.isArray(x) && x.length === 2 && x.every((v) => typeof v === "string" && v.length > 0 && v.length <= 100);
-        // Подпись есть и не сходится — пакет подменён/испорчен, начинаем от долговременных ключей; подписи нет (старый клиент) — принимаем как раньше
-        if (bundle && bundle.spk && bundle.spk.sig != null && ctx.theirPubJwk && !(await verifySpk(ctx.theirPubJwk, bundle.spk))) bundle = null;
+        // Подпись есть и не сходится — пакет подменён/испорчен, начинаем от долговременных ключей; подписи нет (старый клиент) — принимаем как раньше,
+        // КРОМЕ контактов, чей пакет уже хоть раз приходил с верной подписью (флаг sg): для них пакет без подписи — понижение защиты, считаем недействительным.
+        if (bundle && bundle.spk && ctx.theirPubJwk) {
+          if (bundle.spk.sig != null) {
+            if (await verifySpk(ctx.theirPubJwk, bundle.spk)) sawSigned = true; else bundle = null;
+          } else if (getDb().sg[ctx.contactId]) bundle = null;
+        }
         const usable = bundle && bundle.spk && typeof bundle.spk.id === "string" && okPub(bundle.spk.pub) && (!bundle.opk || (typeof bundle.opk.id === "string" && okPub(bundle.opk.pub)));
         list.unshift(usable ? await newInitiatorX(ctx, bundle) : await newInitiator(ctx.myPrivJwk, ctx.theirPubJwk, ctx.myId, ctx.contactId));
       }
       const s = list[0];
       const env = await encryptWith(s, ctx.myId, ctx.contactId, plain);
       s.t = Date.now();
-      persist();
+      if (sawSigned) getDb().sg[ctx.contactId] = true;
+      persist(); // не удалось — бросает: конверт не возвращаем (приложение откатится на прежний способ шифрования)
       return env;
     });
   }
@@ -249,7 +270,9 @@ const Ratchet = (() => {
           list[i] = trial;
           if (i > 0) { list.splice(i, 1); list.unshift(trial); } // сессия, на которой нам отвечают, становится основной
           trial.t = Date.now();
-          persist();
+          // Выбор при неудаче записи: плайнтекст всё равно возвращаем (сообщение уже расшифровано, терять его хуже),
+          // но состояние помечено dirty — следующий encrypt() не отдаст конверт, пока запись не удастся.
+          persistSoft();
           return plain;
         } catch (e) { lastErr = e; }
       }
@@ -257,6 +280,10 @@ const Ratchet = (() => {
       if (env.h.i === 1 && !known) {
         let s, opkId = null;
         const p = env.h.p;
+        // Повтор давно использованного начального конверта (сессия уже вытеснена из списка) не должен создавать фиктивную сессию.
+        const riId = dhKey(env.h.d) + "|" + (p && typeof p.s === "string" ? p.s + "|" + (typeof p.o === "string" ? p.o : "") : "-");
+        const riList = getDb().ri[from] || (getDb().ri[from] = []);
+        if (riList.includes(riId)) throw new Error("ratchet: replayed initial");
         if (p) {
           const okPub = (x) => Array.isArray(x) && x.length === 2 && x.every((v) => typeof v === "string" && v.length > 0 && v.length <= 100);
           if (!okPub(p.e) || typeof p.s !== "string" || (p.o != null && typeof p.o !== "string")) throw new Error("ratchet: bad prekey header");
@@ -268,7 +295,9 @@ const Ratchet = (() => {
         if (opkId) delete pk().opks[opkId]; // одноразовый ключ использован и уничтожен
         list.unshift(s);
         while (list.length > MAX_SESSIONS) list.pop();
-        persist();
+        riList.push(riId);
+        while (riList.length > RI_MAX) riList.shift();
+        persistSoft();
         return plain;
       }
       throw lastErr || new Error("ratchet: no session");
@@ -298,13 +327,13 @@ const Ratchet = (() => {
     }
     const ids = Object.keys(p.opks);
     if (ids.length > OPK_STORE_MAX) for (const id of ids.slice(0, ids.length - OPK_STORE_MAX)) delete p.opks[id];
-    persist();
-    if (myPrivJwk && !p.spk.sig) { try { p.spk.sig = await signSpk(myPrivJwk, p.spk.id, p.spk.x, p.spk.y); persist(); } catch (e) {} }
+    persistSoft();
+    if (myPrivJwk && !p.spk.sig) { try { p.spk.sig = await signSpk(myPrivJwk, p.spk.id, p.spk.x, p.spk.y); persistSoft(); } catch (e) {} }
     return { spk: { id: p.spk.id, pub: [p.spk.x, p.spk.y], ...(p.spk.sig ? { sig: p.spk.sig } : {}) }, opks: fresh };
   }
 
-  function reset(contactId) { const d = getDb().s; if (d[contactId]) { delete d[contactId]; persist(); } }
-  function resetAll() { db = { s: {}, pk: {} }; persist(); }
+  function reset(contactId) { const d = getDb().s; if (d[contactId]) { delete d[contactId]; persistSoft(); } }
+  function resetAll() { db = { s: {}, pk: {}, ri: {}, sg: {} }; persistSoft(); }
   function info(contactId) { const l = (getDb().s[contactId] || []); return l.length ? l.length + " сесс., основная: ns=" + l[0].ns + " nr=" + l[0].nr + (l[0].init ? " (ждёт ответа)" : "") : "нет"; }
 
   return { encrypt, decrypt, reset, resetAll, setStore, info, needsPrekeys, prekeyUploadPayload, verifySpk, signSpk };
