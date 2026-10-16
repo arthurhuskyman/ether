@@ -7,7 +7,7 @@ const { createApp, closeAll } = require("./harness");
 test.after(closeAll);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const ROOT = path.join(__dirname, "..");
-const css = fs.readFileSync(path.join(ROOT, "css", "skins.css"), "utf8");
+const css = [fs.readFileSync(path.join(ROOT, "css", "skins.css"), "utf8")].concat(fs.readdirSync(path.join(ROOT, "css", "skins")).sort().map((f) => fs.readFileSync(path.join(ROOT, "css", "skins", f), "utf8"))).join("\n");
 const IDS = ["cartoon", "comic", "watercolor", "neon", "steampunk", "gothic", "clay", "lego", "wood", "glass", "chalk", "newyear"];
 async function booted(storage) {
   const a = createApp({ storage: Object.assign({ "ether.name": "T", "ether.myId": "me-test-id", "ether.lang": "ru" }, storage || {}) });
