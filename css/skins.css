@@ -69,3 +69,6 @@ html[data-skin] .bubble, html[data-skin] .chat-row-name, html[data-skin] .chat-r
 #skin-deco { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; contain: layout paint; }
 html:not([data-skin]) #skin-deco { display: none; }
 @media (prefers-reduced-motion: reduce) { #skin-deco * { animation: none !important; } }
+
+/* активные «акцентные» элементы: цвет текста берётся из кнопочной пары скина, а не белый на любом акценте */
+html[data-skin] :is(.chat-filter-chip.active, .theme-seg button.active, .contact-card-add-btn, .room-btn) { background: var(--sk-btn-bg); color: var(--sk-btn-ink); }
