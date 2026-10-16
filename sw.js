@@ -68,7 +68,7 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k)))
+      Promise.all(keys.filter((k) => k !== CACHE_VERSION && k !== "ether-meta").map((k) => caches.delete(k)))
     )
   );
   self.clients.claim();
@@ -167,7 +167,7 @@ self.addEventListener("message", (event) => {
   // где не поддерживается (например, часть версий iOS Safari) — ничего
   // не ломает, кнопка молча не появляется.
   const actions = Array.isArray(data.actions) ? data.actions.slice(0, 2) : undefined;
-  self.registration.showNotification(title, {
+  event.waitUntil(self.registration.showNotification(title, {
     body,
     tag,
     badge: "./icons/icon-192.png",
@@ -177,7 +177,7 @@ self.addEventListener("message", (event) => {
     vibrate: data.kind === "call" ? [300, 150, 300, 150, 300] : [100, 50, 100],
     requireInteraction: data.kind === "call",
     actions,
-  });
+  }));
 });
 
 self.addEventListener("push", (event) => {

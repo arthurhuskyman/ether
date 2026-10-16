@@ -120,7 +120,7 @@ window.__LANG_DICTS["en"] = {
     "fx.wrapped.hour": "your busiest hour",
     "fx.wrapped.pause": "days — your longest pause (with {name})",
     "fx.verify": "Verify a signed export",
-    "fx.verify.ok": "Signature and message chain are valid (exported by {name})",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
     "fx.verify.bad": "Export is damaged or was modified",
     "fx.signedExport": "Export chat with signature (JSON)",
     "fx.signedExport.done": "Signed export saved",
