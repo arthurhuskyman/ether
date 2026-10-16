@@ -132,7 +132,53 @@ const LocalAI = (() => {
     });
     return scored.sort((a, b) => b.score - a.score).slice(0, n).sort((a, b) => a.i - b.i).map((x) => x.s).join(" ");
   }
-  return { makeProgress, cleanTranscript, rms, setEngine, isReady, loadEngine, decodeToMono16k, transcribeBlob, summarize, sentences, onProgress: (fn) => { progressListeners.add(fn); return () => progressListeners.delete(fn); }, MODEL, TF_URL };
+
+  // ---- Сводка чата: детерминированная выжимка за период (без нейросети, без сети) ----
+  const URL_IN_TEXT = /\bhttps?:\/\/[^\s<>"']{3,200}/gi;
+  function chatDigest(c, opts) {
+    opts = opts || {};
+    const now = opts.now || Date.now(), since = opts.since || 0;
+    const all = (c && Array.isArray(c.messages) ? c.messages : []).filter((m) => m && !m.deleted && Number(m.ts) >= since && Number(m.ts) <= now + 60000);
+    const nameOf = (m) => m.from === "me" ? (opts.meName || "me") : String(m.fromName || (c && c.name) || opts.someone || "?").slice(0, 40);
+    const authorKey = (m) => m.from === "me" ? "me" : (m.fromId || "them");
+    const people = new Map();
+    const files = { image: 0, video: 0, audio: 0, file: 0 };
+    const links = [], polls = [], notes = [], textParts = [], questions = [];
+    const wordFreq = new Map();
+    let texts = 0;
+    all.forEach((m, idx) => {
+      const k = authorKey(m); const p = people.get(k) || { name: nameOf(m), n: 0 }; p.n++; people.set(k, p);
+      if (m.file) { const kind = files[m.file.kind] !== undefined ? m.file.kind : "file"; files[kind]++; }
+      if (m.poll && typeof m.poll.q === "string") polls.push(String(m.poll.q).slice(0, 120));
+      if (m.note && typeof m.note.title === "string") notes.push(String(m.note.title).slice(0, 60));
+      const t = typeof m.text === "string" ? m.text.trim() : "";
+      if (!t) return;
+      texts++;
+      const found = t.match(URL_IN_TEXT); if (found) for (const u of found) if (links.length < 50 && !links.includes(u)) links.push(u);
+      textParts.push(/[.!?…]$/.test(t) ? t : t + ".");
+      for (const w of t.toLowerCase().replace(URL_IN_TEXT, " ").match(/[\p{L}][\p{L}\p{N}-]{3,}/gu) || []) if (!STOP.has(w)) wordFreq.set(w, (wordFreq.get(w) || 0) + 1);
+      if (/\?\s*$/.test(t) && t.length > 3) {
+        const answered = all.slice(idx + 1).some((x) => authorKey(x) !== k || (x.replyTo && (x.replyTo.id || x.replyTo.msgId) === m.id));
+        if (!answered) questions.push({ who: nameOf(m), text: t.slice(0, 160), ts: m.ts });
+      }
+    });
+    const topics = Array.from(wordFreq).filter((e) => e[1] >= 2).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).slice(0, 6).map((e) => e[0]);
+    // Открытые задачи досок: карточки не в последней колонке (последняя колонка считается «готово»)
+    const tasks = [];
+    for (const m of (c && Array.isArray(c.messages) ? c.messages : [])) {
+      const b = m && !m.deleted && m.board; if (!b || !Array.isArray(b.cols) || !b.cols.length || !Array.isArray(b.cards)) continue;
+      const doneCol = b.cols[b.cols.length - 1].id;
+      for (const card of b.cards) if (card && card.col !== doneCol && tasks.length < 30) tasks.push({ board: String(b.title || "").slice(0, 60), text: String(card.t || "").slice(0, 120) });
+    }
+    const joined = textParts.join(" ").slice(-20000);
+    const key = texts >= 4 ? summarize(joined, 3) : "";
+    return {
+      count: all.length, texts,
+      people: Array.from(people.values()).sort((a, b) => b.n - a.n).slice(0, 8),
+      topics, key, questions: questions.slice(-5), links: links.slice(0, 8), files, polls: polls.slice(0, 5), notes: notes.slice(0, 5), tasks: tasks.slice(0, 10),
+    };
+  }
+  return { chatDigest, makeProgress, cleanTranscript, rms, setEngine, isReady, loadEngine, decodeToMono16k, transcribeBlob, summarize, sentences, onProgress: (fn) => { progressListeners.add(fn); return () => progressListeners.delete(fn); }, MODEL, TF_URL };
 })();
 
 // ---- Интеграция с чатом ----
@@ -175,7 +221,58 @@ function openSummarySheet(text) {
   sheet.classList.remove("hidden");
 }
 function messageSummarySource(m) { return (m.file && m.file.transcript) || m.text || ""; }
+
+// ---- Сводка чата: шторка с выбором периода ----
+function summarySince(period, now) {
+  now = now || Date.now();
+  if (period === "today") { const d = new Date(now); d.setHours(0, 0, 0, 0); return d.getTime(); }
+  if (period === "week") return now - 7 * 864e5;
+  return 0;
+}
+function chatSummaryHtml(c, period) {
+  const d = LocalAI.chatDigest(c, { since: summarySince(period), meName: T("chat.poll.you"), someone: T("sys.someone") });
+  const e = escapeHtml;
+  if (!d.count) return `<p class="summary-empty">${e(T("summary.empty"))}</p>`;
+  const sec = (title, inner) => `<section class="summary-sec"><h4>${e(title)}</h4>${inner}</section>`;
+  const list = (items) => `<ul class="summary-list">${items.map((x) => `<li>${x}</li>`).join("")}</ul>`;
+  let h = `<p class="summary-count">${e(T("summary.messages", { n: d.count }))}</p>`;
+  if (d.people.length) h += sec(T("summary.people"), list(d.people.map((p) => e(T("summary.person", { name: p.name, n: p.n })))));
+  if (d.topics.length) h += sec(T("summary.topics"), `<div class="summary-chips">${d.topics.map((w) => `<span class="summary-chip">${e(w)}</span>`).join("")}</div>`);
+  if (d.key) h += sec(T("summary.key"), `<p class="summary-key">${e(d.key)}</p>`);
+  if (d.questions.length) h += sec(T("summary.questions"), list(d.questions.map((q) => `<b>${e(q.who)}:</b> ${e(q.text)}`)));
+  if (d.tasks.length) h += sec(T("summary.tasks"), list(d.tasks.map((x) => `${e(x.text)} <span class="muted">· ${e(x.board)}</span>`)));
+  if (d.polls.length) h += sec(T("summary.polls"), list(d.polls.map(e)));
+  if (d.notes.length) h += sec(T("summary.notes"), list(d.notes.map(e)));
+  if (d.links.length) h += sec(T("summary.links"), list(d.links.map((u) => `<span class="summary-url">${e(u)}</span>`)));
+  const fl = ["image", "video", "audio", "file"].filter((k) => d.files[k] > 0).map((k) => e(T("summary.files." + k, { n: d.files[k] })));
+  if (fl.length) h += sec(T("summary.files"), list(fl));
+  return h;
+}
+function renderChatSummary() {
+  const sheet = document.getElementById("summary-sheet"), body = document.getElementById("summary-body"); if (!sheet || !body) return;
+  const c = state.contacts.get(sheet.dataset.cid); if (!c) { sheet.classList.add("hidden"); return; }
+  const period = sheet.dataset.period || "week";
+  sheet.querySelectorAll(".summary-period").forEach((b) => { const on = b.dataset.period === period; b.classList.toggle("on", on); b.setAttribute("aria-pressed", on ? "true" : "false"); });
+  body.innerHTML = chatSummaryHtml(c, period);
+}
+function openChatSummary(contactId) {
+  const sheet = document.getElementById("summary-sheet"); if (!sheet || !state.contacts.get(contactId)) return;
+  sheet.dataset.cid = contactId; sheet.dataset.period = "week";
+  renderChatSummary(); sheet.classList.remove("hidden");
+  setTimeout(() => { try { const b = sheet.querySelector(".summary-period.on"); if (b) b.focus(); } catch (e) {} }, 40);
+}
+function wireChatSummary() {
+  const sheet = document.getElementById("summary-sheet"); if (!sheet) return;
+  sheet.querySelectorAll(".summary-period").forEach((b) => b.addEventListener("click", () => { sheet.dataset.period = b.dataset.period; renderChatSummary(); }));
+  const cp = document.getElementById("summary-copy"); if (cp) cp.addEventListener("click", () => { try { const b = document.getElementById("summary-body"); copyText(b.innerText || b.textContent, T("toast.msgCopied")); } catch (e) {} });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !sheet.classList.contains("hidden")) sheet.classList.add("hidden"); });
+  for (const id of ["chat-summary-btn", "contact-summary-btn"]) {
+    const btn = document.getElementById(id);
+    if (btn) btn.addEventListener("click", () => { const cid = state.chatId || state.contactCardId; if (cid) openChatSummary(cid); });
+  }
+}
 function wireLocalAi() {
+  try { wireChatSummary(); } catch (e) {}
   const sw = document.getElementById("settings-local-ai");
   if (sw) { sw.checked = localAiEnabled(); sw.addEventListener("change", () => { try { localStorage.setItem("ether.localAi", sw.checked ? "1" : "0"); } catch (e) {} }); }
   const sel = document.getElementById("settings-local-ai-lang");

@@ -22,6 +22,7 @@ const dns = require("dns");
 const net = require("net");
 const fs = require("fs");
 const zlib = require("zlib");
+const crypto = require("crypto");
 const path = require("path");
 const { WebSocketServer, WebSocket } = require("ws");
 const { extractMeta } = require("./meta-extract");
@@ -87,6 +88,16 @@ const FALLBACK_ICE = [
 const TURN_STATIC_URL = process.env.TURN_STATIC_URL || "";
 const TURN_STATIC_USERNAME = process.env.TURN_STATIC_USERNAME || "";
 const TURN_STATIC_PASSWORD = process.env.TURN_STATIC_PASSWORD || "";
+// Временные креды по схеме TURN REST API (coturn: use-auth-secret + static-auth-secret). Если задан TURN_STATIC_SECRET, вместо вечных
+// TURN_STATIC_USERNAME/PASSWORD (устаревший способ — их можно раздать кому угодно навсегда) выдаются креды с истечением:
+//   username = "<unix-время-истечения>:ether", credential = base64(HMAC-SHA1(secret, username)); срок жизни — TURN_TTL_SECONDS (24 ч).
+const TURN_STATIC_SECRET = process.env.TURN_STATIC_SECRET || "";
+const TURN_TTL_SECONDS = envInt("TURN_TTL_SECONDS", 86400);
+function turnRestCredentials(secret, ttlSeconds, nowMs) {
+  const username = (Math.floor((nowMs === undefined ? Date.now() : nowMs) / 1000) + ttlSeconds) + ":ether";
+  const credential = crypto.createHmac("sha1", secret).update(username).digest("base64");
+  return { username, credential };
+}
 // Запасной TURN-провайдер (например, с TLS на 443): TURN_EXTRA_JSON='[{"urls":["turns:host:443?transport=tcp"],"username":"u","credential":"p"}]'
 // Принимает чистый JSON-массив ИЛИ JS-фрагмент, как его показывают панели провайдеров (Metered: "var myPeer = new Peer({config:{iceServers:[{urls:'…',username:'…'}]}})"):
 // берётся первый сбалансированный массив [ … ], ключи без кавычек и одинарные кавычки приводятся к JSON, лишние запятые убираются. Код не исполняется.
@@ -158,7 +169,9 @@ async function cloudflareTurnServer() {
   }
 }
 function staticTurnServers() {
-  if (!TURN_STATIC_URL || !TURN_STATIC_USERNAME || !TURN_STATIC_PASSWORD) return null;
+  if (!TURN_STATIC_URL) return null;
+  if (!TURN_STATIC_SECRET && (!TURN_STATIC_USERNAME || !TURN_STATIC_PASSWORD)) return null;
+  const cred = TURN_STATIC_SECRET ? turnRestCredentials(TURN_STATIC_SECRET, TURN_TTL_SECONDS) : { username: TURN_STATIC_USERNAME, credential: TURN_STATIC_PASSWORD };
   // TURN_STATIC_URL может содержать несколько адресов через запятую/пробел. К каждому turn:host:port
   // добавляем вариант ?transport=tcp — когда UDP режется провайдером (DPI), relay по TCP/TLS всё ещё проходит.
   const base = TURN_STATIC_URL.split(/[\s,]+/).filter(Boolean);
@@ -168,7 +181,7 @@ function staticTurnServers() {
     if (/^turn:/i.test(u) && !/transport=/i.test(u)) urls.push(u + "?transport=tcp");
   }
   return [
-    { urls: Array.from(new Set(urls)), username: TURN_STATIC_USERNAME, credential: TURN_STATIC_PASSWORD },
+    { urls: Array.from(new Set(urls)), username: cred.username, credential: cred.credential },
     ...extraTurnServers(),
     { urls: "stun:stun.l.google.com:19302" },
   ];
@@ -347,7 +360,7 @@ async function getIceServers() {
     const turnUrl = TURN_STATIC_URL;
     const alive = await isTurnAlive(turnUrl.split(/[\s,]+/).filter(Boolean)[0]);
     if (alive) {
-      console.log("[ice] используются статические TURN-креденшлы (TURN_STATIC_*)");
+      console.log(TURN_STATIC_SECRET ? "[ice] используются временные TURN-креденшлы (TURN_STATIC_SECRET, TTL " + TURN_TTL_SECONDS + " с)" : "[ice] используются статические TURN-креденшлы (TURN_STATIC_*, устаревший способ)");
     } else {
       console.warn("[ice] TURN " + turnUrl + " недоступен — отдаю только STUN");
       servers = null;
@@ -1004,6 +1017,95 @@ function clearThrottleForRecipient(recipientId) {
   }
 }
 
+// ---------- Claim-токены id (TOFU) ----------
+// Сервер не проверяет владение номером/почтой, из которых получен id, поэтому раньше любой мог занять чужой id (register вытеснял владельца).
+// Теперь клиент при первой регистрации генерирует секрет T (localStorage ether.claimToken) и присылает в register поле claim = sha256("ether-claim-v1|"+T)
+// в hex — сам T по сети не уходит. Сервер запоминает ТОЛЬКО sha256(claim) (утечка файла claim-ов не даёт занять id). Дальше register этого id
+// принимается только с тем же claim; иначе — { type:"register-error", error:"id-claimed" }. Старый клиент без claim может занимать только id без claim.
+// Если владелец не появлялся дольше CLAIM_TTL_HOURS (по умолчанию 336 ч = 14 суток) — claim освобождается и id можно занять заново.
+// Ограничения: это TOFU — кто первым зарегистрировал id с claim, тот и владелец; id, зарегистрированный до обновления, остаётся без защиты, пока владелец
+// не обновится и не зарегистрируется с claim. Хранилище ограничено (CLAIMS_MAX) и защищено лимитом создания claim с одного IP.
+const CLAIM_TTL_MS = envInt("CLAIM_TTL_HOURS", 336) * 3600 * 1000;
+const CLAIMS_MAX = envInt("CLAIMS_MAX", 200000);
+const CLAIM_CREATE_PER_HOUR_PER_IP = envInt("CLAIM_CREATE_PER_HOUR_PER_IP", 60);
+const CLAIMS_PERSIST = process.env.CLAIMS_PERSIST !== "0";
+const CLAIMS_FILE = process.env.CLAIMS_FILE || path.join(process.env.DATA_DIR || __dirname, ".ether-claims.json");
+const claims = new Map(); // id -> { h: sha256(claim) hex, seen: ts }
+const claimCreateHits = new Map();
+const CLAIM_RE = /^[0-9a-f]{64}$/;
+function sha256Hex(str) { return crypto.createHash("sha256").update(str).digest("hex"); }
+function validClaim(c) { return typeof c === "string" && CLAIM_RE.test(c); }
+function claimMatches(rec, claim) {
+  if (!rec || !validClaim(claim)) return false;
+  const a = Buffer.from(rec.h, "hex"), b = Buffer.from(sha256Hex(claim), "hex");
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+function claimExpired(rec, now) { return !rec || now - rec.seen > CLAIM_TTL_MS; }
+function pruneClaims(now) {
+  let n = 0;
+  for (const [id, rec] of claims) if (claimExpired(rec, now) && !(clients.has(id))) { claims.delete(id); n++; }
+  return n;
+}
+function loadClaims() {
+  if (!CLAIMS_PERSIST) return 0;
+  try {
+    if (!fs.existsSync(CLAIMS_FILE)) return 0;
+    const data = JSON.parse(fs.readFileSync(CLAIMS_FILE, "utf8"));
+    if (!data || data.v !== 1 || !Array.isArray(data.claims)) return 0;
+    const now = Date.now();
+    for (const e of data.claims) {
+      if (!Array.isArray(e) || typeof e[0] !== "string" || !e[0] || e[0].length > 128 || !e[1] || !validClaim(e[1].h) || typeof e[1].seen !== "number") continue;
+      if (claims.size >= CLAIMS_MAX) break;
+      if (!claimExpired(e[1], now)) claims.set(e[0], { h: e[1].h, seen: e[1].seen });
+    }
+    console.log("[claims] восстановлено: " + claims.size);
+    return claims.size;
+  } catch (e) { console.warn("[claims] не удалось прочитать файл:", e.message); return 0; }
+}
+function saveClaims() {
+  if (!CLAIMS_PERSIST) return;
+  try {
+    const tmp = CLAIMS_FILE + ".tmp";
+    fs.writeFileSync(tmp, JSON.stringify({ v: 1, claims: Array.from(claims.entries()) }), { mode: 0o600 });
+    fs.renameSync(tmp, CLAIMS_FILE); // атомарно
+  } catch (e) { console.warn("[claims] не удалось сохранить:", e.message); }
+}
+let claimsDirty = false, claimsTimer = null;
+function scheduleClaimsSave() {
+  if (!CLAIMS_PERSIST) return;
+  claimsDirty = true;
+  if (claimsTimer) return;
+  claimsTimer = setTimeout(() => { claimsTimer = null; if (claimsDirty) { claimsDirty = false; saveClaims(); } }, 2000);
+}
+function claimCreateOk(ip) {
+  const now = Date.now();
+  const w = rlGet(claimCreateHits, ip, now);
+  if (now - w.start > 3600_000) { w.start = now; w.n = 0; }
+  w.n++;
+  claimCreateHits.set(ip, w);
+  if (claimCreateHits.size > 5000) pruneRateLimitMap(claimCreateHits);
+  return w.n <= CLAIM_CREATE_PER_HOUR_PER_IP;
+}
+// Решение для register: "ok" (claim принят/создан или id без claim), "claimed" (id занят другим владельцем).
+function claimCheckRegister(id, claim, ip) {
+  const now = Date.now();
+  let rec = claims.get(id);
+  if (rec && claimExpired(rec, now) && !clients.has(id)) { claims.delete(id); rec = null; scheduleClaimsSave(); }
+  if (rec) {
+    if (!claimMatches(rec, claim)) return "claimed";
+    rec.seen = now; scheduleClaimsSave();
+    return "ok";
+  }
+  if (!validClaim(claim)) return "ok"; // старый клиент: id без защиты
+  if (claims.size >= CLAIMS_MAX) { pruneClaims(now); if (claims.size >= CLAIMS_MAX) return "ok"; } // таблица полна — не вытесняем чужие claim-ы, id остаётся без защиты
+  if (!claimCreateOk(ip)) return "ok"; // лимит создания: id регистрируется, но claim не создаётся (клиент повторит позже)
+  claims.set(id, { h: sha256Hex(claim), seen: now });
+  scheduleClaimsSave();
+  return "ok";
+}
+function touchClaim(id) { const r = claims.get(id); if (r) { r.seen = Date.now(); scheduleClaimsSave(); } }
+loadClaims();
+
 // ---------- Утилиты ----------
 function safeSend(ws, obj) {
   if (ws && ws.readyState === WebSocket.OPEN) {
@@ -1020,17 +1122,31 @@ function rosterEntry(id) {
 // включайте, когда клиенты обновились (иначе у старых скрытые контакты будут казаться офлайн).
 const STRICT_ROSTER = process.env.STRICT_ROSTER === "1";
 const WATCH_MAX = 2000;
-function canSeePresence(viewer, targetId, targetVisible) {
-  if (viewer.watch) return viewer.watch.has(targetId) || targetVisible !== false;
-  return STRICT_ROSTER ? targetVisible !== false : true;
+// Скрытый (visible:false) виден ТОЛЬКО тем, кто есть в его собственном ростере (watch): раньше достаточно было вписать чужой id в свой watch — и
+// watch-result/presence выдавали «онлайн» + имя + ключ скрытого кому угодно (оракул присутствия, S3/S11). target — запись клиента ({visible, watch}).
+// Скрытый старый клиент без watch оценивается по прежним правилам (совместимость).
+function canSeePresence(viewer, viewerId, targetId, target) {
+  const targetVisible = target ? target.visible : true;
+  if (targetVisible !== false) return true;
+  if (target && target.watch) return target.watch.has(viewerId);
+  if (viewer.watch) return viewer.watch.has(targetId);
+  return !STRICT_ROSTER;
+}
+// Можно ли доставить сигнал (offer/answer/call-invite) адресату: те же права, что и на присутствие, чтобы unreachable не выдавал скрытого.
+function canReach(fromId, from, targetId, target) {
+  if (!target) return false;
+  if (target.visible !== false) return true;
+  if (target.watch) return target.watch.has(fromId);
+  return from && from.watch ? from.watch.has(targetId) : !STRICT_ROSTER;
 }
 function broadcastPresence(id, online, extra = {}) {
+  const rec = online ? clients.get(id) : (extra.rec || null);
   const entry = online ? rosterEntry(id) : { id, name: "", visible: extra.wasVisible !== false, publicKey: null };
-  const { wasVisible, ...rest } = extra;
-  const visible = entry ? entry.visible : true;
+  const { wasVisible, rec: _rec, ...rest } = extra;
+  const target = rec || { visible: entry ? entry.visible : true, watch: null };
   for (const [otherId, c] of clients) {
     if (otherId === id) continue;
-    if (!canSeePresence(c, id, visible)) continue;
+    if (!canSeePresence(c, otherId, id, target)) continue;
     safeSend(c.ws, { type: "presence", id, online, ...entry, ...rest });
   }
 }
@@ -1063,7 +1179,8 @@ function flushMailbox(id, ws) {
 function isValidEnvelope(env) {
   if (!env || typeof env.ct !== "string" || env.ct.length >= 3.5 * 1024 * 1024) return false;
   // v1: {iv, ct, v?} — статический ECDH; v2: Double Ratchet {v:2, h:{d:[x,y], pn, n, i?, p?}, ct} (js/ratchet.js)
-  if (env.v === 2) {
+  // v2 без поля h — конверт офлайн-очереди формата env2 (AES-GCM с AAD, {iv, ct, v:2}, js/crypto-helper.js): валидируется как v1.
+  if (env.v === 2 && env.h !== undefined) {
     const h = env.h;
     const str = (s) => typeof s === "string" && s.length > 0 && s.length <= 100;
     if (!h || typeof h !== "object" || !Array.isArray(h.d) || h.d.length !== 2 || !str(h.d[0]) || !str(h.d[1])) return false;
@@ -1074,7 +1191,7 @@ function isValidEnvelope(env) {
   return typeof env.iv === "string" && env.iv.length < 200;
 }
 // Возможности сервера, о которых он сообщает клиентам при регистрации: клиент включает новый формат только если сервер его понимает.
-const SERVER_FEATURES = ["ratchet2", "prekeys", "watch"];
+const SERVER_FEATURES = ["ratchet2", "prekeys", "watch", "claim", "env2"];
 
 // ---------- Prekey-пакеты для начала Double Ratchet (3DH/4DH) ----------
 // Клиент заранее выкладывает подписанный-по-смыслу prekey (spk, меняется раз в неделю) и пачку одноразовых (opks).
@@ -1103,7 +1220,7 @@ function validPublicKeyJwk(k) {
 // В ящик попадают только известные поля конверта (раньше сохранялся любой объект, присланный клиентом, целиком).
 function cleanEnvelope(env) {
   const out = {};
-  if (env.v === 2) {
+  if (env.v === 2 && env.h !== undefined) {
     const h = env.h, nh = { d: [h.d[0], h.d[1]], pn: h.pn, n: h.n };
     if (h.i != null) { let l = 1e9; try { l = JSON.stringify(h.i).length; } catch (e) {} if (l > 400) return null; nh.i = h.i; }
     if (h.p != null) nh.p = h.p;
@@ -1167,18 +1284,25 @@ wss.on("connection", (ws, req) => {
         safeSend(ws, { type: "register-rate-limited" });
         return;
       }
+      // Claim-токен: id, занятый другим владельцем (его claim ещё не истёк), занять нельзя — ни новому клиенту с другим токеном, ни старому без токена.
+      if (claimCheckRegister(msg.id, msg.claim, ipAddr) === "claimed") {
+        safeSend(ws, { type: "register-error", error: "id-claimed", id: msg.id });
+        console.log("[reg] " + shortId(msg.id) + " отклонён: id-claimed");
+        return;
+      }
       // Повторный register с ДРУГИМ id на том же сокете: старую запись снимаем (иначе clients[A] навсегда указывал бы на этот сокет).
       if (myId && myId !== msg.id) {
         const prev = clients.get(myId);
         if (prev && prev.ws === ws) {
           clients.delete(myId);
-          broadcastPresence(myId, false, { wasVisible: prev.visible });
+          broadcastPresence(myId, false, { wasVisible: prev.visible, rec: prev });
         }
       }
       if (clients.has(msg.id) && clients.get(msg.id).ws !== ws) {
-        let oldVisible = true;
+        let oldVisible = true, oldRec = null;
         try {
           const old = clients.get(msg.id);
+          oldRec = old;
           oldVisible = old.visible;
           // Для диагностики: с какого адреса пришла «замена» и совпадает ли он со старым соединением (то же устройство/сеть)
           safeSend(old.ws, { type: "replaced", sameIp: old.ip === ipAddr, ageSec: Math.round((Date.now() - (old.since || Date.now())) / 1000) });
@@ -1186,7 +1310,7 @@ wss.on("connection", (ws, req) => {
           // Вытесненный сокет не должен оставаться рабочим, пока закрывается: дожимаем terminate() (его сообщения и так игнорируются — см. проверку выше).
           const oldWs = old.ws; setTimeout(() => { try { oldWs.terminate(); } catch (e) {} }, 1500).unref();
         } catch (e) {}
-        broadcastPresence(msg.id, false, { wasVisible: oldVisible });
+        broadcastPresence(msg.id, false, { wasVisible: oldVisible, rec: oldRec });
       }
       myId = msg.id;
       clearTimeout(regTimer);
@@ -1205,8 +1329,8 @@ wss.on("connection", (ws, req) => {
       const online = Array.from(clients.keys())
         .filter((i) => i !== myId)
         .map((i) => rosterEntry(i))
-        .filter((e) => e && canSeePresence(me0, e.id, e.visible));
-      safeSend(ws, { type: "registered", id: myId, online, features: SERVER_FEATURES, prekeyCount: prekeyCount(myId) });
+        .filter((e) => e && canSeePresence(me0, myId, e.id, clients.get(e.id)));
+      safeSend(ws, { type: "registered", id: myId, online, features: SERVER_FEATURES, prekeyCount: prekeyCount(myId), claimed: claims.has(myId) });
       if (PUSH_ENABLED) safeSend(ws, { type: "vapid-key", key: VAPID_PUBLIC });
       clearThrottleForRecipient(myId);
       flushMailbox(myId, ws);
@@ -1219,9 +1343,19 @@ wss.on("connection", (ws, req) => {
       if (!wsRateLimitOk(watchHits, myId, 20)) return;
       const me = clients.get(myId); if (!me) return;
       const ids = Array.isArray(msg.ids) ? msg.ids.filter((x) => typeof x === "string" && x.length > 0 && x.length <= 128).slice(0, WATCH_MAX) : [];
+      const prevWatch = me.watch;
       me.watch = new Set(ids);
-      const online = ids.filter((i) => i !== myId).map((i) => rosterEntry(i)).filter(Boolean);
+      // Скрытого чужой watch не делает видимым: нужен он сам в чужом ростере (см. canSeePresence).
+      const online = ids.filter((i) => i !== myId).map((i) => rosterEntry(i)).filter((e) => e && canSeePresence(me, myId, e.id, clients.get(e.id)));
       safeSend(ws, { type: "watch-result", online, strict: STRICT_ROSTER });
+      // Скрытый, добавивший контакта в свой ростер, становится виден ему: сообщаем присутствие вновь добавленным.
+      if (me.visible === false) {
+        for (const i of me.watch) {
+          if (i === myId || (prevWatch && prevWatch.has(i))) continue;
+          const other = clients.get(i);
+          if (other && canSeePresence(other, i, myId, me)) safeSend(other.ws, { type: "presence", id: myId, online: true, ...rosterEntry(myId) });
+        }
+      }
       return;
     }
 
@@ -1250,7 +1384,8 @@ wss.on("connection", (ws, req) => {
       if (!wsRateLimitOk(signalHits, myId, SIGNAL_RATE_LIMIT_PER_MIN)) return;
       const target = clients.get(msg.to);
       const payload = { type: "signal", from: myId, data: msg.data };
-      if (target) {
+      // Скрытый адресат, у которого отправителя нет в ростере, неотличим от офлайн/незарегистрированного: тот же ответ unreachable, без доставки.
+      if (target && canReach(myId, clients.get(myId), msg.to, target)) {
         safeSend(target.ws, payload);
         console.log("[sig] " + shortId(myId) + " → " + shortId(msg.to) + " t=" + sanitizeForLog(msg.data && msg.data.t, 24));
       } else {
@@ -1404,9 +1539,11 @@ wss.on("connection", (ws, req) => {
     const left = (ipConnCount.get(ipAddr) || 1) - 1;
     if (left <= 0) ipConnCount.delete(ipAddr); else ipConnCount.set(ipAddr, left);
     if (myId && clients.get(myId) && clients.get(myId).ws === ws) {
-      const wasVisible = clients.get(myId).visible;
+      const goneRec = clients.get(myId);
+      const wasVisible = goneRec.visible;
       clients.delete(myId);
-      broadcastPresence(myId, false, { wasVisible });
+      touchClaim(myId);
+      broadcastPresence(myId, false, { wasVisible, rec: goneRec });
       console.log("[reg] " + shortId(myId) + " disconnected, clients=" + clients.size);
     }
   });
@@ -1473,8 +1610,16 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000);
 
+setInterval(() => {
+  // Подключённый владелец «появляется» постоянно: продлеваем его claim (иначе непрерывно онлайн >TTL claim бы истёк), и чистим протухшие.
+  const now = Date.now();
+  for (const id of clients.keys()) { const r = claims.get(id); if (r) r.seen = now; }
+  if (pruneClaims(now) || clients.size) scheduleClaimsSave();
+}, 3600 * 1000).unref();
+
 function shutdown() {
   console.log("Завершаем работу…");
+  try { saveClaims(); } catch (e) {}
   try { savePushSubs(); } catch (e) {}
   try { saveMailbox(); } catch (e) {}
   for (const ws of wss.clients) { try { ws.close(1001, "server shutdown"); } catch (e) {} }
@@ -1491,7 +1636,7 @@ httpServer.listen(PORT, () => {
   if (CF_TURN_KEY_ID && CF_TURN_API_TOKEN) console.log("[ice] заданы CF_TURN_* — используется Cloudflare TURN");
   { const n = extraTurnServers().length; if (process.env.TURN_EXTRA_JSON) console.log("[ice] TURN_EXTRA_JSON: серверов с логином — " + n); }
   if (staticTurnServers()) {
-    console.log("[ice] заданы TURN_STATIC_* — используется статический TURN");
+    console.log(TURN_STATIC_SECRET ? "[ice] задан TURN_STATIC_SECRET — временные креды TURN REST API" : "[ice] заданы TURN_STATIC_* — используется статический TURN (устаревший способ; лучше TURN_STATIC_SECRET)");
   } else {
     console.log("[ice] TURN_STATIC_* не заданы — /ice будет отдавать только публичные STUN (не пройдёт двойной/симметричный NAT)");
   }
