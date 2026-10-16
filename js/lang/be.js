@@ -34,7 +34,7 @@ window.__LANG_DICTS["be"] = {
     "lock.sub": "Увядзіце PIN",
     "lock.unlock": "Разблакаваць",
     "lock.forgot": "Забылі PIN?",
-    "nav.chats": "Чats",
+    "nav.chats": "Чаты",
     "nav.calls": "Званкі",
     "nav.contacts": "Кантакты",
     "nav.settings": "Налады",
