@@ -24,13 +24,29 @@ const fs = require("fs");
 const zlib = require("zlib");
 const path = require("path");
 const { WebSocketServer, WebSocket } = require("ws");
+const { extractMeta } = require("./meta-extract");
+const { isPrivateIp, validatePushSubscription, validLang, clientIpFrom, sanitizeForLog } = require("./guards");
+
+// Ни одна неожиданная ошибка не должна ронять релей: логируем и живём дальше.
+process.on("uncaughtException", (e) => { try { console.error("[fatal-guard] uncaughtException:", sanitizeForLog(e && e.stack || e, 500)); } catch (e2) {} });
+process.on("unhandledRejection", (e) => { try { console.error("[fatal-guard] unhandledRejection:", sanitizeForLog(e && e.stack || e, 500)); } catch (e2) {} });
+
+// За прокси (Render и т.п.) IP клиента — ПОСЛЕДНЯЯ запись X-Forwarded-For (её дописывает прокси). TRUST_PROXY=0 — не доверять заголовку.
+const TRUST_PROXY = process.env.TRUST_PROXY !== "0";
+const clientIp = (req) => clientIpFrom(req, TRUST_PROXY);
 
 let webpush = null;
 try { webpush = require("web-push"); }
 catch (e) { console.warn("[push] пакет web-push не установлен — push отключён"); }
 
 const PORT = process.env.PORT || 8787;
-const MAX_MAILBOX_PER_USER = 500;
+const envInt = (name, def) => { const n = parseInt(process.env[name], 10); return Number.isFinite(n) && n > 0 ? n : def; };
+const MAX_MAILBOX_PER_USER = envInt("MAILBOX_MAX_PER_USER", 500);
+const MAX_MAILBOX_TOTAL_ENTRIES = envInt("MAILBOX_MAX_TOTAL_ENTRIES", 100000);
+const MAX_MAILBOX_TOTAL_BYTES = envInt("MAILBOX_MAX_TOTAL_BYTES", 400 * 1024 * 1024); // приблизительно, по длине ct и служебному запасу
+const MAX_SIGNAL_SOCKETS_PER_IP = envInt("MAX_SOCKETS_PER_IP", 40);
+const REGISTER_DEADLINE_MS = envInt("REGISTER_DEADLINE_MS", 15000);
+const MAX_PUSH_SUBS = envInt("MAX_PUSH_SUBS", 20000);
 // MAX_PAYLOAD — потолок на весь WS-фрейм целиком (текст, deliver с
 // файлом/голосовым через kind:"file", сигналинг звонков). Офлайн-файлы
 // (sendFileOffline/sendVoiceOffline в app.js) ограничены на клиенте
@@ -172,12 +188,19 @@ function pruneRateLimitMap(map) {
   if (map.size > RL_MAX_ENTRIES) {
     const toRemove = map.size - Math.floor(RL_MAX_ENTRIES * 0.9);
     let removed = 0;
-    for (const k of map.keys()) {
+    for (const k of map.keys()) { // порядок Map = давность последнего обращения (см. rlGet): вытесняем самые «холодные» ключи
       if (removed >= toRemove) break;
       map.delete(k);
       removed++;
     }
   }
+}
+// LRU: при каждом обращении ключ удаляется и вставляется заново — активный ключ всегда в конце Map и
+// не вытесняется потоком одноразовых ключей.
+function rlGet(map, key, now) {
+  const w = map.get(key);
+  if (w) map.delete(key);
+  return w || { start: now, n: 0 };
 }
 
 let iceCache = { at: 0, servers: null };
@@ -185,7 +208,7 @@ const iceHits = new Map(); // ip -> { start, n }
 
 function rateLimitOk(ip) {
   const now = Date.now();
-  const w = iceHits.get(ip) || { start: now, n: 0 };
+  const w = rlGet(iceHits, ip, now);
   if (now - w.start > 60_000) { w.start = now; w.n = 0; }
   w.n++;
   iceHits.set(ip, w);
@@ -202,7 +225,7 @@ const REGISTER_RATE_LIMIT_PER_MIN = 15;
 const registerHits = new Map();
 function registerRateLimitOk(ip) {
   const now = Date.now();
-  const w = registerHits.get(ip) || { start: now, n: 0 };
+  const w = rlGet(registerHits, ip, now);
   if (now - w.start > 60_000) { w.start = now; w.n = 0; }
   w.n++;
   registerHits.set(ip, w);
@@ -227,7 +250,7 @@ const deliverHits = new Map();
 
 function wsRateLimitOk(map, key, limitPerMin) {
   const now = Date.now();
-  const w = map.get(key) || { start: now, n: 0 };
+  const w = rlGet(map, key, now);
   if (now - w.start > 60_000) { w.start = now; w.n = 0; }
   w.n++;
   map.set(key, w);
@@ -241,15 +264,9 @@ function wsRateLimitOk(map, key, limitPerMin) {
 // уже на 6 сообщениях в минуту. Лимит по паре ограничивает fan-out
 // на конкретного получателя, но не мешает человеку писать в разные
 // чаты или разным людям.
-function wsRateLimitPairOk(senderId, recipientId, limitPerMin) {
+function wsRateLimitPairOk(senderId, recipientId, limitPerMin, map = deliverHits) {
   const key = String(senderId) + "→" + String(recipientId);
-  const now = Date.now();
-  const w = deliverHits.get(key) || { start: now, n: 0 };
-  if (now - w.start > 60_000) { w.start = now; w.n = 0; }
-  w.n++;
-  deliverHits.set(key, w);
-  if (deliverHits.size > 5000) pruneRateLimitMap(deliverHits);
-  return w.n <= limitPerMin;
+  return wsRateLimitOk(map, key, limitPerMin);
 }
 // ---------- Проверка доступности TURN ----------
 // ExpressTURN (и любой TURN) может быть недоступен: сервер лежит,
@@ -356,33 +373,12 @@ const linkPreviewHits = new Map();
 
 function linkPreviewRateLimitOk(ip) {
   const now = Date.now();
-  const w = linkPreviewHits.get(ip) || { start: now, n: 0 };
+  const w = rlGet(linkPreviewHits, ip, now);
   if (now - w.start > 60_000) { w.start = now; w.n = 0; }
   w.n++;
   linkPreviewHits.set(ip, w);
   if (linkPreviewHits.size > 5000) pruneRateLimitMap(linkPreviewHits);
   return w.n <= LINK_PREVIEW_RATE_LIMIT_PER_MIN;
-}
-
-function isPrivateIp(ip) {
-  if (net.isIPv4(ip)) {
-    const p = ip.split(".").map(Number);
-    if (p[0] === 10) return true;
-    if (p[0] === 127) return true;
-    if (p[0] === 169 && p[1] === 254) return true;
-    if (p[0] === 172 && p[1] >= 16 && p[1] <= 31) return true;
-    if (p[0] === 192 && p[1] === 168) return true;
-    if (p[0] === 0) return true;
-    return false;
-  }
-  if (net.isIPv6(ip)) {
-    const low = ip.toLowerCase();
-    if (low === "::1") return true;
-    if (low.startsWith("fe80:") || low.startsWith("fc") || low.startsWith("fd")) return true;
-    if (low.startsWith("::ffff:")) return isPrivateIp(low.slice(7)); // IPv4-mapped
-    return false;
-  }
-  return true; // не распознали — на всякий случай считаем небезопасным
 }
 
 // Node не кэширует dns.lookup вообще — каждый resolveHostSafe был
@@ -410,154 +406,109 @@ function resolveHostSafe(hostname) {
   });
 }
 
-async function fetchUrlSafe(targetUrl, redirectsLeft) {
+const LINK_PREVIEW_DEADLINE_MS = 8000; // общий потолок на весь запрос (включая DNS и редиректы)
+async function fetchUrlSafe(targetUrl, redirectsLeft, deadlineAt) {
+  if (!deadlineAt) deadlineAt = Date.now() + LINK_PREVIEW_DEADLINE_MS;
   const u = new URL(targetUrl);
   if (u.protocol !== "http:" && u.protocol !== "https:") throw new Error("scheme not allowed");
   // TOCTOU/DNS rebinding: резолвим и проверяем IP здесь, а затем ЯВНО
-  // передаём именно ЭТОТ IP в http.get через lookup — если этого не
-  // сделать, http.get() резолвит хост ЗАНОВО сам, своим собственным
-  // вызовом DNS, и между двумя резолвами атакующий с коротким TTL на
-  // своём DNS-сервере может успеть подменить публичный IP на приватный
-  // (127.0.0.1 и т.п.), обходя проверку выше полностью.
-  const safe = await resolveHostSafe(u.hostname);
+  // передаём именно ЭТОТ IP в http.get через lookup — иначе http.get()
+  // резолвит хост ЗАНОВО, и атакующий с коротким TTL успел бы подменить
+  // публичный IP на приватный.
+  let dnsTimer;
+  const safe = await Promise.race([
+    resolveHostSafe(u.hostname),
+    new Promise((_, rej) => { dnsTimer = setTimeout(() => rej(new Error("dns timeout")), Math.max(1, deadlineAt - Date.now())); }),
+  ]).finally(() => clearTimeout(dnsTimer));
   const customLookup = (hostname, options, callback) => {
-  // Node вызывает lookup в двух формах: с options.all=true ожидается
-  // массив [{address, family}], без него — пара (address, family).
-  // http.get в актуальных версиях Node идёт по пути с all:true — раньше
-  // мы всегда отдавали строку, и внутренний код получал
-  // [0].address === undefined → "Invalid IP address: undefined".
-  if (options && options.all) {
-    callback(null, [{ address: safe.address, family: safe.family }]);
-  } else {
-    callback(null, safe.address, safe.family);
-  }
-};
+    // Node вызывает lookup в двух формах: с options.all=true ожидается
+    // массив [{address, family}], без него — пара (address, family).
+    if (options && options.all) {
+      callback(null, [{ address: safe.address, family: safe.family }]);
+    } else {
+      callback(null, safe.address, safe.family);
+    }
+  };
 
   const mod = u.protocol === "https:" ? https : http;
   return new Promise((resolve, reject) => {
-    const req = mod.get(u, {
+    // settled-флаг + общий дедлайн: раньше req.destroy(err) выставлял req.destroyed ДО события 'error',
+    // и обработчик `if (!req.destroyed) reject(e)` никогда не вызывал reject — запрос висел вечно.
+    let settled = false, req = null, stream = null, deadline = null;
+    const finish = (fn, v) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(deadline);
+      try { if (stream) stream.destroy(); } catch (e) {}
+      try { if (req) req.destroy(); } catch (e) {}
+      fn(v);
+    };
+    const fail = (e) => finish(reject, e instanceof Error ? e : new Error(String(e)));
+    const ok = (v) => finish(resolve, v);
+    deadline = setTimeout(() => fail(new Error("deadline")), Math.max(1, deadlineAt - Date.now()));
+    req = mod.get(u, {
       lookup: customLookup,
-    headers: {
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-      "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
-      "Accept-Encoding": "gzip, deflate, br",
-      "Cache-Control": "max-age=0",
-      "Connection": "keep-alive",
-      "Upgrade-Insecure-Requests": "1",
-      "Sec-Fetch-Dest": "document",
-      "Sec-Fetch-Mode": "navigate",
-      "Sec-Fetch-Site": "none",
-      "Sec-Fetch-User": "?1",
-      "sec-ch-ua": "\"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"",
-      "sec-ch-ua-mobile": "?0",
-      "sec-ch-ua-platform": "\"Windows\"",
-    },
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Cache-Control": "max-age=0",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "sec-ch-ua": "\"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"Windows\"",
+      },
       timeout: LINK_PREVIEW_TIMEOUT_MS,
     }, (res) => {
+      res.on("error", fail);
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && redirectsLeft > 0) {
         res.resume();
-        const next = new URL(res.headers.location, u).toString();
-        fetchUrlSafe(next, redirectsLeft - 1).then(resolve, reject);
+        let next;
+        try { next = new URL(res.headers.location, u).toString(); } catch (e) { return fail(e); }
+        fetchUrlSafe(next, redirectsLeft - 1, deadlineAt).then(ok, fail);
         return;
       }
-      if (res.statusCode !== 200) { res.resume(); reject(new Error("HTTP " + res.statusCode)); return; }
+      if (res.statusCode !== 200) { res.resume(); fail(new Error("HTTP " + res.statusCode)); return; }
       const ctype = String(res.headers["content-type"] || "");
-      if (ctype && !ctype.includes("html")) { res.resume(); reject(new Error("not html")); return; }
+      if (ctype && !ctype.includes("html")) { res.resume(); fail(new Error("not html")); return; }
 
-      // Сжимаем ответ, если сервер его отдал в gzip/deflate/br. Без
-      // этого мы качаем несжатый HTML — github.com и ya.ru легко
-      // переваливают за LINK_PREVIEW_MAX_BYTES и падают с "too large".
+      // Сжатый ответ распаковываем: без этого github.com и ya.ru переваливают за LINK_PREVIEW_MAX_BYTES.
       const enc = String(res.headers["content-encoding"] || "").toLowerCase();
-      let stream = res;
+      stream = res;
       if (enc === "gzip") stream = res.pipe(zlib.createGunzip());
       else if (enc === "deflate") stream = res.pipe(zlib.createInflate());
       else if (enc === "br") stream = res.pipe(zlib.createBrotliDecompress());
 
       let total = 0;
       const chunks = [];
-      let settled = false;
       let headTail = "";
       stream.on("data", (chunk) => {
         if (settled) return;
         total += chunk.length;
-        if (total > LINK_PREVIEW_MAX_BYTES) { settled = true; req.destroy(); reject(new Error("too large")); return; }
+        if (total > LINK_PREVIEW_MAX_BYTES) { fail(new Error("too large")); return; }
         chunks.push(chunk);
-        // Раньше здесь на КАЖДОМ чанке делался Buffer.concat(все_чанки)
-        // + toString + toLowerCase — то есть для HTML в 500 КБ из 50
-        // чанков это ~12 МБ перекодирования UTF-8 на один запрос.
-        // На бесплатном Render (0.1 CPU) это 1-2 секунды на каждое
-        // превью. Ищем </head> только в хвосте предыдущего текста
-        // (16 символов — с запасом, чтобы поймать </head> на границе
-        // чанков) плюс текущий чанк. Подстрока не может "спрятаться"
-        // в уже проверенной части, так что корректность та же.
+        // Ищем </head> только в хвосте предыдущего текста (16 символов) плюс текущий чанк — без повторного
+        // перекодирования всего накопленного на каждом чанке.
         const chunkText = chunk.toString("utf8").toLowerCase();
         const search = headTail + chunkText;
-        if (search.includes("</head>")) {
-          settled = true;
-          req.destroy();
-          resolve(Buffer.concat(chunks).toString("utf8"));
-          return;
-        }
+        if (search.includes("</head>")) { ok(Buffer.concat(chunks).toString("utf8")); return; }
         headTail = search.slice(-16);
       });
-      stream.on("end", () => { if (!settled) { settled = true; resolve(Buffer.concat(chunks).toString("utf8")); } });
-      stream.on("error", (e) => { if (!settled) { settled = true; reject(e); } });
+      stream.on("end", () => ok(Buffer.concat(chunks).toString("utf8")));
+      stream.on("error", fail);
     });
-    req.on("timeout", () => req.destroy(new Error("timeout")));
-    req.on("error", (e) => { if (!req.destroyed) reject(e); });
+    req.on("timeout", () => fail(new Error("timeout")));
+    req.on("error", fail);
   });
 }
 
-function decodeHtmlEntities(s) {
-  return s
-    .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&apos;/g, "'")
-    // Числовые HTML-сущности: &#8212; (десятичные) и &#x2014;
-    // (шестнадцатеричные). Без них некоторые сайты (BBC, Reuters)
-    // отдают сырые числовые ссылки в og:title / og:description, и в
-    // превью ссылок видно литеральное "&#8212;" вместо "—".
-    .replace(/&#(\d+);/g, (_, code) => {
-      try { return String.fromCodePoint(parseInt(code, 10)); } catch (e) { return "&#" + code + ";"; }
-    })
-    .replace(/&#x([0-9a-f]+);/gi, (_, code) => {
-      try { return String.fromCodePoint(parseInt(code, 16)); } catch (e) { return "&#x" + code + ";"; }
-    });
-}
-
-function extractMeta(html, targetUrl) {
-  const metaTag = (attrPattern) => {
-    const re = new RegExp(`<meta[^>]+${attrPattern}[^>]+content=["']([^"']*)["']`, "i");
-    const re2 = new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]+${attrPattern}`, "i");
-    const m = html.match(re) || html.match(re2);
-    return m ? decodeHtmlEntities(m[1]).trim() : "";
-  };
-  const titleMatch = html.match(/<title[^>]*>([^<]*)<\/title>/i);
-  const ogTitle = metaTag('property=["\']og:title["\']');
-  const ogDesc = metaTag('property=["\']og:description["\']');
-  const ogImage = metaTag('property=["\']og:image["\']');
-  const ogSite = metaTag('property=["\']og:site_name["\']');
-  const plainDesc = metaTag('name=["\']description["\']');
-
-  const title = ogTitle || (titleMatch ? decodeHtmlEntities(titleMatch[1]).trim() : "") || "";
-  const description = ogDesc || plainDesc || "";
-  let image = ogImage || "";
-  if (image) {
-    try { image = new URL(image, targetUrl).toString(); } catch (e) { image = ""; }
-    if (!/^https?:\/\//i.test(image)) image = "";
-  }
-  let siteName = ogSite || "";
-  if (!siteName) { try { siteName = new URL(targetUrl).hostname.replace(/^www\./, ""); } catch (e) {} }
-
-  if (!title && !description && !image) return null;
-  return {
-    url: targetUrl,
-    title: title.slice(0, 200),
-    description: description.slice(0, 300),
-    image: image.slice(0, 2000),
-    siteName: siteName.slice(0, 100),
-  };
-}
+// extractMeta / decodeHtmlEntities вынесены в meta-extract.js (линейный разбор, без ReDoS).
 
 // Отдельный, более короткий TTL для НЕГАТИВНЫХ результатов (data === null:
 // сайт отдал 401/403/439, не ответил, отдал не-HTML). Раз в час долбить
@@ -638,8 +589,7 @@ const httpServer = http.createServer(async (req, res) => {
 
   const url = req.url || "";
   if (req.method === "GET" && (url === "/ice" || url.startsWith("/ice?"))) {
-    const ip = (req.headers["x-forwarded-for"] || "").toString().split(",")[0].trim()
-      || req.socket.remoteAddress || "unknown";
+    const ip = clientIp(req);
     if (!rateLimitOk(ip)) {
       res.writeHead(429, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "rate limited" }));
@@ -657,8 +607,7 @@ const httpServer = http.createServer(async (req, res) => {
   }
 
   if (req.method === "GET" && (url === "/link-preview" || url.startsWith("/link-preview?"))) {
-    const ip = (req.headers["x-forwarded-for"] || "").toString().split(",")[0].trim()
-      || req.socket.remoteAddress || "unknown";
+    const ip = clientIp(req);
     if (!linkPreviewRateLimitOk(ip)) {
       res.writeHead(429, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "rate limited" }));
@@ -703,7 +652,7 @@ const httpServer = http.createServer(async (req, res) => {
 });
 
 // ---------- Web Push ----------
-const PUSH_SUBS_FILE = path.join(__dirname, ".ether-push-subs.json");
+const PUSH_SUBS_FILE = process.env.PUSH_SUBS_FILE || path.join(__dirname, ".ether-push-subs.json");
 
 const VAPID_PUBLIC = process.env.VAPID_PUBLIC || "";
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE || "";
@@ -739,6 +688,44 @@ function mailboxEntryExpired(entry, now) {
   const ttl = entry && entry.kind && entry.kind !== "chat" ? MAILBOX_FILE_TTL_MS : MAILBOX_TEXT_TTL_MS;
   return !entry || typeof entry.ts !== "number" || now - entry.ts > ttl;
 }
+// Учёт объёма ящика. Размер приблизительный (ct + служебный запас) — нужен только для глобальных потолков.
+let mailboxTotalCount = 0, mailboxTotalBytes = 0;
+function approxEntrySize(e) {
+  const env = (e && e.envelope) || {};
+  return 400 + (typeof env.ct === "string" ? env.ct.length : 0) + (typeof env.iv === "string" ? env.iv.length : 0) + (e && e.fromPublicKey ? 300 : 0);
+}
+function mailboxRemove(userId, msgId) {
+  const box = mailbox.get(userId);
+  if (!box) return false;
+  const e = box.get(msgId);
+  if (!e) return false;
+  box.delete(msgId);
+  mailboxTotalCount--; mailboxTotalBytes -= approxEntrySize(e);
+  if (box.size === 0) mailbox.delete(userId); // пустые ящики не копим
+  return true;
+}
+function mailboxEvictGlobalOldest() {
+  let bestUser = null, bestMsg = null, bestTs = Infinity;
+  for (const [uid, box] of mailbox) {
+    const first = box.entries().next().value; // Map хранит порядок вставки — первая запись самая старая
+    if (first && first[1].ts < bestTs) { bestTs = first[1].ts; bestUser = uid; bestMsg = first[0]; }
+  }
+  if (bestUser === null) return false;
+  return mailboxRemove(bestUser, bestMsg);
+}
+// Вставка с проверкой потолков ПРЯМО В МОМЕНТ записи (раньше лишнее срезалось раз в минуту, и за это время ящик раздувался без предела).
+function mailboxPut(userId, msgId, entry) {
+  mailboxRemove(userId, msgId);
+  let box = mailbox.get(userId);
+  if (!box) { box = new Map(); mailbox.set(userId, box); }
+  box.set(msgId, entry);
+  mailboxTotalCount++; mailboxTotalBytes += approxEntrySize(entry);
+  while (box.size > MAX_MAILBOX_PER_USER) mailboxRemove(userId, box.keys().next().value);
+  if (mailboxTotalCount > MAX_MAILBOX_TOTAL_ENTRIES || mailboxTotalBytes > MAX_MAILBOX_TOTAL_BYTES) {
+    const lowC = Math.floor(MAX_MAILBOX_TOTAL_ENTRIES * 0.95), lowB = MAX_MAILBOX_TOTAL_BYTES * 0.95;
+    while ((mailboxTotalCount > lowC || mailboxTotalBytes > lowB) && mailboxEvictGlobalOldest()) { /* вытесняем самые старые */ }
+  }
+}
 function loadMailbox() {
   if (!MAILBOX_PERSIST) return 0;
   try {
@@ -748,11 +735,9 @@ function loadMailbox() {
     const now = Date.now(); let n = 0;
     for (const [id, entries] of data.boxes) {
       if (typeof id !== "string" || !Array.isArray(entries)) continue;
-      const box = new Map();
-      for (const [msgId, entry] of entries) { if (typeof msgId === "string" && !mailboxEntryExpired(entry, now)) { box.set(msgId, entry); n++; } }
-      if (box.size) mailbox.set(id, box);
+      for (const [msgId, entry] of entries) { if (typeof msgId === "string" && !mailboxEntryExpired(entry, now)) { mailboxPut(id, msgId, entry); n++; } }
     }
-    console.log("[mailbox] восстановлено записей: " + n);
+    console.log("[mailbox] восстановлено записей: " + mailboxTotalCount);
     return n;
   } catch (e) { console.warn("[mailbox] не удалось прочитать файл ящика:", e.message); return 0; }
 }
@@ -769,6 +754,18 @@ function saveMailbox() {
     if (json.length > MAILBOX_PERSIST_MAX_BYTES) { // слишком много — на диск только текст (файлы остаются в памяти)
       boxes = boxes.map(([id, es]) => [id, es.filter(([, e]) => !e.kind || e.kind === "chat")]).filter(([, es]) => es.length);
       json = JSON.stringify({ v: 1, boxes });
+    }
+    if (json.length > MAILBOX_PERSIST_MAX_BYTES) { // потолок действует и на текст: оставляем самые новые записи, самые старые отбрасываем
+      const flat = [];
+      for (const [id, es] of boxes) for (const [msgId, e] of es) flat.push({ id, msgId, e, sz: approxEntrySize(e) });
+      flat.sort((a, b) => b.e.ts - a.e.ts);
+      let sum = 0; const keep = new Map();
+      for (const f of flat) {
+        sum += f.sz; if (sum > MAILBOX_PERSIST_MAX_BYTES * 0.9) break;
+        if (!keep.has(f.id)) keep.set(f.id, []);
+        keep.get(f.id).unshift([f.msgId, f.e]);
+      }
+      json = JSON.stringify({ v: 1, boxes: Array.from(keep.entries()) });
     }
     const tmp = MAILBOX_FILE + ".tmp";
     fs.writeFileSync(tmp, json, { mode: 0o600 });
@@ -798,7 +795,11 @@ function loadPushSubs() {
         // Обратная совместимость: старый формат хранил голую подписку
         // (объект с .endpoint), новый — { subscription, lang }.
         const v = entry[1];
-        pushSubs.set(entry[0], v && v.subscription ? v : { subscription: v, lang: "en" });
+        const rec = v && v.subscription ? v : { subscription: v, lang: "en" };
+        // Подписки с диска проверяем так же строго, как новые (endpoint — только известные push-сервисы).
+        const sub = validatePushSubscription(rec.subscription);
+        if (!sub || pushSubs.size >= MAX_PUSH_SUBS) continue;
+        pushSubs.set(entry[0], { subscription: sub, lang: validLang(rec.lang) ? rec.lang : "en" });
       }
     }
     console.log("[push] восстановлено подписок:", pushSubs.size);
@@ -808,7 +809,9 @@ function loadPushSubs() {
 }
 function savePushSubs() {
   try {
-    fs.writeFileSync(PUSH_SUBS_FILE, JSON.stringify(Array.from(pushSubs.entries())));
+    const tmp = PUSH_SUBS_FILE + ".tmp";
+    fs.writeFileSync(tmp, JSON.stringify(Array.from(pushSubs.entries())), { mode: 0o600 });
+    fs.renameSync(tmp, PUSH_SUBS_FILE); // атомарно: обрыв записи не портит прежний файл
   } catch (e) {
     console.warn("[push] не удалось сохранить файл подписок:", e.message);
   }
@@ -876,10 +879,12 @@ const PUSH_TEXT = {
   fa: { call: "تماس", incomingCall: "تماس ورودی", newMessage: "پیام جدید", aggregatedMessages: (n) => `${n} پیام جدید` },
   uk: { call: "Дзвінок", incomingCall: "Вхідний дзвінок", newMessage: "Нове повідомлення", aggregatedMessages: (n) => `${n} нових повідомлень` },
 };
+const hasOwn = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 function pushText(lang, key, params) {
-  const base = (lang || "en").toLowerCase().split(/[-_]/)[0];
-  const table = PUSH_TEXT[base] || PUSH_TEXT.en;
-  const val = table[key] !== undefined ? table[key] : PUSH_TEXT.en[key];
+  // lang приходит от клиента: PUSH_TEXT["constructor"] раньше возвращал функцию Object и ронял процесс. Только собственные ключи.
+  const base = (typeof lang === "string" && lang ? lang : "en").toLowerCase().split(/[-_]/)[0];
+  const table = hasOwn(PUSH_TEXT, base) ? PUSH_TEXT[base] : PUSH_TEXT.en;
+  const val = hasOwn(table, key) ? table[key] : (hasOwn(PUSH_TEXT.en, key) ? PUSH_TEXT.en[key] : undefined);
   const resolved = typeof val === "function" ? val(params && params.n) : val;
   // Если ключа нет даже в en (опечатка при добавлении нового ключа) —
   // не отдаём undefined в заголовок/текст уведомления.
@@ -924,6 +929,7 @@ async function actuallySendPush(subEntry, payload) {
     await webpush.sendNotification(subEntry.subscription, JSON.stringify(buildDeclarativePush(payload, subEntry.lang)), {
       TTL: ttl,
       urgency: payload.kind === "call" ? "high" : "normal",
+      timeout: 10000, // не даём подвисшему push-сервису держать сокет вечно
     });
     return true;
   } catch (e) {
@@ -1077,22 +1083,65 @@ const SERVER_FEATURES = ["ratchet2", "prekeys", "watch"];
 const prekeys = new Map(); // id -> { spk: {id, pub:[x,y]}|null, opks: Map(opkId -> [x,y]), ts }
 const prekeyUploadHits = new Map();
 const prekeyFetchHits = new Map();
+const prekeyPairHits = new Map();   // отдельно от deliverHits: выборка prekey не должна съедать квоту deliver (и наоборот)
+const prekeyTargetHits = new Map(); // общий лимит на ЦЕЛЬ: не даём выкачать одноразовые ключи жертвы с разных аккаунтов
+const PREKEY_FETCH_PER_TARGET_PER_MIN = 10;
+const callPushRecipientAt = new Map(); // получатель -> ts последнего принудительного push о звонке
+const callPushPairAt = new Map();      // отправитель→получатель -> ts
+const CALL_PUSH_RECIPIENT_MS = 15 * 1000, CALL_PUSH_PAIR_MS = 30 * 1000;
+const ipConnCount = new Map();         // ip -> число открытых сокетов
+// Язык push приходит от клиента: нормализуем ("ru_RU" → "ru-RU") и проверяем по белому списку формы, иначе "en".
+function normLang(l) {
+  if (typeof l !== "string" || l.length > 35) return "en";
+  const t = l.split(/[-_]/).slice(0, 2).join("-");
+  return validLang(t) ? t : "en";
+}
+function validPublicKeyJwk(k) {
+  if (k == null || typeof k !== "object" || Array.isArray(k)) return false;
+  try { return JSON.stringify(k).length <= 1024; } catch (e) { return false; }
+}
+// В ящик попадают только известные поля конверта (раньше сохранялся любой объект, присланный клиентом, целиком).
+function cleanEnvelope(env) {
+  const out = {};
+  if (env.v === 2) {
+    const h = env.h, nh = { d: [h.d[0], h.d[1]], pn: h.pn, n: h.n };
+    if (h.i != null) { let l = 1e9; try { l = JSON.stringify(h.i).length; } catch (e) {} if (l > 400) return null; nh.i = h.i; }
+    if (h.p != null) nh.p = h.p;
+    out.v = 2; out.h = nh; out.ct = env.ct;
+  } else {
+    out.iv = env.iv; out.ct = env.ct;
+    if (typeof env.v === "number" || typeof env.v === "string") out.v = typeof env.v === "string" ? env.v.slice(0, 8) : env.v;
+  }
+  if (typeof env.rc === "number" || typeof env.rc === "boolean") out.rc = env.rc;
+  return out;
+}
+function cleanKind(k) { return typeof k === "string" && k.length <= 24 && /^[a-z0-9-]+$/i.test(k) ? k : "chat"; }
 const PREKEY_MAX_OPKS = 100, PREKEY_MAX_UPLOAD = 50, PREKEY_LOW = 10, PREKEY_TTL_MS = 30 * 24 * 3600 * 1000;
 function validPrekeyPub(p) { return Array.isArray(p) && p.length === 2 && p.every((s) => typeof s === "string" && s.length >= 20 && s.length <= 100 && /^[A-Za-z0-9_-]+$/.test(s)); }
 function validPrekeyId(s) { return typeof s === "string" && s.length >= 1 && s.length <= 32 && /^[A-Za-z0-9_-]+$/.test(s); }
 function prekeyCount(id) { const e = prekeys.get(id); return e ? e.opks.size : 0; }
 setInterval(() => { const now = Date.now(); for (const [id, e] of prekeys) if (now - e.ts > PREKEY_TTL_MS) prekeys.delete(id); }, 3600 * 1000).unref();
-function shortId(s) { return String(s || "").slice(0, 10) + "…"; }
+function shortId(s) { return sanitizeForLog(String(s || "").slice(0, 10), 10) + "…"; }
 
 // ---------- Соединения ----------
 wss.on("connection", (ws, req) => {
   let myId = null;
-  const clientIp = (req && req.headers && req.headers["x-forwarded-for"] || "").toString().split(",")[0].trim()
-    || (req && req.socket && req.socket.remoteAddress) || "unknown";
+  const ipAddr = clientIp(req);
+  ws.on("error", () => {});
+  // Не более MAX_SIGNAL_SOCKETS_PER_IP одновременных соединений с одного адреса (с запасом на несколько вкладок/устройств).
+  const nConn = (ipConnCount.get(ipAddr) || 0) + 1;
+  if (nConn > MAX_SIGNAL_SOCKETS_PER_IP) { try { ws.close(1013, "too many connections"); } catch (e) {} setTimeout(() => { try { ws.terminate(); } catch (e) {} }, 1000).unref(); return; }
+  ipConnCount.set(ipAddr, nConn);
+  // Сокет, который не зарегистрировался за REGISTER_DEADLINE_MS, закрываем: иначе пустые соединения живут вечно.
+  const regTimer = setTimeout(() => { if (!myId) { try { ws.terminate(); } catch (e) {} } }, REGISTER_DEADLINE_MS);
   ws.isAlive = true;
   ws.on("pong", () => (ws.isAlive = true));
 
   ws.on("message", (raw) => {
+    // Любая ошибка в разборе сообщения не должна ронять процесс — логируем и идём дальше.
+    try { onMessage(raw); } catch (e) { console.error("[ws] ошибка обработчика:", sanitizeForLog(e && e.stack || e, 300)); }
+  });
+  const onMessage = (raw) => {
     let msg;
     try { msg = JSON.parse(raw); } catch (e) { return; }
     if (!msg || typeof msg.type !== "string") return;
@@ -1110,10 +1159,21 @@ wss.on("connection", (ws, req) => {
       return;
     }
 
+    // Всё, кроме register/ping, — только от текущего (не вытесненного) соединения зарегистрированного id.
+    if (msg.type !== "register" && (!myId || !clients.get(myId) || clients.get(myId).ws !== ws)) return;
+
     if (msg.type === "register" && typeof msg.id === "string" && msg.id && msg.id.length <= 128) {
-      if (!registerRateLimitOk(clientIp)) {
+      if (!registerRateLimitOk(ipAddr)) {
         safeSend(ws, { type: "register-rate-limited" });
         return;
+      }
+      // Повторный register с ДРУГИМ id на том же сокете: старую запись снимаем (иначе clients[A] навсегда указывал бы на этот сокет).
+      if (myId && myId !== msg.id) {
+        const prev = clients.get(myId);
+        if (prev && prev.ws === ws) {
+          clients.delete(myId);
+          broadcastPresence(myId, false, { wasVisible: prev.visible });
+        }
       }
       if (clients.has(msg.id) && clients.get(msg.id).ws !== ws) {
         let oldVisible = true;
@@ -1121,19 +1181,22 @@ wss.on("connection", (ws, req) => {
           const old = clients.get(msg.id);
           oldVisible = old.visible;
           // Для диагностики: с какого адреса пришла «замена» и совпадает ли он со старым соединением (то же устройство/сеть)
-          safeSend(old.ws, { type: "replaced", sameIp: old.ip === clientIp, ageSec: Math.round((Date.now() - (old.since || Date.now())) / 1000) });
+          safeSend(old.ws, { type: "replaced", sameIp: old.ip === ipAddr, ageSec: Math.round((Date.now() - (old.since || Date.now())) / 1000) });
           old.ws.close();
+          // Вытесненный сокет не должен оставаться рабочим, пока закрывается: дожимаем terminate() (его сообщения и так игнорируются — см. проверку выше).
+          const oldWs = old.ws; setTimeout(() => { try { oldWs.terminate(); } catch (e) {} }, 1500).unref();
         } catch (e) {}
         broadcastPresence(msg.id, false, { wasVisible: oldVisible });
       }
       myId = msg.id;
+      clearTimeout(regTimer);
       ws._etherId = myId;
       ws.lastClientPing = Date.now();
       clients.set(myId, {
-        ws, ip: clientIp, since: Date.now(),
+        ws, ip: ipAddr, since: Date.now(),
         name: String(msg.name || "").slice(0, 60),
         visible: msg.visible !== false,
-        publicKey: msg.publicKey || null,
+        publicKey: validPublicKeyJwk(msg.publicKey) ? msg.publicKey : null, // раньше без проверки типа/размера и рассылалось всем наблюдателям
         // Новый клиент передаёт список контактов уже при регистрации — первый ростер сразу урезан (иначе до отдельного watch он бы получил всех)
         watch: Array.isArray(msg.watch) ? new Set(msg.watch.filter((x) => typeof x === "string" && x.length > 0 && x.length <= 128).slice(0, WATCH_MAX)) : null,
       });
@@ -1165,7 +1228,11 @@ wss.on("connection", (ws, req) => {
     if (msg.type === "push-subscribe" && myId && msg.subscription) {
       if (!wsRateLimitOk(pushSubHits, myId, 10)) return;
       try {
-        pushSubs.set(myId, { subscription: msg.subscription, lang: typeof msg.lang === "string" ? msg.lang : "en" });
+        // endpoint выбирает клиент — без проверки это слепой SSRF (сервер сам делает POST на этот адрес). Только https и известные push-сервисы.
+        const sub = validatePushSubscription(msg.subscription);
+        if (!sub) { safeSend(ws, { type: "push-subscribe-error", error: "invalid-subscription" }); return; }
+        if (!pushSubs.has(myId) && pushSubs.size >= MAX_PUSH_SUBS) { safeSend(ws, { type: "push-subscribe-error", error: "full" }); return; }
+        pushSubs.set(myId, { subscription: sub, lang: normLang(msg.lang) });
         schedulePushSubsSave();
         safeSend(ws, { type: "push-subscribed" });
         console.log("[push] подписка сохранена для", shortId(myId), "всего=" + pushSubs.size);
@@ -1185,10 +1252,10 @@ wss.on("connection", (ws, req) => {
       const payload = { type: "signal", from: myId, data: msg.data };
       if (target) {
         safeSend(target.ws, payload);
-        console.log("[sig] " + shortId(myId) + " → " + shortId(msg.to) + " t=" + (msg.data && msg.data.t));
+        console.log("[sig] " + shortId(myId) + " → " + shortId(msg.to) + " t=" + sanitizeForLog(msg.data && msg.data.t, 24));
       } else {
         safeSend(ws, { type: "unreachable", to: msg.to });
-        console.log("[sig] " + shortId(myId) + " → UNREACHABLE " + shortId(msg.to) + " t=" + (msg.data && msg.data.t));
+        console.log("[sig] " + shortId(myId) + " → UNREACHABLE " + shortId(msg.to) + " t=" + sanitizeForLog(msg.data && msg.data.t, 24));
       }
       if (msg.data && msg.data.t === "call-invite") {
         // Дедупликация по packet.x — если это повторная отправка ТОГО ЖЕ
@@ -1196,9 +1263,17 @@ wss.on("connection", (ws, req) => {
         // клиента), получатель уже получил push на эту попытку звонка.
         // На клиенте isDuplicateSignal защищает от повторной обработки
         // сигнала, но push к тому моменту уже был бы отправлен повторно.
-        const inviteNonce = msg.data.x;
+        const inviteNonce = (typeof msg.data.x === "string" || typeof msg.data.x === "number") ? String(msg.data.x).slice(0, 128) : null;
         if (inviteNonce && callInvitePushSent.has(inviteNonce)) return;
         if (inviteNonce) callInvitePushSent.set(inviteNonce, Date.now());
+        // Принудительные (force) push о звонке обходят общий троттлинг — ограничиваем отдельно: не чаще раза в 15 с на получателя
+        // и раза в 30 с на пару отправитель→получатель (первый push уходит сразу).
+        { const tNow = Date.now(), pk = myId + "→" + msg.to;
+          const lr = callPushRecipientAt.get(msg.to), lp = callPushPairAt.get(pk);
+          if ((lr && tNow - lr < CALL_PUSH_RECIPIENT_MS) || (lp && tNow - lp < CALL_PUSH_PAIR_MS)) { console.log("[call-push] throttled " + shortId(myId) + " → " + shortId(msg.to)); return; }
+          console.log("[call-push] allowed " + shortId(myId) + " → " + shortId(msg.to));
+          callPushRecipientAt.set(msg.to, tNow); callPushPairAt.set(pk, tNow);
+          for (const m of [callPushRecipientAt, callPushPairAt]) if (m.size > 50000) m.delete(m.keys().next().value); }
         const me = clients.get(myId);
         const recipientLang = (pushSubs.get(msg.to) || {}).lang;
         const myName = (me && me.name) || pushText(recipientLang, "call");
@@ -1241,19 +1316,23 @@ wss.on("connection", (ws, req) => {
         safeSend(ws, { type: "deliver-ack", msgId: msg.msgId, error: "invalid-envelope" });
         return;
       }
-      const kind = typeof msg.kind === "string" ? msg.kind : "chat";
+      const kind = cleanKind(msg.kind);
+      const envelope = cleanEnvelope(msg.envelope);
+      if (!envelope) {
+        safeSend(ws, { type: "deliver-ack", msgId: msg.msgId, error: "invalid-envelope" });
+        return;
+      }
       const target = clients.get(msg.to);
-      console.log("[deliver] " + shortId(myId) + " → " + shortId(msg.to) + " msgId=" + String(msg.msgId).slice(0, 8) + "… kind=" + kind + " online=" + !!target);
+      console.log("[deliver] " + shortId(myId) + " → " + shortId(msg.to) + " msgId=" + sanitizeForLog(msg.msgId, 8) + "… kind=" + sanitizeForLog(kind, 24) + " online=" + !!target);
       const payload = {
         from: myId,
         msgId: msg.msgId,
-        envelope: msg.envelope,
+        envelope,
         fromPublicKey: msg.fromPublicKey || null,
         kind,
       };
 
-      if (!mailbox.has(msg.to)) mailbox.set(msg.to, new Map());
-      mailbox.get(msg.to).set(msg.msgId, { ...payload, ts: Date.now() });
+      mailboxPut(msg.to, msg.msgId, { ...payload, ts: Date.now() }); // потолки (на получателя и общие) проверяются при вставке
       scheduleMailboxSave();
 
       if (target && target.ws.readyState === WebSocket.OPEN) {
@@ -1299,10 +1378,12 @@ wss.on("connection", (ws, req) => {
       return;
     }
     if (msg.type === "prekey-fetch" && myId && typeof msg.to === "string" && msg.to.length <= 128 && typeof msg.rid === "string" && msg.rid.length <= 40) {
-      if (!wsRateLimitOk(prekeyFetchHits, myId, 60) || !wsRateLimitPairOk(myId, msg.to, 12)) { safeSend(ws, { type: "prekey-bundle", rid: msg.rid, to: msg.to, error: "rate" }); return; }
+      if (!wsRateLimitOk(prekeyFetchHits, myId, 60) || !wsRateLimitPairOk(myId, msg.to, 12, prekeyPairHits)) { safeSend(ws, { type: "prekey-bundle", rid: msg.rid, to: msg.to, error: "rate" }); return; }
       const e = prekeys.get(msg.to);
       let opk = null;
-      if (e && e.opks.size) { const k = e.opks.keys().next().value; opk = { id: k, pub: e.opks.get(k) }; e.opks.delete(k); }
+      // Сверх лимита на цель отдаём только подписанный prekey, не расходуя одноразовый (иначе их можно выкачать за минуту с нескольких аккаунтов).
+      const targetOk = wsRateLimitOk(prekeyTargetHits, msg.to, PREKEY_FETCH_PER_TARGET_PER_MIN);
+      if (targetOk && e && e.opks.size) { const k = e.opks.keys().next().value; opk = { id: k, pub: e.opks.get(k) }; e.opks.delete(k); }
       safeSend(ws, { type: "prekey-bundle", rid: msg.rid, to: msg.to, spk: e && e.spk ? e.spk : null, opk });
       // Владельцу — сигнал пополнить запас, если он онлайн
       if (e && opk && e.opks.size < PREKEY_LOW) {
@@ -1313,13 +1394,15 @@ wss.on("connection", (ws, req) => {
     }
 
     if (msg.type === "mailbox-ack" && myId && typeof msg.msgId === "string") {
-      const box = mailbox.get(myId);
-      if (box && box.delete(msg.msgId)) scheduleMailboxSave();
+      if (mailboxRemove(myId, msg.msgId)) scheduleMailboxSave();
       return;
     }
-  });
+  };
 
   ws.on("close", () => {
+    clearTimeout(regTimer);
+    const left = (ipConnCount.get(ipAddr) || 1) - 1;
+    if (left <= 0) ipConnCount.delete(ipAddr); else ipConnCount.set(ipAddr, left);
     if (myId && clients.get(myId) && clients.get(myId).ws === ws) {
       const wasVisible = clients.get(myId).visible;
       clients.delete(myId);
@@ -1351,17 +1434,15 @@ setInterval(() => {
 
 setInterval(() => {
   const now = Date.now();
-  for (const box of mailbox.values()) {
-    // Файлы (в отличие от текста) весят много больше — не даём им
-    // копиться дольше разумного окна ожидания, даже если общий счётчик
-    // per-user ещё не выбран целиком.
-    for (const [msgId, entry] of box) {
-      if (mailboxEntryExpired(entry, now)) { box.delete(msgId); scheduleMailboxSave(); }
+  for (const [uid, box] of Array.from(mailbox)) {
+    // Файлы (в отличие от текста) весят много больше — не даём им копиться дольше разумного окна ожидания.
+    for (const [msgId, entry] of Array.from(box)) {
+      if (mailboxEntryExpired(entry, now)) { mailboxRemove(uid, msgId); scheduleMailboxSave(); }
     }
-    if (box.size <= MAX_MAILBOX_PER_USER) continue;
-    const entries = Array.from(box.entries()).sort((a, b) => a[1].ts - b[1].ts);
-    for (let i = 0; i < entries.length - MAX_MAILBOX_PER_USER; i++) box.delete(entries[i][0]);
+    const cur = mailbox.get(uid);
+    if (cur && cur.size === 0) mailbox.delete(uid);
   }
+  for (const m of [callPushRecipientAt, callPushPairAt]) for (const [k, ts] of m) if (now - ts > CALL_PUSH_PAIR_MS) m.delete(k);
 }, 60000);
 
 setInterval(() => {
