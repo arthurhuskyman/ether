@@ -1237,6 +1237,26 @@ function applyTheme(theme) {
   if (meta) meta.setAttribute("content", isLight ? "#fafafc" : (theme === "oled" ? "#000000" : "#08080a"));
   try { if (typeof Skins !== "undefined") Skins.syncMeta(); } catch (e) {}
 }
+// Dynamic Type: режим «Как в системе» берёт размер из системной настройки текста (в Safari/iOS — шрифт -apple-system-body, 17px = 100%).
+// В других браузерах шрифт не распознаётся, множитель остаётся 1.
+const DT_BASE = { "--fs-xs": 11, "--fs-sm": 13, "--fs-base": 15, "--fs-md": 17, "--fs-lg": 22, "--fs-xl": 28, "--fs-2xl": 34 };
+function systemTextScale() {
+  try {
+    const probe = document.createElement("span");
+    probe.style.cssText = "position:absolute;visibility:hidden;font:-apple-system-body";
+    document.body.appendChild(probe);
+    const px = parseFloat(getComputedStyle(probe).fontSize); probe.remove();
+    if (!isFinite(px) || px <= 0) return 1;
+    return Math.min(1.6, Math.max(0.85, px / 17));
+  } catch (e) { return 1; }
+}
+function applyDynamicType() {
+  const st = document.documentElement.style;
+  if ((Store.fontSize || "normal") !== "system") { st.removeProperty("--ui-scale"); for (const k in DT_BASE) st.removeProperty(k); return; }
+  const r = systemTextScale();
+  st.setProperty("--ui-scale", String(+r.toFixed(3)));
+  for (const k in DT_BASE) st.setProperty(k, Math.round(DT_BASE[k] * r * 10) / 10 + "px");
+}
 function applyChatAppearancePrefs() {
   const messages = $("#chat-messages");
   if (messages) {
@@ -1245,6 +1265,7 @@ function applyChatAppearancePrefs() {
   }
   document.documentElement.dataset.bubbleSize = Store.bubbleSize || "normal";
   document.documentElement.dataset.fontSize = Store.fontSize || "normal";
+  applyDynamicType();
   document.documentElement.dataset.readable = Store.readableMode ? "1" : "0";
 }
 // «Спокойный режим» — отключает анимацию фона и снижает блюр для тех,
@@ -2348,7 +2369,7 @@ function lockViewportGestures() {
 function wireViewportRecalc() {
   lockViewportGestures();
   try { document.documentElement.classList.toggle("is-standalone", isStandalone()); } catch (e) {}
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) { forceViewportRecalc(); } });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) { forceViewportRecalc(); try { applyDynamicType(); } catch (e) {} } });
   window.addEventListener("pageshow", () => { forceViewportRecalc(); });
   window.addEventListener("focus", () => { forceViewportRecalc(); });
 }

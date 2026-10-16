@@ -153,6 +153,7 @@ window.__LANG_DICTS["ru"] = {
     "settings.fontSize.compact": "Компактный",
     "settings.fontSize.normal": "Стандартный",
     "settings.fontSize.large": "Крупный",
+    "settings.fontSize.system": "Как в системе (Dynamic Type)",
     "settings.wallpaper": "Обои чата",
     "settings.wallpaper.none": "Нет",
     "settings.wallpaper.dots": "Точки",

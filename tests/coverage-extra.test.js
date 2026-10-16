@@ -68,3 +68,47 @@ test("Skins: неизвестный id → default, set/get/apply, meta theme-co
   assert.ok(o.names.every((n) => n && !n.startsWith("skin.")));
   a.close();
 });
+
+test("Dynamic Type: «Как в системе» выставляет множитель, остальные режимы его снимают", async () => {
+  const a = createApp(); await a.ready;
+  a.window.__o = null;
+  await a.run(`(() => {
+    const st = document.documentElement.style, r = {};
+    Store.fontSize = "system"; applyChatAppearancePrefs();
+    r.sys = st.getPropertyValue("--ui-scale"); r.fs = st.getPropertyValue("--fs-base");
+    Store.fontSize = "large"; applyChatAppearancePrefs();
+    r.after = st.getPropertyValue("--ui-scale") + "|" + st.getPropertyValue("--fs-base");
+    r.opt = !!document.querySelector('#settings-font-size option[value="system"]');
+    window.__o = r;
+  })()`);
+  const o = JSON.parse(JSON.stringify(a.window.__o));
+  assert.ok(Number(o.sys) >= 0.85 && Number(o.sys) <= 1.6); assert.match(o.fs, /px$/);
+  assert.equal(o.after, "|"); assert.ok(o.opt);
+  a.close();
+});
+
+test("Санитайзеры входящих данных: время, длительность, срок жизни, тип файла, права админа", async () => {
+  const a = createApp(); await a.ready;
+  a.window.__o = null;
+  await a.run(`(() => {
+    const now = Date.now(), r = {};
+    r.ts = [safeMsgTs(now - 1000) === now - 1000, safeMsgTs(now + 3600e3) >= now, safeMsgTs("x") >= now, safeMsgTs(1) >= now - 5, safeMsgTs(NaN) >= now];
+    r.dur = [safeDuration(5), safeDuration(-1), safeDuration("<img onerror=1>"), safeDuration(1e9), safeDuration(Infinity)];
+    r.ttl = [safeTtl(1000), safeTtl(999), safeTtl(-5), safeTtl(1e15), safeTtl("5000")];
+    r.kind = ["image/svg+xml", "image/png", "IMAGE/JPEG", "video/mp4", "audio/ogg", "", null, "application/pdf"].map(fileKindFromMime);
+    const g = { createdBy: "a", members: [{ id: "a", role: "admin" }, { id: "b", role: "member" }, { id: "c", role: "admin" }] };
+    r.adm = [isGroupAdmin(g, "a"), isGroupAdmin(g, "b"), isGroupAdmin(g, "c"), isGroupAdmin(g, "zzz"), isGroupAdmin(null, "a"), isGroupAdmin(g, "")];
+    g.members.shift(); r.adm2 = isGroupAdmin(g, "a");
+    r.esc = escapeHtml('<b a="1">&\\'');
+    window.__o = r;
+  })()`);
+  const o = JSON.parse(JSON.stringify(a.window.__o));
+  assert.deepEqual(o.ts, [true, true, true, true, true]);
+  assert.deepEqual(o.dur, [5, 0, 0, 0, 0]);
+  assert.deepEqual(o.ttl, [1000, 0, 0, 0, 5000]);
+  assert.deepEqual(o.kind, ["file", "image", "image", "video", "audio", "file", "file", "file"]);
+  assert.deepEqual(o.adm, [true, false, true, false, false, false]);
+  assert.equal(o.adm2, false);
+  assert.ok(!o.esc.includes("<") && !o.esc.includes('"'));
+  a.close();
+});
