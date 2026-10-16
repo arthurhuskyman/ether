@@ -959,6 +959,7 @@ window.__LANG_DICTS["sl"] = {
     "help.groups.body": "V zavihku Stiki tapnite »Nova skupina«, ji dajte ime in izberite do 9 ljudi. Skupine vas neposredno povežejo z vsakim članom (skupaj do 10) — skupinskega strežnika ni. V skupinah delujejo besedilo, odgovori, posredovanje, odzivi, datoteke, glasovna sporočila, ankete, table in zapiski, začnete pa lahko skupinski klic ali glasovno sobo. Nove člane lahko vabijo samo skrbniki.",
     "help.calls.body": "Za klic tapnite ikono telefona ali kamere na vrhu klepeta. Med klicem lahko utišate mikrofon, vklopite/izklopite kamero, zamenjate kamero in preklapljate med slušalko in zvočnikom. Če je oseba brez povezave, prejme obvestilo, vi pa lahko pustite glasovno sporočilo. V skupini tapnite ikono klica za skupinski klic.",
     "help.privacy.body": "Sporočila so end-to-end šifrirana z Double Ratchet — berete jih lahko samo vi in druga oseba, ne strežnik. Strežnik napravam le pomaga, da se najdejo, in do 14 dni hrani šifrirano kuverto, če je prejemnik brez povezave. V profilu stika odprite varnostno številko in jo primerjajte ali osebno skenirajte kodo QR ter stik označite kot preverjen. V nastavitvah lahko nastavite kodo PIN in vklopite »Šifriraj podatke v tej napravi« — sporočila, ključi in datoteke se nato shranjujejo šifrirano s ključem, izpeljanim iz vaše kode PIN (če kodo PIN pozabite, podatkov ni mogoče obnoviti).",
+    "settings.fontSize.system": "Sledi sistemu (Dynamic Type)",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("sl");

@@ -959,6 +959,7 @@ window.__LANG_DICTS["sk"] = {
     "help.groups.body": "Na karte Kontakty klepnite na „Nová skupina“, pomenujte ju a vyberte až 9 ľudí. Skupiny vás spájajú priamo s každým členom (spolu najviac 10) — neexistuje žiadny skupinový server. V skupinách fungujú text, odpovede, preposielanie, reakcie, súbory, hlasové správy, ankety, tabule a poznámky a môžete začať skupinový hovor alebo hlasovú miestnosť. Nových členov môžu pozývať iba správcovia.",
     "help.calls.body": "Hovor uskutočníte klepnutím na ikonu telefónu alebo kamery v hornej časti chatu. Počas hovoru môžete stlmiť mikrofón, zapnúť/vypnúť kameru, prepnúť kamery a prepínať medzi slúchadlom a reproduktorom. Ak je osoba offline, dostane oznámenie a vy môžete zanechať odkaz. V skupine spustíte skupinový hovor klepnutím na ikonu hovoru.",
     "help.privacy.body": "Správy sú end-to-end šifrované pomocou Double Ratchet — čítať ich môžete iba vy a druhá osoba, nie server. Server len pomáha zariadeniam nájsť sa a až na 14 dní uchováva zašifrovanú obálku, ak je príjemca offline. V profile kontaktu otvorte bezpečnostné číslo a porovnajte ho, alebo osobne naskenujte QR a označte kontakt ako overený. V Nastaveniach môžete nastaviť PIN a zapnúť „Šifrovať údaje v tomto zariadení“ — správy, kľúče a súbory sa potom ukladajú zašifrované kľúčom odvodeným z vášho PIN (ak PIN zabudnete, údaje sa nedajú obnoviť).",
+    "settings.fontSize.system": "Podľa systému (Dynamic Type)",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("sk");
