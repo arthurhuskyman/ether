@@ -2424,6 +2424,8 @@ html[data-readable="1"] .chat-row-preview-text, html[data-readable="1"] .setting
   :root { --line-1: rgba(255, 255, 255, 0.28); --line-2: rgba(255, 255, 255, 0.42); --glass-border: rgba(255, 255, 255, 0.4); --ink-3: rgba(255, 255, 255, 0.72); --ink-2: rgba(255, 255, 255, 0.82); }
   html[data-scheme="light"] { --line-1: rgba(0, 0, 0, 0.32); --line-2: rgba(0, 0, 0, 0.5); --glass-border: rgba(0, 0, 0, 0.45); --ink-3: rgba(10, 10, 15, 0.78); --ink-2: rgba(10, 10, 15, 0.86); }
   .bubble, .glass, .glass-content, .flat-content, .quick-reaction-flyout, .unread-badge { box-shadow: none !important; border: 1px solid var(--line-2) !important; }
+  /* контейнер меню «+» — прозрачная колонка: рамка нужна только самим плашкам (иначе при «Повышенной контрастности» вокруг меню рисуется прямоугольник) */
+  #composer-menu-sheet .sheet-panel, #composer-menu-sheet .composer-menu-actions { border: 0 !important; box-shadow: none !important; outline: 0 !important; background: none !important; }
 }
 
 .load-earlier-btn {
