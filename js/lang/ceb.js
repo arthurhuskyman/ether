@@ -589,7 +589,6 @@ window.__LANG_DICTS["ceb"] = {
     "fx.wrapped.hour": "imong labing busy nga oras",
     "fx.wrapped.pause": "mga adlaw — imong pinakataas nga paghunong (uban ni {name})",
     "fx.verify": "Susiha ang gipirmahan nga export",
-    "fx.verify.ok": "Balido ang pirma ug chain sa mga mensahe (gi-export ni {name})",
     "fx.verify.bad": "Nadaot o giusab ang export",
     "fx.signedExport": "I-export ang chat nga may pirma (JSON)",
     "fx.signedExport.done": "Natipigan ang gipirmahan nga export",

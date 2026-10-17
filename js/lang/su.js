@@ -589,7 +589,6 @@ window.__LANG_DICTS["su"] = {
     "fx.wrapped.hour": "jam anjeun pang sibukna",
     "fx.wrapped.pause": "poé — jeda anjeun pang panjangna (jeung {name})",
     "fx.verify": "Pariksa ékspor nu geus ditandatanganan",
-    "fx.verify.ok": "Tanda tangan jeung ranté pesen sah (diékspor ku {name})",
     "fx.verify.bad": "Ékspor rusak atawa geus dirobah",
     "fx.signedExport": "Ékspor obrolan nganggo tanda tangan (JSON)",
     "fx.signedExport.done": "Ékspor nu ditandatanganan disimpen",

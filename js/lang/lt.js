@@ -589,7 +589,6 @@ window.__LANG_DICTS["lt"] = {
     "fx.wrapped.hour": "jūsų darbymetė valanda",
     "fx.wrapped.pause": "d. — ilgiausia jūsų pauzė (su {name})",
     "fx.verify": "Patikrinti pasirašytą eksportą",
-    "fx.verify.ok": "Parašas ir žinučių grandinė galioja (eksportavo {name})",
     "fx.verify.bad": "Eksportas pažeistas arba pakeistas",
     "fx.signedExport": "Eksportuoti pokalbį su parašu (JSON)",
     "fx.signedExport.done": "Pasirašytas eksportas išsaugotas",

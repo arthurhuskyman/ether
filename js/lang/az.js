@@ -589,7 +589,6 @@ window.__LANG_DICTS["az"] = {
     "fx.wrapped.hour": "ən məşğul saatınız",
     "fx.wrapped.pause": "gün — ən uzun fasiləniz ({name} ilə)",
     "fx.verify": "İmzalı ixracı yoxla",
-    "fx.verify.ok": "İmza və mesaj zənciri etibarlıdır ({name} ixrac edib)",
     "fx.verify.bad": "İxrac zədələnib və ya dəyişdirilib",
     "fx.signedExport": "Çatı imza ilə ixrac et (JSON)",
     "fx.signedExport.done": "İmzalı ixrac saxlanıldı",

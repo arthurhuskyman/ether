@@ -589,7 +589,6 @@ window.__LANG_DICTS["ar"] = {
     "fx.wrapped.hour": "ساعتك الأكثر نشاطًا",
     "fx.wrapped.pause": "يومًا — أطول توقف لك (مع {name})",
     "fx.verify": "التحقق من تصدير موقّع",
-    "fx.verify.ok": "التوقيع وسلسلة الرسائل صالحان (صدّرها {name})",
     "fx.verify.bad": "ملف التصدير تالف أو تم تعديله",
     "fx.signedExport": "تصدير المحادثة مع توقيع (JSON)",
     "fx.signedExport.done": "تم حفظ التصدير الموقّع",

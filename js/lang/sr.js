@@ -589,7 +589,6 @@ window.__LANG_DICTS["sr"] = {
     "fx.wrapped.hour": "ваш најпрометнији сат",
     "fx.wrapped.pause": "дана — ваша најдужа пауза (са {name})",
     "fx.verify": "Провери потписани извоз",
-    "fx.verify.ok": "Потпис и ланац порука су исправни (извезао {name})",
     "fx.verify.bad": "Извоз је оштећен или измењен",
     "fx.signedExport": "Извези ћаскање са потписом (JSON)",
     "fx.signedExport.done": "Потписани извоз сачуван",

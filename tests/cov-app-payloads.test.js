@@ -178,7 +178,7 @@ test("outbox: flushOutboxItem (нет ключа, нет контакта, ус�
   a.close();
 });
 
-test("applyIncomingPayload: null/не-объект payload не должен бросать исключение", { todo: "bug: js/app.js:9122 — payload === null (kind→\"chat\") даёт TypeError на payload.groupId; handleDeliver не защищён от JSON null после расшифровки" }, async () => {
+test("applyIncomingPayload: null/не-объект payload не должен бросать исключение", async () => {
   const a = await boot(); seed(a);
   assert.doesNotThrow(() => a.run(`applyIncomingPayload("alice", "e", null, true, null)`));
   assert.doesNotThrow(() => a.run(`applyIncomingPayload("alice", "e", 5, true, null)`));

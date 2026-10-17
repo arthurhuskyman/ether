@@ -589,7 +589,6 @@ window.__LANG_DICTS["jv"] = {
     "fx.wrapped.hour": "jam paling sibuk sampeyan",
     "fx.wrapped.pause": "dina — jeda paling dawa sampeyan (karo {name})",
     "fx.verify": "Verifikasi ekspor sing ditandatangani",
-    "fx.verify.ok": "Tanda tangan lan rantai pesen sah (diekspor dening {name})",
     "fx.verify.bad": "Ekspor rusak utawa wis diowahi",
     "fx.signedExport": "Ekspor obrolan nganggo tanda tangan (JSON)",
     "fx.signedExport.done": "Ekspor sing ditandatangani wis disimpen",

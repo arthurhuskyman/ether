@@ -589,7 +589,6 @@ window.__LANG_DICTS["tl"] = {
     "fx.wrapped.hour": "iyong pinakaabalang oras",
     "fx.wrapped.pause": "araw — ang pinakamahaba mong paghinto (kay {name})",
     "fx.verify": "I-verify ang nilagdaang export",
-    "fx.verify.ok": "Wasto ang lagda at ang kadena ng mensahe (na-export ni {name})",
     "fx.verify.bad": "Sira ang export o binago ito",
     "fx.signedExport": "I-export ang chat na may lagda (JSON)",
     "fx.signedExport.done": "Na-save ang nilagdaang export",

@@ -589,7 +589,6 @@ window.__LANG_DICTS["fr"] = {
     "fx.wrapped.hour": "votre heure la plus active",
     "fx.wrapped.pause": "jours — votre plus longue pause (avec {name})",
     "fx.verify": "Vérifier un export signé",
-    "fx.verify.ok": "La signature et la chaîne de messages sont valides (exporté par {name})",
     "fx.verify.bad": "L'export est endommagé ou a été modifié",
     "fx.signedExport": "Exporter le chat avec signature (JSON)",
     "fx.signedExport.done": "Export signé enregistré",

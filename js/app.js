@@ -9118,6 +9118,7 @@ async function handleDeliver(detail, replay) {
 }
 function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind) {
   const kind = (payload && payload.kind) || openKind || "chat";
+  if (kind === "chat" && (!payload || typeof payload !== "object")) return; // расшифровка могла дать null/не-объект — не падаем
   if (kind === "chat") {
     const groupId = payload.groupId;
     const c = groupId ? state.contacts.get(groupId) : ensureContactEntry(from, null);

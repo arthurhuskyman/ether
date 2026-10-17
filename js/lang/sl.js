@@ -589,7 +589,6 @@ window.__LANG_DICTS["sl"] = {
     "fx.wrapped.hour": "vaša najbolj zaposlena ura",
     "fx.wrapped.pause": "dni — vaš najdaljši premor (z {name})",
     "fx.verify": "Preveri podpisan izvoz",
-    "fx.verify.ok": "Podpis in veriga sporočil sta veljavna (izvozil {name})",
     "fx.verify.bad": "Izvoz je poškodovan ali spremenjen",
     "fx.signedExport": "Izvozi klepet s podpisom (JSON)",
     "fx.signedExport.done": "Podpisan izvoz shranjen",

@@ -589,7 +589,6 @@ window.__LANG_DICTS["hu"] = {
     "fx.wrapped.hour": "a legaktívabb órád",
     "fx.wrapped.pause": "nap — a leghosszabb szüneted ({name} kontakttal)",
     "fx.verify": "Aláírt exportálás ellenőrzése",
-    "fx.verify.ok": "Az aláírás és az üzenetlánc érvényes (exportálta: {name})",
     "fx.verify.bad": "Az export sérült vagy módosították",
     "fx.signedExport": "Csevegés exportálása aláírással (JSON)",
     "fx.signedExport.done": "Aláírt export mentve",

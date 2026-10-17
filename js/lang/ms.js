@@ -589,7 +589,6 @@ window.__LANG_DICTS["ms"] = {
     "fx.wrapped.hour": "jam anda paling sibuk",
     "fx.wrapped.pause": "hari — jeda terpanjang anda (dengan {name})",
     "fx.verify": "Sahkan eksport bertandatangan",
-    "fx.verify.ok": "Tandatangan dan rantaian mesej adalah sah (dieksport oleh {name})",
     "fx.verify.bad": "Eksport rosak atau telah diubah",
     "fx.signedExport": "Eksport sembang dengan tandatangan (JSON)",
     "fx.signedExport.done": "Eksport bertandatangan disimpan",

@@ -589,7 +589,6 @@ window.__LANG_DICTS["lv"] = {
     "fx.wrapped.hour": "jūsu aktīvākā stunda",
     "fx.wrapped.pause": "dienas — jūsu garākā pauze (ar {name})",
     "fx.verify": "Pārbaudīt parakstītu eksportu",
-    "fx.verify.ok": "Paraksts un ziņu ķēde ir derīgi (eksportējis {name})",
     "fx.verify.bad": "Eksports ir bojāts vai mainīts",
     "fx.signedExport": "Eksportēt tērzēšanu ar parakstu (JSON)",
     "fx.signedExport.done": "Parakstītais eksports saglabāts",

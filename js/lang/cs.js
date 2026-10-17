@@ -589,7 +589,6 @@ window.__LANG_DICTS["cs"] = {
     "fx.wrapped.hour": "vaše nejvytíženější hodina",
     "fx.wrapped.pause": "dní — vaše nejdelší pauza (s {name})",
     "fx.verify": "Ověřit podepsaný export",
-    "fx.verify.ok": "Podpis a řetězec zpráv jsou platné (exportoval {name})",
     "fx.verify.bad": "Export je poškozen nebo byl upraven",
     "fx.signedExport": "Exportovat chat s podpisem (JSON)",
     "fx.signedExport.done": "Podepsaný export uložen",

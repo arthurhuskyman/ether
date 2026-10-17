@@ -589,7 +589,6 @@ window.__LANG_DICTS["am"] = {
     "fx.wrapped.hour": "በጣም የተጠመዱበት ሰዓት",
     "fx.wrapped.pause": "ቀናት — ረጅሙ ቆምታዎ (ከ{name} ጋር)",
     "fx.verify": "የተፈረመ ወደ ውጭ መላክን አረጋግጥ",
-    "fx.verify.ok": "ፊርማው እና የመልዕክት ሰንሰለቱ ትክክል ናቸው ({name} ወደ ውጭ ልኳል)",
     "fx.verify.bad": "ወደ ውጭ የተላከው ፋይል ተበላሽቷል ወይም ተቀይሯል",
     "fx.signedExport": "ውይይቱን በፊርማ ወደ ውጭ ላክ (JSON)",
     "fx.signedExport.done": "የተፈረመ ወደ ውጭ መላክ ተቀምጧል",

@@ -589,7 +589,6 @@ window.__LANG_DICTS["no"] = {
     "fx.wrapped.hour": "din travleste time",
     "fx.wrapped.pause": "dager — din lengste pause (med {name})",
     "fx.verify": "Verifiser en signert eksport",
-    "fx.verify.ok": "Signatur og meldingskjede er gyldige (eksportert av {name})",
     "fx.verify.bad": "Eksporten er skadet eller har blitt endret",
     "fx.signedExport": "Eksporter chat med signatur (JSON)",
     "fx.signedExport.done": "Signert eksport lagret",

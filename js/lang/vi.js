@@ -589,7 +589,6 @@ window.__LANG_DICTS["vi"] = {
     "fx.wrapped.hour": "giờ bạn nhắn nhiều nhất",
     "fx.wrapped.pause": "ngày — quãng nghỉ dài nhất của bạn (với {name})",
     "fx.verify": "Xác minh bản xuất có chữ ký",
-    "fx.verify.ok": "Chữ ký và chuỗi tin nhắn hợp lệ (xuất bởi {name})",
     "fx.verify.bad": "Bản xuất bị hỏng hoặc đã bị chỉnh sửa",
     "fx.signedExport": "Xuất cuộc trò chuyện có chữ ký (JSON)",
     "fx.signedExport.done": "Đã lưu bản xuất có chữ ký",

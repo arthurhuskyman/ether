@@ -589,7 +589,6 @@ window.__LANG_DICTS["tr"] = {
     "fx.wrapped.hour": "en yoğun saatiniz",
     "fx.wrapped.pause": "gün — en uzun molanız ({name} ile)",
     "fx.verify": "İmzalı dışa aktarımı doğrula",
-    "fx.verify.ok": "İmza ve mesaj zinciri geçerli ({name} tarafından dışa aktarıldı)",
     "fx.verify.bad": "Dışa aktarım bozuk veya değiştirilmiş",
     "fx.signedExport": "Sohbeti imzayla dışa aktar (JSON)",
     "fx.signedExport.done": "İmzalı dışa aktarım kaydedildi",

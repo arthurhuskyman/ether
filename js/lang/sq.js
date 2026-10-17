@@ -589,7 +589,6 @@ window.__LANG_DICTS["sq"] = {
     "fx.wrapped.hour": "ora juaj më e zënë",
     "fx.wrapped.pause": "ditë — pushimi juaj më i gjatë (me {name})",
     "fx.verify": "Verifiko një eksport të nënshkruar",
-    "fx.verify.ok": "Nënshkrimi dhe zinxhiri i mesazheve janë të vlefshëm (eksportuar nga {name})",
     "fx.verify.bad": "Eksporti është dëmtuar ose është ndryshuar",
     "fx.signedExport": "Eksporto bisedën me nënshkrim (JSON)",
     "fx.signedExport.done": "Eksporti i nënshkruar u ruajt",

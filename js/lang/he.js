@@ -589,7 +589,6 @@ window.__LANG_DICTS["he"] = {
     "fx.wrapped.hour": "השעה העמוסה שלך",
     "fx.wrapped.pause": "ימים — ההפסקה הארוכה שלך (עם {name})",
     "fx.verify": "אימות ייצוא חתום",
-    "fx.verify.ok": "החתימה ושרשרת ההודעות תקינות (יוצא על ידי {name})",
     "fx.verify.bad": "הייצוא פגום או שונה",
     "fx.signedExport": "ייצוא צ'אט עם חתימה (JSON)",
     "fx.signedExport.done": "הייצוא החתום נשמר",

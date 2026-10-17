@@ -589,7 +589,6 @@ window.__LANG_DICTS["ro"] = {
     "fx.wrapped.hour": "ora ta cea mai aglomerată",
     "fx.wrapped.pause": "zile — cea mai lungă pauză a ta (cu {name})",
     "fx.verify": "Verifică un export semnat",
-    "fx.verify.ok": "Semnătura și lanțul de mesaje sunt valide (exportat de {name})",
     "fx.verify.bad": "Exportul este deteriorat sau a fost modificat",
     "fx.signedExport": "Exportă conversația cu semnătură (JSON)",
     "fx.signedExport.done": "Export semnat salvat",

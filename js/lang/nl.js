@@ -589,7 +589,6 @@ window.__LANG_DICTS["nl"] = {
     "fx.wrapped.hour": "jouw drukste uur",
     "fx.wrapped.pause": "dagen — jouw langste pauze (met {name})",
     "fx.verify": "Een ondertekende export controleren",
-    "fx.verify.ok": "Handtekening en berichtenketen zijn geldig (geëxporteerd door {name})",
     "fx.verify.bad": "Export is beschadigd of gewijzigd",
     "fx.signedExport": "Chat exporteren met handtekening (JSON)",
     "fx.signedExport.done": "Ondertekende export opgeslagen",

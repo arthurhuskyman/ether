@@ -589,7 +589,6 @@ window.__LANG_DICTS["sw"] = {
     "fx.wrapped.hour": "saa yako yenye shughuli nyingi zaidi",
     "fx.wrapped.pause": "siku — mapumziko yako marefu zaidi (na {name})",
     "fx.verify": "Thibitisha usafirishaji uliosainiwa",
-    "fx.verify.ok": "Sahihi na mnyororo wa jumbe ni halali (imesafirishwa na {name})",
     "fx.verify.bad": "Usafirishaji umeharibika au umebadilishwa",
     "fx.signedExport": "Safirisha gumzo kwa sahihi (JSON)",
     "fx.signedExport.done": "Usafirishaji uliosainiwa umehifadhiwa",

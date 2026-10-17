@@ -589,7 +589,6 @@ window.__LANG_DICTS["sk"] = {
     "fx.wrapped.hour": "vaša najrušnejšia hodina",
     "fx.wrapped.pause": "dní — vaša najdlhšia pauza (s {name})",
     "fx.verify": "Overiť podpísaný export",
-    "fx.verify.ok": "Podpis a reťazec správ sú platné (exportoval {name})",
     "fx.verify.bad": "Export je poškodený alebo bol zmenený",
     "fx.signedExport": "Exportovať čet s podpisom (JSON)",
     "fx.signedExport.done": "Podpísaný export uložený",

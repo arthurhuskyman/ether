@@ -589,7 +589,6 @@ window.__LANG_DICTS["ha"] = {
     "fx.wrapped.hour": "sa'ar da ka fi yawan aiki",
     "fx.wrapped.pause": "kwanaki — dogon hutunka (da {name})",
     "fx.verify": "Tabbatar da fitarwa mai sa hannu",
-    "fx.verify.ok": "Sa hannu da jerin saƙonni suna da inganci ({name} ne ya fitar)",
     "fx.verify.bad": "Fitarwar ta lalace ko an canza ta",
     "fx.signedExport": "Fitar da hira mai sa hannu (JSON)",
     "fx.signedExport.done": "An adana fitarwa mai sa hannu",

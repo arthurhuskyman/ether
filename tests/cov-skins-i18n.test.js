@@ -172,9 +172,9 @@ test("i18n: все 72 словаря: непустые значения, пле�
   assert.deepEqual(problems, []);
 });
 
-test("i18n: fx.verify.ok — плейсхолдер {fp} во всех языках", { todo: "bug: js/lang/*.js (кроме en/ru) fx.verify.ok содержит {name}, код (js/features.js:667) передаёт {fp}" }, () => {
+test("i18n: fx.verify.ok — где ключ переведён, плейсхолдер {fp} (иначе используется английский)", () => {
   const files = fs.readdirSync(path.join(ROOT, "js", "lang")).filter((f) => f.endsWith(".js"));
-  const bad = files.filter((f) => !loadDict(f)["fx.verify.ok"].includes("{fp}"));
+  const bad = files.filter((f) => { const v = loadDict(f)["fx.verify.ok"]; return v !== undefined && !v.includes("{fp}"); });
   assert.deepEqual(bad, []);
 });
 

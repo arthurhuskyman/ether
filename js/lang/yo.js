@@ -589,7 +589,6 @@ window.__LANG_DICTS["yo"] = {
     "fx.wrapped.hour": "wákàtí tó kún jù fún ọ",
     "fx.wrapped.pause": "ọjọ́ — ìdádúró rẹ tó gùn jù (pẹ̀lú {name})",
     "fx.verify": "Ṣàyẹ̀wò ohun tí a kó jáde tó ní ìbuwọ́lù",
-    "fx.verify.ok": "Ìbuwọ́lù àti ẹ̀wọ̀n ifiranṣẹ jẹ́ òtítọ́ ({name} ló kó jáde)",
     "fx.verify.bad": "Ohun tí a kó jáde ti bàjẹ́ tàbí a ti yí i padà",
     "fx.signedExport": "Kó ìjíròrò jáde pẹ̀lú ìbuwọ́lù (JSON)",
     "fx.signedExport.done": "A ti fi ohun tí a kó jáde tó ní ìbuwọ́lù pamọ́",

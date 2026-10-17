@@ -589,7 +589,6 @@ window.__LANG_DICTS["ja"] = {
     "fx.wrapped.hour": "いちばん忙しい時間帯",
     "fx.wrapped.pause": "日 — 最も長い空白期間（{name}さんとの間）",
     "fx.verify": "署名付きエクスポートを検証",
-    "fx.verify.ok": "署名とメッセージチェーンは有効です（{name}がエクスポート）",
     "fx.verify.bad": "エクスポートが破損しているか、改ざんされています",
     "fx.signedExport": "署名付きでチャットをエクスポート（JSON）",
     "fx.signedExport.done": "署名付きエクスポートを保存しました",

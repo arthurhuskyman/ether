@@ -589,7 +589,6 @@ window.__LANG_DICTS["ko"] = {
     "fx.wrapped.hour": "가장 바빴던 시간",
     "fx.wrapped.pause": "일 — 가장 긴 공백 ({name}님과)",
     "fx.verify": "서명된 내보내기 확인",
-    "fx.verify.ok": "서명과 메시지 체인이 유효합니다 (내보낸 사람: {name})",
     "fx.verify.bad": "내보내기가 손상되었거나 수정되었습니다",
     "fx.signedExport": "서명과 함께 채팅 내보내기 (JSON)",
     "fx.signedExport.done": "서명된 내보내기를 저장했습니다",

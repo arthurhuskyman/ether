@@ -589,7 +589,6 @@ window.__LANG_DICTS["et"] = {
     "fx.wrapped.hour": "sinu kõige tihedam tund",
     "fx.wrapped.pause": "päeva — sinu pikim paus (kontaktiga {name})",
     "fx.verify": "Kontrolli allkirjastatud eksporti",
-    "fx.verify.ok": "Allkiri ja sõnumiahel on kehtivad (eksportis {name})",
     "fx.verify.bad": "Eksport on kahjustatud või muudetud",
     "fx.signedExport": "Ekspordi vestlus allkirjaga (JSON)",
     "fx.signedExport.done": "Allkirjastatud eksport salvestatud",

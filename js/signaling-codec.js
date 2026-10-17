@@ -34,8 +34,9 @@ const SignalingCodec = (() => {
     try {
       const ds = new DecompressionStream("gzip");
       const writer = ds.writable.getWriter();
-      writer.write(bytes);
-      writer.close();
+      // запись/закрытие не ждём напрямую, но их ошибку гасим: на битом gzip она иначе всплывает как unhandled rejection
+      writer.write(bytes).catch(() => {});
+      writer.close().catch(() => {});
       const out = await new Response(ds.readable).arrayBuffer();
       return new Uint8Array(out);
     } catch (e) {

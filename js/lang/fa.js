@@ -589,7 +589,6 @@ window.__LANG_DICTS["fa"] = {
     "fx.wrapped.hour": "شلوغ‌ترین ساعت شما",
     "fx.wrapped.pause": "روز — طولانی‌ترین وقفه شما (با {name})",
     "fx.verify": "تأیید خروجی امضاشده",
-    "fx.verify.ok": "امضا و زنجیره پیام معتبر است (صادرشده توسط {name})",
     "fx.verify.bad": "خروجی آسیب دیده یا تغییر کرده است",
     "fx.signedExport": "خروجی گرفتن از چت با امضا (JSON)",
     "fx.signedExport.done": "خروجی امضاشده ذخیره شد",

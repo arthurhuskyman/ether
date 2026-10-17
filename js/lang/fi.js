@@ -589,7 +589,6 @@ window.__LANG_DICTS["fi"] = {
     "fx.wrapped.hour": "vilkkain tuntisi",
     "fx.wrapped.pause": "päivää — pisin taukosi (kontaktin {name} kanssa)",
     "fx.verify": "Tarkista allekirjoitettu vienti",
-    "fx.verify.ok": "Allekirjoitus ja viestiketju ovat kelvolliset (viejä {name})",
     "fx.verify.bad": "Vienti on vioittunut tai sitä on muokattu",
     "fx.signedExport": "Vie keskustelu allekirjoituksella (JSON)",
     "fx.signedExport.done": "Allekirjoitettu vienti tallennettu",

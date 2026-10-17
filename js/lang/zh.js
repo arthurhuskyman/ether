@@ -589,7 +589,6 @@ window.__LANG_DICTS["zh"] = {
     "fx.wrapped.hour": "你最活跃的时段",
     "fx.wrapped.pause": "天——你最长的沉默（与 {name}）",
     "fx.verify": "验证已签名的导出文件",
-    "fx.verify.ok": "签名和消息链有效（由 {name} 导出）",
     "fx.verify.bad": "导出文件已损坏或被修改",
     "fx.signedExport": "导出带签名的聊天记录 (JSON)",
     "fx.signedExport.done": "已保存签名导出文件",

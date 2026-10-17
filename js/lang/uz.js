@@ -589,7 +589,6 @@ window.__LANG_DICTS["uz"] = {
     "fx.wrapped.hour": "eng gavjum soatingiz",
     "fx.wrapped.pause": "kun — eng uzoq pauzangiz ({name} bilan)",
     "fx.verify": "Imzolangan eksportni tekshirish",
-    "fx.verify.ok": "Imzo va xabarlar zanjiri to'g'ri ({name} eksport qilgan)",
     "fx.verify.bad": "Eksport shikastlangan yoki o'zgartirilgan",
     "fx.signedExport": "Chatni imzo bilan eksport qilish (JSON)",
     "fx.signedExport.done": "Imzolangan eksport saqlandi",
