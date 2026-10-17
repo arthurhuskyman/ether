@@ -9,7 +9,7 @@ const { createApp, closeAll } = require("./harness");
 const PORT = 8795;
 let server;
 test.before(async () => {
-  server = spawn(process.execPath, [path.join(__dirname, "..", "signaling-server", "server.js")], { env: { ...process.env, PORT: String(PORT), VAPID_PUBLIC: "", VAPID_PRIVATE: "" }, stdio: "ignore" });
+  server = spawn(process.execPath, [path.join(__dirname, "..", "signaling-server", "server.js")], { env: { ...process.env, PORT: String(PORT), VAPID_PUBLIC: "", VAPID_PRIVATE: "", CLAIMS_PERSIST: "0", MAILBOX_PERSIST: "0" }, stdio: "ignore" });
   await new Promise((r) => setTimeout(r, 1200));
 });
 test.after(async () => { await closeAll(); try { server.kill(); } catch (e) {} });
@@ -61,6 +61,7 @@ test("настоящий сервер: старый клиент (без rc/ratc
   const B = await boot("bob-old", "Bob", "alice-old", "Alice");
   assert.ok(await until(() => A.run(`!!state.contacts.get("bob-old").publicKey`) && B.run(`!!state.contacts.get("alice-old").publicKey`)));
   // «старый» Боб: не объявляет поддержку и не умеет читать v2 — имитируем, подменив отправку на прежний формат
+  A.run(`markContactEnv2 = () => {}; state.contacts.get("bob-old").e2 = false;`); // «старый» Боб не объявляет env2 ни в регистрации, ни в конвертах
   B.run(`encryptForContact = async (contact, msgId, payload) => { const k = await CryptoHelper.deriveSharedKey(Store.myPrivateKeyJwk, contact.publicKey); return await CryptoHelper.encryptJson(k, payload); };`);
   send(B, "alice-old", "o1", chat("old1", "я старый клиент"));
   assert.ok(await until(() => has(A, "bob-old", "old1")), "новая Алиса читает старый формат");

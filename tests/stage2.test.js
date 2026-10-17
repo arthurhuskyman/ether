@@ -114,11 +114,12 @@ test("C7: отметка «проверен» привязана к ключу �
 
 test("F6: после недозвона предлагается голосовое сообщение; У1: новый профиль получает спокойный стиль, существующий — нет", async () => {
   const a = await booted();
-  a.run(`const c = ensureContactEntry("alice", "Alice"); c.managed = true; window.__vm = []; offerVoicemail = async (id) => { window.__vm.push(id); }; setTimeout = (fn) => { fn(); return 1; };
+  a.run(`const c = ensureContactEntry("alice", "Alice"); c.managed = true; window.__vm = []; window.__st = setTimeout; offerVoicemail = async (id) => { window.__vm.push(id); }; setTimeout = (fn) => { fn(); return 1; };
     state.currentCallRecord = { contactId: "alice", direction: "out", answeredAt: null, startedAt: Date.now() }; closeCallScreen("declined");`);
   assert.deepEqual(J(a.run(`window.__vm`)), ["alice"]);
   a.run(`window.__vm.length = 0; state.currentCallRecord = { contactId: "alice", direction: "out", answeredAt: Date.now(), startedAt: Date.now() }; closeCallScreen("failed");`);
   assert.equal(a.run(`window.__vm.length`), 0, "разговор был — не предлагаем");
+  a.run(`setTimeout = window.__st;`); // иначе таймеры переподключения исполняются синхронно и после закрытия окна уходят в бесконечную рекурсию
   a.close();
   const fresh = createApp({ storage: { "ether.lang": "ru" } }); await fresh.ready;
   assert.equal(fresh.run(`FX.get("patina")`), false, "новый профиль: декор выключен");

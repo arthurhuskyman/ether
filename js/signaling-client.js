@@ -20,8 +20,10 @@ function etherLogShouldPrint(level) {
 }
 function etherLog(level, ...args) {
   const line = args.map((a) => (typeof a === "string" ? a : safeJson(a))).join(" ");
-  window.__etherDiag.push({ ts: Date.now(), level, line });
-  if (window.__etherDiag.length > 500) window.__etherDiag.shift();
+  try { // окно могло уже закрыться (выгрузка страницы, тесты) — журнал не должен ронять вызывающий код
+    window.__etherDiag.push({ ts: Date.now(), level, line });
+    if (window.__etherDiag.length > 500) window.__etherDiag.shift();
+  } catch (e) { return; }
   if (etherLogShouldPrint(level)) (console[level] || console.log).call(console, ...args);
 }
 function safeJson(a) {
