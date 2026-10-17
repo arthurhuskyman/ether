@@ -58,7 +58,7 @@ html[data-skin] #composer-menu-sheet .composer-menu-item { border: var(--sk-bw) 
 html[data-skin] .bubble-reaction-chip { border: var(--sk-bw) var(--sk-bs, solid) var(--sk-line); }
 html[data-skin] .board-card { background: var(--sk-field, var(--sk-panel)); border: var(--sk-bw) var(--sk-bs, solid) var(--sk-line); }
 html[data-skin] #tab-bar .active, html[data-skin] #tab-bar [aria-selected="true"] { color: var(--accent); }
-html[data-skin] .toast { background: var(--sk-panel); color: var(--ink-0); border: var(--sk-bw) var(--sk-bs, solid) var(--sk-line); box-shadow: var(--sk-shadow); }
+html[data-skin] :is(#toast, .toast) { background: var(--sk-panel); color: var(--ink-0); border: var(--sk-bw) var(--sk-bs, solid) var(--sk-line); box-shadow: var(--sk-shadow); }
 html[data-skin] :is(.settings-select, select) { color-scheme: inherit; }
 html[data-skin][data-scheme="light"] { color-scheme: light; }
 html[data-skin][data-scheme="dark"] { color-scheme: dark; }

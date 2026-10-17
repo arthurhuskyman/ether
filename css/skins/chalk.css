@@ -133,8 +133,8 @@ html[data-skin="chalk"] .sheet-panel { background: var(--sk-panel) var(--ck-grai
 html[data-skin="chalk"][data-scheme="light"] .sheet-panel { background: #fffdf4; }
 html[data-skin="chalk"] .sheet-handle { background: var(--ck-chalk); opacity: .5; border-radius: 3px 5px 3px 4px; }
 html[data-skin="chalk"] #composer-menu-sheet .composer-menu-item { background: var(--sk-panel); border: 2px dashed var(--ck-chalk); border-radius: 14px 6px 16px 8px; box-shadow: 3px 3px 0 color-mix(in srgb, var(--ck-chalk) 25%, transparent); font-size: 17px; }
-html[data-skin="chalk"] #toast { background: #fff2a8; color: #2b2410; border: none; border-radius: 3px; padding: 12px 20px; font-size: 18px; transform: translate(-50%, 20px) rotate(-2deg); box-shadow: 3px 5px 0 rgba(0, 0, 0, 0.35); -webkit-backdrop-filter: none; backdrop-filter: none; background-image: linear-gradient(transparent 27px, rgba(160, 130, 40, 0.3) 28px); background-size: 100% 28px; font-weight: 400; }
-html[data-skin="chalk"] #toast.show { transform: translate(-50%, 0) rotate(-2deg); }
+html[data-skin="chalk"] #toast { background: #fff2a8; color: #2b2410; border: none; border-radius: 3px; padding: 12px 20px; font-size: 18px; transform: translateY(20px) rotate(-2deg); box-shadow: 3px 5px 0 rgba(0, 0, 0, 0.35); -webkit-backdrop-filter: none; backdrop-filter: none; background-image: linear-gradient(transparent 27px, rgba(160, 130, 40, 0.3) 28px); background-size: 100% 28px; font-weight: 400; }
+html[data-skin="chalk"] #toast.show { transform: translateY(0) rotate(-2deg); }
 html[data-skin="chalk"] .board-card { background: transparent; border: 2px dotted var(--ck-chalk); border-radius: 10px 4px 12px 5px; }
 html[data-skin="chalk"] .theme-seg { border: 2px dashed var(--ck-chalk); border-radius: 14px 6px 16px 8px; background: transparent; }
 html[data-skin="chalk"] .theme-seg button { font-size: 15px; border-radius: 10px 4px 12px 5px; }

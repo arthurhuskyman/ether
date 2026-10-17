@@ -138,7 +138,7 @@ const LocalAI = (() => {
   function chatDigest(c, opts) {
     opts = opts || {};
     const now = opts.now || Date.now(), since = opts.since || 0;
-    const all = (c && Array.isArray(c.messages) ? c.messages : []).filter((m) => m && !m.deleted && Number(m.ts) >= since && Number(m.ts) <= now + 60000);
+    const all = (c && Array.isArray(c.messages) ? c.messages : []).filter((m) => m && !m.deleted && m.from !== "system" && Number(m.ts) >= since && Number(m.ts) <= now + 60000);
     const nameOf = (m) => m.from === "me" ? (opts.meName || "me") : String(m.fromName || (c && c.name) || opts.someone || "?").slice(0, 40);
     const authorKey = (m) => m.from === "me" ? "me" : (m.fromId || "them");
     const people = new Map();
@@ -200,7 +200,11 @@ async function transcribeVoiceMessage(contactId, msgId) {
     if (!blob) { toast(T("chat.file.unavailable")); return; }
     setStatus(LocalAI.isReady() ? T("ai.working") : T("ai.loading", { n: 0 }));
     const text = await LocalAI.transcribeBlob(blob);
-    m.file.transcript = text || T("ai.nothing"); m.rv = (m.rv || 0) + 1; // rv входит в «подпись» ленты — без него чат не перерисуется
+    if (!text) { // пустой результат не сохраняем: иначе заглушка блокирует повторную попытку
+      const b0 = box(); const t0 = b0 && b0.querySelector(".voice-transcript"); if (t0) t0.remove();
+      toast(T("ai.nothing")); return;
+    }
+    m.file.transcript = text; m.rv = (m.rv || 0) + 1; // rv входит в «подпись» ленты — без него чат не перерисуется
     persistContacts();
     if (state.chatId === contactId) renderChatThread();
   } catch (e) {

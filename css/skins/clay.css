@@ -191,7 +191,8 @@ html[data-skin="clay"] .sheet-action { border-radius: 28px; font-weight: 800; tr
 html[data-skin="clay"] .sheet-action:active { transform: scale(1.04, .9); opacity: 1; box-shadow: var(--sk-shadow-press); }
 html[data-skin="clay"] #composer-menu-sheet .composer-menu-item { border-radius: 999px; box-shadow: 0 8px 12px var(--clay-dent), inset 0 5px 6px rgba(255, 255, 255, .7), inset 0 -5px 6px rgba(120, 60, 20, .12); }
 html[data-skin="clay"] #composer-menu-sheet .composer-menu-item { animation: clay-jelly-in .55s var(--clay-spring) both; transform-origin: 0 100%; }
-html[data-skin="clay"] .toast { border-radius: 999px; padding: 12px 22px; font-weight: 800; animation: clay-jelly-in .6s var(--clay-spring) both; }
+html[data-skin="clay"] :is(#toast, .toast) { border-radius: 999px; padding: 12px 22px; font-weight: 800; }
+html[data-skin="clay"] #toast.show { animation: clay-jelly-in .6s var(--clay-spring) both; }
 html[data-skin="clay"] .reaction-emoji { box-shadow: 0 5px 8px var(--clay-dent), inset 0 4px 5px rgba(255, 255, 255, .7); }
 html[data-skin="clay"] .skin-card { border-radius: 28px; border: 0; box-shadow: 0 6px 10px var(--clay-dent), inset 0 4px 6px rgba(255, 255, 255, .6); }
 html[data-skin="clay"] .skin-card.active { box-shadow: var(--sk-shadow-press); }
@@ -201,8 +202,8 @@ html[data-skin="clay"] .empty-state h2 { font-size: 24px; }
 html[data-skin="clay"] .ico:not(.ico-fill) { stroke-width: 2.7; stroke-linejoin: round; stroke-linecap: round; fill: color-mix(in srgb, currentColor 20%, transparent); }
 
 /* спокойный режим и reduce-motion: без скинового движения */
-html[data-calm-mode="1"][data-skin="clay"] :is(.bubble, .toast, .composer-menu-item, .tab-btn .ico, .avatar, #skin-deco .clay-blob) { animation: none !important; }
+html[data-calm-mode="1"][data-skin="clay"] :is(.bubble, #toast, .toast, .composer-menu-item, .tab-btn .ico, .avatar, #skin-deco .clay-blob) { animation: none !important; }
 html[data-calm-mode="1"][data-skin="clay"] :is(.btn-primary, .btn-secondary, .send-btn, .tab-btn, .chat-row, .sheet-action, .icon-btn, .settings-category-row):active { transform: none; }
 @media (prefers-reduced-motion: reduce) {
-  html[data-skin="clay"] :is(.bubble, .toast, .composer-menu-item, .tab-btn .ico, .avatar, #skin-deco .clay-blob) { animation: none !important; }
+  html[data-skin="clay"] :is(.bubble, #toast, .toast, .composer-menu-item, .tab-btn .ico, .avatar, #skin-deco .clay-blob) { animation: none !important; }
 }

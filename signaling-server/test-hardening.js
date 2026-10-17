@@ -333,7 +333,7 @@ const env1 = { iv: "AAAA", ct: "BBBB", v: 1 };
     inv(C, id("b"), "n3"); await wait(150);
     inv(D, id("e"), "n4"); await wait(250);
     const allowed = (srv.log.match(/\[call-push\] allowed/g) || []).length, thr = (srv.log.match(/\[call-push\] throttled/g) || []).length;
-    check("первый call-push пропущен сразу, повтор того же отправителя и другой отправитель тому же получателю — нет, другой получатель — да (allowed=" + allowed + ", throttled=" + thr + ")", allowed === 2 && thr === 2);
+    check("первый call-push пропущен сразу, повтор той же пары — нет, другой отправитель тому же получателю (в пределах пачки из 3) и другой получатель — да (allowed=" + allowed + ", throttled=" + thr + ")", allowed === 3 && thr === 1);
     for (const c of [A, C, D]) c.ws.close();
     await stop(srv);
   }

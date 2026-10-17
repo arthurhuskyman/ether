@@ -1,0 +1,10 @@
+node_modules
+npm-debug.log
+.env
+.env.*
+.ether-*.json
+.ether-*.json.tmp
+test-*.js
+coverage
+*.md
+.git

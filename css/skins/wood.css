@@ -70,7 +70,7 @@ html[data-skin="wood"] .bubble-sender { font-size: 18px; }
 html[data-skin="wood"] .nav-conn-indicator { font-size: 16px; }
 html[data-skin="wood"] .avatar { font-size: 20px; }
 html[data-skin="wood"] .unread-badge, html[data-skin="wood"] .tab-badge { font-size: 16px; }
-html[data-skin="wood"] .toast { font-family: var(--sk-font); }
+html[data-skin="wood"] :is(#toast, .toast) { font-family: var(--sk-font); }
 
 /* ---------- фон: доски со стыками, сучками и волокнами; падающие листья ---------- */
 html[data-skin="wood"] body::before { background: var(--sk-bg); background-size: auto, auto, auto, auto, 300px 240px, auto; }
@@ -222,7 +222,8 @@ html[data-skin="wood"] .sheet-action:active { transform: translateY(2px); opacit
 html[data-skin="wood"] .sheet-action.destructive { color: #8a1d10; }
 html[data-skin="wood"] #composer-menu-sheet .composer-menu-item { border-radius: 4px 14px 14px 4px; padding-left: 16px; background-color: #e3c78f; color: #2b1a0e; animation: wd-hang-in .7s ease-out both; transform-origin: 0 0; border: 2px solid #6b4423; }
 html[data-skin="wood"][data-scheme="dark"] #composer-menu-sheet .composer-menu-item { background-color: #6f5434; color: #fbeccb; border-color: #140b05; }
-html[data-skin="wood"] .toast { border-radius: 3px; background: #f3e0b0 var(--wd-fibre); background-size: 120px; color: #2b1a0e; border: 0; outline: 2px dashed rgba(90, 55, 20, .55); outline-offset: -5px; padding: 12px 22px; box-shadow: 0 5px 10px rgba(30, 15, 4, .45); transform-origin: 50% 0; animation: wd-hang-in .9s ease-out both; }
+html[data-skin="wood"] :is(#toast, .toast) { border-radius: 3px; background: #f3e0b0 var(--wd-fibre); background-size: 120px; color: #2b1a0e; border: 0; outline: 2px dashed rgba(90, 55, 20, .55); outline-offset: -5px; padding: 12px 22px; box-shadow: 0 5px 10px rgba(30, 15, 4, .45); transform-origin: 50% 0; }
+html[data-skin="wood"] #toast.show { animation: wd-hang-in .9s ease-out both; }
 html[data-skin="wood"] .reaction-emoji { border: 2px solid #8a6a3c; background: #f3e4c4; box-shadow: 0 2px 0 #7a5a2b; }
 html[data-skin="wood"] .skin-card { border: 2px solid #8a6a3c; border-radius: 6px; box-shadow: 0 3px 0 #7a5a2b; }
 html[data-skin="wood"] .skin-card.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent), 0 3px 0 #7a5a2b; }
@@ -235,7 +236,7 @@ html[data-skin="wood"] .ico:not(.ico-fill) { stroke-width: 2.5; stroke-linecap: 
 html[data-skin="wood"] :is(.tab-btn, .icon-btn, .settings-category-icon, .composer-menu-item, .sheet-action) > .ico { filter: url(#wd-rough); }
 
 /* спокойный режим и reduce-motion */
-html[data-calm-mode="1"][data-skin="wood"] :is(.bubble, .toast, .composer-menu-item, .tab-btn .ico, .tab-btn::after, #nav-title, .chat-filter-chip, #skin-deco .wd-leaf, #skin-deco .wd-branch) { animation: none !important; }
+html[data-calm-mode="1"][data-skin="wood"] :is(.bubble, #toast, .toast, .composer-menu-item, .tab-btn .ico, .tab-btn::after, #nav-title, .chat-filter-chip, #skin-deco .wd-leaf, #skin-deco .wd-branch) { animation: none !important; }
 @media (prefers-reduced-motion: reduce) {
-  html[data-skin="wood"] :is(.bubble, .toast, .composer-menu-item, .tab-btn .ico, .tab-btn::after, #nav-title, .chat-filter-chip, #skin-deco .wd-leaf, #skin-deco .wd-branch) { animation: none !important; }
+  html[data-skin="wood"] :is(.bubble, #toast, .toast, .composer-menu-item, .tab-btn .ico, .tab-btn::after, #nav-title, .chat-filter-chip, #skin-deco .wd-leaf, #skin-deco .wd-branch) { animation: none !important; }
 }

@@ -55,7 +55,7 @@ html[data-skin="lego"][data-scheme="dark"] {
 }
 
 /* ---------- типографика ---------- */
-html[data-skin="lego"] :is(#nav-title, .nav-contact-title, #chat-peer-name, .settings-group-title, .settings-category-label, .chat-row-name, .sheet-panel h2, .sheet-title, .empty-state h2, .btn-primary, .btn-secondary, .btn-tertiary, .tab-btn, .chat-filter-chip, .bubble-sender, .unread-badge, .tab-badge, .avatar, .toast, .sheet-action, .first-run-card h2, .poll-q, .board-title, .unread-divider span) { font-family: var(--lg-head); font-weight: 400; letter-spacing: .03em; }
+html[data-skin="lego"] :is(#nav-title, .nav-contact-title, #chat-peer-name, .settings-group-title, .settings-category-label, .chat-row-name, .sheet-panel h2, .sheet-title, .empty-state h2, .btn-primary, .btn-secondary, .btn-tertiary, .tab-btn, .chat-filter-chip, .bubble-sender, .unread-badge, .tab-badge, .avatar, #toast, .toast, .sheet-action, .first-run-card h2, .poll-q, .board-title, .unread-divider span) { font-family: var(--lg-head); font-weight: 400; letter-spacing: .03em; }
 html[data-skin="lego"] :is(.settings-group-title, .btn-primary, .btn-secondary, .tab-btn, .chat-filter-chip, .nav-conn-indicator) { text-transform: uppercase; }
 html[data-skin="lego"] #nav-title { font-size: 24px; text-transform: uppercase; text-shadow: 0 3px 0 rgba(0, 0, 0, .28); }
 html[data-skin="lego"] .chat-row-name { font-size: 15px; }
@@ -193,7 +193,8 @@ html[data-skin="lego"] .sheet-action:active { transform: translateY(4px); opacit
 html[data-skin="lego"] .sheet-action.destructive { color: #a40f0f; }
 html[data-skin="lego"] #composer-menu-sheet .composer-menu-item { border-radius: 4px; background-color: var(--lg-yellow); color: #1a1a1a; box-shadow: 0 4px 0 #a67f00, 0 5px 0 rgba(0, 0, 0, .3), inset 0 2px 0 rgba(255, 255, 255, .5); animation: lego-snap .45s var(--lg-snap) both; --accent: #1a1a1a; }
 html[data-skin="lego"] #composer-menu-sheet .composer-menu-item:nth-child(even) { background-color: #fff; box-shadow: 0 4px 0 #8e99a8, 0 5px 0 rgba(0, 0, 0, .3), inset 0 2px 0 #fff; }
-html[data-skin="lego"] .toast { border-radius: 4px; background: #1a1a1a; color: #ffd01f; box-shadow: 0 5px 0 #000, 0 0 0 3px #ffd01f; padding: 12px 18px; animation: lego-snap .45s var(--lg-snap) both; }
+html[data-skin="lego"] :is(#toast, .toast) { border-radius: 4px; background: #1a1a1a; color: #ffd01f; box-shadow: 0 5px 0 #000, 0 0 0 3px #ffd01f; padding: 12px 18px; }
+html[data-skin="lego"] #toast.show { animation: lego-snap .45s var(--lg-snap) both; }
 html[data-skin="lego"] .reaction-emoji { border-radius: 4px; box-shadow: 0 3px 0 rgba(0, 0, 0, .3), inset 0 2px 0 rgba(255, 255, 255, .6); }
 html[data-skin="lego"] .skin-card { border-radius: 4px; border: 0; box-shadow: 0 4px 0 rgba(0, 0, 0, .3), inset 0 2px 0 rgba(255, 255, 255, .4); }
 html[data-skin="lego"] .skin-card.active { box-shadow: 0 0 0 3px var(--accent), 0 4px 0 rgba(0, 0, 0, .3); }
@@ -212,7 +213,7 @@ html[data-skin="lego"] .file-spinner { border-radius: 2px; }
 html[data-skin="lego"] .ico:not(.ico-fill) { stroke-width: 2.3; stroke-linecap: square; stroke-linejoin: miter; fill: none; }
 
 /* спокойный режим и reduce-motion */
-html[data-calm-mode="1"][data-skin="lego"] :is(.bubble, .toast, .composer-menu-item, .tab-btn, .typing-dots span, #skin-deco .lego-brick) { animation: none !important; }
+html[data-calm-mode="1"][data-skin="lego"] :is(.bubble, #toast, .toast, .composer-menu-item, .tab-btn, .typing-dots span, #skin-deco .lego-brick) { animation: none !important; }
 @media (prefers-reduced-motion: reduce) {
-  html[data-skin="lego"] :is(.bubble, .toast, .composer-menu-item, .tab-btn, .typing-dots span, #skin-deco .lego-brick) { animation: none !important; }
+  html[data-skin="lego"] :is(.bubble, #toast, .toast, .composer-menu-item, .tab-btn, .typing-dots span, #skin-deco .lego-brick) { animation: none !important; }
 }

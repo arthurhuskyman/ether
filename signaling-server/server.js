@@ -42,7 +42,9 @@ catch (e) { console.warn("[push] пакет web-push не установлен �
 
 const PORT = process.env.PORT || 8787;
 const envInt = (name, def) => { const n = parseInt(process.env[name], 10); return Number.isFinite(n) && n > 0 ? n : def; };
+const PREKEYS_MAX = envInt("PREKEYS_MAX", 50000);
 const MAX_MAILBOX_PER_USER = envInt("MAILBOX_MAX_PER_USER", 500);
+const MAX_MAILBOX_PER_SENDER = envInt("MAILBOX_MAX_PER_SENDER", 250);
 const MAX_MAILBOX_TOTAL_ENTRIES = envInt("MAILBOX_MAX_TOTAL_ENTRIES", 100000);
 const MAX_MAILBOX_TOTAL_BYTES = envInt("MAILBOX_MAX_TOTAL_BYTES", 400 * 1024 * 1024); // приблизительно, по длине ct и служебному запасу
 const MAX_SIGNAL_SOCKETS_PER_IP = envInt("MAX_SOCKETS_PER_IP", 40);
@@ -258,6 +260,8 @@ const SIGNAL_RATE_LIMIT_PER_MIN = 120; // выше, чем deliver — сюда 
 // "на отправителя вообще" упирался бы в потолок уже на 6 сообщениях
 // в группе из 10 человек.
 const DELIVER_RATE_LIMIT_PER_MIN = 60;
+const DELIVER_TOTAL_LIMIT_PER_MIN = 1200;
+const deliverTotalHits = new Map();
 const signalHits = new Map();
 const deliverHits = new Map();
 
@@ -309,10 +313,10 @@ const TURN_CHECK_DISABLED = process.env.TURN_CHECK_DISABLED === "1";
 function checkTurnAlive(url) {
   return new Promise((resolve) => {
     // url вида "turn:free.expressturn.com:3478" или "turns:..."
-    const m = String(url || "").match(/^turns?:([^:?]+):(\d+)/);
+    const m = String(url || "").match(/^(turns?):(\[[^\]]+\]|[^:?\/]+)(?::(\d+))?/i);
     if (!m) return resolve(false);
-    const host = m[1];
-    const port = parseInt(m[2], 10);
+    const host = m[2].replace(/^\[|\]$/g, "");
+    const port = m[3] ? parseInt(m[3], 10) : (m[1].toLowerCase() === "turns" ? 5349 : 3478);
     const socket = net.connect({ host, port });
     let settled = false;
     const finish = (ok) => {
@@ -420,6 +424,19 @@ function resolveHostSafe(hostname) {
 }
 
 const LINK_PREVIEW_DEADLINE_MS = 8000; // общий потолок на весь запрос (включая DNS и редиректы)
+// Декодирование тела с учётом charset (Content-Type или <meta charset> в первых 1024 байтах); откат на utf-8.
+function decodeHtmlBody(buf, ctype) {
+  let cs = (/charset\s*=\s*["']?([\w.:-]+)/i.exec(String(ctype || "")) || [])[1];
+  if (!cs) {
+    const head = buf.subarray(0, 1024).toString("latin1");
+    cs = (/<meta[^>]{0,200}?charset\s*=\s*["']?([\w.:-]+)/i.exec(head) || [])[1];
+  }
+  if (cs && !/^utf-?8$/i.test(cs)) {
+    try { return new TextDecoder(cs, { fatal: false }).decode(buf); } catch (e) { /* неизвестная кодировка — utf-8 */ }
+  }
+  return buf.toString("utf8");
+}
+
 async function fetchUrlSafe(targetUrl, redirectsLeft, deadlineAt) {
   if (!deadlineAt) deadlineAt = Date.now() + LINK_PREVIEW_DEADLINE_MS;
   const u = new URL(targetUrl);
@@ -510,10 +527,10 @@ async function fetchUrlSafe(targetUrl, redirectsLeft, deadlineAt) {
         // перекодирования всего накопленного на каждом чанке.
         const chunkText = chunk.toString("utf8").toLowerCase();
         const search = headTail + chunkText;
-        if (search.includes("</head>")) { ok(Buffer.concat(chunks).toString("utf8")); return; }
+        if (search.includes("</head>")) { ok(decodeHtmlBody(Buffer.concat(chunks), ctype)); return; }
         headTail = search.slice(-16);
       });
-      stream.on("end", () => ok(Buffer.concat(chunks).toString("utf8")));
+      stream.on("end", () => ok(decodeHtmlBody(Buffer.concat(chunks), ctype)));
       stream.on("error", fail);
     });
     req.on("timeout", () => fail(new Error("timeout")));
@@ -696,9 +713,12 @@ const mailbox = new Map();
 const MAILBOX_FILE = process.env.MAILBOX_FILE || path.join(process.env.DATA_DIR || __dirname, ".ether-mailbox.json");
 const MAILBOX_PERSIST = process.env.MAILBOX_PERSIST !== "0";
 const MAILBOX_TEXT_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+const MAILBOX_HEAVY_CT = 256 * 1024;
 const MAILBOX_PERSIST_MAX_BYTES = 150 * 1024 * 1024;
 function mailboxEntryExpired(entry, now) {
-  const ttl = entry && entry.kind && entry.kind !== "chat" ? MAILBOX_FILE_TTL_MS : MAILBOX_TEXT_TTL_MS;
+  // 48 ч — только для тяжёлых записей (файлы/голосовые, ct > 256 КБ); опросы, карточки, приглашения, правки и реакции живут как текст.
+  const heavy = (entry && (entry.kind === "file" || entry.kind === "audio")) || (entry && entry.envelope && typeof entry.envelope.ct === "string" && entry.envelope.ct.length > MAILBOX_HEAVY_CT);
+  const ttl = heavy ? MAILBOX_FILE_TTL_MS : MAILBOX_TEXT_TTL_MS;
   return !entry || typeof entry.ts !== "number" || now - entry.ts > ttl;
 }
 // Учёт объёма ящика. Размер приблизительный (ct + служебный запас) — нужен только для глобальных потолков.
@@ -717,12 +737,16 @@ function mailboxRemove(userId, msgId) {
   if (box.size === 0) mailbox.delete(userId); // пустые ящики не копим
   return true;
 }
-function mailboxEvictGlobalOldest() {
+// Глобальное вытеснение бьёт по самому «жирному» отправителю (по числу записей), а не по самой старой записи вообще:
+// иначе один аноним, залив ящики, вытеснял бы почту всех остальных.
+function mailboxEvictFromHeaviestSender() {
+  const cnt = new Map();
+  for (const box of mailbox.values()) for (const e of box.values()) cnt.set(e.from, (cnt.get(e.from) || 0) + 1);
+  let top = null, topN = 0;
+  for (const [f, n] of cnt) if (n > topN) { top = f; topN = n; }
+  if (top === null) return false;
   let bestUser = null, bestMsg = null, bestTs = Infinity;
-  for (const [uid, box] of mailbox) {
-    const first = box.entries().next().value; // Map хранит порядок вставки — первая запись самая старая
-    if (first && first[1].ts < bestTs) { bestTs = first[1].ts; bestUser = uid; bestMsg = first[0]; }
-  }
+  for (const [uid, box] of mailbox) for (const [mid, e] of box) if (e.from === top && e.ts < bestTs) { bestTs = e.ts; bestUser = uid; bestMsg = mid; }
   if (bestUser === null) return false;
   return mailboxRemove(bestUser, bestMsg);
 }
@@ -733,10 +757,16 @@ function mailboxPut(userId, msgId, entry) {
   if (!box) { box = new Map(); mailbox.set(userId, box); }
   box.set(msgId, entry);
   mailboxTotalCount++; mailboxTotalBytes += approxEntrySize(entry);
+  // Квота на отправителя в одном ящике: один отправитель не вытесняет почту остальных у получателя.
+  if (entry && entry.from) {
+    let n = 0; for (const e of box.values()) if (e.from === entry.from) n++;
+    if (n > MAX_MAILBOX_PER_SENDER) for (const [mid, e] of box) { if (e.from === entry.from && mid !== msgId) { mailboxRemove(userId, mid); if (--n <= MAX_MAILBOX_PER_SENDER) break; } }
+    box = mailbox.get(userId) || box;
+  }
   while (box.size > MAX_MAILBOX_PER_USER) mailboxRemove(userId, box.keys().next().value);
   if (mailboxTotalCount > MAX_MAILBOX_TOTAL_ENTRIES || mailboxTotalBytes > MAX_MAILBOX_TOTAL_BYTES) {
     const lowC = Math.floor(MAX_MAILBOX_TOTAL_ENTRIES * 0.95), lowB = MAX_MAILBOX_TOTAL_BYTES * 0.95;
-    while ((mailboxTotalCount > lowC || mailboxTotalBytes > lowB) && mailboxEvictGlobalOldest()) { /* вытесняем самые старые */ }
+    while ((mailboxTotalCount > lowC || mailboxTotalBytes > lowB) && mailboxEvictFromHeaviestSender()) { /* вытесняем у самого «жирного» отправителя */ }
   }
 }
 function loadMailbox() {
@@ -1205,6 +1235,7 @@ const prekeyTargetHits = new Map(); // общий лимит на ЦЕЛЬ: не
 const PREKEY_FETCH_PER_TARGET_PER_MIN = 10;
 const callPushRecipientAt = new Map(); // получатель -> ts последнего принудительного push о звонке
 const callPushPairAt = new Map();      // отправитель→получатель -> ts
+const CALL_PUSH_RECIPIENT_BURST = 3;
 const CALL_PUSH_RECIPIENT_MS = 15 * 1000, CALL_PUSH_PAIR_MS = 30 * 1000;
 const ipConnCount = new Map();         // ip -> число открытых сокетов
 // Язык push приходит от клиента: нормализуем ("ru_RU" → "ru-RU") и проверяем по белому списку формы, иначе "en".
@@ -1351,6 +1382,14 @@ wss.on("connection", (ws, req) => {
       // Скрытого чужой watch не делает видимым: нужен он сам в чужом ростере (см. canSeePresence).
       const online = ids.filter((i) => i !== myId).map((i) => rosterEntry(i)).filter((e) => e && canSeePresence(me, myId, e.id, clients.get(e.id)));
       safeSend(ws, { type: "watch-result", online, strict: STRICT_ROSTER });
+      // Скрытый, убравший контакта из watch, перестаёт быть для него «онлайн».
+      if (me.visible === false && prevWatch) {
+        for (const i of prevWatch) {
+          if (i === myId || me.watch.has(i)) continue;
+          const other = clients.get(i);
+          if (other) safeSend(other.ws, { type: "presence", id: myId, online: false, name: "", visible: false, publicKey: null });
+        }
+      }
       // Скрытый, добавивший контакта в свой ростер, становится виден ему: сообщаем присутствие вновь добавленным.
       if (me.visible === false) {
         for (const i of me.watch) {
@@ -1403,14 +1442,16 @@ wss.on("connection", (ws, req) => {
         // сигнала, но push к тому моменту уже был бы отправлен повторно.
         const inviteNonce = (typeof msg.data.x === "string" || typeof msg.data.x === "number") ? String(msg.data.x).slice(0, 128) : null;
         if (inviteNonce && callInvitePushSent.has(inviteNonce)) return;
-        if (inviteNonce) callInvitePushSent.set(inviteNonce, Date.now());
         // Принудительные (force) push о звонке обходят общий троттлинг — ограничиваем отдельно: не чаще раза в 15 с на получателя
         // и раза в 30 с на пару отправитель→получатель (первый push уходит сразу).
         { const tNow = Date.now(), pk = myId + "→" + msg.to;
-          const lr = callPushRecipientAt.get(msg.to), lp = callPushPairAt.get(pk);
-          if ((lr && tNow - lr < CALL_PUSH_RECIPIENT_MS) || (lp && tNow - lp < CALL_PUSH_PAIR_MS)) { console.log("[call-push] throttled " + shortId(myId) + " → " + shortId(msg.to)); return; }
+          let lr = callPushRecipientAt.get(msg.to); const lp = callPushPairAt.get(pk);
+          if (lr && tNow - lr.ts >= CALL_PUSH_RECIPIENT_MS) lr = null; // окно получателя истекло
+          // Получатель: не более CALL_PUSH_RECIPIENT_BURST push за окно (а не один: иначе посторонний «глушит» настоящие звонки жертве).
+          if ((lr && lr.n >= CALL_PUSH_RECIPIENT_BURST) || (lp && tNow - lp < CALL_PUSH_PAIR_MS)) { console.log("[call-push] throttled " + shortId(myId) + " → " + shortId(msg.to)); return; }
           console.log("[call-push] allowed " + shortId(myId) + " → " + shortId(msg.to));
-          callPushRecipientAt.set(msg.to, tNow); callPushPairAt.set(pk, tNow);
+          if (inviteNonce) callInvitePushSent.set(inviteNonce, tNow); // nonce помечаем только после прохождения троттлинга
+          callPushRecipientAt.set(msg.to, lr ? { ts: lr.ts, n: lr.n + 1 } : { ts: tNow, n: 1 }); callPushPairAt.set(pk, tNow);
           for (const m of [callPushRecipientAt, callPushPairAt]) if (m.size > 50000) m.delete(m.keys().next().value); }
         const me = clients.get(myId);
         const recipientLang = (pushSubs.get(msg.to) || {}).lang;
@@ -1435,6 +1476,7 @@ wss.on("connection", (ws, req) => {
       // Отсекаем сразу.
       if (msg.to === myId) return;
       if (!wsRateLimitPairOk(myId, msg.to, DELIVER_RATE_LIMIT_PER_MIN)) return;
+      if (!wsRateLimitOk(deliverTotalHits, myId, DELIVER_TOTAL_LIMIT_PER_MIN)) return; // общий потолок на отправителя независимо от получателей
       if (!isValidEnvelope(msg.envelope)) {
         safeSend(ws, { type: "deliver-ack", msgId: msg.msgId, error: "invalid-envelope" });
         return;
@@ -1507,7 +1549,10 @@ wss.on("connection", (ws, req) => {
       if (spk != null && !(spk && validPrekeyId(spk.id) && validPrekeyPub(spk.pub) && (spk.sig == null || (typeof spk.sig === "string" && spk.sig.length <= 200)))) { safeSend(ws, { type: "prekey-stored", error: "invalid" }); return; }
       if (opks.length > PREKEY_MAX_UPLOAD || !opks.every((o) => o && validPrekeyId(o.id) && validPrekeyPub(o.pub))) { safeSend(ws, { type: "prekey-stored", error: "invalid" }); return; }
       let e = prekeys.get(myId);
-      if (!e) { e = { spk: null, opks: new Map(), ts: Date.now() }; prekeys.set(myId, e); }
+      if (!e) {
+        if (prekeys.size >= PREKEYS_MAX) prekeys.delete(prekeys.keys().next().value); // потолок по числу id: вытесняем самый старый
+        e = { spk: null, opks: new Map(), ts: Date.now() }; prekeys.set(myId, e);
+      }
       if (spk) e.spk = { id: spk.id, pub: spk.pub, ...(typeof spk.sig === "string" && spk.sig.length <= 200 ? { sig: spk.sig } : {}) };
       for (const o of opks) e.opks.set(o.id, o.pub);
       while (e.opks.size > PREKEY_MAX_OPKS) e.opks.delete(e.opks.keys().next().value);
@@ -1582,7 +1627,7 @@ setInterval(() => {
     const cur = mailbox.get(uid);
     if (cur && cur.size === 0) mailbox.delete(uid);
   }
-  for (const m of [callPushRecipientAt, callPushPairAt]) for (const [k, ts] of m) if (now - ts > CALL_PUSH_PAIR_MS) m.delete(k);
+  for (const m of [callPushRecipientAt, callPushPairAt]) for (const [k, v] of m) if (now - (typeof v === "number" ? v : v.ts) > CALL_PUSH_PAIR_MS) m.delete(k);
 }, 60000);
 
 setInterval(() => {

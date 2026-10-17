@@ -60,6 +60,7 @@ function sonicNotesFor(str) {
 }
 function playSonicSignature(contactId) {
   const c = state.contacts.get(contactId); if (!c || c.isSelf) return false;
+  if ((typeof quietNow === "function" && quietNow())) return false; // «Тихие часы»
   const ctx = document.visibilityState === "visible" ? ensureGlobalAudioCtx() : null;
   if (!ctx || ctx.state !== "running") return false;
   const notes = sonicNotesFor(fxKeyString(c));
@@ -461,7 +462,7 @@ function computeWrapped(year, now) {
   let longestPause = { ms: 0, name: "" };
   for (const c of state.contacts.values()) {
     if (c.isSelf) continue;
-    const ms = (c.messages || []).filter((m) => m.ts && new Date(m.ts).getFullYear() === y && !m.system);
+    const ms = (c.messages || []).filter((m) => m.ts && new Date(m.ts).getFullYear() === y && !m.system && m.from !== "system");
     if (!ms.length) continue;
     perContact.push({ id: c.id, name: c.name || T("sys.someone"), count: ms.length });
     let prev = null;
@@ -503,7 +504,7 @@ function openYearlyWrapped() {
 
 // ---------- Conversation Poster (PNG-постер переписки) ----------
 function posterPhrases(c, n) {
-  const pool = (c.messages || []).filter((m) => m.text && !m.system && m.text.length >= 8 && m.text.length <= 90);
+  const pool = (c.messages || []).filter((m) => m.text && !m.system && m.from !== "system" && m.text.length >= 8 && m.text.length <= 90);
   const r = fxSeed("poster|" + fxKeyString(c) + "|" + pool.length);
   const out = [];
   const used = new Set();
@@ -550,7 +551,7 @@ const fxEntry = (m) => ({ id: m.id, from: m.from === "me" ? "me" : "them", ts: m
 async function buildSignedExport(contactId) {
   const c = state.contacts.get(contactId); if (!c) throw new Error("no contact");
   const keys = await fxGetSigningKeys();
-  const entries = (c.messages || []).filter((m) => !m.system).map(fxEntry);
+  const entries = (c.messages || []).filter((m) => !m.system && m.from !== "system").map(fxEntry);
   let h = await fxSha256Hex("ether-export-v1|" + Store.myId + "|" + c.id);
   const chain = [];
   for (const e of entries) { h = await fxSha256Hex(h + "|" + JSON.stringify(e)); chain.push(h); }

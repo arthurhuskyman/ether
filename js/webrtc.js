@@ -96,12 +96,20 @@ async function fetchIceServers(timeoutMs) {
   } finally { if (timer) clearTimeout(timer); }
 }
 
+// TURN REST-креденшлы живут ~24 ч, а вкладка (PWA) может жить неделями: обновляем список в фоне, если он старше ~12 ч.
+let iceFetchedAt = Date.now(), iceRefreshing = false;
+const ICE_MAX_AGE_MS = 12 * 3600 * 1000;
+function maybeRefreshIceServers() {
+  if (iceRefreshing || Date.now() - iceFetchedAt < ICE_MAX_AGE_MS) return;
+  iceRefreshing = true;
+  fetchIceServers(4000).then((l) => { if (l && l.length) { ICE_SERVERS = l; iceFetchedAt = Date.now(); } }).catch(() => {}).then(() => { iceRefreshing = false; });
+}
 async function refreshIceServersInBackground() {
   for (let i = 0; i < 8; i++) {
     await new Promise((r) => setTimeout(r, 5000 * (i + 1)));
     const list = await fetchIceServers(15000);
     if (list) {
-      ICE_SERVERS = list;
+      ICE_SERVERS = list; iceFetchedAt = Date.now();
       if (window.etherLog) window.etherLog("info", "[webrtc] ICE-серверы (с TURN) догружены в фоне:", list.length);
       return;
     }
@@ -174,7 +182,7 @@ window.etherTurnCheck = etherTurnCheck;
 window.__etherIceReady = (async () => {
   const fromServer = await fetchIceServers(ICE_FETCH_TIMEOUT_MS);
   if (fromServer) {
-    ICE_SERVERS = fromServer;
+    ICE_SERVERS = fromServer; iceFetchedAt = Date.now();
     if (window.etherLog) window.etherLog("info", "[webrtc] ICE-серверы получены с сигнального сервера:", ICE_SERVERS.length);
     console.log("[webrtc] ICE-серверы получены с сигнального сервера:", ICE_SERVERS.length);
   } else {
@@ -245,6 +253,7 @@ class PeerLink extends EventTarget {
     this._pendingRemoteCandidates = []; // кандидаты, пришедшие ДО setRemoteDescription
     this._createdAt = Date.now();
 
+    try { maybeRefreshIceServers(); } catch (e) {}
     // Раньше тут читался модульный ICE_SERVERS напрямую — если линк
     // создаётся ДО того, как /ice успел ответить (особенно на холодном
     // сервере после простоя), ICE_SERVERS ещё [] и RTCPeerConnection
@@ -942,6 +951,7 @@ class PeerLink extends EventTarget {
     let stream;
     try { stream = await navigator.mediaDevices.getUserMedia({ audio: AUDIO_CAPTURE }); }
     catch (e) { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    if (this._closed) { try { stream.getTracks().forEach((t) => t.stop()); } catch (e) {} throw new Error("link closed"); } // микрофон не должен «зависать» после закрытия линка
     this.localAudioTrack = stream.getAudioTracks()[0];
     this.localStream = stream;
   }
@@ -981,6 +991,7 @@ class PeerLink extends EventTarget {
     let stream;
     try { stream = await navigator.mediaDevices.getUserMedia({ video: videoCapture(facingMode) }); }
     catch (e) { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facingMode || "user" } }); }
+    if (this._closed) { try { stream.getTracks().forEach((t) => t.stop()); } catch (e) {} throw new Error("link closed"); }
     try { stream.getVideoTracks()[0].contentHint = "motion"; } catch (e) {}
     this.localVideoTrack = stream.getVideoTracks()[0];
     this._facingMode = facingMode || "user";
@@ -1081,6 +1092,7 @@ async startScreenShare() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) return false;
   if (this._screenSharing) return true;
   let stream = null;
+  const audioWas = this._audioAdded;
   try {
     stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 15, max: 30 }, width: { max: 1920 }, height: { max: 1080 } }, audio: false });
   } catch (e) {
@@ -1089,6 +1101,8 @@ async startScreenShare() {
     this._log("warn", "[webrtc] getDisplayMedia failed/cancelled:", String(e));
     return false;
   }
+  // за время диалога выбора экрана звонок мог завершиться (или линк закрыться) — захват не включаем
+  if (this._closed || (audioWas && !this._audioAdded)) { try { stream.getTracks().forEach((t) => t.stop()); } catch (e) {} return false; }
   const screenTrack = stream.getVideoTracks()[0];
   try { if (screenTrack) screenTrack.contentHint = "detail"; } catch (e) {}
   if (!screenTrack) { try { stream.getTracks().forEach((t) => t.stop()); } catch (e) {} return false; }

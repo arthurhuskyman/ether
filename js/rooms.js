@@ -27,6 +27,7 @@ function roomMembers(gid) {
 }
 function roomSendPresence(gid, on) {
   const g = gcallGroup(gid); if (!g) return;
+  if (on && !g.room) return; // выключенная комната не должна включаться у остальных пульсом присутствия
   for (const m of g.members) {
     if (m.id === Store.myId) continue;
     const l = mesh && mesh.get(m.id);
@@ -56,6 +57,10 @@ function roomSetEnabled(gid, on) {
     if (m.id === Store.myId) continue;
     const l = mesh && mesh.get(m.id); if (!l || !gcallLinkOk(m.id)) continue;
     try { l.send({ kind: "gcall", gid, t: "presence", on: false, room: !!on, setRoom: true, ts: Date.now() }); } catch (e) {}
+  }
+  if (!on) { // комната выключена: выходим из её звонка, гасим пульс и локальное присутствие
+    if (GC.gid === gid) leaveGroupCall({ silent: true });
+    clearInterval(ROOMS.pulse); ROOMS.pulse = null; ROOMS.present.delete(gid);
   }
   roomRenderBar();
 }
@@ -89,7 +94,8 @@ if (typeof leaveGroupCall === "function") {
   const _roomOrigLeave = leaveGroupCall;
   leaveGroupCall = function (opts) {
     const gid = GC.gid, isRoom = !!(gid && roomGroup(gid));
-    const r = _roomOrigLeave.apply(this, arguments);
+    // выход кнопкой с экрана звонка не должен писать системное сообщение в историю комнаты (как и из плашки)
+    const r = isRoom && !(opts && opts.silent) ? _roomOrigLeave.call(this, Object.assign({}, opts, { silent: true })) : _roomOrigLeave.apply(this, arguments);
     if (isRoom) { roomSendPresence(gid, false); roomMarkPresent(gid, Store.myId, "", false); clearInterval(ROOMS.pulse); ROOMS.pulse = null; roomRenderBar(); }
     return r;
   };

@@ -38,7 +38,7 @@ function fx2OnChatChange() {
   if (FX.get("composer")) { try { playComposerVoice(cur); } catch (e) {} }
 }
 
-const FX_GOODBYE = /(?:^|[\s,.!;:])(пока|до свидания|до завтра|до встречи|спокойной ночи|bye|goodbye|good ?night|see you|ciao|adios|tschüss|au revoir)(?=$|[\s,.!?;:])/i;
+const FX_GOODBYE = /(?:^|[\s,.!;:])(пока(?=[\s!.…)]*$)|до свидания|до завтра|до встречи|спокойной ночи|bye|goodbye|good ?night|see you|ciao|adios|tschüss|au revoir)(?=$|[\s,.!?;:])/i;
 function fxWaveGoodbye() {
   const el = document.createElement("div"); el.className = "fx-wave"; el.setAttribute("aria-hidden", "true"); el.textContent = "👋";
   document.body.appendChild(el); setTimeout(() => el.remove(), 1800);
@@ -59,7 +59,7 @@ function composerThemeFor(str) {
   return out.map((n) => ({ f: n.f, t: n.t * k, d: n.d * k }));
 }
 function playComposerVoice(contactId) {
-  const c = state.contacts.get(contactId); if (!c || c.isSelf || !Store.soundsEnabled) return false;
+  const c = state.contacts.get(contactId); if (!c || c.isSelf || !Store.soundsEnabled || (typeof quietNow === "function" && quietNow())) return false;
   const ctx = document.visibilityState === "visible" ? fx2Ctx() : null; if (!ctx) return false;
   const t0 = ctx.currentTime + 0.05;
   for (const n of composerThemeFor(fxKeyString(c))) {
@@ -81,7 +81,7 @@ function playComposerVoice(contactId) {
 const fxAmb = { on: false, master: null, nodes: [], timer: null, base: 0.018 };
 function fxAmbientStart() {
   if (fxAmb.on) return true;
-  const ctx = fx2Ctx(); if (!ctx || !Store.soundsEnabled) return false;
+  const ctx = fx2Ctx(); if (!ctx || !Store.soundsEnabled || (typeof quietNow === "function" && quietNow())) return false;
   try {
     const len = ctx.sampleRate * 2, buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
     for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * 0.5;
@@ -132,7 +132,7 @@ function fxAmbientBump() {
   } catch (e) {}
 }
 function fxAmbientSync() {
-  const want = !!FX.get("ambient") && !document.hidden && !!Store.soundsEnabled;
+  const want = !!FX.get("ambient") && !document.hidden && !!Store.soundsEnabled && !(typeof quietNow === "function" && quietNow());
   if (want) fxAmbientStart(); else fxAmbientStop();
 }
 
@@ -594,7 +594,12 @@ async function fxMakeReplay(contactId, year, month) {
   if (!cv.captureStream) { toast(T("fx2.replay.unsupported")); return false; }
   const g = cv.getContext("2d"); const scenes = replayScenes(data, c, year, month), hue = 200 + (fxSeed("replay|" + fxKeyString(c))() % 120);
   const total = scenes.reduce((s, x) => s + x.dur, 0);
-  const rec = new MediaRecorder(cv.captureStream(30), { mimeType: (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported("video/webm;codecs=vp9")) ? "video/webm;codecs=vp9" : "video/webm" });
+  // Safari/iOS пишет только mp4 — выбираем поддерживаемый контейнер; если ничего не подошло, честно сообщаем
+  const mime = ["video/webm;codecs=vp9", "video/webm", "video/mp4"].find((t) => { try { return !MediaRecorder.isTypeSupported || MediaRecorder.isTypeSupported(t); } catch (e) { return false; } });
+  if (!mime) { toast(T("fx2.replay.unsupported")); return false; }
+  const ext = /mp4/.test(mime) ? "mp4" : "webm";
+  let rec;
+  try { rec = new MediaRecorder(cv.captureStream(30), { mimeType: mime }); } catch (e) { toast(T("fx2.replay.unsupported")); return false; }
   const chunks = []; rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
   const done = new Promise((r) => { rec.onstop = r; });
   rec.start(250);
@@ -610,7 +615,7 @@ async function fxMakeReplay(contactId, year, month) {
     tick();
   });
   rec.stop(); await done;
-  downloadBlob(new Blob(chunks, { type: "video/webm" }), `ether-replay-${year}-${String(month + 1).padStart(2, "0")}.webm`);
+  downloadBlob(new Blob(chunks, { type: mime.split(";")[0] }), `ether-replay-${year}-${String(month + 1).padStart(2, "0")}.${ext}`);
   return true;
 }
 
@@ -644,6 +649,7 @@ function fxSweepCampfires(now) {
   for (const g of Array.from(state.contacts.values())) {
     if (!isGroup(g)) continue;
     const u = fxCampfireUntil(g); if (!u || u > now) continue;
+    try { if (typeof cleanupExpiredFileBlobs === "function") cleanupExpiredFileBlobs(g.messages || []); } catch (e) {} // медиа сгоревшего костра не должны оставаться в IndexedDB
     try { removeGroupMember(g.id, Store.myId, true); } catch (e) {}
     if (state.contacts.has(g.id)) { state.contacts.delete(g.id); persistContacts(); }
     n++;
@@ -684,6 +690,21 @@ function skyKindFor(code, isDay) {
   if (code >= 95) return "storm";
   return "cloud";
 }
+// Кэш неба живёт 3 ч; пока вкладка открыта, обновляем его в фоне раз в ~час (только если геолокация уже разрешена — без новых запросов).
+let _fxSkyTry = 0;
+async function fxSkyRefreshMaybe() {
+  try {
+    if (!FX.get("weather") || document.hidden || Date.now() - _fxSkyTry < 30 * 60 * 1000) return;
+    const o = JSON.parse(localStorage.getItem(FX_SKY_KEY) || "null");
+    if (o && Date.now() - o.at < 3600 * 1000) return;
+    if (!navigator.permissions || !navigator.permissions.query) return;
+    const st = await navigator.permissions.query({ name: "geolocation" });
+    if (st.state !== "granted") return;
+    _fxSkyTry = Date.now();
+    await fxFetchSky(); fxApplySky();
+  } catch (e) {}
+}
+try { document.addEventListener("visibilitychange", () => { fxApplySky(); fxSkyRefreshMaybe(); }); } catch (e) {}
 function fxApplySky() {
   let kind = null;
   if (FX.get("weather")) { try { const o = JSON.parse(localStorage.getItem(FX_SKY_KEY) || "null"); if (o && Date.now() - o.at < 3 * 3600 * 1000) kind = o.kind; } catch (e) {} }

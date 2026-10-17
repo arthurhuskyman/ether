@@ -7,17 +7,13 @@ const MAX_META_TAGS = 200;
 const MAX_TAG_LEN = 2048;
 const MAX_TITLE_LEN = 1000;
 
+// Все сущности раскодируются за один проход (иначе &amp;lt; превращался в «<»).
+const NAMED_ENT = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
 function decodeHtmlEntities(s) {
-  return s
-    .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&apos;/g, "'")
-    // Числовые HTML-сущности: &#8212; (десятичные) и &#x2014; (шестнадцатеричные).
-    .replace(/&#(\d+);/g, (_, code) => {
-      try { return String.fromCodePoint(parseInt(code, 10)); } catch (e) { return "&#" + code + ";"; }
-    })
-    .replace(/&#x([0-9a-f]+);/gi, (_, code) => {
-      try { return String.fromCodePoint(parseInt(code, 16)); } catch (e) { return "&#x" + code + ";"; }
-    });
+  return s.replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos);/gi, (full, e) => {
+    if (e[0] !== "#") return NAMED_ENT[e.toLowerCase()];
+    try { return String.fromCodePoint(e[1] === "x" || e[1] === "X" ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10)); } catch (err) { return full; }
+  });
 }
 
 const ATTR_RE = /([a-zA-Z_:][-\w:.]{0,39})\s{0,20}=\s{0,20}(?:"([^"]*)"|'([^']*)'|([^\s"'>]{1,1000}))/g;

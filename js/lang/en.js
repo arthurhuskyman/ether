@@ -637,6 +637,7 @@ window.__LANG_DICTS["en"] = {
     "toast.forwarded": "Forwarded",
     "toast.exportDone": "Exported",
     "toast.backupSaved": "Backup saved",
+    "toast.backupEncryptFailed": "Could not encrypt the backup — nothing was saved. Try again or export without a password.",
     "toast.imported": "Data imported — reloading",
     "backup.password.exportTitle": "Encrypt backup?",
     "backup.password.exportHint": "Protect this backup with a password. If you forget it, the backup can't be recovered — there's no way around that.",

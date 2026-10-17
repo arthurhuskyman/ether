@@ -33,7 +33,7 @@ function gcallLinkOk(id) { const l = mesh && mesh.get(id); return !!(l && (l.sta
 function gcallSend(id, payload) {
   const l = mesh && mesh.get(id);
   if (!l || !gcallLinkOk(id)) return false;
-  try { l.send(Object.assign({ kind: "gcall", gid: GC.gid, ts: Date.now() }, payload)); return true; } catch (e) { return false; }
+  try { return l.send(Object.assign({ kind: "gcall", gid: GC.gid, ts: Date.now() }, payload)) !== false; } catch (e) { return false; } // send() вернёт false, пока линк не прошёл проверку подлинности
 }
 function gcallBroadcast(payload) {
   const g = gcallGroup(GC.gid); if (!g) return;
@@ -70,6 +70,8 @@ async function startGroupCall(gid, withVideo) {
     gcallEnter(gid);
   } finally { GC.joining = false; }
   gcallBroadcast({ t: "invite", name: g.name || "", from: Store.name || "" });
+  // звонок из группы-комнаты должен быть виден остальным как присутствие в комнате
+  try { if (typeof roomGroup === "function" && roomGroup(gid)) { roomSendPresence(gid, true); roomStartPulse(gid); roomRenderBar(); } } catch (e) {}
 }
 
 async function joinGroupCall(gid) {
@@ -121,20 +123,23 @@ function handleGroupCallPayload(fromId, p) {
   if (p.t === "invite" || p.t === "join") {
     if (GC.gid === p.gid) {
       if (p.t === "invite") return;
+      if (!gcallRegisterPeer(fromId, p.video, p.muted)) return; // звонок переполнен — не отвечаем join'ом
       GC.joined.add(fromId);
-      gcallRegisterPeer(fromId, p.video, p.muted);
-      if (!GC.sentJoin.has(fromId)) { GC.sentJoin.add(fromId); gcallSend(fromId, { t: "join", muted: GC.muted, video: GC.video }); }
+      if (!GC.sentJoin.has(fromId)) gcallJoinRetry(fromId);
       return;
     }
     if (!fresh || GC.gid || state.callId) return; // уже заняты или протухшее приглашение
     const c = state.contacts.get(fromId); if (c && c.blocked) return;
-    GC.invites.set(p.gid, { from: fromId, fromName: gcallMemberName(g, fromId), ts: Date.now() });
+    const invTs = Date.now();
+    GC.invites.set(p.gid, { from: fromId, fromName: gcallMemberName(g, fromId), ts: invTs });
+    // без leave приглашение не должно висеть вечно — гасим по TTL (по времени приёма, не по чужим часам)
+    setTimeout(() => { const cur = GC.invites.get(p.gid); if (cur && cur.ts === invTs) { GC.invites.delete(p.gid); gcallRenderInvite(); } }, GCALL_INVITE_TTL_MS);
     gcallRenderInvite();
     if (p.t === "invite") { try { playRingtone(); } catch (e) {} clearTimeout(GC.ringTimer); GC.ringTimer = setTimeout(gcallStopRing, 25000); }
     return;
   }
   if (GC.gid !== p.gid) {
-    if (p.t === "leave" || p.t === "end") { GC.invites.delete(p.gid); gcallRenderInvite(); }
+    if (p.t === "leave" || p.t === "end") { const inv = GC.invites.get(p.gid); if (inv && inv.from === fromId) { GC.invites.delete(p.gid); gcallRenderInvite(); } }
     return;
   }
   if (p.t === "leave") {
@@ -172,11 +177,29 @@ function gcallOnRemoteTrack(ev) {
 
 function gcallOnLinkStatus(ev) {
   const { id, status } = ev.detail || {};
-  if (!GC.gid || status !== "connected") return;
+  if (!GC.gid) return;
   const g = gcallGroup(GC.gid); if (!g || !gcallIsMember(g, id)) return;
+  if (status === "disconnected") { // линк оборвался — убираем плитку и разрешаем новый join после переподключения
+    GC.sentJoin.delete(id); GC.joined.delete(id);
+    if (GC.peers.delete(id)) {
+      try { if (typeof roomMarkPresent === "function" && g.room) roomMarkPresent(g.id, id, "", false); } catch (e) {}
+      gcallRenderScreen();
+    }
+    return;
+  }
+  if (status !== "connected") return;
   // (пере)подключившемуся участнику сообщаем, что мы в звонке — иначе он не узнает
-  GC.sentJoin.add(id);
-  gcallSend(id, { t: "join", muted: GC.muted, video: GC.video });
+  GC.sentJoin.delete(id);
+  gcallJoinRetry(id);
+}
+// Статус 'connected' приходит раньше открытия канала данных и проверки подлинности, поэтому первая отправка может не пройти:
+// повторяем каждые 500 мс (до ~10 с), а в sentJoin записываем только реально отправленное.
+function gcallJoinRetry(id, attempt) {
+  const gid = GC.gid; if (!gid) return;
+  if (GC.sentJoin.has(id)) return;
+  if (gcallSend(id, { t: "join", muted: GC.muted, video: GC.video })) { GC.sentJoin.add(id); return; }
+  if ((attempt || 0) >= 20) return;
+  setTimeout(() => { if (GC.gid === gid && !GC.sentJoin.has(id) && gcallLinkOk(id)) gcallJoinRetry(id, (attempt || 0) + 1); }, 500);
 }
 
 function gcallWire() {
