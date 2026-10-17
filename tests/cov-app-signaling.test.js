@@ -108,7 +108,7 @@ test("handleIncomingOffer / Answer / watchConnectionTimeout / attemptConnect / r
     return o; })()`));
   assert.ok(c.offered >= 1); assert.equal(c.status, "disconnected"); assert.deepEqual(c.relayReq, ["relay-request"]);
   // handleRelayPayload
-  const rr = J(a.run(`(() => { const o = {}; const sentTo = {}; const mk = (id) => ({ status: "connected", send: (p) => { (sentTo[id] = sentTo[id] || []).push(p.kind); return true; } }); mesh.links.set("hub", mk("hub")); mesh.links.set("tgt", mk("tgt")); mesh.links.set("req", mk("req"));
+  const rr = J(a.run(`(() => { const o = {}; const sentTo = {}; ensureContactEntry("req", "Req"); ensureContactEntry("tgt", "Tgt"); const mk = (id) => ({ status: "connected", send: (p) => { (sentTo[id] = sentTo[id] || []).push(p.kind); return true; } }); mesh.links.set("hub", mk("hub")); mesh.links.set("tgt", mk("tgt")); mesh.links.set("req", mk("req"));
     window.handleIncomingOffer = async (f, p, reply) => { reply({ t: "answer" }); }; window.handleIncomingAnswer = async () => { window.__ans = 1; };
     handleRelayPayload("hub", { kind: "relay-request", to: "tgt", packet: { t: "offer" } }); handleRelayPayload("hub", { kind: "relay-request", to: "none", packet: {} });
     handleRelayPayload("hub", { kind: "relay-deliver", from: "req", packet: { t: "offer", x: "rl1" } }); handleRelayPayload("hub", { kind: "relay-deliver", from: "req", packet: { t: "offer", x: "rl1" } });

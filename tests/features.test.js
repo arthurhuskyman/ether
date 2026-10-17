@@ -213,9 +213,9 @@ test("Голосовые: стиль кассета/пластинка чере�
   const bubble = a.document.querySelector(".voice-bubble");
   if (bubble) {
     const btn = bubble.querySelector(".voice-play-btn");
-    btn.innerHTML = a.run(`VOICE_PAUSE_ICON_SVG`); await tick(20);
+    btn.innerHTML = a.run(`VOICE_PAUSE_ICON_SVG()`); await tick(20);
     assert.ok(bubble.classList.contains("fx-playing"));
-    btn.innerHTML = a.run(`VOICE_PLAY_ICON_SVG`); await tick(20);
+    btn.innerHTML = a.run(`VOICE_PLAY_ICON_SVG()`); await tick(20);
     assert.ok(!bubble.classList.contains("fx-playing"));
   }
   a.close();

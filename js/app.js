@@ -235,7 +235,7 @@ const CRITICAL_LS_KEYS = [
   "ether.readable", "ether.fxInit", "ether.requireVerifiedCalls", "ether.localAi", "ether.localAiLang", "ether.stories", "ether.quietOn", "ether.quietFrom", "ether.quietTo", "ether.wpColor1", "ether.wpColor2", "ether.chatWallpaper", "ether.voiceSpeed", "ether.deadManEnabled", "ether.deadManThresholdDays", "ether.deadManContactId", "ether.deadManLastSentAt",
   "ether.panicShakeEnabled", "ether.fx", "ether.sigKey", "ether.fx.aurora", "ether.keyInfo",
   "ether.claimToken",
-  "ether.receiptsEnabled", "ether.lastSeenVisible", "ether.presenceVisible", "ether.myStatus",
+  "ether.fx.campfires", "ether.receiptsEnabled", "ether.lastSeenVisible", "ether.presenceVisible", "ether.myStatus",
 ];
 
 // Резервная копия ключей в IndexedDB берёт значения «как лежат на диске» (при включённом шифровании — шифртекст), а не расшифрованные из памяти
@@ -2217,7 +2217,7 @@ function startApp() {
     const incoming = SignalingCodec.extractCodeFromLocation();
     if (incoming) {
       try { history.replaceState(null, "", location.pathname); } catch (e) {}
-      handleIncomingCode(incoming);
+      handleIncomingCode(incoming).catch(() => { try { toast(T("toast.badInviteCode")); } catch (e) {} });
     }
   } catch (e) { etherLog("error", "[startApp] incoming code:", String(e)); }
 
@@ -6745,7 +6745,8 @@ function handleFilePayload(from, payload) {
       if (prev) {
         // Приём брошенной (буфер вычищен по TTL) передачи, которую пир повторил:
         // заводим буфер заново, но сообщение не дублируем.
-        if (prev.file && prev.file.pending) {
+        if (prev.file && (prev.file.pending || prev.file.failed) && prev.from === "them") {
+          if (prev.file.failed) { prev.file.failed = false; prev.file.pending = true; persistContacts(); }
           incomingFileBuffers.set(payload.id, { name: payload.name, mime: payload.mime, size: payload.size, totalChunks, chunks: new Array(totalChunks).fill(null), from, receivedAt: Date.now() });
         }
         return;
@@ -6986,7 +6987,7 @@ function fileBubbleHtml(msgId, fileInfo) {
     // применительно к AnalyserNode на MediaElementSource воспроизводимого
     // <audio>, а не на живом микрофонном MediaStream.
     return `<div class="voice-bubble" data-file-id="${escapeHtml(msgId)}" data-file-kind="audio" data-duration="${safeDuration(fileInfo.duration)}">
-      <button type="button" class="voice-play-btn" disabled><span class="vp-ico">${VOICE_PLAY_ICON_SVG}</span></button>
+      <button type="button" class="voice-play-btn" disabled><span class="vp-ico">${VOICE_PLAY_ICON_SVG()}</span></button>
       <span class="voice-live-wave" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></span>
       <div class="voice-progress voice-wave" role="slider" tabindex="0" aria-label="${escapeHtml(T("chat.voice.seek"))}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="voice-wave-bars">${voiceWaveHtml(fileInfo.wave, msgId)}</div><div class="voice-progress-fill"></div></div>
       <button type="button" class="voice-speed-btn" aria-label="${escapeHtml(T("chat.voice.speed"))}">${voiceSpeed()}×</button>
@@ -7090,7 +7091,7 @@ function formatVoiceDuration(sec) {
 // Единая иконография — play/pause голосового сообщения раньше были
 // текстовыми символами ▶/⏸ (textContent), теперь те же SVG, что и
 // везде в приложении (viewBox 24×24, currentColor).
-const VOICE_PLAY_ICON_SVG = '' + Icons.html("play", 16) + '';
+const VOICE_PLAY_ICON_SVG = () => Icons.html("play", 16); // функция: иконки скина (skins.js) грузятся позже app.js
 // Значок play/pause живёт в своём <span class="vp-ico"> — рисунок кассеты/пластинки (features.js) лежит рядом в той же кнопке и не затирается
 function setVoiceIcon(btn, svg) {
   if (!btn) return;
@@ -7098,7 +7099,7 @@ function setVoiceIcon(btn, svg) {
   if (!ico) { ico = document.createElement("span"); ico.className = "vp-ico"; btn.appendChild(ico); }
   ico.innerHTML = svg;
 }
-const VOICE_PAUSE_ICON_SVG = '' + Icons.html("pause", 16) + '';
+const VOICE_PAUSE_ICON_SVG = () => Icons.html("pause", 16);
 const voiceAudioCache = new Map(); // msgId -> { audio, playing, analyser? } — переиспользуем между рендерами
 // Раньше при уходе из чата (в список чатов или в другой чат) голосовое,
 // если оно играло, продолжало звучать в фоне — кнопки для остановки
@@ -7107,7 +7108,7 @@ function pauseAllVoicePlayback() {
   for (const entry of voiceAudioCache.values()) {
     if (entry.playing) { entry.audio.pause(); entry.playing = false; }
   }
-  document.querySelectorAll(".voice-play-btn").forEach((b) => { setVoiceIcon(b, VOICE_PLAY_ICON_SVG); });
+  document.querySelectorAll(".voice-play-btn").forEach((b) => { setVoiceIcon(b, VOICE_PLAY_ICON_SVG()); });
   stopVoicePlaybackWaveLoop();
   clearNowPlaying();
 }
@@ -7261,13 +7262,13 @@ function hydrateFileSlots(root) {
       }
       const audio = entry.audio;
       playBtn.disabled = false;
-      setVoiceIcon(playBtn, entry.playing ? VOICE_PAUSE_ICON_SVG : VOICE_PLAY_ICON_SVG);
+      setVoiceIcon(playBtn, entry.playing ? VOICE_PAUSE_ICON_SVG() : VOICE_PLAY_ICON_SVG());
       el.classList.toggle("fx-playing", !!entry.playing);
       el.classList.toggle("is-playing", !!entry.playing);
       const durOf = () => (isFinite(audio.duration) && audio.duration > 0) ? audio.duration : knownDuration;
       const setUi = (playing) => {
         entry.playing = playing;
-        setVoiceIcon(playBtn, playing ? VOICE_PAUSE_ICON_SVG : VOICE_PLAY_ICON_SVG);
+        setVoiceIcon(playBtn, playing ? VOICE_PAUSE_ICON_SVG() : VOICE_PLAY_ICON_SVG());
         el.classList.toggle("fx-playing", playing); el.classList.toggle("is-playing", playing);
       };
       // ontimeupdate/onended/onplay/onpause — присвоение свойств: ЗАМЕНЯЕТ обработчики прошлого рендера, а не копит дубли.
@@ -7734,19 +7735,21 @@ function parseGroupInviteCode(text) {
 }
 async function joinGroupViaInvite(text) {
   const parsed = parseGroupInviteCode(text);
-  if (!parsed) { toast(T("toast.badInviteCode")); return; }
+  if (!parsed) { toast(T("toast.badInviteCode")); return false; }
   const { groupId, refId, refName, groupName } = parsed;
-  if (refId === Store.myId) { toast(T("toast.ownId")); return; }
+  if (refId === Store.myId) { toast(T("toast.ownId")); return false; }
   const existing = state.contacts.get(groupId);
-  if (existing && existing.isGroup) { toast(T("toast.groupAlreadyJoined")); return; }
+  if (existing && existing.isGroup) { toast(T("toast.groupAlreadyJoined")); return false; }
   if (recentlyDeletedIds.delete(refId)) persistRecentlyDeleted(); // осознанное повторное добавление снимает блокировку из deleteContact
   ensureContactEntry(refId, refName || null);
   persistContacts();
   if (onlineSet.has(refId)) scheduleAutoConnect(refId);
   else attemptConnectViaRelay(refId).catch(() => {});
   const refC = state.contacts.get(refId);
+  if (!refC) return false;
   await trySendOrQueue(refC, crypto.randomUUID(), { kind: "group-join-request", groupId, groupName, requesterName: Store.name || "" });
   toast(T("toast.groupJoinRequested", { name: groupName || T("group.defaultName") }));
+  return true;
 }
 function openGroupInviteSheet(groupId) {
   const code = buildGroupInviteCode(groupId); if (!code) return;
@@ -10209,20 +10212,28 @@ async function handleIncomingCode(code) {
   let packet;
   try { packet = await SignalingCodec.decode(code); }
   catch (e) { return; }
-  if (packet.t === "offer") {
+  if (packet && packet.t === "offer") {
+    if (!packet.d || typeof packet.d.sdp !== "string") throw new Error("bad offer");
     const id = crypto.randomUUID();
-    const link = mesh.createIncomingLink(id);
-    const answerPacket = await link.acceptOfferAndCreateAnswer(packet);
-    const answerCode = await SignalingCodec.encode(answerPacket);
-    state.contacts.set(id, { id, name: packet.n || T("sys.someone"), raw: "", managed: false, online: false, status: "connecting", messages: [], lastActivity: Date.now(), archived: false, muted: false, blocked: false });
-    state.tab = "connect"; renderTab();
-    const ms = $("#manual-section"); if (ms) ms.classList.remove("hidden");
-    const tm = $("#toggle-manual-btn"); if (tm) tm.textContent = T("connect.manual.hide");
-    const ib = $("#incoming-banner"); if (ib) ib.classList.remove("hidden");
-    const ibt = $("#incoming-banner-text"); if (ibt) ibt.textContent = packet.n || "";
-    const aoc = $("#answer-out-code"); if (aoc) aoc.textContent = answerCode;
-    const aow = $("#answer-out-wrap"); if (aow) aow.classList.remove("hidden");
-    const pcw = $("#paste-code-wrap"); if (pcw) pcw.classList.add("hidden");
+    let link;
+    try {
+      link = mesh.createIncomingLink(id);
+      const answerPacket = await link.acceptOfferAndCreateAnswer(packet);
+      const answerCode = await SignalingCodec.encode(answerPacket);
+      state.contacts.set(id, { id, name: packet.n || T("sys.someone"), raw: "", managed: false, online: false, status: "connecting", messages: [], lastActivity: Date.now(), archived: false, muted: false, blocked: false });
+      state.tab = "connect"; renderTab();
+      const ms = $("#manual-section"); if (ms) ms.classList.remove("hidden");
+      const tm = $("#toggle-manual-btn"); if (tm) tm.textContent = T("connect.manual.hide");
+      const ib = $("#incoming-banner"); if (ib) ib.classList.remove("hidden");
+      const ibt = $("#incoming-banner-text"); if (ibt) ibt.textContent = packet.n || "";
+      const aoc = $("#answer-out-code"); if (aoc) aoc.textContent = answerCode;
+      const aow = $("#answer-out-wrap"); if (aow) aow.classList.remove("hidden");
+      const pcw = $("#paste-code-wrap"); if (pcw) pcw.classList.add("hidden");
+    } catch (e) {
+      try { mesh.remove(id); } catch (e2) {}
+      state.contacts.delete(id);
+      throw e;
+    }
   }
 }
 function copyText(text, msg) {
