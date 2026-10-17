@@ -959,6 +959,7 @@ window.__LANG_DICTS["es"] = {
     "help.calls.body": "Toca el icono de teléfono o de cámara en la parte superior de un chat para llamar. Durante la llamada puedes silenciar, activar o desactivar la cámara, cambiar de cámara y alternar entre auricular y altavoz. Si la persona está sin conexión, recibe una notificación y puedes dejar un mensaje de voz. En un grupo, el icono de llamada inicia una llamada grupal.",
     "help.privacy.body": "Los mensajes están cifrados de extremo a extremo con un Double Ratchet: solo tú y la otra persona podéis leerlos, no el servidor. El servidor solo ayuda a los dispositivos a encontrarse y guarda un sobre cifrado hasta 14 días si el destinatario está sin conexión. En el perfil de un contacto, abre el número de seguridad para compararlo o escanea un QR en persona y marca el contacto como verificado. En Ajustes puedes establecer un PIN y activar «Cifrar los datos en este dispositivo»: entonces los mensajes, las claves y los archivos se guardan cifrados con una clave derivada de tu PIN (si olvidas el PIN, los datos no se pueden recuperar).",
     "settings.fontSize.system": "Seguir el sistema (Dynamic Type)",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("es");

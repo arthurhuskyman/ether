@@ -959,6 +959,7 @@ window.__LANG_DICTS["uz"] = {
     "help.calls.body": "Qoʻngʻiroq qilish uchun chat tepasidagi telefon yoki kamera belgisini bosing. Qoʻngʻiroq paytida mikrofonni oʻchirish, kamerani yoqish/oʻchirish, kameralarni almashtirish va quloqchin bilan karnay oʻrtasida almashish mumkin. Suhbatdosh oflayn boʻlsa, unga bildirishnoma boradi, siz esa ovozli pochta qoldirishingiz mumkin. Guruhda qoʻngʻiroq belgisi guruh qoʻngʻirogʻini boshlaydi.",
     "help.privacy.body": "Xabarlar Double Ratchet orqali uchidan uchigacha shifrlanadi — ularni faqat siz va suhbatdoshingiz oʻqiy oladi, server emas. Server qurilmalarga bir-birini topishda yordam beradi xolos va qabul qiluvchi oflayn boʻlsa, shifrlangan konvertni 14 kungacha saqlaydi. Kontakt profilida xavfsizlik raqamini ochib solishtiring yoki yuzma-yuz QR-kodni skanerlab, kontaktni tekshirilgan deb belgilang. Sozlamalarda PIN oʻrnatib, «Qurilmadagi maʼlumotlarni shifrlash»ni yoqish mumkin — shunda xabarlar, kalitlar va fayllar PIN-dan olingan kalit bilan shifrlangan holda saqlanadi (PIN unutilsa, maʼlumotlarni tiklab boʻlmaydi).",
     "settings.fontSize.system": "Tizim boʻyicha (Dynamic Type)",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("uz");

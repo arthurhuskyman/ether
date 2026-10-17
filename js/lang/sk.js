@@ -959,6 +959,7 @@ window.__LANG_DICTS["sk"] = {
     "help.calls.body": "Hovor uskutočníte klepnutím na ikonu telefónu alebo kamery v hornej časti chatu. Počas hovoru môžete stlmiť mikrofón, zapnúť/vypnúť kameru, prepnúť kamery a prepínať medzi slúchadlom a reproduktorom. Ak je osoba offline, dostane oznámenie a vy môžete zanechať odkaz. V skupine spustíte skupinový hovor klepnutím na ikonu hovoru.",
     "help.privacy.body": "Správy sú end-to-end šifrované pomocou Double Ratchet — čítať ich môžete iba vy a druhá osoba, nie server. Server len pomáha zariadeniam nájsť sa a až na 14 dní uchováva zašifrovanú obálku, ak je príjemca offline. V profile kontaktu otvorte bezpečnostné číslo a porovnajte ho, alebo osobne naskenujte QR a označte kontakt ako overený. V Nastaveniach môžete nastaviť PIN a zapnúť „Šifrovať údaje v tomto zariadení“ — správy, kľúče a súbory sa potom ukladajú zašifrované kľúčom odvodeným z vášho PIN (ak PIN zabudnete, údaje sa nedajú obnoviť).",
     "settings.fontSize.system": "Podľa systému (Dynamic Type)",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("sk");

@@ -959,6 +959,7 @@ window.__LANG_DICTS["pl"] = {
     "help.calls.body": "Dotknij ikony telefonu lub kamery u góry czatu, aby zadzwonić. Podczas rozmowy możesz wyciszyć mikrofon, włączyć lub wyłączyć kamerę, przełączyć kamery oraz przełączać między słuchawką a głośnikiem. Jeśli rozmówca jest offline, dostanie powiadomienie, a Ty możesz zostawić wiadomość głosową. W grupie ikona połączenia rozpoczyna połączenie grupowe.",
     "help.privacy.body": "Wiadomości są szyfrowane end-to-end protokołem Double Ratchet — mogą je przeczytać tylko Ty i rozmówca, nie serwer. Serwer jedynie pomaga urządzeniom się znaleźć i przez maksymalnie 14 dni przechowuje zaszyfrowaną kopertę, jeśli odbiorca jest offline. W profilu kontaktu otwórz numer bezpieczeństwa, aby go porównać, lub zeskanuj osobiście kod QR i oznacz kontakt jako zweryfikowany. W Ustawieniach możesz ustawić PIN i włączyć „Szyfruj dane na tym urządzeniu” — wtedy wiadomości, klucze i pliki są przechowywane zaszyfrowane kluczem wyprowadzonym z PIN-u (jeśli zapomnisz PIN-u, danych nie da się odzyskać).",
     "settings.fontSize.system": "Zgodnie z systemem (Dynamic Type)",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("pl");

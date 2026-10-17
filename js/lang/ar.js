@@ -959,6 +959,7 @@ window.__LANG_DICTS["ar"] = {
     "help.calls.body": "اضغط على أيقونة الهاتف أو الكاميرا أعلى المحادثة للاتصال. أثناء المكالمة يمكنك كتم الميكروفون وتشغيل الكاميرا أو إيقافها وتبديل الكاميرات والتنقل بين سماعة الأذن ومكبّر الصوت. إذا كان الشخص غير متصل يصله إشعار ويمكنك ترك رسالة صوتية. في المجموعة اضغط أيقونة الاتصال لبدء مكالمة جماعية.",
     "help.privacy.body": "الرسائل مشفّرة من طرف إلى طرف بخوارزمية Double Ratchet — أنت والطرف الآخر فقط تستطيعان قراءتها، وليس الخادم. يساعد الخادم الأجهزة على إيجاد بعضها فقط، ويحتفظ بظرف مشفّر لمدة تصل إلى 14 يومًا إذا كان المستلم غير متصل. في ملف جهة الاتصال افتح رقم الأمان لمقارنته أو امسح رمز QR شخصيًا وعلّم جهة الاتصال كموثَّقة. في الإعدادات يمكنك ضبط PIN وتفعيل «تشفير البيانات على هذا الجهاز» — عندها تُخزَّن الرسائل والمفاتيح والملفات مشفّرة بمفتاح مشتق من PIN (إذا نسيت PIN فلا يمكن استرجاع البيانات).",
     "settings.fontSize.system": "حسب النظام (Dynamic Type)",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ar");

@@ -959,6 +959,7 @@ window.__LANG_DICTS["nl"] = {
     "help.calls.body": "Tik bovenaan een chat op het telefoon- of camerapictogram om te bellen. Tijdens een gesprek kun je dempen, de camera aan- of uitzetten, van camera wisselen en schakelen tussen oorluidspreker en luidspreker. Is de ander offline, dan krijgt die een melding en kun je een voicemail achterlaten. In een groep start je met het belpictogram een groepsgesprek.",
     "help.privacy.body": "Berichten zijn end-to-end versleuteld met een Double Ratchet — alleen jij en de ander kunnen ze lezen, niet de server. De server helpt apparaten alleen elkaar te vinden en bewaart maximaal 14 dagen een versleutelde envelop als de ontvanger offline is. Open in het profiel van een contact het veiligheidsnummer om het te vergelijken, of scan persoonlijk een QR en markeer het contact als geverifieerd. In Instellingen kun je een pincode instellen en “Gegevens op dit apparaat versleutelen” aanzetten — dan worden berichten, sleutels en bestanden versleuteld opgeslagen met een sleutel afgeleid van je pincode (vergeet je de pincode, dan zijn de gegevens niet te herstellen).",
     "settings.fontSize.system": "Systeem volgen (Dynamic Type)",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("nl");

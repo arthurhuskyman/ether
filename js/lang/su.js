@@ -959,6 +959,7 @@ window.__LANG_DICTS["su"] = {
     "help.calls.body": "Ketok ikon telepon atawa kaméra di luhur obrolan pikeun nelepon. Salila telepon anjeun bisa mareuman sora, ngahurungkeun/mareuman kaméra, ngaganti kaméra sareng pindah antara spiker ceuli jeung spiker luar. Upami jalma offline, aranjeunna nampi bewara sareng anjeun bisa ninggalkeun pesen sora. Dina grup, ketok ikon telepon pikeun ngamimitian telepon grup.",
     "help.privacy.body": "Pesen dikodekeun tungtung-ka-tungtung ku Double Ratchet — ngan anjeun jeung jalma séjén anu bisa maca, lain server. Server ngan mantuan parangkat silih mendakan sareng nyimpen amplop anu dikodekeun nepi ka 14 poé upami panarima offline. Dina profil kontak, buka nomer kaamanan pikeun ngabandingkeun atawa mindai QR sacara langsung terus tandaan kontak salaku diverifikasi. Dina Setélan anjeun bisa nyetél PIN sareng ngahurungkeun \"Kodekeun data dina parangkat ieu\" — saatos éta pesen, konci sareng berkas disimpen dikodekeun ku konci anu diturunkeun tina PIN anjeun (upami PIN poho, data teu bisa dipulihkeun).",
     "settings.fontSize.system": "Turutan sistem (Dynamic Type)",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("su");

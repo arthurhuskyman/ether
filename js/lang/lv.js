@@ -959,6 +959,7 @@ window.__LANG_DICTS["lv"] = {
     "help.calls.body": "Pieskarieties tālruņa vai kameras ikonai tērzēšanas augšdaļā, lai zvanītu. Zvana laikā varat izslēgt skaņu, ieslēgt vai izslēgt kameru, pārslēgt kameras un mainīt starp austiņu un skaļruni. Ja cilvēks ir bezsaistē, viņš saņem paziņojumu, un jūs varat atstāt balss ziņu. Grupā pieskarieties zvana ikonai, lai sāktu grupas zvanu.",
     "help.privacy.body": "Ziņas tiek šifrētas no gala līdz galam ar Double Ratchet — tās var izlasīt tikai jūs un otrs cilvēks, nevis serveris. Serveris tikai palīdz ierīcēm atrast vienai otru un līdz 14 dienām glabā šifrētu aploksni, ja saņēmējs ir bezsaistē. Kontakta profilā atveriet drošības numuru, lai to salīdzinātu, vai klātienē noskenējiet QR un atzīmējiet kontaktu kā pārbaudītu. Iestatījumos varat uzstādīt PIN un ieslēgt “Šifrēt datus šajā ierīcē” — tad ziņas, atslēgas un faili tiek glabāti šifrēti ar atslēgu, kas atvasināta no jūsu PIN (ja aizmirsīsiet PIN, datus nevarēs atjaunot).",
     "settings.fontSize.system": "Kā sistēmā (Dynamic Type)",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("lv");

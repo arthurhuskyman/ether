@@ -959,6 +959,7 @@ window.__LANG_DICTS["ha"] = {
     "help.calls.body": "Danna alamar waya ko kyamara a saman hira don kira. A lokacin kira za ka iya rufe makirufo, kunna/kashe kyamara, canza kyamara, da canzawa tsakanin lasifikar kunne da lasifika. Idan mutumin ba ya kan layi yana samun sanarwa kuma za ka iya barin saƙon murya. A ƙungiya, alamar kira tana fara kiran ƙungiya.",
     "help.privacy.body": "Saƙonni an ɓoye su daga ƙarshe zuwa ƙarshe da Double Ratchet — kai da ɗayan ne kaɗai za ku iya karanta su, ba sabar ba. Sabar tana taimaka wa na'urori su gano juna ne kawai kuma tana riƙe da ambulan ɗin da aka ɓoye har kwana 14 idan mai karɓa ba ya kan layi. A bayanin abokin hulɗa buɗe lambar tsaro don kwatantawa ko ka duba QR kai tsaye ka yi wa abokin hulɗa alamar an tabbatar. A Saituna za ka iya saita PIN ka kunna “Ɓoye bayanai a wannan na'urar” — to saƙonni, makullai da fayiloli ana adana su a ɓoye da makullin da aka samar daga PIN ɗinka (idan ka manta PIN, ba za a iya dawo da bayanan ba).",
     "settings.fontSize.system": "Bi tsarin na'ura (Dynamic Type)",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ha");

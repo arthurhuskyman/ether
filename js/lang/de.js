@@ -959,6 +959,7 @@ window.__LANG_DICTS["de"] = {
     "help.calls.body": "Tippe oben im Chat auf das Telefon- oder Kamerasymbol, um anzurufen. Im Anruf kannst du stummschalten, die Kamera ein- und ausschalten, die Kamera wechseln und zwischen Hörer und Lautsprecher umschalten. Ist die Person offline, bekommt sie eine Benachrichtigung und du kannst eine Sprachnachricht hinterlassen. In einer Gruppe startet das Anrufsymbol einen Gruppenanruf.",
     "help.privacy.body": "Nachrichten sind mit einem Double Ratchet Ende-zu-Ende-verschlüsselt – nur du und die andere Person könnt sie lesen, nicht der Server. Der Server hilft Geräten nur, sich zu finden, und hält einen verschlüsselten Umschlag bis zu 14 Tage vor, wenn der Empfänger offline ist. Öffne im Profil eines Kontakts die Sicherheitsnummer, um sie zu vergleichen, oder scanne persönlich einen QR-Code und markiere den Kontakt als verifiziert. In den Einstellungen kannst du eine PIN festlegen und „Daten auf diesem Gerät verschlüsseln“ aktivieren – dann werden Nachrichten, Schlüssel und Dateien mit einem aus deiner PIN abgeleiteten Schlüssel verschlüsselt gespeichert (wenn du die PIN vergisst, lassen sich die Daten nicht wiederherstellen).",
     "settings.fontSize.system": "System folgen (Dynamic Type)",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("de");

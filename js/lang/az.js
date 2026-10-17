@@ -959,6 +959,7 @@ window.__LANG_DICTS["az"] = {
     "help.calls.body": "Zəng etmək üçün söhbətin yuxarısındakı telefon və ya kamera işarəsinə toxunun. Zəng zamanı mikrofonu söndürə, kameranı aça/bağlaya, kameraları dəyişə və qulaqcıq ilə dinamik arasında keçid edə bilərsiniz. Şəxs oflayndırsa ona bildiriş gedir və siz səsli mesaj qoya bilərsiniz. Qrupda qrup zəngi başlatmaq üçün zəng işarəsinə toxunun.",
     "help.privacy.body": "Mesajlar Double Ratchet ilə ucdan-uca şifrələnir — onları yalnız siz və o biri şəxs oxuya bilər, server yox. Server yalnız cihazların bir-birini tapmasına kömək edir və alıcı oflayn olduqda şifrələnmiş zərfi 14 günədək saxlayır. Kontaktın profilində təhlükəsizlik nömrəsini açıb müqayisə edin və ya QR-ı üz-üzə skan edib kontaktı təsdiqlənmiş kimi işarələyin. Tənzimləmələrdə PIN təyin edib «Bu cihazdakı məlumatları şifrələ» seçimini aktivləşdirə bilərsiniz — onda mesajlar, açarlar və fayllar PIN-dən yaradılmış açarla şifrələnmiş saxlanılır (PIN-i unutsanız, məlumatları bərpa etmək mümkün olmayacaq).",
     "settings.fontSize.system": "Sistemə uyğun (Dynamic Type)",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("az");

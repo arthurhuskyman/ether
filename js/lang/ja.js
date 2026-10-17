@@ -959,6 +959,7 @@ window.__LANG_DICTS["ja"] = {
     "help.calls.body": "チャット上部の電話またはカメラのアイコンをタップして発信します。通話中は、ミュート、カメラのオン/オフ、カメラの切り替え、受話口とスピーカーの切り替えができます。相手がオフラインの場合は通知が届き、ボイスメールを残せます。グループでは、通話アイコンをタップするとグループ通話を開始します。",
     "help.privacy.body": "メッセージはDouble Ratchetでエンドツーエンド暗号化されます——読めるのはあなたと相手だけで、サーバーには読めません。サーバーは端末同士が見つけ合うのを助けるだけで、相手がオフラインの場合は暗号化された封筒を最大14日間保持します。連絡先のプロフィールで安全番号を開いて照合するか、直接会ってQRをスキャンし、連絡先を確認済みにできます。設定でPINを設定して「この端末のデータを暗号化」をオンにすると、メッセージ、キー、ファイルがPINから導出したキーで暗号化されて保存されます（PINを忘れるとデータは復元できません）。",
     "settings.fontSize.system": "システムに合わせる（Dynamic Type）",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ja");

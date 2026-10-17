@@ -959,6 +959,7 @@ window.__LANG_DICTS["gu"] = {
     "help.calls.body": "કૉલ કરવા ચૅટની ઉપર ફોન કે કૅમેરા આઇકન ટૅપ કરો. કૉલ દરમિયાન તમે મ્યૂટ કરી શકો, કૅમેરા ચાલુ/બંધ કરી શકો, કૅમેરા બદલી શકો અને ઇયરપીસ અને સ્પીકર વચ્ચે બદલી શકો. વ્યક્તિ ઑફલાઇન હોય તો તેને સૂચના મળે છે અને તમે વૉઇસમેઇલ મૂકી શકો છો. ગ્રૂપમાં કૉલ આઇકન ગ્રૂપ કૉલ શરૂ કરે છે.",
     "help.privacy.body": "સંદેશા Double Ratchet સાથે એન્ડ-ટુ-એન્ડ એન્ક્રિપ્ટેડ છે — ફક્ત તમે અને સામેની વ્યક્તિ તે વાંચી શકો, સર્વર નહીં. સર્વર ફક્ત ઉપકરણોને એકબીજાને શોધવામાં મદદ કરે છે અને પ્રાપ્તકર્તા ઑફલાઇન હોય તો એન્ક્રિપ્ટેડ પરબિડીયું 14 દિવસ સુધી રાખે છે. સંપર્કની પ્રોફાઇલમાં સુરક્ષા નંબર ખોલીને સરખાવો અથવા રૂબરૂ QR સ્કૅન કરીને સંપર્કને ચકાસેલ તરીકે ચિહ્નિત કરો. સેટિંગ્સમાં તમે PIN સેટ કરી “આ ઉપકરણ પરનો ડેટા એન્ક્રિપ્ટ કરો” ચાલુ કરી શકો — પછી સંદેશા, કી અને ફાઇલો તમારા PIN પરથી બનેલી કીથી એન્ક્રિપ્ટ થઈને સંગ્રહાય છે (PIN ભૂલી જાઓ તો ડેટા પાછો મેળવી શકાતો નથી).",
     "settings.fontSize.system": "સિસ્ટમ મુજબ (Dynamic Type)",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("gu");

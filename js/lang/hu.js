@@ -959,6 +959,7 @@ window.__LANG_DICTS["hu"] = {
     "help.calls.body": "A híváshoz koppints a telefon vagy kamera ikonra a csevegés tetején. Hívás közben némíthatsz, ki- és bekapcsolhatod a kamerát, válthatsz a kamerák között, és átkapcsolhatsz a hallgató és a hangszóró között. Ha a másik személy offline, értesítést kap, te pedig hagyhatsz hangüzenetet. Csoportban a hívás ikonra koppintva indíthatsz csoporthívást.",
     "help.privacy.body": "Az üzenetek Double Ratchet protokollal végponttól végpontig titkosítottak — csak te és a másik személy olvashatja őket, a szerver nem. A szerver csak abban segít, hogy az eszközök megtalálják egymást, és legfeljebb 14 napig megőriz egy titkosított borítékot, ha a címzett offline. Az ismerős profiljában nyisd meg a biztonsági számot az összehasonlításhoz, vagy személyesen olvass be egy QR-kódot, és jelöld az ismerőst ellenőrzöttként. A Beállításokban megadhatsz PIN-t, és bekapcsolhatod az „Adatok titkosítása ezen az eszközön” opciót — ekkor az üzenetek, kulcsok és fájlok a PIN-ből képzett kulccsal titkosítva tárolódnak (ha elfelejted a PIN-t, az adatok nem állíthatók helyre).",
     "settings.fontSize.system": "A rendszer szerint (Dynamic Type)",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("hu");

@@ -959,6 +959,7 @@ window.__LANG_DICTS["pt"] = {
     "help.calls.body": "Toque no ícone de telefone ou de câmara no topo de uma conversa para ligar. Durante a chamada pode silenciar, ligar ou desligar a câmara, trocar de câmara e alternar entre auricular e altifalante. Se a pessoa estiver offline, recebe uma notificação e pode deixar uma mensagem de voz. Num grupo, toque no ícone de chamada para iniciar uma chamada de grupo.",
     "help.privacy.body": "As mensagens têm encriptação de ponta a ponta com Double Ratchet — só você e a outra pessoa as podem ler, não o servidor. O servidor apenas ajuda os dispositivos a encontrarem-se e guarda um envelope encriptado até 14 dias se o destinatário estiver offline. No perfil de um contacto, abra o número de segurança para o comparar ou leia um QR pessoalmente e marque o contacto como verificado. Nas Definições pode definir um PIN e ativar “Encriptar dados neste dispositivo” — então as mensagens, chaves e ficheiros são guardados encriptados com uma chave derivada do PIN (se esquecer o PIN, os dados não podem ser recuperados).",
     "settings.fontSize.system": "Seguir o sistema (Dynamic Type)",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("pt");

@@ -959,6 +959,7 @@ window.__LANG_DICTS["fi"] = {
     "help.calls.body": "Soita napauttamalla keskustelun yläreunan puhelin- tai kamerakuvaketta. Puhelun aikana voit mykistää, kytkeä kameran päälle tai pois, vaihtaa kameraa ja vaihtaa kuulokkeen ja kaiuttimen välillä. Jos henkilö on offline-tilassa, hän saa ilmoituksen ja voit jättää ääniviestin. Ryhmässä puhelukuvake aloittaa ryhmäpuhelun.",
     "help.privacy.body": "Viestit on salattu päästä päähän Double Ratchetilla – vain sinä ja toinen osapuoli voitte lukea ne, ei palvelin. Palvelin vain auttaa laitteita löytämään toisensa ja pitää salattua kirjekuorta enintään 14 päivää, jos vastaanottaja on offline-tilassa. Avaa yhteystiedon profiilissa turvanumero verrataksesi sitä tai skannaa QR-koodi kasvotusten ja merkitse yhteystieto vahvistetuksi. Asetuksissa voit asettaa PIN-koodin ja ottaa käyttöön ”Salaa tämän laitteen tiedot” – silloin viestit, avaimet ja tiedostot tallennetaan salattuina PIN-koodistasi johdetulla avaimella (jos unohdat PIN-koodin, tietoja ei voi palauttaa).",
     "settings.fontSize.system": "Seuraa järjestelmää (Dynamic Type)",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("fi");

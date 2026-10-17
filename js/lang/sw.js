@@ -959,6 +959,7 @@ window.__LANG_DICTS["sw"] = {
     "help.calls.body": "Gusa aikoni ya simu au kamera juu ya gumzo ili kupiga simu. Wakati wa simu unaweza kunyamazisha, kuwasha/kuzima kamera, kubadilisha kamera na kubadilisha kati ya spika ya sikio na spika ya nje. Mtu akiwa nje ya mtandao hupata arifa na unaweza kuacha ujumbe wa sauti. Kwenye kikundi, gusa aikoni ya simu ili kuanzisha simu ya kikundi.",
     "help.privacy.body": "Jumbe zimesimbwa kwa njia fiche kutoka mwanzo hadi mwisho kwa Double Ratchet — ni wewe na mtu mwingine tu mnaoweza kuzisoma, si seva. Seva husaidia vifaa kupatana tu na hushikilia bahasha iliyosimbwa kwa hadi siku 14 mpokeaji akiwa nje ya mtandao. Kwenye wasifu wa anwani, fungua nambari ya usalama ili kuilinganisha au changanua QR ana kwa ana kisha uweke alama kuwa imethibitishwa. Kwenye Mipangilio unaweza kuweka PIN na kuwasha \"Simba data kwenye kifaa hiki\" — kisha jumbe, funguo na faili huhifadhiwa zikiwa zimesimbwa kwa ufunguo unaotokana na PIN yako (ukisahau PIN, data haiwezi kurejeshwa).",
     "settings.fontSize.system": "Fuata mfumo (Dynamic Type)",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("sw");

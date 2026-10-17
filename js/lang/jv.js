@@ -959,6 +959,7 @@ window.__LANG_DICTS["jv"] = {
     "help.calls.body": "Ketok lambang telpon utawa kamera ing ndhuwur chat kanggo nelpon. Nalika telpon, sampeyan bisa meneng-ake mikrofon, ngurupake/mateni kamera, mbalik kamera, lan ganti antarane earpiece lan speaker. Yen wong kuwi offline, dheweke entuk notifikasi lan sampeyan bisa ninggal pesen swara. Ing grup, ketok lambang telpon kanggo miwiti telpon grup.",
     "help.privacy.body": "Pesen dienkripsi ujung-ke-ujung nganggo Double Ratchet — mung sampeyan lan wong liya sing bisa maca, dudu server. Server mung mbiyantu piranti kanggo nemokake siji lan sijine lan nyimpen amplop sing dienkripsi nganti 14 dina yen panampa offline. Ing profil kontak, bukak nomer keamanan kanggo mbandhingake utawa pindai QR kanthi langsung lan tandhani kontak wis diverifikasi. Ing Setelan sampeyan bisa nyetel PIN lan ngaktifake \"Enkripsi data ing piranti iki\" — banjur pesen, kunci, lan berkas disimpen kanthi dienkripsi nganggo kunci saka PIN sampeyan (yen lali PIN, data ora bisa dibalekake).",
     "settings.fontSize.system": "Manut sistem (Dynamic Type)",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("jv");

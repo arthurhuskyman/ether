@@ -959,6 +959,7 @@ window.__LANG_DICTS["id"] = {
     "help.calls.body": "Ketuk ikon telepon atau kamera di bagian atas chat untuk menelepon. Selama panggilan Anda bisa membisukan, menyalakan/mematikan kamera, membalik kamera, dan beralih antara earpiece dan speaker. Jika lawan bicara offline, mereka mendapat notifikasi dan Anda bisa meninggalkan pesan suara. Di grup, ketuk ikon panggilan untuk memulai panggilan grup.",
     "help.privacy.body": "Pesan dienkripsi ujung ke ujung dengan Double Ratchet — hanya Anda dan lawan bicara yang bisa membacanya, bukan server. Server hanya membantu perangkat saling menemukan dan menyimpan amplop terenkripsi hingga 14 hari jika penerima offline. Di profil kontak, buka nomor keamanan untuk membandingkannya atau pindai QR secara langsung dan tandai kontak sebagai terverifikasi. Di Pengaturan Anda bisa membuat PIN dan mengaktifkan \"Enkripsi data di perangkat ini\" — lalu pesan, kunci, dan file disimpan terenkripsi dengan kunci yang diturunkan dari PIN Anda (jika lupa PIN, data tidak dapat dipulihkan).",
     "settings.fontSize.system": "Ikuti sistem (Dynamic Type)",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("id");

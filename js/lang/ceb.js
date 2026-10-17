@@ -959,6 +959,7 @@ window.__LANG_DICTS["ceb"] = {
     "help.calls.body": "I-tap ang icon sa telepono o kamera sa taas sa chat aron motawag. Atol sa tawag mahimo nimong i-mute, i-on/i-off ang kamera, ilisan ang kamera ug ilis-ilis ang earpiece ug speaker. Kung offline ang tawo, makadawat siya og notification ug makabilin ka og voicemail. Sa grupo, i-tap ang call icon aron magsugod og group call.",
     "help.privacy.body": "Ang mga mensahe end-to-end encrypted gamit ang Double Ratchet — ikaw ug ang lain ra nga tawo ang makabasa niini, dili ang server. Ang server nagtabang lang sa mga device nga makakita sa usag usa ug nagpabilin og na-encrypt nga sobre hangtod 14 ka adlaw kung offline ang nakadawat. Sa profile sa kontak, ablihi ang safety number aron itandi kini o i-scan ang QR sa personal ug markahi ang kontak nga na-verify. Sa Mga setting mahimo kang mag-set og PIN ug i-on ang «I-encrypt ang data niini nga device» — unya ang mga mensahe, key ug file gitipigan nga encrypted gamit ang key nga nakuha gikan sa imong PIN (kung makalimtan nimo ang PIN, dili na mabawi ang data).",
     "settings.fontSize.system": "Sunda ang sistema (Dynamic Type)",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ceb");

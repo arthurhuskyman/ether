@@ -959,6 +959,7 @@ window.__LANG_DICTS["sl"] = {
     "help.calls.body": "Za klic tapnite ikono telefona ali kamere na vrhu klepeta. Med klicem lahko utišate mikrofon, vklopite/izklopite kamero, zamenjate kamero in preklapljate med slušalko in zvočnikom. Če je oseba brez povezave, prejme obvestilo, vi pa lahko pustite glasovno sporočilo. V skupini tapnite ikono klica za skupinski klic.",
     "help.privacy.body": "Sporočila so end-to-end šifrirana z Double Ratchet — berete jih lahko samo vi in druga oseba, ne strežnik. Strežnik napravam le pomaga, da se najdejo, in do 14 dni hrani šifrirano kuverto, če je prejemnik brez povezave. V profilu stika odprite varnostno številko in jo primerjajte ali osebno skenirajte kodo QR ter stik označite kot preverjen. V nastavitvah lahko nastavite kodo PIN in vklopite »Šifriraj podatke v tej napravi« — sporočila, ključi in datoteke se nato shranjujejo šifrirano s ključem, izpeljanim iz vaše kode PIN (če kodo PIN pozabite, podatkov ni mogoče obnoviti).",
     "settings.fontSize.system": "Sledi sistemu (Dynamic Type)",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("sl");

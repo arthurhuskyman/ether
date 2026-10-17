@@ -959,6 +959,7 @@ window.__LANG_DICTS["sq"] = {
     "help.calls.body": "Prekni ikonën e telefonit ose kamerës në krye të bisedës për të telefonuar. Gjatë thirrjes mund të hiqni zërin, të ndizni/fikni kamerën, të ndërroni kamerat dhe të kaloni mes dëgjueses dhe altoparlantit. Nëse personi është offline, merr një njoftim dhe ju mund të lini një mesazh zanor. Në grup, prekni ikonën e thirrjes për të nisur një thirrje grupi.",
     "help.privacy.body": "Mesazhet janë të enkriptuara skaj-më-skaj me Double Ratchet — vetëm ju dhe personi tjetër mund t'i lexoni, jo serveri. Serveri vetëm ndihmon pajisjet të gjejnë njëra-tjetrën dhe mban një zarf të enkriptuar deri në 14 ditë nëse marrësi është offline. Në profilin e kontaktit, hapni numrin e sigurisë për ta krahasuar ose skanoni një QR me të gjallë dhe shënojeni kontaktin si të verifikuar. Te Cilësimet mund të vendosni një PIN dhe të aktivizoni \"Enkripto të dhënat në këtë pajisje\" — pastaj mesazhet, çelësat dhe skedarët ruhen të enkriptuar me një çelës të nxjerrë nga PIN-i juaj (nëse harroni PIN-in, të dhënat nuk mund të rikuperohen).",
     "settings.fontSize.system": "Ndiq sistemin (Dynamic Type)",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("sq");

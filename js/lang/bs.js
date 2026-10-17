@@ -959,6 +959,7 @@ window.__LANG_DICTS["bs"] = {
     "help.calls.body": "Dodirnite ikonu telefona ili kamere pri vrhu razgovora da pozovete. Tokom poziva možete isključiti mikrofon, uključiti/isključiti kameru, promijeniti kameru i prebacivati između slušalice i zvučnika. Ako je osoba offline, dobija obavijest, a vi možete ostaviti govornu poštu. U grupi dodirnite ikonu poziva da pokrenete grupni poziv.",
     "help.privacy.body": "Poruke su end-to-end šifrovane pomoću Double Ratchet — samo vi i druga osoba možete ih čitati, ne i server. Server samo pomaže uređajima da pronađu jedni druge i čuva šifrovanu kovertu do 14 dana ako je primalac offline. U profilu kontakta otvorite sigurnosni broj da ga uporedite ili uživo skenirajte QR i označite kontakt kao potvrđen. U Postavkama možete postaviti PIN i uključiti „Šifruj podatke na ovom uređaju“ — tada se poruke, ključevi i datoteke čuvaju šifrovani ključem izvedenim iz vašeg PIN-a (ako zaboravite PIN, podaci se ne mogu povratiti).",
     "settings.fontSize.system": "Prati sistem (Dynamic Type)",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("bs");

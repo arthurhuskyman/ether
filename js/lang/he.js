@@ -959,6 +959,7 @@ window.__LANG_DICTS["he"] = {
     "help.calls.body": "הקישו על סמל הטלפון או המצלמה בראש הצ׳אט כדי להתקשר. במהלך שיחה אפשר להשתיק, להפעיל או לכבות מצלמה, להחליף מצלמה ולעבור בין אוזנייה לרמקול. אם האדם לא מחובר, הוא יקבל התראה ואפשר להשאיר הודעה קולית. בקבוצה סמל השיחה מתחיל שיחה קבוצתית.",
     "help.privacy.body": "הודעות מוצפנות מקצה לקצה באמצעות Double Ratchet — רק אתם והצד השני יכולים לקרוא אותן, לא השרת. השרת רק עוזר למכשירים למצוא זה את זה ושומר מעטפה מוצפנת עד 14 ימים אם הנמען לא מחובר. בפרופיל של איש קשר פתחו את מספר האבטחה כדי להשוות, או סרקו QR פנים אל פנים וסמנו את איש הקשר כמאומת. בהגדרות אפשר להגדיר PIN ולהפעיל ״הצפנת הנתונים במכשיר הזה״ — אז הודעות, מפתחות וקבצים נשמרים מוצפנים במפתח שנגזר מה-PIN שלכם (אם תשכחו את ה-PIN, אי אפשר לשחזר את הנתונים).",
     "settings.fontSize.system": "לפי המערכת (Dynamic Type)",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("he");

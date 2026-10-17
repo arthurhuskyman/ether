@@ -959,6 +959,7 @@ window.__LANG_DICTS["sv"] = {
     "help.calls.body": "Tryck på telefon- eller kameraikonen högst upp i en chatt för att ringa. Under ett samtal kan du stänga av mikrofonen, slå på/av kameran, byta kamera och växla mellan hörlur och högtalare. Om personen är offline får hen en avisering och du kan lämna ett röstmeddelande. I en grupp trycker du på samtalsikonen för att starta ett gruppsamtal.",
     "help.privacy.body": "Meddelanden är end-to-end-krypterade med Double Ratchet — bara du och den andra personen kan läsa dem, inte servern. Servern hjälper bara enheter att hitta varandra och håller ett krypterat kuvert i upp till 14 dagar om mottagaren är offline. Öppna säkerhetsnumret i en kontakts profil för att jämföra det, eller skanna en QR personligen och markera kontakten som verifierad. I Inställningar kan du ställa in en PIN-kod och slå på ”Kryptera data på den här enheten” — då lagras meddelanden, nycklar och filer krypterade med en nyckel som härleds från din PIN-kod (om du glömmer PIN-koden går data inte att återställa).",
     "settings.fontSize.system": "Följ systemet (Dynamic Type)",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("sv");

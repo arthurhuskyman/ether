@@ -959,6 +959,7 @@ window.__LANG_DICTS["am"] = {
     "help.calls.body": "ለመደወል በውይይቱ አናት ላይ ያለውን የስልክ ወይም የካሜራ አዶ ይንኩ። በጥሪ ጊዜ ማይክሮፎኑን ማጥፋት፣ ካሜራውን ማብራት/ማጥፋት፣ ካሜራዎችን መቀያየርና በጆሮ ማዳመጫና በድምጽ ማጉያ መካከል መቀያየር ይችላሉ። ሰውየው መስመር ላይ ከሌለ ማሳወቂያ ይደርሰዋል እና የድምጽ መልእክት መተው ይችላሉ። በቡድን ውስጥ የቡድን ጥሪ ለመጀመር የጥሪ አዶውን ይንኩ።",
     "help.privacy.body": "መልእክቶች በDouble Ratchet ከጫፍ እስከ ጫፍ የተመሰጠሩ ናቸው — እርስዎና ሌላኛው ሰው ብቻ ማንበብ ይችላሉ፤ አገልጋዩ አይችልም። አገልጋዩ መሣሪያዎች እርስ በርስ እንዲገኛኙ ብቻ ይረዳል፤ ተቀባዩ መስመር ላይ ካልሆነ የተመሰጠረ ፖስታን እስከ 14 ቀናት ይይዛል። በእውቂያው መገለጫ ውስጥ የደህንነት ቁጥሩን ከፍተው ያወዳድሩ፣ ወይም QR በአካል ቃኝተው እውቂያውን እንደተረጋገጠ ምልክት ያድርጉ። በቅንብሮች ውስጥ ፒን ማዘጋጀትና «በዚህ መሣሪያ ላይ ያለውን ውሂብ አመስጥር»ን ማብራት ይችላሉ — ከዚያ መልእክቶች፣ ቁልፎችና ፋይሎች ከፒንዎ በተገኘ ቁልፍ ተመስጥረው ይቀመጣሉ (ፒኑን ከረሱ ውሂቡን መመለስ አይቻልም)።",
     "settings.fontSize.system": "እንደ ሲስተሙ (Dynamic Type)",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("am");

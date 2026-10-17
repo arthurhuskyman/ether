@@ -959,6 +959,7 @@ window.__LANG_DICTS["zh"] = {
     "help.calls.body": "点按聊天顶部的电话或摄像头图标即可通话。通话中可以静音、开关摄像头、切换前后摄像头，以及在听筒和扬声器之间切换。如果对方离线，对方会收到通知，你也可以留下语音留言。在群组中，点按通话图标即可发起群组通话。",
     "help.privacy.body": "消息通过 Double Ratchet 进行端到端加密 — 只有你和对方能读取，服务器不能。服务器只负责帮助设备互相找到对方，并在接收方离线时保存加密信封最长 14 天。在联系人资料中打开安全码进行核对，或当面扫描二维码，并将联系人标记为已验证。在设置中可以设置 PIN 并开启“加密此设备上的数据” — 之后消息、密钥和文件会用由 PIN 生成的密钥加密存储（忘记 PIN 将无法恢复数据）。",
     "settings.fontSize.system": "跟随系统（Dynamic Type）",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("zh");

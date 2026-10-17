@@ -959,6 +959,7 @@ window.__LANG_DICTS["lt"] = {
     "help.calls.body": "Bakstelėkite telefono ar kameros piktogramą pokalbio viršuje, kad paskambintumėte. Skambučio metu galite išjungti mikrofoną, įjungti ar išjungti kamerą, perjungti kameras ir keisti ausinę į garsiakalbį. Jei žmogus neprisijungęs, jis gauna pranešimą, o jūs galite palikti balso žinutę. Grupėje bakstelėkite skambučio piktogramą, kad pradėtumėte grupės skambutį.",
     "help.privacy.body": "Žinutės šifruojamos nuo galo iki galo Double Ratchet protokolu – jas gali perskaityti tik jūs ir kitas žmogus, o ne serveris. Serveris tik padeda įrenginiams rasti vienas kitą ir iki 14 dienų laiko užšifruotą voką, jei gavėjas neprisijungęs. Kontakto profilyje atidarykite saugos numerį, kad jį palygintumėte, arba gyvai nuskaitykite QR ir pažymėkite kontaktą kaip patvirtintą. Nustatymuose galite nustatyti PIN ir įjungti „Šifruoti duomenis šiame įrenginyje“ – tada žinutės, raktai ir failai saugomi užšifruoti raktu, gautu iš jūsų PIN (pamiršus PIN, duomenų atkurti neįmanoma).",
     "settings.fontSize.system": "Kaip sistemoje (Dynamic Type)",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("lt");

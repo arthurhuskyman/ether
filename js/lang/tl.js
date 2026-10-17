@@ -959,6 +959,7 @@ window.__LANG_DICTS["tl"] = {
     "help.calls.body": "I-tap ang icon ng telepono o camera sa itaas ng chat para tumawag. Habang may tawag, puwede mong i-mute, i-on/off ang camera, magpalit ng camera at lumipat sa pagitan ng earpiece at speaker. Kung offline ang kausap, makakatanggap siya ng notification at puwede kang mag-iwan ng voicemail. Sa grupo, i-tap ang icon ng tawag para magsimula ng group call.",
     "help.privacy.body": "End-to-end encrypted ang mga mensahe gamit ang Double Ratchet — ikaw at ang kausap mo lang ang makakabasa, hindi ang server. Tinutulungan lang ng server ang mga device na magkahanap at nag-iimbak ito ng naka-encrypt na envelope nang hanggang 14 na araw kung offline ang tatanggap. Sa profile ng contact, buksan ang safety number para ihambing ito o mag-scan ng QR nang personal at markahan ang contact bilang na-verify. Sa Settings, puwede kang magtakda ng PIN at i-on ang “I-encrypt ang data sa device na ito” — pagkatapos, naka-encrypt ang pagkaka-store ng mga mensahe, key at file gamit ang key mula sa PIN mo (kung makalimutan mo ang PIN, hindi na mababawi ang data).",
     "settings.fontSize.system": "Sundin ang system (Dynamic Type)",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("tl");

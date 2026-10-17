@@ -959,6 +959,7 @@ window.__LANG_DICTS["ms"] = {
     "help.calls.body": "Ketik ikon telefon atau kamera di bahagian atas sembang untuk membuat panggilan. Semasa panggilan, anda boleh membisukan, menghidupkan/mematikan kamera, menukar kamera dan bertukar antara pembesar suara telinga dan pembesar suara. Jika orang itu di luar talian, mereka menerima pemberitahuan dan anda boleh meninggalkan mel suara. Dalam kumpulan, ketik ikon panggilan untuk memulakan panggilan kumpulan.",
     "help.privacy.body": "Mesej disulitkan hujung ke hujung dengan Double Ratchet — hanya anda dan orang lain boleh membacanya, bukan pelayan. Pelayan hanya membantu peranti mencari satu sama lain dan menyimpan sampul tersulit sehingga 14 hari jika penerima di luar talian. Dalam profil kenalan, buka nombor keselamatan untuk membandingkannya atau imbas QR secara bersemuka dan tandakan kenalan sebagai disahkan. Dalam Tetapan, anda boleh menetapkan PIN dan menghidupkan “Sulitkan data pada peranti ini” — maka mesej, kunci dan fail disimpan tersulit dengan kunci yang diterbitkan daripada PIN anda (jika anda terlupa PIN, data tidak dapat dipulihkan).",
     "settings.fontSize.system": "Ikut sistem (Dynamic Type)",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ms");

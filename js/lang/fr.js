@@ -959,6 +959,7 @@ window.__LANG_DICTS["fr"] = {
     "help.calls.body": "Touchez l’icône de téléphone ou de caméra en haut d’une discussion pour appeler. Pendant l’appel, vous pouvez couper le micro, activer ou désactiver la caméra, changer de caméra et basculer entre l’écouteur et le haut-parleur. Si la personne est hors ligne, elle reçoit une notification et vous pouvez laisser un message vocal. Dans un groupe, l’icône d’appel lance un appel de groupe.",
     "help.privacy.body": "Les messages sont chiffrés de bout en bout avec un Double Ratchet — seuls vous et l’autre personne pouvez les lire, pas le serveur. Le serveur aide seulement les appareils à se trouver et conserve une enveloppe chiffrée jusqu’à 14 jours si le destinataire est hors ligne. Dans le profil d’un contact, ouvrez le numéro de sécurité pour le comparer ou scannez un QR en personne et marquez le contact comme vérifié. Dans les Réglages, vous pouvez définir un code PIN et activer « Chiffrer les données sur cet appareil » — les messages, les clés et les fichiers sont alors stockés chiffrés avec une clé dérivée de votre code PIN (si vous l’oubliez, les données sont irrécupérables).",
     "settings.fontSize.system": "Suivre le système (Dynamic Type)",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("fr");

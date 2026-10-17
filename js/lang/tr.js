@@ -959,6 +959,7 @@ window.__LANG_DICTS["tr"] = {
     "help.calls.body": "Aramak için sohbetin üstündeki telefon veya kamera simgesine dokunun. Arama sırasında sesi kapatabilir, kamerayı açıp kapatabilir, kamerayı çevirebilir ve kulaklık ile hoparlör arasında geçiş yapabilirsiniz. Kişi çevrimdışıysa bildirim alır ve siz sesli mesaj bırakabilirsiniz. Grupta arama simgesine dokunarak grup araması başlatın.",
     "help.privacy.body": "Mesajlar Double Ratchet ile uçtan uca şifrelenir — onları yalnızca siz ve karşınızdaki okuyabilir, sunucu okuyamaz. Sunucu yalnızca cihazların birbirini bulmasına yardım eder ve alıcı çevrimdışıysa şifreli zarfı en fazla 14 gün saklar. Kişinin profilinde güvenlik numarasını açıp karşılaştırın ya da yüz yüze QR tarayıp kişiyi doğrulandı olarak işaretleyin. Ayarlar'da PIN belirleyip “Bu cihazdaki verileri şifrele”yi açabilirsiniz — o zaman mesajlar, anahtarlar ve dosyalar PIN'den türetilen bir anahtarla şifreli saklanır (PIN'i unutursanız veriler geri alınamaz).",
     "settings.fontSize.system": "Sistemi izle (Dynamic Type)",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("tr");

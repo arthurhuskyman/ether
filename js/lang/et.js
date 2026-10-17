@@ -959,6 +959,7 @@ window.__LANG_DICTS["et"] = {
     "help.calls.body": "Helistamiseks puuduta vestluse ülaosas telefoni- või kaameraikooni. Kõne ajal saad mikrofoni vaigistada, kaamerat sisse ja välja lülitada, kaamerat vahetada ning vahetada kõrvakaiuti ja valjuhääldi vahel. Kui inimene on võrguväline, saab ta teavituse ja sa saad jätta häälsõnumi. Grupis alustab kõneikoon grupikõnet.",
     "help.privacy.body": "Sõnumid on otspunktkrüpteeritud Double Ratchetiga – neid saate lugeda ainult sina ja teine inimene, mitte server. Server aitab seadmetel vaid üksteist leida ja hoiab krüpteeritud ümbrikku kuni 14 päeva, kui saaja on võrguväline. Ava kontakti profiilis turvanumber, et seda võrrelda, või skaneeri isiklikult QR-kood ja märgi kontakt kinnitatuks. Seadetes saad määrata PIN-i ja lülitada sisse „Krüpti andmed selles seadmes“ – siis hoitakse sõnumeid, võtmeid ja faile krüpteerituna sinu PIN-ist tuletatud võtmega (kui unustad PIN-i, ei saa andmeid taastada).",
     "settings.fontSize.system": "Järgi süsteemi (Dynamic Type)",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("et");

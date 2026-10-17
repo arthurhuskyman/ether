@@ -959,6 +959,7 @@ window.__LANG_DICTS["ro"] = {
     "help.calls.body": "Atinge pictograma de telefon sau de cameră din partea de sus a conversației pentru a suna. În timpul apelului poți opri microfonul, porni sau opri camera, schimba camera și comuta între căști și difuzor. Dacă persoana este offline, primește o notificare și poți lăsa un mesaj vocal. Într-un grup, atinge pictograma de apel pentru a porni un apel de grup.",
     "help.privacy.body": "Mesajele sunt criptate end-to-end cu Double Ratchet — doar tu și cealaltă persoană le puteți citi, nu serverul. Serverul doar ajută dispozitivele să se găsească și păstrează până la 14 zile un plic criptat dacă destinatarul este offline. În profilul unui contact deschide numărul de siguranță pentru a-l compara sau scanează un QR în persoană și marchează contactul ca verificat. În Setări poți seta un PIN și activa „Criptează datele de pe acest dispozitiv” — atunci mesajele, cheile și fișierele sunt stocate criptate cu o cheie derivată din PIN (dacă uiți PIN-ul, datele nu pot fi recuperate).",
     "settings.fontSize.system": "Ca în sistem (Dynamic Type)",
+    "fx.verify.ok": "Signature and message chain are internally consistent. Signer key fingerprint: {fp}. The key comes from the file itself, so compare the fingerprint with the sender’s before trusting who exported it.",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ro");
