@@ -115,6 +115,6 @@ test("Санитайзеры входящих данных: время, длит
 
 test("Меню «+»: при повышенной контрастности у контейнера нет рамки (регрессия)", () => {
   const css = require("fs").readFileSync(require("path").join(__dirname, "..", "css", "styles.css"), "utf8");
-  const m = css.match(/@media \(prefers-contrast: more\) \{[\s\S]*?\n\}/);
-  assert.ok(m && /#composer-menu-sheet \.sheet-panel[^{]*\{[^}]*border: 0 !important/.test(m[0]));
+  const blocks = css.match(/@media \(prefers-contrast: more\) \{[\s\S]*?\n\}/g) || [];
+  assert.ok(blocks.some((b) => /#composer-menu-sheet \.sheet-panel[^{]*\{[^}]*border: 0 !important/.test(b)));
 });
