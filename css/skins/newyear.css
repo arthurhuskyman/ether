@@ -159,3 +159,6 @@ html[data-skin] .bubble :is(.board-col, .board-card, .board-col-h, .board-col-na
 html[data-skin] .bubble .board-title { color: inherit; }
 html[data-skin="newyear"] #composer-menu-sheet .sheet-panel { border: none; background: none; box-shadow: none; }
 html[data-skin="newyear"] #composer-menu-sheet .sheet-panel::before { content: none; }
+
+/* 4 сегмента темы в узкой колонке: display-шрифт шире обычного */
+html[data-skin="newyear"] .theme-seg button { font-size: min(12px, 3vw); }

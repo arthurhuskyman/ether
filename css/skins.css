@@ -72,3 +72,17 @@ html:not([data-skin]) #skin-deco { display: none; }
 
 /* активные «акцентные» элементы: цвет текста берётся из кнопочной пары скина, а не белый на любом акценте */
 html[data-skin] :is(.chat-filter-chip.active, .theme-seg button.active, .contact-card-add-btn, .room-btn) { background: var(--sk-btn-bg); color: var(--sk-btn-ink); }
+
+/* Выбранный период сводки — как primary-кнопка скина (белый текст на светлом акценте тёмной схемы не читался) */
+html[data-skin] .summary-period.on { background: var(--sk-btn-bg); color: var(--sk-btn-ink); border-color: var(--sk-line); }
+/* Деструктивные пункты и индикатор «офлайн»: цвет danger подмешивается к контрастному полюсу схемы (≥4.5:1) */
+html[data-skin][data-scheme="dark"] :is(.sheet-action.destructive, #contact-clear-btn, #contact-delete-btn, .nav-conn-indicator) { color: color-mix(in srgb, var(--danger) 60%, #fff); }
+html[data-skin][data-scheme="light"] :is(.sheet-action.destructive, #contact-clear-btn, #contact-delete-btn) { color: color-mix(in srgb, var(--danger) 80%, #000); }
+
+/* Строки внутри группы настроек: группа уже в рамке/на панели скина — своя рамка, фон и тень у каждой строки давали двойную рамку («рамка в рамке»).
+   Строка остаётся тонким разделителем; отдельные карточки-строки вне групп (.chat-row, .settings-category-row, .forward-row) не меняются. */
+html[data-skin] .settings-group > .settings-row {
+  border: 0; border-bottom: 1px solid color-mix(in srgb, var(--sk-line) 40%, transparent); border-radius: 0;
+  background: none; background-image: none; box-shadow: none; clip-path: none; -webkit-backdrop-filter: none; backdrop-filter: none; overflow: visible;
+}
+html[data-skin] .settings-group > .settings-row:last-child { border-bottom: 0; }

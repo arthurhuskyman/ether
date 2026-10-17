@@ -2728,3 +2728,19 @@ html[data-calm-mode="1"] .story-bars span.cur::after { animation: none; transfor
 
 /* шапка чата: зона нажатия на имя собеседника не ниже 40px */
 #chat-peer-tap { min-height: 40px; }
+
+/* Тап-цели: строки шторок, вкладки эмодзи, селекты настроек, фильтр-чипы не ниже комфортного минимума */
+.sheet-action { min-height: 44px; }
+.emoji-tab-btn { min-height: 40px; }
+.settings-row select, #screen-contact select { min-height: 40px; }
+.chat-filter-chip { min-height: 36px; box-sizing: border-box; }
+
+/* обычный вид, тёмная схема: белый текст на светлом фиолетовом акценте давал 3.7:1 — активные чипы получают тёмный текст */
+html:not([data-skin])[data-scheme="dark"] :is(.chat-filter-chip.active, .summary-period.on, .theme-seg button.active, .fx-view-toggle button.active) { color: #0b0620; }
+
+/* Строка «подпись — значение»: длинное значение переносится у правого края и не сжимает подпись до обрыва по буквам */
+.settings-row { gap: 12px; }
+.settings-row > span:first-child:has(+ .fine.muted) { flex: 0 0 auto; max-width: 62%; }
+.settings-row > .fine.muted { min-width: 0; text-align: end; overflow-wrap: anywhere; }
+/* переключатель темы (4 сегмента): «Системная» не рвётся посреди слова */
+.theme-seg button { min-width: 0; padding-inline: 2px; white-space: nowrap; letter-spacing: 0; font-size: min(var(--fs-sm), 3.1vw); }

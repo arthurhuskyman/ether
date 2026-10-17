@@ -162,7 +162,7 @@ html[data-skin="wood"] .bubble-time { font-size: 12px; }
 html[data-skin="wood"] .bubble-row.theirs .bubble-sender { color: #2f6b1f; }
 html[data-skin="wood"][data-scheme="dark"] .bubble-row.theirs .bubble-sender { color: #a5d97b; }
 html[data-skin="wood"] .bubble-reaction-chip { border-radius: 10px; background: #e9d2a0; color: #2b1a0e; border: 1.5px solid #6b4423; }
-html[data-skin="wood"] .bubble-row.theirs .bubble-reaction-chip { background: #e9d2a0; }
+html[data-skin="wood"] .bubble-row.theirs .bubble-reaction-chip { background: #e9d2a0; color: #2b1a0e; }
 html[data-skin="wood"] .bubble-reply { border-radius: 3px; border-inline-start: 4px solid #c3a15a; background: rgba(0, 0, 0, .16); }
 html[data-skin="wood"] .bubble-row.theirs .bubble-reply { border-inline-start-color: #6b8f3a; background: rgba(90, 55, 20, .14); }
 html[data-skin="wood"] .poll-opt, html[data-skin="wood"] .board-card { border-radius: 4px; background: #f6ead0; color: #2b1a0e; border: 1.5px solid #8a6a3c; box-shadow: 0 2px 0 rgba(30, 15, 4, .4); outline: 1.5px dashed rgba(90, 55, 20, .4); outline-offset: -4px; }

@@ -200,3 +200,6 @@ html[data-skin="cartoon"][data-scheme="dark"] #skin-deco .cd { opacity: .5; }
 @keyframes cartoon-float { 0%, 100% { transform: translate(0, 0) rotate(var(--r, 0deg)); } 50% { transform: translate(var(--dx, 14px), var(--dy, -22px)) rotate(calc(var(--r, 0deg) + 14deg)); } }
 html[data-skin="cartoon"][data-calm-mode="1"] :is(.bubble, .tab-btn .ico, .unread-badge, #toast, .sheet-panel, .composer-menu-item, #skin-deco .cd, .icon-btn .ico) { animation: none !important; }
 @media (prefers-reduced-motion: reduce) { html[data-skin="cartoon"] :is(.bubble, .tab-btn .ico, .unread-badge, #toast, .sheet-panel, .composer-menu-item, .icon-btn .ico) { animation: none !important; } }
+
+/* доска «Задача»: пастельные колонки светлые в обеих схемах — подписи/кнопки всегда тёмные (иначе в тёмной схеме «Добавить» сливается) */
+html[data-skin="cartoon"] .board-col :is(.board-add, .board-col-h, .board-col-name, .board-card-acts button) { color: #2a2550; }
