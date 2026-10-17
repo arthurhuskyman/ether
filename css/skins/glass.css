@@ -146,4 +146,4 @@ html[data-skin="glass"] .theme-seg { border-radius: 999px; }
 html[data-skin="glass"] .theme-seg button { font-weight: 300; font-size: 13px; padding-inline: 6px; white-space: nowrap; border-radius: 999px; }
 html[data-skin="glass"] .theme-seg button.active, html[data-skin="glass"] .theme-seg button[aria-checked="true"], html[data-skin="glass"] .theme-seg button[aria-pressed="true"] { font-weight: 700; color: #0b0f33; }
 html[data-skin="glass"] .chat-filter-chip { border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.6); background-image: var(--gl-hi); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6); }
-html[data-skin="glass"] #composer-menu-sheet .sheet-panel { border: none; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+html[data-skin="glass"] #composer-menu-sheet .sheet-panel { position: absolute; background-image: none; border: none; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }

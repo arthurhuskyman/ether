@@ -341,7 +341,7 @@ html[data-scheme="light"] .glass-content {
 .notif-banner-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .notif-banner-text strong { font-size: var(--fs-sm); }
 .notif-banner-text span { font-size: var(--fs-xs); color: var(--ink-1); }
-.notif-banner-btn { width: auto; flex: none; padding: 8px 14px; font-size: var(--fs-sm); }
+.notif-banner-btn { width: auto; flex: none; padding: 8px 14px; min-height: 40px; font-size: var(--fs-sm); }
 
 /* НОВОЕ: баннер «Доступно обновление». Создаётся динамически из JS
    (см. showUpdateBanner в app.js). Не перекрывает контент — лежит над
@@ -1388,7 +1388,7 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
   display: flex;
   align-items: flex-end;        /* при многострочном вводе кнопки остаются у нижней кромки */
   gap: 8px;
-  width: 100%;
+  width: auto; align-self: stretch; /* не width:100% — скины задают margin */
   box-sizing: border-box;
   padding: 6px 12px 8px;
   flex-shrink: 0;
@@ -2640,7 +2640,7 @@ html.theme-fading, html.theme-fading *, html.theme-fading *::before, html.theme-
 }
 
 /* Меню «+»: округлые плашки выезжают вверх из кнопки, без шторки и затемнения */
-#composer-menu-sheet { align-items: stretch; justify-content: flex-start; }
+#composer-menu-sheet { align-items: stretch; justify-content: flex-start; max-width: none; margin: 0; } /* на десктопе .sheet центрируется колонкой 420px — меню якорится по координатам вьюпорта */
 #composer-menu-sheet .sheet-backdrop { background: transparent; }
 #composer-menu-sheet .sheet-panel { position: absolute; inset: auto auto var(--menu-bottom, 80px) var(--menu-left, 12px); width: auto; max-width: calc(100vw - 24px); max-height: none; overflow: visible; padding: 0; background: none; border: 0; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; border-radius: 0; }
 #composer-menu-sheet .sheet-handle, #composer-menu-sheet .sheet-cancel { display: none; }
@@ -2725,3 +2725,6 @@ html.theme-fading, html.theme-fading *, html.theme-fading *::before, html.theme-
 .summary-empty { text-align: center; opacity: .75; padding-block: 16px; }
 html[data-calm-mode="1"] .story-bars span.cur::after { animation: none; transform: scaleX(1); }
 @media (prefers-reduced-motion: reduce) { #thread-sheet .sheet-panel, #summary-sheet .sheet-panel { transition: none; animation: none; } }
+
+/* шапка чата: зона нажатия на имя собеседника не ниже 40px */
+#chat-peer-tap { min-height: 40px; }
