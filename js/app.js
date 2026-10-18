@@ -234,7 +234,7 @@ const CRITICAL_LS_KEYS = [
   "ether.translateEndpoint", "ether.translateApiKey",
   "ether.readable", "ether.fxInit", "ether.requireVerifiedCalls", "ether.localAi", "ether.localAiLang", "ether.stories", "ether.quietOn", "ether.quietFrom", "ether.quietTo", "ether.wpColor1", "ether.wpColor2", "ether.chatWallpaper", "ether.voiceSpeed", "ether.deadManEnabled", "ether.deadManThresholdDays", "ether.deadManContactId", "ether.deadManLastSentAt",
   "ether.panicShakeEnabled", "ether.fx", "ether.sigKey", "ether.fx.aurora", "ether.keyInfo",
-  "ether.claimToken",
+  "ether.claimToken", "ether.phoneDiscover", "ether.phoneDiscoverName",
   "ether.fx.campfires", "ether.receiptsEnabled", "ether.lastSeenVisible", "ether.presenceVisible", "ether.myStatus",
 ];
 
@@ -290,6 +290,11 @@ const Store = {
   set signalingUrl(v) { localStorage.setItem("ether.signalingUrl", v); },
   get discoverable() { return localStorage.getItem("ether.discoverable") !== "0"; },
   set discoverable(v) { localStorage.setItem("ether.discoverable", v ? "1" : "0"); },
+  // Поиск по хэшу телефона/почты (discovery.js): добровольно, по умолчанию ВЫКЛ (в отличие от discoverable — публичного ростера)
+  get phoneDiscover() { return localStorage.getItem("ether.phoneDiscover") === "1"; },
+  set phoneDiscover(v) { localStorage.setItem("ether.phoneDiscover", v ? "1" : "0"); scheduleIDBBackup(); },
+  get phoneDiscoverName() { return localStorage.getItem("ether.phoneDiscoverName") === "1"; },
+  set phoneDiscoverName(v) { localStorage.setItem("ether.phoneDiscoverName", v ? "1" : "0"); scheduleIDBBackup(); },
   // Три тумблера приватности — независимы от discoverable (тот про
   // публичный ростер для незнакомцев, эти про то, что видят уже
   // добавленные контакты). Двусторонне: моё значение влияет на то, что
@@ -2186,6 +2191,7 @@ function startApp() {
     const sr = $("#settings-receipts"); if (sr) sr.checked = Store.receiptsEnabled;
     const sls = $("#settings-last-seen"); if (sls) sls.checked = Store.lastSeenVisible;
     const sp = $("#settings-presence"); if (sp) sp.checked = Store.presenceVisible;
+    try { refreshDiscoveryUI(); } catch (e) {}
     const snn = $("#settings-notifications"); if (snn) snn.checked = Store.notificationsEnabled;
     const shn = $("#settings-hide-notif"); if (shn) shn.checked = Store.hideNotifContent;
     const slp = $("#settings-link-previews"); if (slp) slp.value = Store.linkPreviewMode;
@@ -2196,6 +2202,7 @@ function startApp() {
     const spl = $("#settings-pinlock"); if (spl) spl.checked = Store.pinEnabled;
     const sae = $("#settings-auto-emoji"); if (sae) sae.checked = Store.autoEmoji;
     const dme = $("#settings-deadman-enabled"); if (dme) dme.checked = Store.deadManEnabled;
+    try { refreshSettingsQuick(); } catch (e) {}
     const dmt = $("#settings-deadman-threshold"); if (dmt) dmt.value = String(Store.deadManThresholdDays);
     const psEl = $("#settings-panic-shake"); if (psEl) psEl.checked = Store.panicShakeEnabled;
   } catch (e) { etherLog("error", "[startApp] settings init:", String(e)); }
@@ -3196,6 +3203,114 @@ function ensureContactEntry(id, suggestedName) {
     persistContacts();
   }
   return c;
+}
+
+// =====================================================================
+// Поиск по хэшу телефона/почты (discovery.js; добровольно, по умолчанию выключено)
+// =====================================================================
+function discoverySupported() { return typeof Discovery !== "undefined" && Discovery.supported(signaling); }
+function refreshDiscoveryUI() {
+  const feat = discoverySupported();
+  const blk = $("#settings-discovery-block"); if (blk) blk.classList.toggle("hidden", !feat);
+  const fb = $("#find-by-phone-btn"); if (fb) fb.classList.toggle("hidden", !feat);
+  const cb = $("#settings-discovery"); if (cb) cb.checked = Store.phoneDiscover;
+  const nm = $("#settings-discovery-name"); if (nm) { nm.checked = Store.phoneDiscoverName; nm.disabled = !Store.phoneDiscover; }
+}
+// Публикуем/снимаем свою запись. Публикация повторяется только если сервер её не помнит или настройки менялись (TTL продлевается самой регистрацией).
+function syncDiscoveryPublish() {
+  const sig = signaling; if (!discoverySupported()) return;
+  if (!Store.phoneDiscover) { if (sig.discoveryPublished) sig.discoveryPublish([], false, ""); return; }
+  if (sig.discoveryPublished && !state._discoveryDirty) return;
+  const raw = Store.myIdentityRaw; if (!raw) return;
+  Discovery.prepareOne(raw, sig.discoverySalt).then((it) => {
+    if (!it || signaling !== sig || !Store.phoneDiscover || it.id !== Store.myId) return;
+    state._discoveryDirty = false;
+    sig.discoveryPublish([it.hash], Store.phoneDiscoverName, Store.phoneDiscoverName ? Store.name : "");
+  }).catch(() => {});
+}
+// Перед сменой id запись старого id снимаем (после смены владеть ею уже нечем)
+function discoveryUnpublishBeforeIdChange() {
+  if (discoverySupported() && signaling.discoveryPublished) signaling.discoveryPublish([], false, "");
+}
+function setDiscoveryStatus(text) { const el = $("#discovery-status"); if (el) el.textContent = text || ""; }
+function openDiscoverySheet() {
+  const sh = $("#discovery-sheet"); if (!sh) return;
+  const res = $("#discovery-results"); if (res) res.innerHTML = "";
+  setDiscoveryStatus(discoverySupported() ? "" : T(signaling && signaling.registered ? "discovery.needServer" : "discovery.connecting"));
+  sh.classList.remove("hidden");
+}
+function addDiscoveredContact(f) {
+  if (!f || f.id === Store.myId) return false;
+  if (recentlyDeletedIds.delete(f.id)) persistRecentlyDeleted(); // осознанное добавление снимает блокировку из deleteContact
+  const c = ensureContactEntry(f.id, f.name || f.normalized);
+  if (!c.raw) c.raw = f.normalized;
+  noteContactKey(c, f.publicKey); // как у любого контакта: ключ запоминается при первом знакомстве, смена потребует подтверждения
+  persistContacts();
+  if (onlineSet.has(f.id)) scheduleAutoConnect(f.id);
+  toast(T("discovery.verifyHint"));
+  return true;
+}
+function renderDiscoveryResults(found) {
+  const box = $("#discovery-results"); if (!box) return;
+  box.innerHTML = "";
+  for (const f of found) {
+    const row = document.createElement("div");
+    row.className = "forward-row";
+    const nm = f.name || f.normalized;
+    const av = document.createElement("div"); av.className = "avatar avatar-sm"; av.style.background = avatarGradient(nm); av.textContent = initials(nm);
+    const lab = document.createElement("span"); lab.className = "forward-name"; lab.textContent = f.name ? f.name + " · " + f.raw : f.raw;
+    const btn = document.createElement("button"); btn.type = "button"; btn.className = "btn-secondary";
+    const has = state.contacts.has(f.id);
+    btn.textContent = T(has ? "discovery.added" : "discovery.add"); btn.disabled = has;
+    btn.addEventListener("click", () => { if (addDiscoveredContact(f)) { btn.textContent = T("discovery.added"); btn.disabled = true; try { renderChatsList(); } catch (e) {} } });
+    row.appendChild(av); row.appendChild(lab); row.appendChild(btn);
+    box.appendChild(row);
+  }
+}
+async function runDiscoverySearch() {
+  const sig = signaling;
+  if (!discoverySupported()) { setDiscoveryStatus(T(sig && sig.registered ? "discovery.needServer" : "discovery.connecting")); return; }
+  const inp = $("#discovery-input"), btn = $("#discovery-search-btn");
+  const prepared = (await Discovery.prepare(Discovery.splitInput(inp ? inp.value : ""), sig.discoverySalt)).filter((p) => p.id !== Store.myId);
+  if (!prepared.length) { setDiscoveryStatus(T("discovery.invalid")); renderDiscoveryResults([]); return; }
+  if (btn) btn.disabled = true;
+  setDiscoveryStatus(T("discovery.searching"));
+  try {
+    const r = await Discovery.lookup(sig, prepared);
+    renderDiscoveryResults(r.found);
+    setDiscoveryStatus(r.error === "rate" ? T("discovery.rate") : r.error ? T("discovery.error") : r.found.length ? T("discovery.foundN", { n: r.found.length }) : T("discovery.none"));
+  } catch (e) { setDiscoveryStatus(T("discovery.error")); }
+  finally { if (btn) btn.disabled = false; }
+}
+function wireDiscoveryUI() {
+  if (state._discoveryWired) return; state._discoveryWired = true;
+  const cb = $("#settings-discovery"), nm = $("#settings-discovery-name");
+  if (cb) cb.addEventListener("change", async () => {
+    if (cb.checked) {
+      if (!Store.myIdentityRaw) { cb.checked = false; toast(T("discovery.noIdentity")); return; }
+      const ok = await confirmSheet(T("discovery.consent", { days: 90 }), { okLabel: T("discovery.consentOk") });
+      if (!ok) { cb.checked = false; return; }
+      Store.phoneDiscover = true;
+    } else Store.phoneDiscover = false;
+    state._discoveryDirty = true; state._discoveryToast = true;
+    refreshDiscoveryUI(); syncDiscoveryPublish();
+  });
+  if (nm) nm.addEventListener("change", () => { Store.phoneDiscoverName = nm.checked; state._discoveryDirty = true; syncDiscoveryPublish(); });
+  const fb = $("#find-by-phone-btn"); if (fb) fb.addEventListener("click", openDiscoverySheet);
+  const sb = $("#discovery-search-btn"); if (sb) sb.addEventListener("click", () => { runDiscoverySearch().catch(() => {}); });
+  const ob = $("#onboarding-find-btn");
+  if (ob) ob.addEventListener("click", () => { window.__etherDiscoveryAfterStart = true; const st = $("#onboarding-start-btn"); if (st) st.click(); });
+  const pk = $("#discovery-pick-btn");
+  if (pk && navigator.contacts && navigator.contacts.select) {
+    pk.classList.remove("hidden");
+    pk.addEventListener("click", async () => {
+      let picked;
+      try { picked = await navigator.contacts.select(["tel", "email"], { multiple: true }); } catch (e) { return; }
+      const vals = [];
+      for (const c of picked || []) { for (const t of (c.tel || [])) vals.push(t); for (const m of (c.email || [])) vals.push(m); }
+      const inp = $("#discovery-input"); if (inp && vals.length) { inp.value = (inp.value ? inp.value.trim() + "\n" : "") + vals.join("\n"); setDiscoveryStatus(T("discovery.pickedN", { n: vals.length })); }
+    });
+  }
 }
 
 // =====================================================================
@@ -4593,9 +4708,9 @@ function renderChatThreadInner() {
     // фон --bg-2 + тонкий border (см. styles.css). Стекло на десятках
     // пузырей одновременно и перегружало визуально, и нагружало
     // композитинг (20+ blur-слоёв).
-    inner.className = "bubble" + (m.mentionMe ? " bubble-mentioned" : "");
+    inner.className = "bubble" + (m.mentionMe ? " bubble-mentioned" : "") + (m.sticker ? " bubble-sticker" : "");
     inner.setAttribute("data-msg-id", m.id); // для прокрутки к оригиналу по тапу на цитате ответа
-    const body = m.file ? fileBubbleHtml(m.id, m.file) : m.poll ? pollBubbleHtml(c, m) : m.board ? boardBubbleHtml(m) : m.note ? noteBubbleHtml(m) : (m.contactCard ? contactCardBubbleHtml(m.contactCard) : linkifyAndHighlight(m.text, q));
+    const body = m.sticker && window.EtherStickers && EtherStickers.bubbleHtml ? EtherStickers.bubbleHtml(m) : m.file ? fileBubbleHtml(m.id, m.file) : m.poll ? pollBubbleHtml(c, m) : m.board ? boardBubbleHtml(m) : m.note ? noteBubbleHtml(m) : (m.contactCard ? contactCardBubbleHtml(m.contactCard) : linkifyAndHighlight(m.text, q));
     const isFirstOfGroupBlock = !prevMsg || prevMsg.fromId !== m.fromId || prevMsg.from !== "them";
     const senderLabel = (isGroup(c) && m.from === "them" && m.fromId && isFirstOfGroupBlock)
       ? `<div class="bubble-sender">${escapeHtml(m.fromName || T("sys.someone"))}</div>` : "";
@@ -4814,6 +4929,7 @@ if (m.replyTo) {
     });
   }
   hydrateFileSlots(wrap);
+  try { if (window.EtherStickers && EtherStickers.hydrate) EtherStickers.hydrate(wrap); } catch (e) {}
   // Hydrate асинхронно подгружает картинки/видео из IDB и заметно
   // увеличивает высоту контента. Если пользователь был у низа — дожимаем
   // скролл вниз после того, как всё подгрузилось, иначе layout shift
@@ -5511,7 +5627,7 @@ async function commitEdit(contactId, msgId, newText) {
 function deleteMessageLocal(contactId, msgId, batch) {
   const c = state.contacts.get(contactId); if (!c) return;
   const m = c.messages.find((x) => x.id === msgId);
-  if (m && m.file) {
+  if (m && (m.file || (m.sticker && m.sticker.custom))) {
     IDB.del("file:" + msgId).catch(() => {});
     const url = fileBlobUrlCache.get(msgId);
     if (url) { URL.revokeObjectURL(url); fileBlobUrlCache.delete(msgId); }
@@ -8029,6 +8145,7 @@ async function forwardMessage(msgId, fromContactId, toContactId) {
     if (m.file.caption) rec.file.caption = m.file.caption;
   }
   // ── Копируем карточку контакта ──
+  if (m.sticker && !to.isGroup) rec.sticker = Object.assign({}, m.sticker);
   if (m.contactCard && !to.isGroup) { // в группу карточка уходит текстом «📇 имя» — у отправителя должно быть то же самое
     rec.contactCard = { id: m.contactCard.id, name: m.contactCard.name };
   }
@@ -8128,6 +8245,7 @@ async function forwardMessage(msgId, fromContactId, toContactId) {
     return;
   }
 
+  if (m.sticker) { await EtherStickers.forward(m, msgId, rec, to); return; }
   // ── 2. КАРТОЧКА КОНТАКТА ──
   if (m.contactCard) {
     const payload = {
@@ -8560,7 +8678,7 @@ function resumeUnsentMessages() {
       // просто text. Иначе на сервер уйдёт пустой текстовый конверт, а
       // получатель увидит пустой пузырь — файл потерян. Ручной повтор —
       // через "Повторить" в меню сообщения (см. handleMessageAction).
-      if (m.file || m.contactCard || m.poll || m.board || m.note) continue; // опросы/доски/заметки уходят своим payload — как обычный текст они бы потерялись
+      if (m.file || m.sticker || m.contactCard || m.poll || m.board || m.note) continue; // опросы/доски/заметки уходят своим payload — как обычный текст они бы потерялись
       if (outbox.has(m.id)) continue;
       if (now - m.ts > RESUME_MAX_AGE_MS) continue;
       const payload = { kind: "chat", id: m.id, text: m.text, ts: m.ts };
@@ -8813,6 +8931,7 @@ async function offerIdClaimedRecovery(ttlH) {
   } finally { state._idClaimedDialog = false; }
 }
 function regenerateMyId() {
+  try { discoveryUnpublishBeforeIdChange(); } catch (e) {}
   Store.myIdentityRaw = "";
   Store.myId = crypto.randomUUID();
   try { Ratchet.resetAll(); } catch (e) {} // сессии привязаны к паре id: со старым id они бесполезны
@@ -8990,6 +9109,19 @@ function wireSignalingEvents(sig) {
       toast(T("toast.idClaimed"));
       offerIdClaimedRecovery(ev.detail.claimTtlH).catch(() => {});
     }
+  }));
+  subs.push(on("discovery-state", () => {
+    refreshDiscoveryUI();
+    if (window.__etherDiscoveryAfterStart) { // кнопка «Найти по телефону/почте» на экране онбординга: открываем поиск, когда сервер ответил
+      window.__etherDiscoveryAfterStart = false;
+      if (discoverySupported()) openDiscoverySheet(); else toast(T("discovery.needServer"));
+    }
+    syncDiscoveryPublish();
+  }));
+  subs.push(on("discovery-published", (ev) => {
+    const d = ev.detail || {};
+    if (d.ok) { if (state._discoveryToast) { toast(T(d.count > 0 ? "discovery.published" : "discovery.unpublished")); state._discoveryToast = false; } }
+    else if (d.error && d.error !== "rate") { toast(T("discovery.publishFailed", { error: d.error })); state._discoveryToast = false; }
   }));
   subs.push(on("register-rate-limited", () => {
     updateSignalingStatusUI("off", T("status.rateLimited"));
@@ -9422,7 +9554,7 @@ function handleRatchetResetRequest(from) {
   for (let i = c.messages.length - 1; i >= 0 && n < RC_RESEND_MAX; i--) {
     const m = c.messages[i];
     if (m.from !== "me" || (m.ack !== "sent" && m.ack !== "pending")) continue;
-    if (m.file || m.contactCard || m.poll || m.board || m.note || typeof m.text !== "string" || !m.text) continue;
+    if (m.file || m.sticker || m.contactCard || m.poll || m.board || m.note || typeof m.text !== "string" || !m.text) continue;
     if (now - m.ts > RESUME_MAX_AGE_MS || outbox.has(m.id)) continue;
     envelopeCache.delete(m.id);
     const payload = { kind: "chat", id: m.id, text: m.text, ts: m.ts };
@@ -9836,6 +9968,8 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     }
   } else if (kind === "story") {
     receiveStory(from, payload);
+  } else if (kind === "sticker") {
+    if (window.EtherStickers && EtherStickers.receive) EtherStickers.receive(from, payload, envelopeMsgId).catch(() => {});
   } else if (kind === "poll" || kind === "board" || kind === "note" || kind === "poll-vote" || kind === "poll-close" || kind === "board-op" || kind === "note-op") {
     applyIncomingRich(from, envelopeMsgId, payload);
   } else if (kind === "reaction") {
@@ -10211,6 +10345,9 @@ async function startQrScan() {
             if (sheet) sheet.classList.add("hidden");
             onSafetyQrScanned(result.data);
             return;
+          }
+          if (typeof DeviceLinkUI !== "undefined" && String(result.data).indexOf("ether://link?") === 0) { // QR переноса на новое устройство (js/devicelink.js)
+            stopQrScan(); if (sheet) sheet.classList.add("hidden"); DeviceLinkUI.receiveFromCode(String(result.data)); return;
           }
           const parsed = parseQrAddPayload(result.data);
           if (parsed) {
@@ -10795,13 +10932,13 @@ function openMessageSheet(msgId, contactId) {
   // Уровень 3 (редкие): перевод, избранное, выбор, правка, удаление. «Повторить» — тапом по значку «не доставлено» у самого сообщения.
   // Пересылка/правка/«удалить у всех» рассчитаны на одного получателя, поэтому в группах не предлагаются; локальные действия безопасны всегда.
   const rare = [];
-  if (m.text && !m.file && !m.contactCard && !m.poll && !m.board && !m.note) rare.push(act("translate", m.translation ? T("chat.translate.hide") : T("chat.translate")));
+  if (m.text && !m.file && !m.sticker && !m.contactCard && !m.poll && !m.board && !m.note) rare.push(act("translate", m.translation ? T("chat.translate.hide") : T("chat.translate")));
   rare.push(act("favorite", m.favorite ? T("chat.unfavorite") : T("chat.favorite")));
   if (!m.board || m.text) { rare.push(act("task", T("chat.toTask"))); rare.push(act("remind", T("chat.remind"))); }
   rare.push(act("thread", T("chat.thread.open")));
   if (typeof LocalAI !== "undefined" && messageSummarySource(m).length >= 200) rare.push(act("summary", T("ai.summary")));
   rare.push(act("select", T("chat.selectMsgs")));
-  if (isOwn && !m.file && !m.contactCard && !m.poll && !m.board && !m.note) rare.push(act("edit", T("chat.edit")));
+  if (isOwn && !m.file && !m.sticker && !m.contactCard && !m.poll && !m.board && !m.note) rare.push(act("edit", T("chat.edit")));
   rare.push(act("delete-local", T("chat.delete.local"), "destructive"));
   if (isOwn) rare.push(act("delete-both", T("chat.delete.both"), "destructive"));
   const actions = [...main, `<div class="sheet-divider" role="separator"></div>`, ...rare];
@@ -11080,6 +11217,7 @@ async function retryMessage(contactId, msgId) {
     return;
   }
 
+  if (m.sticker && window.EtherStickers) { EtherStickers.retry(c, m); return; }
   // Карточка контакта: повторяем как contact-card, не текстом.
   if (m.contactCard) {
     const payload = {
@@ -13157,9 +13295,70 @@ function updateSearchCounter() {
 // снимает search-hidden с ВСЕХ групп, когда поле очищается (строка
 // `q.length > 0 && !anyVisible`) — если бы категории прятались тем же
 // классом, очистка поиска случайно показывала бы разом все категории.
+// «Часто используемые»: 6 плиток над списком категорий (тема, скин, звуки, уведомления, PIN, резервная копия).
+// Переключатели нажимают настоящие элементы настроек (их обработчики и проверки те же), переходы открывают нужную категорию.
+const SETTINGS_QUICK = [
+  { id: "theme", icon: "palette", labelKey: "settings.quick.theme", kind: "cycle" },
+  { id: "skin", icon: "sparkle", labelKey: "settings.quick.skin", kind: "go", cat: "appearance", target: ".skin-row" },
+  { id: "sounds", icon: "volume", labelKey: "settings.quick.sounds", kind: "toggle", input: "#settings-sounds" },
+  { id: "notifications", icon: "bell", labelKey: "settings.quick.notifications", kind: "toggle", input: "#settings-notifications" },
+  { id: "pin", icon: "shield", labelKey: "settings.quick.pin", kind: "toggle", input: "#settings-pinlock" },
+  { id: "backup", icon: "database", labelKey: "settings.quick.backup", kind: "go", cat: "data", target: "#settings-export-backup-btn" },
+];
+function settingsQuickHtml() {
+  return `<div class="settings-quick" role="group" aria-label="${escapeHtml(T("settings.quick.title"))}"><h3 class="settings-quick-title">${escapeHtml(T("settings.quick.title"))}</h3><div class="settings-quick-grid">` +
+    SETTINGS_QUICK.map((q) => `<button type="button" class="settings-quick-tile" data-quick="${q.id}"${q.kind === "go" ? "" : ' aria-pressed="false"'}><span class="settings-quick-icon">${Icons.html(q.icon, 22)}</span><span class="settings-quick-label">${escapeHtml(T(q.labelKey))}</span><span class="settings-quick-state" aria-hidden="true"></span></button>`).join("") + `</div></div>`;
+}
+function refreshSettingsQuick() {
+  $$("#settings-category-list .settings-quick-tile").forEach((b) => {
+    const q = SETTINGS_QUICK.find((x) => x.id === b.dataset.quick); if (!q) return;
+    const st = b.querySelector(".settings-quick-state");
+    if (q.kind === "toggle") {
+      const on = q.id === "sounds" ? Store.soundsEnabled : q.id === "notifications" ? Store.notificationsEnabled : Store.pinEnabled;
+      b.setAttribute("aria-pressed", on ? "true" : "false"); b.classList.toggle("on", !!on);
+      if (st) st.textContent = T(on ? "settings.quick.on" : "settings.quick.off");
+    } else if (q.kind === "cycle") {
+      const th = Store.theme; b.classList.remove("on");
+      if (st) st.textContent = T("settings.theme." + (["light", "dark", "oled", "auto"].includes(th) ? th : "auto"));
+    }
+  });
+}
+function onSettingsQuick(id) {
+  const q = SETTINGS_QUICK.find((x) => x.id === id); if (!q) return;
+  if (q.kind === "toggle") { const cb = $(q.input); if (cb) cb.click(); setTimeout(() => { try { refreshSettingsQuick(); } catch (e) {} }, 350); }
+  else if (q.kind === "cycle") {
+    const order = ["light", "dark", "auto"], cur = Store.theme, next = order[(order.indexOf(cur) + 1) % order.length];
+    Store.theme = next; applyTheme(next); $$(".theme-seg button").forEach((b) => b.classList.toggle("active", b.dataset.theme === next)); refreshSettingsQuick();
+  } else {
+    openSettingsCategory(q.cat);
+    setTimeout(() => { const el = $(q.target); if (el && el.scrollIntoView) { try { el.scrollIntoView({ block: "center" }); } catch (e) {} } }, 50);
+  }
+}
+// «Дополнительно»: редкие строки (data-settings-adv в разметке) свёрнуты по умолчанию, состояние по категориям запоминается.
+// Пока идёт поиск, свёрнутое показывается (класс settings-searching на экране), чтобы настройки находились и там.
+const SETTINGS_ADV_KEY = "ether.settingsAdv";
+function loadSettingsAdv() { try { const v = JSON.parse(localStorage.getItem(SETTINGS_ADV_KEY) || "{}"); return v && typeof v === "object" ? v : {}; } catch (e) { return {}; } }
+function setSettingsAdv(cat, open) { const v = loadSettingsAdv(); if (open) v[cat] = true; else delete v[cat]; try { localStorage.setItem(SETTINGS_ADV_KEY, JSON.stringify(v)); } catch (e) {} }
+function settingsAdvCat(el) { const g = el.closest("[data-settings-category]"); return g ? g.dataset.settingsCategory : ""; }
+function applySettingsAdv() {
+  const open = loadSettingsAdv(), screen = $("#screen-settings"); if (!screen) return;
+  const present = new Set();
+  screen.querySelectorAll("[data-settings-adv]").forEach((el) => { const cat = settingsAdvCat(el); present.add(cat); el.classList.toggle("adv-collapsed", !open[cat]); });
+  let box = $("#settings-adv-toggles");
+  if (!box) { box = document.createElement("div"); box.id = "settings-adv-toggles"; screen.appendChild(box); }
+  if (!box.dataset.built) {
+    box.dataset.built = "1";
+    box.innerHTML = SETTINGS_CATEGORIES.filter((c) => present.has(c.id)).map((c) => `<button type="button" class="settings-adv-toggle category-hidden" data-adv-cat="${c.id}" aria-expanded="false"><span class="settings-adv-label">${escapeHtml(T("settings.advanced"))}</span><span class="chevron">${Icons.html("chevron-down", 16)}</span></button>`).join("");
+    box.addEventListener("click", (e) => {
+      const b = e.target.closest(".settings-adv-toggle"); if (!b) return;
+      setSettingsAdv(b.dataset.advCat, !loadSettingsAdv()[b.dataset.advCat]); applySettingsAdv(); updateSettingsCategoryView();
+    });
+  }
+  box.querySelectorAll(".settings-adv-toggle").forEach((b) => { const o = !!open[b.dataset.advCat]; b.setAttribute("aria-expanded", o ? "true" : "false"); b.classList.toggle("open", o); });
+}
 function renderSettingsCategories() {
   const list = $("#settings-category-list"); if (!list) return;
-  list.innerHTML = SETTINGS_CATEGORIES.map((cat) => `
+  list.innerHTML = settingsQuickHtml() + SETTINGS_CATEGORIES.map((cat) => `
     <button type="button" class="settings-category-row" data-category="${cat.id}">
       <span class="settings-category-icon">${Icons.html(cat.icon, 20)}</span>
       <span class="settings-category-label">${escapeHtml(T(cat.labelKey))}</span>
@@ -13168,6 +13367,8 @@ function renderSettingsCategories() {
   list.querySelectorAll(".settings-category-row").forEach((btn) => {
     btn.addEventListener("click", () => openSettingsCategory(btn.dataset.category));
   });
+  list.querySelectorAll(".settings-quick-tile").forEach((btn) => btn.addEventListener("click", () => onSettingsQuick(btn.dataset.quick)));
+  refreshSettingsQuick();
 }
 function openSettingsCategory(id) {
   state.settingsCategory = id;
@@ -13192,6 +13393,9 @@ function updateSettingsCategoryView() {
   const list = $("#settings-category-list");
   const header = $("#settings-category-header");
   const groups = $$("#screen-settings .settings-group");
+  const scr = $("#screen-settings"); if (scr) scr.classList.toggle("settings-searching", searching);
+  try { applySettingsAdv(); refreshSettingsQuick(); } catch (e) {}
+  $$("#settings-adv-toggles .settings-adv-toggle").forEach((b) => b.classList.toggle("category-hidden", searching || b.dataset.advCat !== state.settingsCategory));
   if (searching) {
     if (list) list.classList.add("hidden");
     if (header) header.classList.add("hidden");
@@ -13369,6 +13573,7 @@ function wireSettingsScreen() {
       const v = e.target.value.trim(); if (!v) return;
       try {
         const identity = await Identity.idFor(v);
+        try { discoveryUnpublishBeforeIdChange(); } catch (e2) {}
         Store.myIdentityRaw = identity.normalized;
         Store.myId = identity.id;
         idEl.classList.remove("input-invalid");
@@ -13393,6 +13598,7 @@ function wireSettingsScreen() {
   if (lsv) lsv.addEventListener("change", (e) => { Store.lastSeenVisible = e.target.checked; });
   const pv = $("#settings-presence");
   if (pv) pv.addEventListener("change", (e) => { Store.presenceVisible = e.target.checked; });
+  try { wireDiscoveryUI(); } catch (e) { etherLog("error", "[discovery]", String(e)); }
   const rvc = $("#settings-require-verified");
   if (rvc) { rvc.checked = Store.requireVerifiedCalls; rvc.addEventListener("change", () => { Store.requireVerifiedCalls = rvc.checked; }); }
   const qOn = $("#settings-quiet-on"), qFrom = $("#settings-quiet-from"), qTo = $("#settings-quiet-to"), qRow = $("#settings-quiet-times");
@@ -14597,25 +14803,29 @@ async function importBackupFile(file) {
     // стёр бы все локальные данные и ничего не восстановил.
     if (!Object.keys(data).some((k) => k.startsWith("ether.") && typeof data[k] === "string")) throw new Error("bad");
     if (!await confirmSheet(T("toast.confirmHardReset"), { destructive: true })) return;
-    // Отменяем (не сбрасываем!) любой "летящий" дебаунс-таймер
-    // persistContacts() — он держит СТАРЫЙ снимок контактов (ещё с ДО
-    // импорта) и, сработав в течение 800мс до reload ниже, переписал бы
-    // поверх только что импортированных данных это старьё.
-    if (__contactsPersistTimer) { clearTimeout(__contactsPersistTimer); __contactsPersistTimer = null; }
-    __contactsPersistPending = null;
-    for (let i = localStorage.length - 1; i >= 0; i--) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith("ether.")) localStorage.removeItem(k);
-    }
-    for (const k of Object.keys(data)) if (k.startsWith("ether.") && typeof data[k] === "string") localStorage.setItem(k, data[k]);
-    // Резервная копия в IndexedDB — от прежнего профиля: пересоздаём её из импортированных данных, иначе при загрузке старые значения
-    // отсутствующих в файле ключей (PIN, аватар, контакты) вернулись бы поверх импорта. И никакого сохранения «из памяти» при перезагрузке.
-    __wiping = false;
-    try { await Promise.all(CRITICAL_LS_KEYS.map((k) => IDB.del(k))); await backupToIDB(); } catch (e) {}
-    __wiping = true;
-    toast(T("toast.imported"));
-    location.reload();
+    await applyImportedData(data);
   } catch (e) { toast(String(e.message)); }
+}
+// Применение набора ether.* (резервная копия или пакет переезда с другого устройства, js/devicelink.js): заменяет локальные данные и перезагружает.
+async function applyImportedData(data) {
+  // Отменяем (не сбрасываем!) любой "летящий" дебаунс-таймер
+  // persistContacts() — он держит СТАРЫЙ снимок контактов (ещё с ДО
+  // импорта) и, сработав в течение 800мс до reload ниже, переписал бы
+  // поверх только что импортированных данных это старьё.
+  if (__contactsPersistTimer) { clearTimeout(__contactsPersistTimer); __contactsPersistTimer = null; }
+  __contactsPersistPending = null;
+  for (let i = localStorage.length - 1; i >= 0; i--) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith("ether.")) localStorage.removeItem(k);
+  }
+  for (const k of Object.keys(data)) if (k.startsWith("ether.") && typeof data[k] === "string") localStorage.setItem(k, data[k]);
+  // Резервная копия в IndexedDB — от прежнего профиля: пересоздаём её из импортированных данных, иначе при загрузке старые значения
+  // отсутствующих в файле ключей (PIN, аватар, контакты) вернулись бы поверх импорта. И никакого сохранения «из памяти» при перезагрузке.
+  __wiping = false;
+  try { await Promise.all(CRITICAL_LS_KEYS.map((k) => IDB.del(k))); await backupToIDB(); } catch (e) {}
+  __wiping = true;
+  toast(T("toast.imported"));
+  location.reload();
 }
 
 // =====================================================================

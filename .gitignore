@@ -6,3 +6,5 @@ coverage/
 .ether-claims.json
 .ether-claims.json.tmp
 .claude/worktrees/
+.ether-discovery.json
+.ether-discovery.json.tmp

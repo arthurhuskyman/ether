@@ -110,6 +110,7 @@
       <button type="button" class="btn-primary onboarding-next" data-i18n="onboarding.next">Next</button>
       <p class="onboarding-fine" data-i18n="onboarding.hint">Registered on this phone/email before? Entering the same info restores your identity, but not your contacts, groups or message history — those live only on the device that had them, unless you import a backup below.</p>
       <button type="button" id="onboarding-import-backup-btn" class="btn-tertiary" data-i18n="onboarding.importBackup">Restore from a backup file</button>
+      <button type="button" id="onboarding-link-device-btn" class="btn-tertiary" data-i18n="devlink.onboarding">Move from my old phone</button>
     </div>
 
     <!-- Слайд 1 — Язык: сетка популярных + полный пикер (обычный select,
@@ -162,6 +163,7 @@
       <div class="qr-canvas-wrap"><canvas id="onboarding-qr-canvas" width="200" height="200"></canvas></div>
       <p class="fine muted" data-i18n="onboarding.ready.inviteHint">Your invite code — share it so others can add you without a QR code</p>
       <p class="onboarding-invite-code" id="onboarding-invite-code"></p>
+      <button type="button" id="onboarding-find-btn" class="btn-secondary" data-i18n="discovery.findBtn">Find by phone/email</button>
       <div class="onboarding-nav">
         <button type="button" class="btn-tertiary onboarding-back" data-i18n="sys.back">Back</button>
         <button type="button" id="onboarding-start-btn" class="btn-primary" data-i18n="onboarding.start">Start</button>
@@ -327,6 +329,7 @@
           <button type="button" id="import-contact-btn" class="btn-secondary hidden" style="flex:0 0 auto;" data-i18n="connect.importContact">From address book</button>
         </div>
         <input id="add-contact-value" type="text" placeholder="Contact's phone or email" data-i18n-ph="connect.id.placeholder" maxlength="80" />
+        <button type="button" id="find-by-phone-btn" class="btn-secondary hidden" data-i18n="discovery.findBtn">Find by phone/email</button>
         <button type="button" id="add-contact-btn" class="btn-primary" data-i18n="connect.addButton">Add contact</button>
         <div class="row-actions">
           <button type="button" id="show-my-qr-btn" class="btn-secondary" data-i18n="connect.qr.mine">My QR code</button>
@@ -403,13 +406,13 @@
           <input id="settings-avatar-input" type="file" accept="image/*" style="display:none;" />
         </div>
         <label class="settings-row"><span data-i18n="settings.name">Your name</span><input id="settings-name" type="text" maxlength="40" /></label>
-        <label class="settings-row"><span data-i18n="settings.id">Phone / email</span><input id="settings-identity" type="text" maxlength="80" /></label>
+        <label data-settings-adv class="settings-row"><span data-i18n="settings.id">Phone / email</span><input id="settings-identity" type="text" maxlength="80" /></label>
         <label class="settings-row"><span data-i18n="settings.myStatus">About</span><input id="settings-my-status" type="text" maxlength="80" data-i18n-ph="settings.myStatus.placeholder" /></label>
       </div>
       <div class="settings-group flat-content" data-settings-category="help">
         <button type="button" id="help-btn" class="settings-row link-row"><span data-i18n="settings.help">Help</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
       </div>
-      <div class="settings-group flat-content" data-settings-category="privacy">
+      <div data-settings-adv class="settings-group flat-content" data-settings-category="privacy">
         <div class="settings-row column">
           <span><span data-i18n="settings.server">Signaling server</span> <span id="signaling-status-dot" class="status-dot"></span></span>
           <input id="settings-signaling-url" type="text" data-i18n-ph="settings.signalingUrl.placeholder" placeholder="Leave empty to use the default server" />
@@ -426,45 +429,50 @@
         <p class="fine muted settings-hint" data-i18n="settings.privacy.lastSeen.hint">Contacts see when you were last online. Turn off to hide it (you also won't see theirs).</p>
         <label class="settings-row"><span data-i18n="settings.privacy.presence">Show that I'm online</span><input id="settings-presence" type="checkbox" class="switch" /></label>
         <p class="fine muted settings-hint" data-i18n="settings.privacy.presence.hint">Contacts see a green dot when the app is open.</p>
+        <div id="settings-discovery-block" class="hidden">
+          <label class="settings-row"><span data-i18n="discovery.setting">Let people find me by my phone/email</span><input id="settings-discovery" type="checkbox" class="switch" /></label>
+          <label class="settings-row"><span data-i18n="discovery.shareName">Show my name to people who find me</span><input id="settings-discovery-name" type="checkbox" class="switch" /></label>
+          <p class="fine muted settings-hint" data-i18n="discovery.setting.hint">Off by default. When on, the server stores only a salted hash of your number/email, your id and public key. Tap the switch to read the details.</p>
+        </div>
         <div class="settings-row column"><span class="fine muted" data-i18n="settings.privacy.note">These are symmetric: if you turn one off, you also stop seeing that information from your contacts.</span></div>
       </div>
       <div class="settings-group flat-content" data-settings-category="notifications">
         <button type="button" id="settings-blocked-btn" class="settings-row link-row"><span data-i18n="settings.blocked">Blocked contacts</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
         <label class="settings-row"><span data-i18n="settings.notifications">Notifications for messages and calls</span><input id="settings-notifications" type="checkbox" class="switch" /></label>
-        <label class="settings-row"><span data-i18n="settings.requireVerified">Calls only with verified contacts</span><input id="settings-require-verified" type="checkbox" class="switch" /></label>
-        <p class="fine muted settings-hint" data-i18n="settings.requireVerified.hint">Before calling (or answering) a contact you have not verified with a safety number or QR, the app will ask you to verify first. A changed key always blocks calls until confirmed.</p>
+        <label data-settings-adv class="settings-row"><span data-i18n="settings.requireVerified">Calls only with verified contacts</span><input id="settings-require-verified" type="checkbox" class="switch" /></label>
+        <p data-settings-adv class="fine muted settings-hint" data-i18n="settings.requireVerified.hint">Before calling (or answering) a contact you have not verified with a safety number or QR, the app will ask you to verify first. A changed key always blocks calls until confirmed.</p>
         <label class="settings-row"><span data-i18n="settings.hideNotifContent">Hide message content</span><input id="settings-hide-notif" type="checkbox" class="switch" /></label>
         <p class="fine muted settings-hint" data-i18n="settings.hideNotifContent.hint">Notifications show only the sender's name, not the message text.</p>
-        <label class="settings-row"><span data-i18n="settings.linkPreviews">Link previews</span>
+        <label data-settings-adv class="settings-row"><span data-i18n="settings.linkPreviews">Link previews</span>
           <select id="settings-link-previews" class="settings-select"><option value="ask" data-i18n="settings.linkPreviews.ask">Ask for each link</option><option value="auto" data-i18n="settings.linkPreviews.auto">Always</option><option value="off" data-i18n="settings.linkPreviews.off">Never</option></select></label>
-        <p class="fine muted" style="padding:0 4px 6px;" data-i18n="settings.linkPreviews.disclaimer">To show a preview, the signaling server briefly fetches the link on your behalf — it sees which link, not the message.</p>
-        <div class="settings-row column">
+        <p data-settings-adv class="fine muted" style="padding:0 4px 6px;" data-i18n="settings.linkPreviews.disclaimer">To show a preview, the signaling server briefly fetches the link on your behalf — it sees which link, not the message.</p>
+        <div data-settings-adv class="settings-row column">
           <span data-i18n="settings.translateServer">Translation server</span>
           <input id="settings-translate-endpoint" type="text" data-i18n-ph="settings.translateServer.placeholder" placeholder="LibreTranslate-compatible URL, e.g. https://…/translate" />
           <input id="settings-translate-key" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="API key (optional)" />
           <p class="fine muted" style="margin:4px 0 0;" data-i18n="settings.translateServer.disclaimer">Empty by default — translating a message sends its text in the open to this server, so pick one you trust. Without one set, "Translate" in a message's menu just explains that.</p>
         </div>
         <label class="settings-row"><span data-i18n="settings.sounds">Sound and vibration</span><input id="settings-sounds" type="checkbox" class="switch" /></label>
-        <label class="settings-row"><span data-i18n="settings.quiet">Quiet hours</span><input id="settings-quiet-on" type="checkbox" class="switch" /></label>
-        <div id="settings-quiet-times" class="settings-row hidden"><span data-i18n="settings.quiet.range">From – to</span><span class="wp-color-pair"><input id="settings-quiet-from" type="time" aria-label="From" /><input id="settings-quiet-to" type="time" aria-label="To" /></span></div>
-        <p class="fine muted" style="padding:0 4px 6px;" data-i18n="settings.quiet.hint">At these hours messages arrive without sound or vibration. Calls still ring.</p>
-        <label class="settings-row"><span data-i18n="settings.ringtone">Ringtone</span>
+        <label data-settings-adv class="settings-row"><span data-i18n="settings.quiet">Quiet hours</span><input id="settings-quiet-on" type="checkbox" class="switch" /></label>
+        <div data-settings-adv id="settings-quiet-times" class="settings-row hidden"><span data-i18n="settings.quiet.range">From – to</span><span class="wp-color-pair"><input id="settings-quiet-from" type="time" aria-label="From" /><input id="settings-quiet-to" type="time" aria-label="To" /></span></div>
+        <p data-settings-adv class="fine muted" style="padding:0 4px 6px;" data-i18n="settings.quiet.hint">At these hours messages arrive without sound or vibration. Calls still ring.</p>
+        <label data-settings-adv class="settings-row"><span data-i18n="settings.ringtone">Ringtone</span>
           <select id="settings-ringtone" class="settings-select">
             <option value="ring-classic" data-i18n="settings.ringtone.classic">Classic</option>
             <option value="ring-soft" data-i18n="settings.ringtone.soft">Soft</option>
             <option value="ring-bell" data-i18n="settings.ringtone.bell">Bell</option>
           </select>
         </label>
-        <button type="button" id="settings-ringtone-preview" class="settings-row link-row"><span data-i18n="settings.ringtone.preview">Play preview</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
+        <button data-settings-adv type="button" id="settings-ringtone-preview" class="settings-row link-row"><span data-i18n="settings.ringtone.preview">Play preview</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
         <label class="settings-row"><span data-i18n="settings.pinlock">PIN code on start</span><input id="settings-pinlock" type="checkbox" class="switch" /></label>
-        <label class="settings-row"><span data-i18n="settings.encrypt">Encrypt data on this device</span><input id="settings-encrypt-store" type="checkbox" class="switch" /></label>
-        <p class="fine muted settings-hint" data-i18n="settings.encrypt.hint">Messages, keys and files are stored encrypted with a key made from your PIN (6+ digits). Protects against someone copying the device storage. If you forget the PIN, the data cannot be recovered. A short digit PIN can still be guessed offline — use a long one.</p>
+        <label data-settings-adv class="settings-row"><span data-i18n="settings.encrypt">Encrypt data on this device</span><input id="settings-encrypt-store" type="checkbox" class="switch" /></label>
+        <p data-settings-adv class="fine muted settings-hint" data-i18n="settings.encrypt.hint">Messages, keys and files are stored encrypted with a key made from your PIN (6+ digits). Protects against someone copying the device storage. If you forget the PIN, the data cannot be recovered. A short digit PIN can still be guessed offline — use a long one.</p>
         <button type="button" id="change-pin-btn" class="settings-row link-row hidden"><span data-i18n="settings.pin.change">Change PIN</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
       </div>
       <div class="settings-group flat-content" data-settings-category="data">
         <button type="button" id="settings-favorites-btn" class="settings-row link-row"><span data-i18n="settings.favorites">Favorite messages</span><span id="settings-favorites-count" class="chevron"></span></button>
       </div>
-      <div class="settings-group flat-content" data-settings-category="data">
+      <div data-settings-adv class="settings-group flat-content" data-settings-category="data">
         <div class="settings-row column"><span class="settings-group-title" data-i18n="settings.localAi.title">Local AI</span></div>
         <label class="settings-row"><span data-i18n="settings.localAi">Transcribe voice messages</span><input id="settings-local-ai" type="checkbox" class="switch" /></label>
         <label class="settings-row"><span data-i18n="settings.localAi.lang">Recognition language</span>
@@ -477,8 +485,9 @@
         <p class="fine muted" style="margin:0 0 10px;" data-i18n="settings.backup.explain">Ether has no server backup — everything lives only on this device. If you lose or replace this device, contacts, groups and messages are gone unless you save a backup file yourself.</p>
         <button type="button" id="settings-export-backup-btn" class="settings-row link-row"><span data-i18n="debug.exportData">Export all data</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
         <button type="button" id="settings-import-backup-btn" class="settings-row link-row"><span data-i18n="debug.importData">Import data from file</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
+        <button type="button" id="settings-link-device-btn" class="settings-row link-row"><span data-i18n="devlink.settings">Move to a new device</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
       </div>
-      <div class="settings-group flat-content" data-settings-category="data">
+      <div data-settings-adv class="settings-group flat-content" data-settings-category="data">
         <div class="settings-row column"><span class="settings-group-title" data-i18n="settings.dangerZone.title">Danger zone</span></div>
         <label class="settings-row" id="settings-panic-shake-row"><span data-i18n="settings.panicShake">Shake to wipe</span><input id="settings-panic-shake" type="checkbox" class="switch" /></label>
         <p class="fine muted" style="margin:0 0 10px;" data-i18n="settings.panicShake.explain">Best-effort, not a guaranteed silent trigger — a sharp shake (e.g. someone grabbing your phone) shows a brief cancellable warning, then wipes this device if not cancelled. False positives are possible; test it before relying on it.</p>
@@ -511,14 +520,14 @@
         <label class="settings-row"><span data-i18n="settings.calmMode">Calm mode</span><input id="settings-calm-mode" type="checkbox" class="switch" /></label>
         <p class="fine muted settings-hint" data-i18n="settings.calmMode.hint">Stops background animation and reduces blur — easier on the eyes and battery.</p>
         <p class="fine muted" style="margin:0 0 10px;" data-i18n="settings.calmMode.explain">Turns off the animated background and lowers blur — for a quieter, more focused interface.</p>
-        <label class="settings-row"><span data-i18n="settings.bubbleSize">Message bubble size</span>
+        <label data-settings-adv class="settings-row"><span data-i18n="settings.bubbleSize">Message bubble size</span>
           <select id="settings-bubble-size" class="settings-select">
             <option value="compact" data-i18n="settings.bubbleSize.compact">Compact</option>
             <option value="normal" data-i18n="settings.bubbleSize.normal">Normal</option>
             <option value="large" data-i18n="settings.bubbleSize.large">Large</option>
           </select>
         </label>
-        <label class="settings-row"><span data-i18n="settings.fontSize">Font size</span>
+        <label data-settings-adv class="settings-row"><span data-i18n="settings.fontSize">Font size</span>
           <select id="settings-font-size" class="settings-select">
             <option value="compact" data-i18n="settings.fontSize.compact">Compact</option>
             <option value="normal" data-i18n="settings.fontSize.normal">Standard</option>
@@ -526,7 +535,7 @@
             <option value="system" data-i18n="settings.fontSize.system">Follow system</option>
           </select>
         </label>
-        <label class="settings-row"><span data-i18n="settings.wallpaper">Chat wallpaper</span>
+        <label data-settings-adv class="settings-row"><span data-i18n="settings.wallpaper">Chat wallpaper</span>
           <select id="settings-wallpaper" class="settings-select">
             <option value="none" data-i18n="settings.wallpaper.none">None</option>
             <option value="dots" data-i18n="settings.wallpaper.dots">Dots</option>
@@ -540,14 +549,14 @@
             <option value="custom" data-i18n="settings.wallpaper.custom">Custom gradient</option>
           </select>
         </label>
-        <div id="settings-wallpaper-colors" class="settings-row hidden"><span data-i18n="settings.wallpaper.colors">Gradient colors</span><span class="wp-color-pair"><input id="settings-wp-color1" type="color" aria-label="Color 1" /><input id="settings-wp-color2" type="color" aria-label="Color 2" /></span></div>
-        <label class="settings-row"><span data-i18n="settings.autoEmoji">Replace :) with emoji</span><input id="settings-auto-emoji" type="checkbox" class="switch" /></label>
-        <p class="fine muted settings-hint" data-i18n="settings.autoEmoji.hint">Typing :) or <3 turns into an emoji as you send.</p>
+        <div data-settings-adv id="settings-wallpaper-colors" class="settings-row hidden"><span data-i18n="settings.wallpaper.colors">Gradient colors</span><span class="wp-color-pair"><input id="settings-wp-color1" type="color" aria-label="Color 1" /><input id="settings-wp-color2" type="color" aria-label="Color 2" /></span></div>
+        <label data-settings-adv class="settings-row"><span data-i18n="settings.autoEmoji">Replace :) with emoji</span><input id="settings-auto-emoji" type="checkbox" class="switch" /></label>
+        <p data-settings-adv class="fine muted settings-hint" data-i18n="settings.autoEmoji.hint">Typing :) or <3 turns into an emoji as you send.</p>
         <!-- V.51.0.0: раздел 6 роадмапа — переключаемый эксперимент, а не
              тихая замена трёх кнопок композера одной "+". Выкл. по
              умолчанию. -->
       </div>
-      <div class="settings-group flat-content" data-settings-category="privacy">
+      <div data-settings-adv class="settings-group flat-content" data-settings-category="privacy">
         <div class="settings-row column"><span class="settings-group-title" data-i18n="settings.deadMan.title">Dead man's switch</span></div>
         <p class="fine muted" style="margin:0 0 10px;" data-i18n="settings.deadMan.explain">Best-effort, not a guaranteed background trigger: each time you open Ether, it sends a small "I'm alive" signal to the contact below; it only updates when the other side also opens Ether. If you'd like, enable it there too to be alerted after your own silence.</p>
         <label class="settings-row"><span data-i18n="settings.deadMan.enable">Enable</span><input id="settings-deadman-enabled" type="checkbox" class="switch" /></label>
@@ -561,7 +570,7 @@
         </label>
         <button type="button" id="settings-deadman-contact-btn" class="settings-row link-row"><span data-i18n="settings.deadMan.contact">Trusted contact</span><span id="settings-deadman-contact-name" class="chevron"></span></button>
       </div>
-      <div class="settings-group flat-content" data-settings-category="appearance">
+      <div data-settings-adv class="settings-group flat-content" data-settings-category="appearance">
         <div class="settings-row column">
           <span data-i18n="settings.glass">Glass transparency</span> <span id="glass-slider-value" class="fine muted"></span>
           <input id="glass-slider" type="range" min="0" max="1" step="0.01" />
@@ -900,6 +909,7 @@
       <button type="button" id="chat-board-btn" class="sheet-action composer-menu-item"><svg data-icon="board" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg><span data-i18n="chat.menu.board">Board</span></button>
       <button type="button" id="chat-note-btn" class="sheet-action composer-menu-item"><svg data-icon="edit" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg><span data-i18n="chat.menu.note">Shared note</span></button>
       <button type="button" id="chat-summary-btn" class="sheet-action composer-menu-item"><svg data-icon="sparkle" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg><span data-i18n="summary.menu">Chat summary</span></button>
+      <button type="button" id="chat-sticker-btn" class="sheet-action composer-menu-item"><svg data-icon="image" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg><span data-i18n="sticker.menu">Stickers</span></button>
     </div>
     <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="composer-menu-sheet" data-i18n="sys.cancel">Cancel</button>
   </div>
@@ -1194,6 +1204,18 @@
   </div>
 </div>
 
+<div id="sticker-picker-sheet" class="sheet hidden" role="dialog" aria-modal="true" aria-label="Stickers" data-i18n-aria="sticker.menu">
+  <div class="sheet-backdrop"></div>
+  <div class="sheet-panel glass-content emoji-picker-panel sticker-picker-panel">
+    <div class="sheet-handle"></div>
+    <div id="sticker-tabs" class="emoji-tabs" role="tablist"></div>
+    <div class="sticker-title-row"><div id="sticker-section-title" class="emoji-section-title"></div><button type="button" id="sticker-pack-rename" class="btn-tertiary sticker-pack-rename hidden" data-i18n="sticker.rename.pack">Rename pack</button></div>
+    <div id="sticker-grid" class="sticker-grid"></div>
+    <p id="sticker-hint" class="fine muted sticker-hint"></p>
+    <input id="sticker-file-input" type="file" accept="image/png,image/webp,image/jpeg,image/svg+xml" class="hidden" />
+  </div>
+</div>
+
 <div id="emoji-picker-sheet" class="sheet hidden">
   <div class="sheet-backdrop"></div>
   <div class="sheet-panel glass-content emoji-picker-panel">
@@ -1202,6 +1224,7 @@
          Тон кожи раскрывается кнопкой с рукой и действует на все категории (на все эмодзи, которые его допускают). -->
     <div class="emoji-search-row">
       <input id="emoji-search-input" type="text" class="search-input" data-i18n-ph="chat.emoji.search" placeholder="Search emoji" autocomplete="off" />
+      <button type="button" id="emoji-sticker-btn" class="emoji-tone-btn" aria-label="Stickers" data-i18n-aria="sticker.menu">🖼</button>
       <button type="button" id="emoji-tone-btn" class="emoji-tone-btn" aria-expanded="false" aria-label="Skin tone" data-i18n-aria="emoji.tone">👋</button>
     </div>
     <div id="emoji-skin-tone-row" class="skin-tone-row hidden"></div>
@@ -1297,6 +1320,24 @@
     </div>
     <p id="qr-scan-status" class="fine muted" data-i18n="connect.qr.scan.hint">Point the camera at the other person's QR code.</p>
     <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="scan-qr-sheet" data-i18n="sys.cancel">Cancel</button>
+  </div>
+</div>
+
+<div id="discovery-sheet" class="sheet hidden">
+  <div class="sheet-backdrop"></div>
+  <div class="sheet-panel glass-content">
+    <div class="sheet-handle"></div>
+    <h2 data-i18n="discovery.title">Find by phone/email</h2>
+    <p class="fine muted" data-i18n="discovery.explain">Enter phone numbers (with country code) or emails of people you know. Your app turns each into a salted hash and asks the server which hashes were published by people who chose to be found. The server never sees the numbers you search for, only hashes; people who did not opt in look the same as people who are not here. Limits apply (20 searches per hour).</p>
+    <p class="fine muted" data-i18n="discovery.risk">Honest warning: phone numbers can be guessed. The salt and rate limits make mass guessing slow, not impossible. That is why this is opt-in.</p>
+    <textarea id="discovery-input" rows="4" maxlength="8000" placeholder="+49 170 1234567&#10;friend@example.com" data-i18n-ph="discovery.placeholder"></textarea>
+    <div class="row-actions">
+      <button type="button" id="discovery-pick-btn" class="btn-secondary hidden" data-i18n="discovery.pick">From address book</button>
+      <button type="button" id="discovery-search-btn" class="btn-primary" data-i18n="discovery.search">Search</button>
+    </div>
+    <p id="discovery-status" class="fine muted" role="status"></p>
+    <div id="discovery-results" class="forward-list"></div>
+    <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="discovery-sheet" data-i18n="sys.close">Close</button>
   </div>
 </div>
 
@@ -1536,14 +1577,17 @@
 <script src="js/ratchet.js"></script>
 <script src="js/linkauth.js"></script>
 <script src="js/signaling-client.js"></script>
+<script src="js/discovery.js"></script>
 <script src="js/webrtc.js"></script>
 <script src="js/file-limits.js"></script>
 <script src="js/emoji-data.js"></script>
 <script src="js/app.js"></script>
+<script src="js/stickers.js"></script>
 <script src="js/group-call.js"></script>
 <script src="js/rooms.js"></script>
 <script src="js/localai.js"></script>
 <script src="js/devicecheck.js"></script>
+<script src="js/devicelink.js"></script>
 <script src="js/skins.js"></script>
 <script src="js/skins/cartoon.js"></script>
 <script src="js/skins/comic.js"></script>

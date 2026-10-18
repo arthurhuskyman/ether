@@ -1,4 +1,4 @@
-const CACHE_VERSION = "ether-shell-v232";
+const CACHE_VERSION = "ether-shell-v233";
 // В предзагрузке только ядро. css/skins/<id>.css и fonts/skins/*.woff2 подтягиваются по требованию (активный скин) и
 // кладутся в кэш обработчиком fetch ниже (runtime-cache, stale-while-revalidate).
 const SHELL_FILES = [
@@ -34,14 +34,17 @@ const SHELL_FILES = [
   "./js/rooms.js",
   "./js/localai.js",
   "./js/devicecheck.js",
+  "./js/devicelink.js",
   "./js/webrtc.js",
   "./js/file-limits.js",
   "./js/signaling-codec.js",
   "./js/signaling-client.js",
+  "./js/discovery.js",
   "./js/crypto-helper.js",
   "./js/secure-store.js",
   "./js/icons.js",
   "./js/rich.js",
+  "./js/stickers.js",
   "./js/ratchet.js",
   "./js/linkauth.js",
   "./js/crypto-worker.js",

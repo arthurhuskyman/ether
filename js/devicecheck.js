@@ -33,6 +33,7 @@ const DeviceCheck = (() => {
   function sanitize(input) {
     let s = String(input == null ? "" : input);
     s = s.replace(/-----BEGIN [A-Z ]+-----[\s\S]*?-----END [A-Z ]+-----/g, "<pem>");
+    s = s.replace(/ether:\/\/link\?[^\s"'<>]*/gi, "<link-code>"); // одноразовый код переноса на новое устройство (js/devicelink.js)
     s = s.replace(/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*/g, "<jwt>");
     s = s.replace(/\b(https?|wss?):\/\/([^\s/"'<>?#]+)[^\s"'<>]*/gi, (m, p, host) => p + "://" + host.replace(/^[^@]*@/, "") + "/…"); // путь и query (часто с токенами) убираем, хост оставляем
     s = s.replace(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, "<email>");

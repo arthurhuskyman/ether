@@ -653,12 +653,13 @@ const APP_ORIGIN = APP_BASE_URL;
 const httpServer = http.createServer(async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
   res.setHeader("Vary", "Origin");
-  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Link-T, X-Link-U");
 
   if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
 
   const url = req.url || "";
+  if (url.startsWith("/link/") && await require("./devicelink").handle(req, res, clientIp(req))) return; // перенос на новое устройство (docs/MULTIDEVICE.md)
   if (req.method === "GET" && (url === "/ice" || url.startsWith("/ice?"))) {
     const ip = clientIp(req);
     if (!rateLimitOk(ip)) {
@@ -1218,6 +1219,86 @@ function claimCheckRegister(id, claim, ip) {
 function touchClaim(id) { const r = claims.get(id); if (r) { r.seen = Date.now(); scheduleClaimsSave(); } }
 loadClaims();
 
+// ---------- Обнаружение по хэшу телефона/почты (добровольно, по умолчанию у клиента ВЫКЛ) ----------
+// Клиент, включивший «Меня можно найти», публикует ключ обнаружения = HMAC-SHA256(DISCOVERY_SALT, нормализованный телефон/email).
+// Сервер хранит только: хэш, id, публичный ключ (берётся из register) и, если владелец разрешил, имя. Публиковать может лишь id с claim (владение id).
+// Поиск: клиент шлёт ≤200 хэшей своих знакомых — в ответ только найденные. «Скрытый/не включил» неотличим от «нет». Лимиты: см. ниже.
+// Риск: номеров мало (~10^10), поэтому соль + лимиты замедляют, но не исключают перебор; это добровольная функция (см. docs/PRIVACY.md).
+const DISCOVERY_ENABLED = process.env.DISCOVERY_ENABLED !== "0";
+const DISCOVERY_TTL_MS = envInt("DISCOVERY_TTL_DAYS", 90) * 86400 * 1000;
+const DISCOVERY_MAX = envInt("DISCOVERY_MAX", 200000);
+const DISCOVERY_MAX_PER_ID = 3;
+const DISCOVERY_BATCH = 200;
+const DISCOVERY_REQ_PER_HOUR = envInt("DISCOVERY_REQ_PER_HOUR", 20);
+const DISCOVERY_HASHES_PER_DAY = envInt("DISCOVERY_HASHES_PER_DAY", 1000);
+const DISCOVERY_PUBLISH_PER_HOUR = envInt("DISCOVERY_PUBLISH_PER_HOUR", 30);
+const DISCOVERY_MIN_MS = envInt("DISCOVERY_MIN_MS", 150); // одинаковое (минимальное) время ответа
+const DISCOVERY_PERSIST = process.env.DISCOVERY_PERSIST !== "0";
+const DISCOVERY_FILE = process.env.DISCOVERY_FILE || path.join(process.env.DATA_DIR || __dirname, ".ether-discovery.json");
+const HASH_RE = /^[0-9a-f]{64}$/;
+const discovery = new Map();     // hash -> { id, pk, name, seen }
+const discoveryById = new Map(); // id -> Set(hash)
+const discIpHits = new Map(), discIdHits = new Map(), discDayHits = new Map(), discPubHits = new Map();
+let DISCOVERY_SALT = (process.env.DISCOVERY_SALT || "").trim();
+function loadDiscovery() {
+  let data = null;
+  try { if (DISCOVERY_PERSIST && fs.existsSync(DISCOVERY_FILE)) data = JSON.parse(fs.readFileSync(DISCOVERY_FILE, "utf8")); } catch (e) { console.warn("[discovery] не удалось прочитать файл:", e.message); }
+  if (!data || data.v !== 1 || typeof data.salt !== "string" || !Array.isArray(data.entries)) data = null;
+  if (!DISCOVERY_SALT) DISCOVERY_SALT = data ? data.salt : crypto.randomBytes(24).toString("hex");
+  if (data && data.salt === DISCOVERY_SALT) {
+    const now = Date.now();
+    for (const e of data.entries) {
+      if (!Array.isArray(e) || !HASH_RE.test(e[0]) || !e[1] || typeof e[1].id !== "string" || !e[1].id || e[1].id.length > 128 || typeof e[1].seen !== "number") continue;
+      if (now - e[1].seen > DISCOVERY_TTL_MS || discovery.size >= DISCOVERY_MAX) continue;
+      discoverySet(e[0], { id: e[1].id, pk: validPublicKeyJwk(e[1].pk) ? e[1].pk : null, name: typeof e[1].name === "string" ? e[1].name.slice(0, 60) : "", seen: e[1].seen });
+    }
+  } // соль сменилась — старые хэши бесполезны, отбрасываем
+  saveDiscovery();
+}
+function discoverySet(h, rec) {
+  const old = discovery.get(h);
+  if (old && old.id !== rec.id) { const s = discoveryById.get(old.id); if (s) { s.delete(h); if (!s.size) discoveryById.delete(old.id); } }
+  discovery.set(h, rec);
+  let s = discoveryById.get(rec.id); if (!s) discoveryById.set(rec.id, s = new Set()); s.add(h);
+}
+function discoveryDropId(id) {
+  const s = discoveryById.get(id); if (!s) return false;
+  for (const h of s) discovery.delete(h);
+  discoveryById.delete(id); scheduleDiscoverySave(); return true;
+}
+function saveDiscovery() {
+  if (!DISCOVERY_PERSIST) return;
+  try {
+    const tmp = DISCOVERY_FILE + ".tmp";
+    fs.writeFileSync(tmp, JSON.stringify({ v: 1, salt: DISCOVERY_SALT, entries: Array.from(discovery.entries()) }), { mode: 0o600 });
+    fs.renameSync(tmp, DISCOVERY_FILE);
+  } catch (e) { console.warn("[discovery] не удалось сохранить:", e.message); }
+}
+let discoveryTimer = null;
+function scheduleDiscoverySave() {
+  if (!DISCOVERY_PERSIST || discoveryTimer) return;
+  discoveryTimer = setTimeout(() => { discoveryTimer = null; saveDiscovery(); }, 2000);
+}
+function discWindow(map, key, windowMs, add, limit) { // true, если после добавления add остаёмся в пределах limit
+  const now = Date.now();
+  const w = rlGet(map, key, now);
+  if (now - w.start > windowMs) { w.start = now; w.n = 0; }
+  w.n += add; map.set(key, w);
+  if (map.size > 20000) { for (const [k, v] of map) if (now - v.start > windowMs) map.delete(k); }
+  return w.n <= limit;
+}
+function discoveryExpire() {
+  const now = Date.now();
+  for (const [h, r] of discovery) if (now - r.seen > DISCOVERY_TTL_MS && !clients.has(r.id)) { discovery.delete(h); const s = discoveryById.get(r.id); if (s) { s.delete(h); if (!s.size) discoveryById.delete(r.id); } }
+}
+function discoveryTouch(id, pk) { // при регистрации: продлеваем TTL и обновляем публичный ключ
+  const s = discoveryById.get(id); if (!s) return;
+  const now = Date.now();
+  for (const h of s) { const r = discovery.get(h); if (r) { r.seen = now; if (pk) r.pk = pk; } }
+  scheduleDiscoverySave();
+}
+if (DISCOVERY_ENABLED) loadDiscovery();
+
 // ---------- Утилиты ----------
 function safeSend(ws, obj) {
   if (ws && ws.readyState === WebSocket.OPEN) {
@@ -1303,7 +1384,9 @@ function isValidEnvelope(env) {
   return typeof env.iv === "string" && env.iv.length < 200;
 }
 // Возможности сервера, о которых он сообщает клиентам при регистрации: клиент включает новый формат только если сервер его понимает.
-const SERVER_FEATURES = ["ratchet2", "prekeys", "watch", "claim", "env2"];
+const deviceLists = new Map(), deviceListHits = new Map(); // id -> {seq, list}; в памяти: после рестарта основное устройство публикует список заново
+const DEVICE_LIST_MAX_BYTES = 8 * 1024, DEVICE_LISTS_MAX = 20000;
+const SERVER_FEATURES = ["ratchet2", "prekeys", "watch", "claim", "env2", "devicelink", "devlist"].concat(DISCOVERY_ENABLED ? ["discovery"] : []);
 
 // ---------- Prekey-пакеты для начала Double Ratchet (3DH/4DH) ----------
 // Клиент заранее выкладывает подписанный-по-смыслу prekey (spk, меняется раз в неделю) и пачку одноразовых (opks).
@@ -1408,6 +1491,7 @@ wss.on("connection", (ws, req) => {
       if (myId && myId !== msg.id) {
         const prev = clients.get(myId);
         if (prev && prev.ws === ws) {
+          if (DISCOVERY_ENABLED) discoveryDropId(myId); // смена id: запись обнаружения старого id снимается
           clients.delete(myId);
           broadcastPresence(myId, false, { wasVisible: prev.visible, rec: prev });
         }
@@ -1446,7 +1530,8 @@ wss.on("connection", (ws, req) => {
         .filter((i) => i !== myId)
         .map((i) => rosterEntry(i))
         .filter((e) => e && canSeePresence(me0, myId, e.id, clients.get(e.id)));
-      safeSend(ws, { type: "registered", id: myId, online, features: SERVER_FEATURES, prekeyCount: prekeyCount(myId), claimed: claims.has(myId) });
+      safeSend(ws, Object.assign({ type: "registered", id: myId, online, features: SERVER_FEATURES, prekeyCount: prekeyCount(myId), claimed: claims.has(myId) }, DISCOVERY_ENABLED ? { discoverySalt: DISCOVERY_SALT, discoveryPublished: discoveryById.has(myId) } : {}));
+      if (DISCOVERY_ENABLED) discoveryTouch(myId, me0.publicKey);
       if (PUSH_ENABLED) safeSend(ws, { type: "vapid-key", key: VAPID_PUBLIC });
       clearThrottleForRecipient(myId);
       flushMailbox(myId, ws);
@@ -1652,6 +1737,26 @@ wss.on("connection", (ws, req) => {
       safeSend(ws, { type: "prekey-stored", count: e.opks.size });
       return;
     }
+    // Список устройств аккаунта (docs/MULTIDEVICE.md): непрозрачный JSON, подписанный основным ключом личности. Сервер подпись не проверяет
+    // (публичный ключ — у контактов) и не может подделать; он хранит только версию с большим seq и отдаёт её. Публикует лишь владелец id.
+    if (msg.type === "devices-put" && myId && msg.list && typeof msg.list === "object") {
+      if (!wsRateLimitOk(deviceListHits, myId, 20)) return;
+      const l = msg.list; let ok = l.id === myId && Number.isSafeInteger(l.seq) && l.seq > 0 && typeof l.sig === "string" && l.sig.length <= 200 && Array.isArray(l.certs) && l.certs.length <= 8;
+      let raw = ""; try { raw = JSON.stringify(l); } catch (e) { ok = false; }
+      if (!ok || raw.length > DEVICE_LIST_MAX_BYTES) { safeSend(ws, { type: "devices-stored", error: "invalid" }); return; }
+      const cur = deviceLists.get(myId);
+      if (cur && cur.seq >= l.seq) { safeSend(ws, { type: "devices-stored", error: "stale", seq: cur.seq }); return; }
+      if (!cur && deviceLists.size >= DEVICE_LISTS_MAX) deviceLists.delete(deviceLists.keys().next().value);
+      deviceLists.set(myId, { seq: l.seq, list: l });
+      safeSend(ws, { type: "devices-stored", seq: l.seq });
+      return;
+    }
+    if (msg.type === "devices-get" && myId && typeof msg.to === "string" && msg.to.length <= 128 && typeof msg.rid === "string" && msg.rid.length <= 40) {
+      if (!wsRateLimitOk(deviceListHits, myId + "|g", 120)) { safeSend(ws, { type: "devices-list", rid: msg.rid, to: msg.to, list: null }); return; }
+      const e = deviceLists.get(msg.to);
+      safeSend(ws, { type: "devices-list", rid: msg.rid, to: msg.to, list: e ? e.list : null });
+      return;
+    }
     if (msg.type === "prekey-fetch" && myId && typeof msg.to === "string" && msg.to.length <= 128 && typeof msg.rid === "string" && msg.rid.length <= 40) {
       if (!wsRateLimitOk(prekeyFetchHits, myId, 60) || !wsRateLimitPairOk(myId, msg.to, 12, prekeyPairHits)) { safeSend(ws, { type: "prekey-bundle", rid: msg.rid, to: msg.to, error: "rate" }); return; }
       const e = prekeys.get(msg.to);
@@ -1666,6 +1771,49 @@ wss.on("connection", (ws, req) => {
         if (owner) safeSend(owner.ws, { type: "prekey-low", count: e.opks.size });
       }
       return;
+    }
+
+    // Обнаружение: публикация/снятие своего хэша (только id с claim) и поиск по списку хэшей.
+    if (msg.type === "discovery-publish" && myId) {
+      const reply = (o) => safeSend(ws, Object.assign({ type: "discovery-published" }, o));
+      if (!DISCOVERY_ENABLED) return reply({ ok: false, error: "disabled" });
+      if (!discWindow(discPubHits, myId, 3600_000, 1, DISCOVERY_PUBLISH_PER_HOUR)) return reply({ ok: false, error: "rate" });
+      const me = clients.get(myId); if (!me) return;
+      const hashes = Array.isArray(msg.hashes) ? Array.from(new Set(msg.hashes.filter((h) => typeof h === "string" && HASH_RE.test(h)))).slice(0, DISCOVERY_MAX_PER_ID) : [];
+      if (!hashes.length) { discoveryDropId(myId); return reply({ ok: true, count: 0 }); } // снятие
+      if (!claims.has(myId)) return reply({ ok: false, error: "no-claim" });
+      if (!me.publicKey) return reply({ ok: false, error: "no-key" });
+      const fresh = hashes.filter((h) => !discovery.has(h) || discovery.get(h).id !== myId).length;
+      if (discovery.size + fresh > DISCOVERY_MAX) { discoveryExpire(); if (discovery.size + fresh > DISCOVERY_MAX) return reply({ ok: false, error: "full" }); }
+      const name = msg.shareName === true ? String(msg.name || me.name || "").slice(0, 60) : "";
+      discoveryDropId(myId);
+      const now = Date.now();
+      for (const h of hashes) {
+        const prev = discovery.get(h); // хэш уже занят другим id (напр. номер перешёл к другому человеку) — перезаписывает последний подтвердивший
+        discoverySet(h, { id: myId, pk: me.publicKey, name, seen: now });
+        if (prev && prev.id !== myId) { const s = discoveryById.get(prev.id); if (s) s.delete(h); }
+      }
+      scheduleDiscoverySave();
+      return reply({ ok: true, count: hashes.length, ttlDays: Math.round(DISCOVERY_TTL_MS / 86400000) });
+    }
+    if (msg.type === "discovery-lookup" && myId && typeof msg.rid === "string" && msg.rid.length <= 40) {
+      const t0 = Date.now();
+      const rid = msg.rid;
+      const done = (o) => { const wait = Math.max(0, DISCOVERY_MIN_MS - (Date.now() - t0)); setTimeout(() => safeSend(ws, Object.assign({ type: "discovery-result", rid }, o)), wait); };
+      if (!DISCOVERY_ENABLED) return done({ found: [], error: "disabled" });
+      const hashes = Array.isArray(msg.hashes) ? Array.from(new Set(msg.hashes.filter((h) => typeof h === "string" && HASH_RE.test(h)))) : [];
+      if (!hashes.length || hashes.length > DISCOVERY_BATCH) return done({ found: [], error: "bad-request" });
+      if (!discWindow(discIpHits, ipAddr, 3600_000, 1, DISCOVERY_REQ_PER_HOUR) || !discWindow(discIdHits, myId, 3600_000, 1, DISCOVERY_REQ_PER_HOUR)
+        || !discWindow(discDayHits, myId, 86400_000, hashes.length, DISCOVERY_HASHES_PER_DAY)) return done({ found: [], error: "rate" });
+      const now = Date.now(), found = [];
+      for (const h of hashes) {
+        const r = discovery.get(h);
+        if (!r || r.id === myId || now - r.seen > DISCOVERY_TTL_MS || !r.pk) continue;
+        const o = { hash: h, id: r.id, publicKey: r.pk };
+        if (r.name) o.name = r.name;
+        found.push(o);
+      }
+      return done({ found });
     }
 
     if (msg.type === "mailbox-ack" && myId && typeof msg.msgId === "string") {
@@ -1756,11 +1904,13 @@ setInterval(() => {
   const now = Date.now();
   for (const id of clients.keys()) { const r = claims.get(id); if (r) r.seen = now; }
   if (pruneClaims(now) || clients.size) scheduleClaimsSave();
+  if (DISCOVERY_ENABLED) { for (const id of clients.keys()) discoveryTouch(id); discoveryExpire(); scheduleDiscoverySave(); }
 }, 3600 * 1000).unref();
 
 function shutdown() {
   console.log("Завершаем работу…");
   try { saveClaims(); } catch (e) {}
+  try { if (DISCOVERY_ENABLED) saveDiscovery(); } catch (e) {}
   try { savePushSubs(); } catch (e) {}
   try { saveMailbox(); } catch (e) {}
   for (const ws of wss.clients) { try { ws.close(1001, "server shutdown"); } catch (e) {} }

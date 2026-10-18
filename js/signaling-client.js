@@ -168,6 +168,15 @@ class SignalingClient extends EventTarget {
         const users = (Array.isArray(msg.online) ? msg.online : []).map(normalizeRosterEntry).filter(Boolean);
         etherLog("info", "[signaling] зарегистрирован, онлайн:", users.length);
         this.dispatchEvent(new CustomEvent("online-list", { detail: { users } }));
+        // Обнаружение по хэшу телефона/почты: соль HMAC и признак «моя запись опубликована» (только если сервер объявил feature "discovery")
+        this.discoverySalt = this.features.includes("discovery") && typeof msg.discoverySalt === "string" && /^[0-9a-zA-Z_-]{16,200}$/.test(msg.discoverySalt) ? msg.discoverySalt : "";
+        this.discoveryPublished = msg.discoveryPublished === true;
+        this.dispatchEvent(new CustomEvent("discovery-state", { detail: { salt: this.discoverySalt, published: this.discoveryPublished } }));
+      } else if (msg.type === "discovery-result" && typeof msg.rid === "string") {
+        this.dispatchEvent(new CustomEvent("discovery-result", { detail: { rid: msg.rid, found: Array.isArray(msg.found) ? msg.found.slice(0, 200) : [], error: typeof msg.error === "string" ? msg.error.slice(0, 30) : null } }));
+      } else if (msg.type === "discovery-published") {
+        this.discoveryPublished = msg.ok === true && msg.count > 0;
+        this.dispatchEvent(new CustomEvent("discovery-published", { detail: { ok: msg.ok === true, count: msg.count | 0, error: typeof msg.error === "string" ? msg.error.slice(0, 30) : null } }));
       } else if (msg.type === "watch-result") {
         const users = (Array.isArray(msg.online) ? msg.online : []).map(normalizeRosterEntry).filter(Boolean);
         this.dispatchEvent(new CustomEvent("online-list", { detail: { users } }));
@@ -349,6 +358,9 @@ class SignalingClient extends EventTarget {
   watch(ids) { return this.send("watch", { ids: Array.from(ids || []).slice(0, 2000) }); }
   uploadPrekeys(payload) { return this.send("prekey-upload", { spk: payload.spk, opks: payload.opks }); }
   fetchPrekeys(to, rid) { return this.send("prekey-fetch", { to, rid }); }
+  // Обнаружение по хэшу: публикация своего ключа (hashes=[] — снять) и поиск по списку хэшей (≤200)
+  discoveryPublish(hashes, shareName, name) { return this.send("discovery-publish", { hashes: Array.from(hashes || []).slice(0, 3), shareName: !!shareName, name: shareName ? String(name || "").slice(0, 60) : "" }); }
+  discoveryLookup(rid, hashes) { return this.send("discovery-lookup", { rid, hashes: Array.from(hashes || []).slice(0, 200) }); }
 
   sendPushSubscription(subscription) {
     if (!subscription) return false;
