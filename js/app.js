@@ -8288,7 +8288,8 @@ async function trySendOrQueue(contact, msgId, payloadObj) {
     if (state.chatId === contact.id) renderChatThread();
   }
   const link = mesh.get(contact.id);
-  const p2pSent = link && (link.status === "connected" || link.status === "in-call") && link.send(payloadObj);
+  const viaServerOnly = typeof Devices !== "undefined" && Devices.needsServer(contact); // есть другие устройства: копии идут только через сервер
+  const p2pSent = !viaServerOnly && link && (link.status === "connected" || link.status === "in-call") && link.send(payloadObj);
   addToOutbox(msgId, contact.id, payloadObj);
   if (p2pSent) {
     if (mPending && mPending.ack === "pending") {
@@ -8371,7 +8372,7 @@ async function encryptForContact(contact, msgId, payload, forceV1) {
   if (cached) return cached;
   let envelope = null;
   const serverOk = !!(signaling && Array.isArray(signaling.features) && signaling.features.includes("ratchet2"));
-  if (contact.rc && serverOk && !forceV1) {
+  if (contact.rc && serverOk && !forceV1 && !(typeof Devices !== "undefined" && Devices.isCompanion())) {
     try {
       envelope = await Ratchet.encrypt({ contactId: contact.id, myId: Store.myId, myPrivJwk: Store.myPrivateKeyJwk, theirPubJwk: contact.publicKey, getBundle: () => fetchPrekeyBundle(contact.id) }, payload);
     } catch (e) { etherLog("warn", "[ratchet] шифрование не удалось, отправляю прежним способом:", String(e)); }
@@ -8603,12 +8604,15 @@ async function flushOutboxItem(msgId) {
       if (!full) { outbox.delete(msgId); persistOutbox(); markMessageAck(entry.to, msgId, "failed"); return; } // файл пропал из IndexedDB — отправить нечего
       entry.payload = full;
     }
-    const envelope = await encryptForContact(contact, msgId, entry.payload, entry.forceV1 || (entry.payload && entry.payload.kind === "rc-reset"));
+    const envelope = await encryptForContact(contact, msgId, entry.payload, entry.forceV1 || (entry.payload && entry.payload.kind === "rc-reset") || (typeof Devices !== "undefined" && Devices.isCompanion()));
     entry.attempts = (entry.attempts || 0) + 1;
     entry.lastAttemptAt = Date.now();
     persistOutbox();
     const kind = (entry.payload && entry.payload.kind) || "chat";
-    const sent = signaling && signaling.deliver(entry.to, entry.msgId, envelope, Store.myPublicKeyJwk, kind);
+    let devCopies = null; // копии другим устройствам получателя (js/devices.js)
+    if (typeof Devices !== "undefined") { try { devCopies = await Devices.copiesFor(contact, entry.payload); } catch (e) { etherLog("warn", "[devices] copies:", String(e)); } }
+    const sent = signaling && (devCopies && devCopies.length ? signaling.deliverMulti(entry.to, entry.msgId, envelope, Store.myPublicKeyJwk, kind, devCopies) : signaling.deliver(entry.to, entry.msgId, envelope, Store.myPublicKeyJwk, kind));
+    if (sent && typeof Devices !== "undefined") Devices.syncSent(contact, entry.payload).catch(() => {}); // зеркалим отправленное на другие устройства аккаунта
     if (!sent) markMessageAck(entry.to, msgId, "failed");
     else if (kind === "chat" || kind === "file") {
       // Раньше здесь стояло только `kind === "chat"` — для kind
@@ -8960,6 +8964,7 @@ function initSignaling() {
   etherLog("info", "[signaling] connecting to " + url);
   const sig = signaling = new SignalingClient(url, Store.myId, { name: Store.name, visible: Store.discoverable, publicKey: Store.myPublicKeyJwk });
   sig.watchIds = watchedContactIds;
+  if (typeof Devices !== "undefined") Devices.wireSignaling(sig); // companion-режим и публикация списка устройств (js/devices.js)
   signalingCleanup = wireSignalingEvents(sig);
   sig.addEventListener("slow-connect", () => { if (!sig.connected) updateSignalingStatusUI("connecting", T("status.waking")); });
   // Доказательство владения id (claim) считается асинхронно (SHA-256); результат кешируется, поэтому повторные подключения стартуют синхронно.
@@ -9570,7 +9575,7 @@ const deliverInFlight = new Set();
 // mailboxAck уходит ПОСЛЕ расшифровки и сохранения: при ошибке сервер переотправит конверт при следующем подключении (не более
 // DELIVER_MAX_ATTEMPTS раз на msgId, затем подтверждаем и показываем системную запись). Повтор (from,msgId) игнорируем, но подтверждаем.
 async function handleDeliver(detail, replay) {
-  const { from, msgId, envelope, fromPublicKey, kind } = detail;
+  const { from, msgId, envelope, fromPublicKey, kind, fromDev } = detail;
   const ackBox = () => { if (!replay && signaling) signaling.mailboxAck(msgId); };
   const dKey = from + "|" + msgId;
   const sender = state.contacts.get(from);
@@ -9606,9 +9611,12 @@ async function handleDeliver(detail, replay) {
         ackBox(); // конверт сохранён в heldDeliveries (localStorage)
         return;
       }
-      const theirKey = (c0 && c0.publicKey) || fromPublicKey;
+      // Сообщение с другого устройства аккаунта собеседника/моего (fromDev): ключ берём из проверенного списка устройств, ratchet не используется
+      const devKey = fromDev && typeof Devices !== "undefined" ? await Devices.deviceKeyFor(from, fromDev) : null;
+      if (fromDev && !devKey) throw new Error("unknown device");
+      const theirKey = devKey || (from === Store.myId ? Store.myPublicKeyJwk : ((c0 && c0.publicKey) || fromPublicKey));
       if (!theirKey) throw new Error("no key");
-      if (envelope && envelope.v === 2 && envelope.h) {
+      if (envelope && envelope.v === 2 && envelope.h && !devKey) {
         payload = await Ratchet.decrypt({ contactId: from, myId: Store.myId, myPrivJwk: Store.myPrivateKeyJwk, theirPubJwk: theirKey }, envelope);
         markContactRatchet(c0);
       } else {
@@ -9637,6 +9645,10 @@ async function handleDeliver(detail, replay) {
       return;
     }
 
+    if (kind === "sync-sent" && from === Store.myId && typeof Devices !== "undefined") { // отправленное с другого моего устройства
+      try { Devices.applySyncSent(payload); } catch (e) {}
+      markSeenMsg(from, msgId); ackBox(); return;
+    }
     // Первый отправитель из ящика: конверт расшифровался этим ключом — запоминаем его, иначе ответить и квитировать нельзя
     if (learnKey) {
       try {

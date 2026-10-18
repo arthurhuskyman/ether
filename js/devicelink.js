@@ -99,9 +99,9 @@ const DeviceLink = (() => {
         throw err("cancelled");
       },
       // вызывать только после подтверждения пользователем совпадения проверочных кодов
-      async send(data) {
+      async send(data, device) {
         if (!ctx) throw err("not-joined");
-        const bytes = await seal(ctx.key, t, { v: 1, data: sanitizeData(data) });
+        const bytes = await seal(ctx.key, t, device ? { v: 1, data: sanitizeData(data), device } : { v: 1, data: sanitizeData(data) });
         if (bytes.length > maxBlob) throw err("too-large");
         const p = await api("put", bytes, { "X-Link-T": t, "X-Link-U": u }, true);
         if (!p.ok) throw err(p.status === 413 ? "too-large" : "put");
@@ -130,8 +130,8 @@ const DeviceLink = (() => {
     if (!r.ok) throw err(r.status === 404 ? "not-found" : "join");
     const j = await r.json(); const ctx = await deriveKey(kp.priv, j.pub, parsed.S, t, j.pub, kp.pub);
     let cancelled = false;
-    return {
-      verify: ctx.verify,
+    const side = {
+      verify: ctx.verify, device: null,
       async receive() {
         const until = Date.now() + GET_TIMEOUT_MS;
         while (!cancelled && Date.now() < until) {
@@ -140,6 +140,7 @@ const DeviceLink = (() => {
             const bytes = new Uint8Array(await g.arrayBuffer());
             let pkg; try { pkg = await open(ctx.key, t, bytes); } catch (e) { throw err("decrypt"); }
             if (!pkg || pkg.v !== 1 || !validData(pkg.data)) throw err("bad-package");
+            if (pkg.device && typeof pkg.device === "object") side.device = pkg.device; // companion: данные устройства от основного
             return sanitizeData(pkg.data);
           }
           if (g.status === 410 || g.status === 404) throw err("expired");
@@ -149,6 +150,7 @@ const DeviceLink = (() => {
       },
       cancel() { cancelled = true; },
     };
+    return side;
   }
   return { newSecret, ids, httpBase, encodeCode, parseCode, deriveKey, genKeyPair, seal, open, collectData, sanitizeData, validData, createSender, join, EXCLUDED, SECRET_TTL_MS };
 })();
@@ -177,8 +179,9 @@ const DeviceLinkUI = (() => {
   const serverBase = () => DeviceLink.httpBase(typeof effectiveSignalingUrl === "function" ? effectiveSignalingUrl() : "");
 
   // Старое устройство
-  async function openSend() {
-    const sh = sheet(tr("devlink.send.title")); let sender = null, timer = null;
+  async function openSend(opts) {
+    const companion = !!(opts && opts.companion === true);
+    const sh = sheet(tr(companion ? "devices.pair.title" : "devlink.send.title")); let sender = null, timer = null;
     sh.onClose = () => { if (timer) clearInterval(timer); if (sender) sender.cancel(); };
     const start = btn("btn-primary", tr("devlink.send.start"), async () => {
       start.disabled = true;
@@ -195,7 +198,9 @@ const DeviceLinkUI = (() => {
         const yes = btn("btn-primary", tr("devlink.verify.match"), async () => {
           yes.disabled = no.disabled = true; setBody(sh, el("p", "fine", tr("devlink.send.sending")));
           try {
-            await sender.send(DeviceLink.collectData());
+            if (companion) await sender.send(Devices.companionData(), await Devices.issuePairing());
+            else await sender.send(DeviceLink.collectData());
+            if (companion) { setBody(sh, el("p", "fine", tr("devices.pair.done")), btn("btn-primary", tr("devlink.close"), () => sh.close())); return; }
             const wipe = btn("btn-primary", tr("devlink.send.wipe"), async () => { if (await confirmSheet(tr("devlink.send.wipeConfirm"), { destructive: true })) wipeEverythingAndReload(); });
             setBody(sh, el("p", "fine", tr("devlink.send.done")), wipe, btn("btn-tertiary", tr("devlink.send.keep"), () => sh.close()));
           } catch (e) { setBody(sh, el("p", "fine", errText(e)), btn("btn-tertiary", tr("devlink.close"), () => sh.close())); }
@@ -204,7 +209,7 @@ const DeviceLinkUI = (() => {
         setBody(sh, el("p", "fine", tr("devlink.verify.hint")), verifyBox(verify), yes, no);
       } catch (e) { if (timer) clearInterval(timer); setBody(sh, el("p", "fine", errText(e)), btn("btn-tertiary", tr("devlink.close"), () => sh.close())); }
     });
-    setBody(sh, el("p", "fine", tr("devlink.send.explain")), el("p", "fine", tr("devlink.send.warn")), start, btn("btn-tertiary", tr("devlink.cancel"), () => sh.close()));
+    setBody(sh, el("p", "fine", tr(companion ? "devices.pair.explain" : "devlink.send.explain")), companion ? el("p", "fine") : el("p", "fine", tr("devlink.send.warn")), start, btn("btn-tertiary", tr("devlink.cancel"), () => sh.close()));
   }
 
   // Новое устройство
@@ -216,10 +221,10 @@ const DeviceLinkUI = (() => {
     try {
       linkSide = await DeviceLink.join({ code, defaultBase: serverBase() });
       setBody(sh, el("p", "fine", tr("devlink.recv.verify")), verifyBox(linkSide.verify), el("p", "fine muted", tr("devlink.recv.waiting")), btn("btn-tertiary", tr("devlink.cancel"), () => sh.close()));
-      const data = await linkSide.receive(); linkSide = null;
+      const data = await linkSide.receive(); const device = linkSide.device; linkSide = null;
       const apply = btn("btn-primary", tr("devlink.recv.apply"), async () => {
-        if (!await confirmSheet(tr("devlink.recv.confirm"), { destructive: true })) return;
-        apply.disabled = true; await applyImportedData(data);
+        if (!await confirmSheet(tr(device ? "devices.recv.confirm" : "devlink.recv.confirm"), { destructive: true })) return;
+        apply.disabled = true; await applyImportedData(device ? Devices.applyCompanion(data, device) : data);
       });
       setBody(sh, el("p", "fine", tr("devlink.recv.got")), apply, btn("btn-tertiary", tr("devlink.cancel"), () => sh.close()));
     } catch (e) { linkSide = null; setBody(sh, el("p", "fine", errText(e)), btn("btn-tertiary", tr("devlink.close"), () => sh.close())); }
@@ -237,5 +242,5 @@ const DeviceLinkUI = (() => {
     }
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", wire); else wire();
-  return { openSend, openReceive, receiveFromCode, wire };
+  return { openSend, openReceive, receiveFromCode, wire, sheet, setBody, el, btn, tr };
 })();

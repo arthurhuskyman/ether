@@ -1354,6 +1354,7 @@ function flushMailbox(id, ws) {
       envelope: entry.envelope,
       fromPublicKey: entry.fromPublicKey || null,
       kind: entry.kind || "chat",
+      ...(entry.fromDev ? { fromDev: entry.fromDev } : {}),
       queued: true,
     });
   }
@@ -1384,9 +1385,17 @@ function isValidEnvelope(env) {
   return typeof env.iv === "string" && env.iv.length < 200;
 }
 // Возможности сервера, о которых он сообщает клиентам при регистрации: клиент включает новый формат только если сервер его понимает.
+const devicesMod = require("./devices");
 const deviceLists = new Map(), deviceListHits = new Map(); // id -> {seq, list}; в памяти: после рестарта основное устройство публикует список заново
 const DEVICE_LIST_MAX_BYTES = 8 * 1024, DEVICE_LISTS_MAX = 20000;
-const SERVER_FEATURES = ["ratchet2", "prekeys", "watch", "claim", "env2", "devicelink", "devlist"].concat(DISCOVERY_ENABLED ? ["discovery"] : []);
+function devicesCtx() {
+  return { deviceLists, safeSend, mailboxPut, mailboxRemove, scheduleSave: scheduleMailboxSave, isValidEnvelope, cleanEnvelope, cleanKind, WebSocket, features: SERVER_FEATURES,
+    clientsGet: (id) => clients.get(id), flush: (key, w) => flushMailbox(key, w),
+    rateOk: (from, to) => wsRateLimitPairOk(from, to, DELIVER_RATE_LIMIT_PER_MIN) && wsRateLimitOk(deliverTotalHits, from, DELIVER_TOTAL_LIMIT_PER_MIN),
+    mailboxKeys: (prefix) => Array.from(mailbox.keys()).filter((k) => k.startsWith(prefix)),
+    mailboxDropBox: (k) => { const b = mailbox.get(k); if (b) for (const m of Array.from(b.keys())) mailboxRemove(k, m); scheduleMailboxSave(); } };
+}
+const SERVER_FEATURES = ["ratchet2", "prekeys", "watch", "claim", "env2", "devicelink", "devlist", "devmail"].concat(DISCOVERY_ENABLED ? ["discovery"] : []);
 
 // ---------- Prekey-пакеты для начала Double Ratchet (3DH/4DH) ----------
 // Клиент заранее выкладывает подписанный-по-смыслу prekey (spk, меняется раз в неделю) и пачку одноразовых (opks).
@@ -1447,7 +1456,7 @@ wss.on("connection", (ws, req) => {
   if (nConn > MAX_SIGNAL_SOCKETS_PER_IP) { try { ws.close(1013, "too many connections"); } catch (e) {} setTimeout(() => { try { ws.terminate(); } catch (e) {} }, 1000).unref(); return; }
   ipConnCount.set(ipAddr, nConn);
   // Сокет, который не зарегистрировался за REGISTER_DEADLINE_MS, закрываем: иначе пустые соединения живут вечно.
-  const regTimer = setTimeout(() => { if (!myId) { try { ws.terminate(); } catch (e) {} } }, REGISTER_DEADLINE_MS);
+  const regTimer = setTimeout(() => { if (!myId && !ws._dev) { try { ws.terminate(); } catch (e) {} } }, REGISTER_DEADLINE_MS);
   ws.isAlive = true;
   ws.on("pong", () => (ws.isAlive = true));
 
@@ -1471,6 +1480,11 @@ wss.on("connection", (ws, req) => {
       ws.lastClientPing = Date.now();
       safeSend(ws, { type: "pong", t: msg.t });
       return;
+    }
+
+    // Companion-устройства аккаунта (devices.js): register с deviceId, device-auth и всё от уже авторизованного companion-сокета
+    if ((msg.type === "register" && typeof msg.deviceId === "string") || msg.type === "device-auth" || ws._dev) {
+      if (devicesMod.onMessage(ws, msg, devicesCtx())) return;
     }
 
     // Всё, кроме register/ping, — только от текущего (не вытесненного) соединения зарегистрированного id.
@@ -1641,10 +1655,11 @@ wss.on("connection", (ws, req) => {
       // и попытается сделать доставку через свой же WS, что немедленно
       // провалится в "target.readyState !== OPEN" (это тот же WS).
       // Отсекаем сразу.
-      if (msg.to === myId) return;
+      if (msg.to === myId && !(msg.kind === "sync-sent" && Array.isArray(msg.copies))) return;
       if (!wsRateLimitPairOk(myId, msg.to, DELIVER_RATE_LIMIT_PER_MIN)) return;
       if (!wsRateLimitOk(deliverTotalHits, myId, DELIVER_TOTAL_LIMIT_PER_MIN)) return; // общий потолок на отправителя независимо от получателей
-      if (!isValidEnvelope(msg.envelope)) {
+      const syncOnly = msg.to === myId && msg.envelope == null; // sync-sent: только копии другим устройствам аккаунта
+      if (!syncOnly && !isValidEnvelope(msg.envelope)) {
         safeSend(ws, { type: "deliver-ack", msgId: msg.msgId, error: "invalid-envelope" });
         return;
       }
@@ -1664,8 +1679,8 @@ wss.on("connection", (ws, req) => {
         return;
       }
       const kind = cleanKind(msg.kind);
-      const envelope = cleanEnvelope(msg.envelope);
-      if (!envelope) {
+      const envelope = syncOnly ? null : cleanEnvelope(msg.envelope);
+      if (!envelope && !syncOnly) {
         safeSend(ws, { type: "deliver-ack", msgId: msg.msgId, error: "invalid-envelope" });
         return;
       }
@@ -1681,6 +1696,11 @@ wss.on("connection", (ws, req) => {
 
       // Идемпотентность: повтор того же (from, to, msgId) с ТЕМ ЖЕ конвертом (ретрай клиента, лаг подтверждения) в ящик не кладём
       // и не пересылаем — получатель уже получил его или получит из ящика. Конверт, зашифрованный заново (другие байты), проходит как раньше.
+      if (msg.copies != null && !devicesMod.dispatch(devicesCtx(), { fromId: myId, fromDev: "", to: msg.to, msgId: msg.msgId, kind, envelope: null, copies: msg.copies, fromPublicKey: msg.fromPublicKey })) {
+        safeSend(ws, { type: "deliver-ack", msgId: msg.msgId, error: "invalid-envelope" });
+        return;
+      }
+      if (msg.to === myId) { safeSend(ws, { type: "deliver-ack", msgId: msg.msgId }); return; } // sync-sent: только копии другим устройствам
       const dupKey = deliverDupKey(msg.to, myId, msg.msgId, envelope);
       const inBox = mailbox.get(msg.to);
       const prev = inBox && inBox.get(msg.msgId);
@@ -1748,6 +1768,7 @@ wss.on("connection", (ws, req) => {
       if (cur && cur.seq >= l.seq) { safeSend(ws, { type: "devices-stored", error: "stale", seq: cur.seq }); return; }
       if (!cur && deviceLists.size >= DEVICE_LISTS_MAX) deviceLists.delete(deviceLists.keys().next().value);
       deviceLists.set(myId, { seq: l.seq, list: l });
+      devicesMod.onListChanged(myId, devicesCtx()); // отозванные companion отключаются, их ящики чистятся
       safeSend(ws, { type: "devices-stored", seq: l.seq });
       return;
     }
@@ -1825,6 +1846,7 @@ wss.on("connection", (ws, req) => {
 
   ws.on("close", () => {
     clearTimeout(regTimer);
+    devicesMod.onClose(ws);
     const left = (ipConnCount.get(ipAddr) || 1) - 1;
     if (left <= 0) ipConnCount.delete(ipAddr); else ipConnCount.set(ipAddr, left);
     if (myId && clients.get(myId) && clients.get(myId).ws === ws) {

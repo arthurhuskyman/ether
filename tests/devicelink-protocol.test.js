@@ -80,3 +80,9 @@ test("TTL пакета на сервере: после выдачи данных
   const r = await DL.join({ code: s.code, pollMs: 20 }); await s.waitForJoin(); const p = r.receive(); await s.send(DATA); await p;
   assert.equal(Srv._stats().totalBytes, before);
 });
+
+test("companion: данные устройства едут в зашифрованном пакете рядом с data", async () => {
+  const s = await DL.createSender({ base, pollMs: 20 }); const r = await DL.join({ code: s.code, pollMs: 20 }); await s.waitForJoin();
+  const p = r.receive(); await s.send(DATA, { devId: "0123456789abcdef", priv: { x: "x", y: "y", d: "SECRET-DEV" } });
+  await p; assert.equal(r.device.devId, "0123456789abcdef"); assert.equal(r.device.priv.d, "SECRET-DEV");
+});

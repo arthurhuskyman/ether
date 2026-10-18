@@ -136,6 +136,7 @@ class SignalingClient extends EventTarget {
       etherLog("info", "[signaling] соединение открыто, регистрируюсь как", String(this.myId).slice(0, 10) + "…");
       ws.send(JSON.stringify({
         type: "register",
+        deviceId: this.deviceId || undefined, // companion-устройство (docs/MULTIDEVICE.md): сервер ответит device-challenge
         id: this.myId,
         name: this.name,
         visible: this.visible,
@@ -160,6 +161,13 @@ class SignalingClient extends EventTarget {
         this._lastPongAt = Date.now();
         return;
       }
+      if (msg.type === "device-challenge" && typeof msg.nonce === "string" && this.deviceSign) {
+        Promise.resolve(this.deviceSign(msg.nonce, this.myId, this.deviceId)).then((sig) => { if (this.ws === ws && sig) this.send("device-auth", { sig }); }).catch(() => {});
+        return;
+      }
+      if (msg.type === "devices-list" && typeof msg.rid === "string") { this.dispatchEvent(new CustomEvent("devices-list", { detail: { rid: msg.rid, to: msg.to, list: msg.list || null } })); return; }
+      if (msg.type === "device-revoked") { this.shouldRun = false; this.dispatchEvent(new CustomEvent("device-revoked")); return; }
+      if (msg.type === "register-error" && msg.error === "device-not-authorized") { this.dispatchEvent(new CustomEvent("device-unauthorized")); return; }
 
       if (msg.type === "registered") {
         this.registered = true;
@@ -219,6 +227,7 @@ class SignalingClient extends EventTarget {
             msgId: msg.msgId,
             envelope: msg.envelope,
             fromPublicKey: msg.fromPublicKey,
+            fromDev: typeof msg.fromDev === "string" ? msg.fromDev : null,
             kind: msg.kind || "chat",
             queued: !!msg.queued,
           },
@@ -337,6 +346,14 @@ class SignalingClient extends EventTarget {
   }
 
   signal(to, data) { return this.send("signal", { to, data }); }
+
+  // Копии для других устройств получателя/аккаунта: [{dev, envelope}] (dev "" = основное); sync-sent себе — только копии, без envelope
+  deliverMulti(to, msgId, envelope, fromPublicKey, kind, copies) {
+    if (!Array.isArray(copies) || !copies.length || copies.length > 8) return false;
+    return this.send("deliver", { to, msgId, envelope: envelope || undefined, fromPublicKey, kind: typeof kind === "string" ? kind : "chat", copies });
+  }
+  getDevices(to, rid) { return this.send("devices-get", { to, rid }); }
+  putDevices(list) { return this.send("devices-put", { list }); }
 
   deliver(to, msgId, envelope, fromPublicKey, kind) {
     // v1: {iv, ct}; v2 (Double Ratchet): {v:2, h, ct} — у v2 нет iv, заголовок h несёт номера и ключи храповика

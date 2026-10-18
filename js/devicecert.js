@@ -49,6 +49,8 @@ const DeviceCert = (() => {
     const h = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", te.encode(cert.devId + "|" + cert.pub.x + "|" + cert.pub.y))), (b) => b.toString(16).padStart(2, "0")).join("");
     return h.slice(0, 20).match(/.{4}/g).join(" ");
   }
-  return { genDeviceKey, newDeviceId, issue, verifyCert, signList, verifyList, fingerprint, MAX_DEVICES };
+  // Подпись произвольной строки ключом устройства (ответ на challenge сервера при регистрации companion)
+  const signText = (priv, text) => sign(priv, te.encode(text));
+  return { signText, genDeviceKey, newDeviceId, issue, verifyCert, signList, verifyList, fingerprint, MAX_DEVICES };
 })();
 if (typeof module !== "undefined") module.exports = DeviceCert;
