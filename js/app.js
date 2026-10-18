@@ -225,7 +225,7 @@ const CRITICAL_LS_KEYS = [
   "ether.pinHash", "ether.pinSalt", "ether.pinEnabled",
   "ether.contacts",
   "ether.outbox", "ether.pendingNoKey", "ether.recentlyDeleted",
-  "ether.theme", "ether.skin", "ether.glassAlpha", "ether.sec.on", "ether.sec.salt", "ether.sec.check", "ether.ratchet", "ether.heldDeliveries", "ether.scheduledMessages", "ether.groupDeliveryMap",
+  "ether.theme", "ether.skin", "ether.glassAlpha", "ether.sec.on", "ether.sec.salt", "ether.sec.check", "ether.ratchet", "ether.heldDeliveries", "ether.seenMsgIds", "ether.scheduledMessages", "ether.groupDeliveryMap",
   "ether.notifications", "ether.sounds", "ether.ringtone", "ether.linkPreviews", "ether.linkPreviewMode",
   "ether.vapidPublicKey", "ether.pushSubscription",
   "ether.callLog", "ether.lastSeen", "ether.drafts",
@@ -2121,6 +2121,8 @@ function startApp() {
   safeCall(wireGroupInfo, "wireGroupInfo");
   safeCall(wireChatScreen, "wireChatScreen");
   safeCall(wireScheduleSend, "wireScheduleSend");
+  safeCall(wireReminders, "wireReminders");
+  safeCall(wireChatHeaderMenu, "wireChatHeaderMenu");
   safeCall(wireMuteSheet, "wireMuteSheet");
   safeCall(wireCallScreen, "wireCallScreen");
   safeCall(wireSettingsScreen, "wireSettingsScreen");
@@ -2214,7 +2216,8 @@ function startApp() {
   try { checkDeadManSwitch(); } catch (e) { etherLog("error", "[startApp] dead man switch:", String(e)); }
 
   try {
-    const incoming = SignalingCodec.extractCodeFromLocation();
+    const addedByLink = handleAddLinkFromLocation();
+    const incoming = addedByLink ? null : SignalingCodec.extractCodeFromLocation();
     if (incoming) {
       try { history.replaceState(null, "", location.pathname); } catch (e) {}
       handleIncomingCode(incoming).catch(() => { try { toast(T("toast.badInviteCode")); } catch (e) {} });
@@ -2442,7 +2445,16 @@ function migrateServerAckedFlags() {
 
 function maybeShowOnboardingHint() {
   if (localStorage.getItem(ONBOARDING_HINT_SHOWN) === "1") return;
-  localStorage.setItem(ONBOARDING_HINT_SHOWN, "1");
+  // Показываем один раз за жизнь профиля и только в спокойный момент: без открытых шторок, без клавиатуры (фокус в поле ввода).
+  let tries = 0;
+  const attempt = () => {
+    const ae = document.activeElement, typing = ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName);
+    if (document.querySelector(".sheet:not(.hidden)") || typing) { if (++tries < 8) setTimeout(attempt, 4000); return; }
+    try { localStorage.setItem(ONBOARDING_HINT_SHOWN, "1"); } catch (e) {}
+    setTimeout(() => { try { toast(T("onboarding.gestureHint")); } catch (e) {} }, 1500);
+  };
+  attempt();
+  return;
   // Небольшая задержка — чтобы подсказка не всплыла поверх самого
   // первого рендера (пока ещё идёт анимация появления экрана чатов),
   // а появилась через чуть погодя, когда пользователь уже освоился
@@ -2953,6 +2965,7 @@ function loadContacts() {
       peerPresenceVisible: c.peerPresenceVisible === false ? false : undefined,
       peerStatus: typeof c.peerStatus === "string" && c.peerStatus ? c.peerStatus.slice(0, 140) : undefined,
       banned: Array.isArray(c.banned) ? c.banned.filter((x) => typeof x === "string").slice(-50) : undefined,
+      rosterVer: Number.isInteger(c.rosterVer) && c.rosterVer > 0 ? c.rosterVer : undefined,
       avatar: c.avatar || undefined,
       peerAvatar: typeof c.peerAvatar === "string" && AVATAR_DATAURL_RE.test(c.peerAvatar) ? c.peerAvatar : undefined,
       description: c.description || undefined,
@@ -3113,6 +3126,7 @@ function persistContacts() {
     peerPresenceVisible: c.peerPresenceVisible === false ? false : undefined,
     peerStatus: typeof c.peerStatus === "string" && c.peerStatus ? c.peerStatus.slice(0, 140) : undefined,
     banned: c.isGroup && Array.isArray(c.banned) && c.banned.length ? c.banned.slice(-50) : undefined,
+    rosterVer: c.isGroup && Number.isInteger(c.rosterVer) && c.rosterVer > 0 ? c.rosterVer : undefined,
     // killer-features-backlog 0.7 — локальный аватар контакта: раньше
     // persistContacts() сохранял avatar только для групп, т.к. у обычных
     // контактов не было UI для его установки. Теперь c.avatar может быть
@@ -3399,7 +3413,7 @@ function contactStatusClass(c) {
   return "status-disconnected";
 }
 function isReachable(c) { return c.status === "connected" || c.status === "in-call"; }
-function unreadCount(c) { let n = 0; for (const m of c.messages) if (m.from === "them" && !m.readAckSent) n++; return n; }
+function unreadCount(c) { let n = 0; for (const m of c.messages) if (m.from === "them" && !m.readAckSent) n++; if (c.markedUnread) { if (state.chatId === c.id) delete c.markedUnread; else if (n === 0) n = 1; } return n; }
 
 function renderChatsSkeleton(list) {
   list.innerHTML = "";
@@ -3427,6 +3441,27 @@ function formatChatListTime(ts) {
 }
 // Карточка «Добавьте первого собеседника»: видимый QR, три способа и подсказка про заметки. Кнопки переиспользуют
 // существующие обработчики вкладки «Контакты» — своей логики добавления здесь нет.
+// Ссылка-приглашение на сам сайт: открытие добавляет отправителя в контакты (см. handleAddLinkFromLocation)
+function myAddLink() {
+  const u = new URL(location.href); u.search = "";
+  u.hash = "add=" + encodeURIComponent(Store.myId) + "&name=" + encodeURIComponent(Store.name || "");
+  return u.toString();
+}
+async function shareMyInviteLink() {
+  const url = myAddLink();
+  if (navigator.share) { try { await navigator.share({ title: T("app.name"), text: T("firstRun.shareText"), url }); return; } catch (e) { if (e && e.name === "AbortError") return; } }
+  copyText(url, T("toast.linkCopied"));
+}
+function handleAddLinkFromLocation() {
+  const m = (location.hash || "").match(/(?:^#|&)add=([^&]+)/);
+  if (!m) return false;
+  let id = "", name = "";
+  try { id = decodeURIComponent(m[1]); const n = location.hash.match(/&name=([^&]*)/); name = n ? decodeURIComponent(n[1]) : ""; } catch (e) { return false; }
+  try { history.replaceState(null, "", location.pathname); } catch (e) {}
+  if (!id || id === Store.myId) return true;
+  try { addContactFromCard(id, name.slice(0, 40)); } catch (e) {}
+  return true;
+}
 function buildFirstRunCard() {
   const card = document.createElement("div");
   card.className = "first-run-card flat-content";
@@ -3435,18 +3470,18 @@ function buildFirstRunCard() {
     <h2>${escapeHtml(T("firstRun.title"))}</h2>
     <p class="fine muted">${escapeHtml(T("firstRun.sub"))}</p>
     <div class="first-run-qr"><canvas width="180" height="180" aria-label="${escapeHtml(T("firstRun.qrLabel"))}"></canvas><span class="fine muted">${escapeHtml(T("firstRun.qrHint"))}</span></div>
-    <div class="first-run-actions">
-      <button type="button" class="btn-secondary" data-first="scan">${escapeHtml(T("connect.qr.scan"))}</button>
-      <button type="button" class="btn-secondary" data-first="find">${escapeHtml(T("firstRun.find"))}</button>
-      <button type="button" class="btn-secondary" data-first="invite">${escapeHtml(T("firstRun.invite"))}</button>
-      <button type="button" class="btn-secondary" data-first="demo">${escapeHtml(T("firstRun.demo"))}</button>
-    </div>
+    <ol class="first-run-actions first-run-steps">
+      <li><button type="button" class="btn-primary first-step" data-first="invite"><span class="fs-n">1</span><span class="fs-t">${escapeHtml(T("firstRun.step1"))}</span></button></li>
+      <li><button type="button" class="btn-secondary first-step" data-first="scan"><span class="fs-n">2</span><span class="fs-t">${escapeHtml(T("firstRun.step2"))}</span></button></li>
+      <li><button type="button" class="btn-secondary first-step" data-first="demo"><span class="fs-n">3</span><span class="fs-t">${escapeHtml(T("firstRun.step3"))}</span></button></li>
+    </ol>
+    <button type="button" class="btn-tertiary" data-first="find">${escapeHtml(T("firstRun.find"))}</button>
     <p class="fine muted first-run-note">${escapeHtml(T("firstRun.note"))}</p>`;
   try { renderQrToCanvas(card.querySelector("canvas")); } catch (e) {}
   const goConnect = (after) => { state.tab = "connect"; state.chatId = null; renderTab(); if (after) setTimeout(after, 60); };
   card.querySelector('[data-first="scan"]').addEventListener("click", () => { const b = $("#scan-qr-btn"); if (b) b.click(); });
   card.querySelector('[data-first="find"]').addEventListener("click", () => goConnect(() => { const i = $("#contacts-search") || $("#connect-search"); if (i) i.focus(); }));
-  card.querySelector('[data-first="invite"]').addEventListener("click", () => goConnect(() => { const t = $("#invite-idle") || $("#create-invite-btn"); if (t && t.scrollIntoView) t.scrollIntoView({ block: "center" }); }));
+  card.querySelector('[data-first="invite"]').addEventListener("click", () => shareMyInviteLink());
   card.querySelector('[data-first="demo"]').addEventListener("click", () => createDemoChat());
   return card;
 }
@@ -3715,6 +3750,7 @@ function renderChatsList() {
       row.addEventListener("pointerup", lpCancel); row.addEventListener("pointercancel", lpCancel); row.addEventListener("pointerleave", lpCancel);
     }
     attachChatRowSwipe(wrapper, row, c);
+    if (!(c.pinned && canReorderPins && pinnedCountTotal > 1 && !state.pinReorder)) attachChatRowContext(row, c); else row.addEventListener("contextmenu", (e) => { e.preventDefault(); row.__longPressed = true; openChatRowMenu(c); });
     if (showDragHandle) pinnedPairs.push({ wrapper, c });
     list.appendChild(wrapper);
   }
@@ -4967,6 +5003,67 @@ function attachChatRowSwipe(wrapper, row, c) {
     deleteContact(c.id);
   });
 }
+// ===== Контекстное меню строки чата (долгое нажатие / правая кнопка) и меню «⋯» в шапке чата =====
+function chatMuteItems(c, after) {
+  const apply = (until, forever) => { if (forever) { c.muted = true; c.muteUntil = null; } else { c.muted = false; c.muteUntil = until; } persistContacts(); toast(forever ? T("toast.muted") : T("chat.mute.until", { time: formatChatListTime(until) })); if (after) after(); };
+  const tmr = new Date(); tmr.setDate(tmr.getDate() + 1); tmr.setHours(9, 0, 0, 0);
+  return [
+    { label: T("chat.contact.mute.1h"), icon: "bell-off", fn: () => apply(Date.now() + 3600000, false) },
+    { label: T("chat.contact.mute.8h"), icon: "bell-off", fn: () => apply(Date.now() + 8 * 3600000, false) },
+    { label: T("chat.contact.mute.tomorrow"), icon: "bell-off", fn: () => apply(tmr.getTime(), false) },
+    { label: T("chat.contact.mute.forever"), icon: "bell-off", fn: () => apply(null, true) },
+  ];
+}
+function toggleChatMute(c, after) {
+  if (isContactMuted(c)) { c.muted = false; c.muteUntil = null; persistContacts(); toast(T("toast.unmuted")); if (after) after(); }
+  else openActionSheet(T("chat.contact.mute"), chatMuteItems(c, after));
+}
+function openChatFolderPicker(c) {
+  if (!state.folders.length) { toast(T("chats.folder.none")); return; }
+  openActionSheet(T("chats.action.folder"), state.folders.map((f) => {
+    const inIt = f.contactIds.includes(c.id);
+    return { label: (inIt ? "✓ " : "") + f.name, icon: "archive", fn: () => { f.contactIds = inIt ? f.contactIds.filter((x) => x !== c.id) : f.contactIds.concat(c.id); persistChatFolders(); renderChatsList(); } };
+  }));
+}
+function openChatRowMenu(c) {
+  const refresh = () => { try { renderChatsList(); } catch (e) {} };
+  openActionSheet(c.name || T("sys.someone"), [
+    { label: c.pinned ? T("chats.unpin") : T("chats.pin"), icon: "pin", fn: () => { c.pinned = !c.pinned; c.pinOrder = c.pinned ? nextPinOrder() : null; persistContacts(); refresh(); } },
+    { label: isContactMuted(c) ? T("chats.action.unmute") : T("chats.action.mute"), icon: "bell-off", fn: () => toggleChatMute(c, refresh) },
+    { label: T("chats.action.folder"), icon: "archive", fn: () => openChatFolderPicker(c) },
+    { label: c.markedUnread ? T("chats.action.markRead") : T("chats.action.markUnread"), icon: "chat", fn: () => { c.markedUnread = !c.markedUnread; persistContacts(); refresh(); } },
+    { label: c.archived ? T("chats.action.unarchive") : T("chats.action.archive"), icon: "archive", fn: () => { c.archived = !c.archived; persistContacts(); refresh(); } },
+  ]);
+}
+function attachChatRowContext(row, c) {
+  row.addEventListener("contextmenu", (e) => { e.preventDefault(); row.__longPressed = true; openChatRowMenu(c); });
+  let t = null, x = 0, y = 0;
+  const cancel = () => { clearTimeout(t); t = null; };
+  row.addEventListener("pointerdown", (e) => { if (e.pointerType === "mouse") return; x = e.clientX; y = e.clientY; cancel(); t = setTimeout(() => { t = null; if (row.__longPressed) return; row.__longPressed = true; haptic("light"); openChatRowMenu(c); }, 600); });
+  row.addEventListener("pointermove", (e) => { if (t && (Math.abs(e.clientX - x) > 8 || Math.abs(e.clientY - y) > 8)) cancel(); });
+  for (const ev of ["pointerup", "pointercancel", "pointerleave"]) row.addEventListener(ev, cancel);
+}
+function openChatHeaderMenu() {
+  const id = state.chatId, c = id && state.contacts.get(id); if (!c) return;
+  const items = [
+    { label: T("chat.search"), icon: "search", fn: () => { const b = $("#chat-search-btn"); if (b) b.click(); } },
+    { label: T("chat.contact.gallery"), icon: "image", fn: () => openContactCard(id) },
+    { label: T("chat.pinned"), icon: "pin", fn: () => { if (!c.pinnedMessageId) { toast(T("chat.pinned.none")); return; } const j = $("#pinned-msg-jump"); if (j) j.click(); } },
+    { label: isContactMuted(c) ? T("chats.action.unmute") : T("chat.contact.mute"), icon: "bell-off", fn: () => toggleChatMute(c, () => { try { renderChatThreadInner(); } catch (e) {} }) },
+    { label: T("chat.disappearing"), icon: "clock", fn: () => openActionSheet(T("chat.disappearing"), [["chat.disappearing.off", 0], ["chat.disappearing.1h", 3600000], ["chat.disappearing.1d", 86400000], ["chat.disappearing.1w", 604800000]].map(([k, ms]) => ({ label: ((c.disappearingTimer || 0) === ms ? "✓ " : "") + T(k), icon: "clock", fn: () => setDisappearingTimer(id, ms) }))) },
+    { label: T("summary.menu"), icon: "sparkle", fn: () => { if (typeof openChatSummary === "function") openChatSummary(id); } },
+    { label: T("chat.contact.export"), icon: "download", fn: () => exportChat(id) },
+    { label: T("chat.contact.clear"), icon: "trash", danger: true, fn: async () => {
+      if (!await confirmSheet(T("toast.confirmDeleteChat", { name: c.name }), { destructive: true })) return;
+      cleanupExpiredFileBlobs(c.messages); c.messages = []; c.lastActivity = Date.now(); persistContacts();
+      try { renderChatThreadInner(); } catch (e) {} toast(T("toast.historyCleared"));
+    } },
+  ];
+  openActionSheet(c.name || "", items);
+}
+function wireChatHeaderMenu() {
+  const b = $("#chat-more-btn"); if (b) b.addEventListener("click", openChatHeaderMenu);
+}
 function attachSwipeReply(el, m, c) {
   let startX = 0, startY = 0, swiping = false, thresholdCrossed = false;
   const isRtl = document.documentElement.dir === "rtl";
@@ -5154,8 +5251,8 @@ function wireKeyboardFix() {
 // Отправка/редактирование/удаление
 // =====================================================================
 async function sendChatMessage(contactId, text, replyTo) {
-  const c = state.contacts.get(contactId); if (!c) return;
-  if (c.blocked) { toast(T("toast.blocked")); return; }
+  const c = state.contacts.get(contactId); if (!c) return false;
+  if (c.blocked) { toast(T("toast.blocked")); return false; }
   text = applyEmojiAutoReplace(text);
   if (text.length > MAX_MESSAGE_LENGTH) { text = text.slice(0, MAX_MESSAGE_LENGTH); toast(T("toast.messageCut")); }
   const msgId = crypto.randomUUID();
@@ -5178,6 +5275,7 @@ async function sendChatMessage(contactId, text, replyTo) {
   if (replyTo) payload.replyTo = { id: replyTo.msgId, text: replyTo.text, authorName: replyTo.authorName };
   if (c.disappearingTimer) payload.ttl = c.disappearingTimer;
   await trySendOrQueue(c, msgId, payload);
+  return true; // сообщение записано в чат и поставлено в очередь отправки (для «отправить позже»: запись можно снимать)
 }
 function trimMessages(c) {
   if (c.messages.length <= MAX_MESSAGES_PER_CHAT) return;
@@ -5189,20 +5287,42 @@ function trimMessages(c) {
 // sendGroupMessage, которые использует обычная форма, а не отдельный
 // путь доставки: отложенное сообщение технически ничем не отличается от
 // обычного, просто момент вызова сдвинут.
+// Семантика очереди: запись снимается ТОЛЬКО после того, как сообщение реально записано в чат и поставлено в outbox
+// (sendChatMessage/sendGroupMessage вернули true). Блокировка, ограничение «пишут только админы», исключение из группы или
+// исключение при отправке оставляют запись в списке со статусом failed — её можно повторить вручную (retryScheduledMessage).
+const scheduledInFlight = new Set();
+async function sendScheduledOne(s) {
+  if (scheduledInFlight.has(s.id)) return;
+  scheduledInFlight.add(s.id);
+  let ok = false, reason = "";
+  try {
+    const c = state.contacts.get(s.contactId);
+    if (!c) { state.scheduledMessages = state.scheduledMessages.filter((x) => x.id !== s.id); return; } // контакт удалён за время ожидания — молча пропускаем, не ошибка
+    if (c.blocked) reason = "blocked";
+    else {
+      const r = s.isGroup ? await sendGroupMessage(s.contactId, s.text, s.replyTo || null) : await sendChatMessage(s.contactId, s.text, s.replyTo || null);
+      ok = r === true;
+      if (!ok) reason = s.isGroup ? "group" : "send";
+    }
+  } catch (e) { reason = "error"; etherLog("error", "[scheduled] send failed:", String(e)); }
+  finally { scheduledInFlight.delete(s.id); }
+  const cur = state.scheduledMessages.find((x) => x.id === s.id);
+  if (ok) state.scheduledMessages = state.scheduledMessages.filter((x) => x.id !== s.id);
+  else if (cur) { cur.failed = true; cur.failReason = reason; }
+  persistScheduledMessages();
+  renderScheduleBanner();
+}
+function retryScheduledMessage(id) {
+  const s = state.scheduledMessages.find((x) => x.id === id); if (!s) return;
+  delete s.failed; delete s.failReason; persistScheduledMessages();
+  return sendScheduledOne(s);
+}
 function sweepScheduledMessages() {
   if (!state.scheduledMessages || state.scheduledMessages.length === 0) return;
   const now = Date.now();
-  const due = state.scheduledMessages.filter((s) => s.sendAt <= now);
+  const due = state.scheduledMessages.filter((s) => s.sendAt <= now && !s.failed && !scheduledInFlight.has(s.id));
   if (due.length === 0) return;
-  state.scheduledMessages = state.scheduledMessages.filter((s) => s.sendAt > now);
-  persistScheduledMessages();
-  for (const s of due) {
-    const c = state.contacts.get(s.contactId);
-    if (!c) continue; // контакт удалён за время ожидания — молча пропускаем, не ошибка
-    if (s.isGroup) sendGroupMessage(s.contactId, s.text, s.replyTo || null);
-    else sendChatMessage(s.contactId, s.text, s.replyTo || null);
-  }
-  renderScheduleBanner();
+  for (const s of due) sendScheduledOne(s);
 }
 function scheduledCountFor(contactId) {
   return state.scheduledMessages.filter((s) => s.contactId === contactId).length;
@@ -5244,7 +5364,13 @@ function openScheduleListSheet() {
     const item = document.createElement("div");
     item.className = "forward-row";
     const snippet = truncate(row.text || "", 60);
-    item.innerHTML = `<span class="forward-name">${escapeHtml(snippet)}<br><span class="fine muted">${escapeHtml(formatChatListTime(row.sendAt))}</span></span>`;
+    item.innerHTML = `<span class="forward-name">${escapeHtml(snippet)}<br><span class="fine muted">${escapeHtml(formatChatListTime(row.sendAt))}</span>${row.failed ? `<br><span class="fine" role="alert">${escapeHtml(T("schedule.failed"))}</span>` : ""}</span>`;
+    if (row.failed) {
+      const retryBtn = document.createElement("button");
+      retryBtn.type = "button"; retryBtn.className = "btn small schedule-row-retry-btn"; retryBtn.textContent = T("schedule.retry");
+      retryBtn.addEventListener("click", async () => { await retryScheduledMessage(row.id); openScheduleListSheet(); });
+      item.appendChild(retryBtn);
+    }
     const cancelBtn = document.createElement("button");
     cancelBtn.type = "button"; cancelBtn.className = "icon-btn small schedule-row-cancel-btn"; cancelBtn.setAttribute("aria-label", T("sys.cancel"));
     cancelBtn.innerHTML = `${Icons.html("x", 18)}`;
@@ -7503,6 +7629,8 @@ function createGroup(name, memberIds, avatar) {
 // Рассылает текущий состав/название группы всем участникам — при
 // создании, добавлении/удалении участника или переименовании.
 function broadcastGroupRoster(g) {
+  // ver — монотонный счётчик версии ростера; растёт только у админа (его правки и рассылаются). Старые клиенты поле игнорируют.
+  if (isGroupAdmin(g, Store.myId)) { g.rosterVer = (Number.isInteger(g.rosterVer) ? g.rosterVer : 0) + 1; persistContacts(); }
   for (const m of g.members) {
     if (m.id === Store.myId) continue;
     sendGroupRosterTo(g, m.id);
@@ -7519,6 +7647,7 @@ function broadcastGroupRoster(g) {
 function sendGroupRosterTo(g, memberId) {
   { const bc = state.contacts.get(memberId); if (bc && bc.blocked) return; }
   const payload = { kind: "group-invite", id: crypto.randomUUID(), groupId: g.id, groupName: g.name, members: g.members, groupAvatar: g.avatar || undefined, groupDescription: g.description || undefined };
+  if (g.rosterVer > 0) payload.ver = g.rosterVer;
   if (g.writeRestricted) payload.writeRestricted = true;
   else if (typeof g.writeRestricted === "boolean") payload.writeRestricted = false;
   etherLog("info", "[group] roster →", String(memberId).slice(0, 8) + "…", "groupId=" + String(g.id).slice(0, 8) + "…", "payload.id=" + String(payload.id).slice(0, 8) + "…");
@@ -7526,8 +7655,8 @@ function sendGroupRosterTo(g, memberId) {
   trySendOrQueue(mc, crypto.randomUUID(), payload).catch(() => {});
 }
 async function sendGroupMessage(groupId, text, replyTo) {
-  const g = state.contacts.get(groupId); if (!g || !g.isGroup) return;
-  if (!isGroupWriteAllowed(g, Store.myId)) { toast(T("toast.groupWriteRestricted")); return; }
+  const g = state.contacts.get(groupId); if (!g || !g.isGroup) return false;
+  if (!isGroupWriteAllowed(g, Store.myId)) { toast(T("toast.groupWriteRestricted")); return false; }
   text = applyEmojiAutoReplace(text);
   // Симметрично sendChatMessage — иначе длинное сообщение, отправленное
   // программно (retry, вставка через JS), а не через <input maxlength>
@@ -7563,6 +7692,7 @@ async function sendGroupMessage(groupId, text, replyTo) {
     persistGroupDeliveryMap();
     await trySendOrQueue(mc, deliveryId, payload);
   }
+  return true;
 }
 function addGroupMember(groupId, memberId) {
   const g = state.contacts.get(groupId); if (!g || !g.isGroup) return;
@@ -8306,7 +8436,7 @@ async function flushOutboxItem(msgId) {
       if (!full) { outbox.delete(msgId); persistOutbox(); markMessageAck(entry.to, msgId, "failed"); return; } // файл пропал из IndexedDB — отправить нечего
       entry.payload = full;
     }
-    const envelope = await encryptForContact(contact, msgId, entry.payload, entry.forceV1);
+    const envelope = await encryptForContact(contact, msgId, entry.payload, entry.forceV1 || (entry.payload && entry.payload.kind === "rc-reset"));
     entry.attempts = (entry.attempts || 0) + 1;
     entry.lastAttemptAt = Date.now();
     persistOutbox();
@@ -9145,12 +9275,100 @@ function finishAuth(id, link, result, reason) {
   try { flushOutbox(); } catch (e) {}
   if (state.chatId === id) renderChatThread();
 }
+// ---- Идемпотентность входящих: последние msgId по контакту (≤500) хранятся в localStorage и переживают перезапуск ----
+const SEEN_MSG_PER_CONTACT = 500, SEEN_MSG_TOTAL = 6000, SEEN_MSG_KEY = "ether.seenMsgIds", DELIVER_MAX_ATTEMPTS = 3;
+let seenMsgStore = null; // { ids: { contactId: [msgId, ...] }, f: { "from|msgId": попыток } }
+let seenMsgTimer = null;
+function seenMsgLoad() {
+  if (seenMsgStore) return seenMsgStore;
+  let o = null; try { o = JSON.parse(localStorage.getItem(SEEN_MSG_KEY) || "null"); } catch (e) { o = null; }
+  if (!o || typeof o !== "object" || !o.ids || typeof o.ids !== "object") o = { ids: {}, f: {} };
+  if (!o.f || typeof o.f !== "object") o.f = {};
+  seenMsgStore = o; return o;
+}
+function seenMsgPersistSoon() {
+  if (seenMsgTimer) return;
+  seenMsgTimer = setTimeout(() => { seenMsgTimer = null; try { localStorage.setItem(SEEN_MSG_KEY, JSON.stringify(seenMsgStore)); } catch (e) {} }, 300);
+}
+function hasSeenMsg(from, msgId) { const l = seenMsgLoad().ids[from]; return !!(l && l.includes(msgId)); }
+function markSeenMsg(from, msgId) {
+  const st = seenMsgLoad();
+  let l = st.ids[from];
+  if (l) delete st.ids[from]; else l = []; // переставляем контакт в конец: вытесняются самые давние
+  if (!l.includes(msgId)) l.push(msgId);
+  while (l.length > SEEN_MSG_PER_CONTACT) l.shift();
+  st.ids[from] = l;
+  let total = 0; for (const k of Object.keys(st.ids)) total += st.ids[k].length;
+  for (const k of Object.keys(st.ids)) { if (total <= SEEN_MSG_TOTAL) break; total -= st.ids[k].length; delete st.ids[k]; }
+  delete st.f[from + "|" + msgId];
+  seenMsgPersistSoon();
+}
+function bumpDeliverFail(from, msgId) {
+  const st = seenMsgLoad(), k = from + "|" + msgId;
+  st.f[k] = (st.f[k] || 0) + 1;
+  const keys = Object.keys(st.f); if (keys.length > 200) for (const x of keys.slice(0, keys.length - 200)) delete st.f[x];
+  seenMsgPersistSoon();
+  return st.f[k];
+}
+function pushSystemNote(c, key, params) {
+  if (!c) return;
+  c.messages.push({ id: crypto.randomUUID(), from: "system", text: T(key, params), textKey: key, textParams: params, ts: Date.now() });
+  trimMessages(c); persistContacts();
+  if (state.chatId === c.id) renderChatThread();
+  if (state.tab === "chats") renderChatsList();
+}
+// ---- Потеря ratchet-состояния: служебное «rc-reset» (без содержимого) ----
+const RC_RESYNC_MIN_MS = 10 * 60 * 1000, RC_RESET_HANDLE_MIN_MS = 5 * 60 * 1000, RC_RESEND_MAX = 30;
+const rcResyncReqAt = new Map(), rcResetHandledAt = new Map();
+function isRatchetLostError(e) { return /ratchet: (no session|auth failed|unknown prekey|unknown one-time prekey)/.test(String(e)); }
+function isBenignDupError(e) { return /ratchet: (duplicate or old message|replayed initial)/.test(String(e)); }
+// Получатель: не смог открыть ratchet-конверт — просим отправителя начать сессию заново. Не чаще раза в RC_RESYNC_MIN_MS на контакт.
+function requestRatchetResync(from) {
+  const c = state.contacts.get(from); if (!c || c.isGroup || !c.publicKey || c.pendingKey || c.blocked) return false;
+  const now = Date.now();
+  if (now - (rcResyncReqAt.get(from) || 0) < RC_RESYNC_MIN_MS) return false;
+  rcResyncReqAt.set(from, now);
+  const id = crypto.randomUUID();
+  addToOutbox(id, from, { kind: "rc-reset", id, ts: now });
+  const e = outbox.get(id); if (e) e.forceV1 = true; // статический ключ: ratchet-сессия как раз сломана
+  flushOutboxItem(id);
+  pushSystemNote(c, "sys.keysResynced");
+  return true;
+}
+// Отправитель: сбрасываем сессию и пере-отправляем неподтверждённые (ack sent/pending) текстовые сообщения новым конвертом.
+function handleRatchetResetRequest(from) {
+  const c = state.contacts.get(from); if (!c || c.isGroup || c.blocked) return;
+  const now = Date.now();
+  if (now - (rcResetHandledAt.get(from) || 0) < RC_RESET_HANDLE_MIN_MS) return;
+  rcResetHandledAt.set(from, now);
+  try { Ratchet.reset(from); } catch (e) {}
+  for (const [id, en] of outbox) if (en.to === from) envelopeCache.delete(id); // эти конверты зашифрованы старой сессией
+  let n = 0;
+  for (let i = c.messages.length - 1; i >= 0 && n < RC_RESEND_MAX; i--) {
+    const m = c.messages[i];
+    if (m.from !== "me" || (m.ack !== "sent" && m.ack !== "pending")) continue;
+    if (m.file || m.contactCard || m.poll || m.board || m.note || typeof m.text !== "string" || !m.text) continue;
+    if (now - m.ts > RESUME_MAX_AGE_MS || outbox.has(m.id)) continue;
+    envelopeCache.delete(m.id);
+    const payload = { kind: "chat", id: m.id, text: m.text, ts: m.ts };
+    if (m.replyTo) payload.replyTo = { id: m.replyTo.id, text: m.replyTo.text, authorName: m.replyTo.authorName };
+    if (m.ttl) payload.ttl = m.ttl;
+    if (m.forwarded) { payload.forwarded = true; if (m.forwardedFrom) payload.fwdFrom = m.forwardedFrom; }
+    addToOutbox(m.id, from, payload); flushOutboxItem(m.id); n++;
+  }
+  pushSystemNote(c, "sys.keysResynced");
+}
+const deliverInFlight = new Set();
 // Входящий конверт из ящика сервера. replay=true — повторный разбор конверта, удержанного до подтверждения нового ключа контакта.
+// mailboxAck уходит ПОСЛЕ расшифровки и сохранения: при ошибке сервер переотправит конверт при следующем подключении (не более
+// DELIVER_MAX_ATTEMPTS раз на msgId, затем подтверждаем и показываем системную запись). Повтор (from,msgId) игнорируем, но подтверждаем.
 async function handleDeliver(detail, replay) {
   const { from, msgId, envelope, fromPublicKey, kind } = detail;
-  if (!replay && signaling) signaling.mailboxAck(msgId);
+  const ackBox = () => { if (!replay && signaling) signaling.mailboxAck(msgId); };
+  const dKey = from + "|" + msgId;
   const sender = state.contacts.get(from);
   if (sender && sender.blocked) {
+    ackBox();
     if (kind === "chat") sendAckBatch(from, [msgId], "delivered");
     return;
   }
@@ -9159,49 +9377,84 @@ async function handleDeliver(detail, replay) {
   // ещё и "from|msgId", и Set рос вдвое быстрее (по 2 записи на
   // каждый group-invite), из-за чего окно дедупликации сжималось.
   if (kind !== "group-invite") {
-    if (seenDeliverIds.has(from + "|" + msgId)) {
+    if (hasSeenMsg(from, msgId) || seenDeliverIds.has(dKey)) {
+      ackBox();
       if (kind === "chat") sendAckBatch(from, [msgId], "delivered");
       return;
     }
-    rememberDeliverId(from + "|" + msgId);
+    if (deliverInFlight.has(dKey)) return; // тот же конверт уже разбирается — подтвердит первый разбор
+    rememberDeliverId(dKey);
   }
-  let payload, learnKey = false;
+  deliverInFlight.add(dKey);
   try {
-    const c0 = state.contacts.get(from);
-    learnKey = !!fromPublicKey && !(c0 && c0.publicKey);
-    // Ключ отправителя изменился: пока человек не подтвердил, конверт не расшифровываем — удерживаем (и переживаем перезапуск).
-    if (fromPublicKey && c0 && !noteContactKey(c0, fromPublicKey)) {
-      seenDeliverIds.delete(from + "|" + msgId);
-      if (c0.rejectedKey && !keysDiffer(fromPublicKey, c0.rejectedKey)) return; // ключ отклонён пользователем — молча отбрасываем
-      if (!heldDeliveries.some((h) => h.from === from && h.msgId === msgId)) { heldDeliveries.push({ from, msgId, envelope, fromPublicKey, kind, at: Date.now() }); persistHeld(); }
+    let payload, learnKey = false;
+    try {
+      const c0 = state.contacts.get(from);
+      learnKey = !!fromPublicKey && !(c0 && c0.publicKey);
+      // Ключ отправителя изменился: пока человек не подтвердил, конверт не расшифровываем — удерживаем (и переживаем перезапуск).
+      if (fromPublicKey && c0 && !noteContactKey(c0, fromPublicKey)) {
+        seenDeliverIds.delete(dKey);
+        if (c0.rejectedKey && !keysDiffer(fromPublicKey, c0.rejectedKey)) { ackBox(); return; } // ключ отклонён пользователем — молча отбрасываем
+        if (!heldDeliveries.some((h) => h.from === from && h.msgId === msgId)) { heldDeliveries.push({ from, msgId, envelope, fromPublicKey, kind, at: Date.now() }); persistHeld(); }
+        ackBox(); // конверт сохранён в heldDeliveries (localStorage)
+        return;
+      }
+      const theirKey = (c0 && c0.publicKey) || fromPublicKey;
+      if (!theirKey) throw new Error("no key");
+      if (envelope && envelope.v === 2 && envelope.h) {
+        payload = await Ratchet.decrypt({ contactId: from, myId: Store.myId, myPrivJwk: Store.myPrivateKeyJwk, theirPubJwk: theirKey }, envelope);
+        markContactRatchet(c0);
+      } else {
+        const sharedKey = await CryptoHelper.deriveSharedKey(Store.myPrivateKeyJwk, theirKey);
+        // v2 без поля h — конверт с AAD (отправитель = from, получатель = я); v1 расшифровывается как раньше
+        payload = await CryptoHelper.decryptJson(sharedKey, envelope, envelope && envelope.v === 2 ? CryptoHelper.envAad(from, Store.myId) : undefined);
+        if (envelope && envelope.rc) markContactRatchet(c0);
+      }
+      if (envelope && envelope.e2) markContactEnv2(c0);
+    } catch (e) {
+      etherLog("error", "[crypto] decrypt failed:", String(e));
+      seenDeliverIds.delete(dKey);
+      if (isBenignDupError(e)) { // уже расшифрованный ранее конверт (память дедупликации потеряна) — просто подтверждаем
+        markSeenMsg(from, msgId); ackBox();
+        if (kind === "chat") sendAckBatch(from, [msgId], "delivered");
+        return;
+      }
+      const hasRatchetHeader = !!(envelope && envelope.v === 2 && envelope.h);
+      if (hasRatchetHeader && isRatchetLostError(e) && requestRatchetResync(from)) { ackBox(); return; } // отправитель пришлёт сообщения заново
+      const nTry = bumpDeliverFail(from, msgId);
+      if (nTry >= DELIVER_MAX_ATTEMPTS) {
+        ackBox();
+        const cf = state.contacts.get(from);
+        if (cf && !cf.isGroup && kind !== "rc-reset" && kind !== "typing") pushSystemNote(cf, "sys.msgUnreadable");
+      }
       return;
     }
-    const theirKey = (c0 && c0.publicKey) || fromPublicKey;
-    if (!theirKey) throw new Error("no key");
-    if (envelope && envelope.v === 2 && envelope.h) {
-      payload = await Ratchet.decrypt({ contactId: from, myId: Store.myId, myPrivJwk: Store.myPrivateKeyJwk, theirPubJwk: theirKey }, envelope);
-      markContactRatchet(c0);
-    } else {
-      const sharedKey = await CryptoHelper.deriveSharedKey(Store.myPrivateKeyJwk, theirKey);
-      // v2 без поля h — конверт с AAD (отправитель = from, получатель = я); v1 расшифровывается как раньше
-      payload = await CryptoHelper.decryptJson(sharedKey, envelope, envelope && envelope.v === 2 ? CryptoHelper.envAad(from, Store.myId) : undefined);
-      if (envelope && envelope.rc) markContactRatchet(c0);
+
+    // Первый отправитель из ящика: конверт расшифровался этим ключом — запоминаем его, иначе ответить и квитировать нельзя
+    if (learnKey) {
+      try {
+        const nc = ensureContactEntry(from, null);
+        if (!nc.publicKey) noteContactKey(nc, fromPublicKey);
+        persistContacts();
+        flushPendingNoKey(from);
+      } catch (e) {}
     }
-    if (envelope && envelope.e2) markContactEnv2(c0);
-  } catch (e) { etherLog("error", "[crypto] decrypt failed:", String(e)); return; }
-
-  // Первый отправитель из ящика: конверт расшифровался этим ключом — запоминаем его, иначе ответить и квитировать нельзя
-  if (learnKey) {
     try {
-      const nc = ensureContactEntry(from, null);
-      if (!nc.publicKey) noteContactKey(nc, fromPublicKey);
-      persistContacts();
-      flushPendingNoKey(from);
-    } catch (e) {}
-  }
-  applyIncomingPayload(from, msgId, payload, true, kind);
-
-  if (kind === "chat") sendAckBatch(from, [msgId], "delivered");
+      applyIncomingPayload(from, msgId, payload, true, kind);
+    } catch (e) {
+      etherLog("error", "[deliver] apply failed:", String(e));
+      seenDeliverIds.delete(dKey);
+      if (bumpDeliverFail(from, msgId) >= DELIVER_MAX_ATTEMPTS) {
+        ackBox();
+        const cf = state.contacts.get(from);
+        if (cf && !cf.isGroup) pushSystemNote(cf, "sys.msgUnreadable");
+      }
+      return;
+    }
+    if (kind !== "group-invite") markSeenMsg(from, msgId);
+    ackBox();
+    if (kind === "chat") sendAckBatch(from, [msgId], "delivered");
+  } finally { deliverInFlight.delete(dKey); }
 }
 function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind) {
   const kind = (payload && payload.kind) || openKind || "chat";
@@ -9401,6 +9654,8 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     }
   }
   const isNew = !g;
+  // ver: версия ростера. Нет поля (старый клиент) — null: применяем как раньше, если прислал админ. Устаревшая версия от админа отбрасывается.
+  const inVer = Number.isInteger(payload.ver) && payload.ver >= 0 && payload.ver < 1e9 ? payload.ver : null;
   if (isNew) {
       g = { id: payload.groupId, isGroup: true, name: payload.groupName || T("group.defaultName"),
         members: payload.members, messages: [], lastActivity: Date.now(), archived: false, muted: false,
@@ -9414,6 +9669,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
       if (typeof payload.writeRestricted === "boolean" && payload.writeRestricted) g.writeRestricted = true;
       // «Костёр» (самоудаляющаяся группа): метка срока в описании НОВОЙ группы — её и помечаем локально; на уже существующие группы описание не влияет
       try { if (g.description && /⁣c:\d{10,}⁣/.test(g.description) && typeof fxCampfireMark === "function") fxCampfireMark(g.id); } catch (e) {}
+      if (inVer > 0) g.rosterVer = inVer;
       state.contacts.set(payload.groupId, g);
       g.messages.push({ id: crypto.randomUUID(), from: "system", text: T("group.systemCreated", { name: g.name }), textKey: "group.systemCreated", textParams: { name: g.name }, ts: Date.now() });
       trimMessages(g);
@@ -9424,10 +9680,15 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
       const fromAdmin = isGroupAdmin(g, from);
       const selfLeave = !newIds.includes(from) && oldIds.includes(from) && newIds.every((id) => oldIds.includes(id)) && oldIds.every((id) => newIds.includes(id) || id === from);
       if (!fromAdmin && !selfLeave) { etherLog("warn", "[group] invite от не-админа " + String(from).slice(0, 8) + "… отклонён (группа " + String(g.id).slice(0, 8) + "…)"); return; }
+      const localVer = Number.isInteger(g.rosterVer) ? g.rosterVer : 0;
+      if (fromAdmin && inVer !== null && inVer < localVer) { etherLog("warn", "[group] устаревший ростер ver=" + inVer + " < " + localVer + " отброшен (группа " + String(g.id).slice(0, 8) + "…)"); return; }
       if (!fromAdmin) {
         g.members = g.members.filter((m) => m.id !== from);
       } else {
+      if (inVer !== null && inVer > localVer) g.rosterVer = inVer;
       g.members = payload.members;
+      // исключённых нами (banned) старый/параллельный ростер другого админа не возвращает, пока их не добавил админ вручную
+      if (Array.isArray(g.banned) && g.banned.length && isGroupAdmin(g, Store.myId)) g.members = g.members.filter((m) => !g.banned.includes(m.id));
       if (payload.groupName) g.name = payload.groupName;
       if (payload.groupAvatar !== undefined) g.avatar = (payload.groupAvatar && AVATAR_DATAURL_RE.test(payload.groupAvatar)) ? payload.groupAvatar : null;
       if (payload.groupDescription !== undefined) g.description = String(payload.groupDescription || "").slice(0, 200) || undefined;
@@ -9548,6 +9809,8 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     ensureContactEntry(from, payload.requesterName || null);
     addGroupMember(payload.groupId, from);
     try { if (typeof fxReferralInviterHit === "function") fxReferralInviterHit(from); } catch (e) {}
+  } else if (kind === "rc-reset") {
+    handleRatchetResetRequest(from);
   } else if (kind === "heartbeat") {
     // killer-features-backlog 0.5 — "мягкий" Dead Man's Switch: "я жив",
     // отправляется из checkDeadManSwitch() при каждом запуске отправителя.
@@ -10458,6 +10721,7 @@ function openMessageSheet(msgId, contactId) {
   const rare = [];
   if (m.text && !m.file && !m.contactCard && !m.poll && !m.board && !m.note) rare.push(act("translate", m.translation ? T("chat.translate.hide") : T("chat.translate")));
   rare.push(act("favorite", m.favorite ? T("chat.unfavorite") : T("chat.favorite")));
+  if (!m.board || m.text) { rare.push(act("task", T("chat.toTask"))); rare.push(act("remind", T("chat.remind"))); }
   rare.push(act("thread", T("chat.thread.open")));
   if (typeof LocalAI !== "undefined" && messageSummarySource(m).length >= 200) rare.push(act("summary", T("ai.summary")));
   rare.push(act("select", T("chat.selectMsgs")));
@@ -10496,7 +10760,64 @@ async function handleMessageAction(action, msgId, contactId) {
   else if (action === "select") enterMultiSelect(msgId);
   else if (action === "favorite") toggleMessageFavorite(contactId, msgId);
   else if (action === "translate") translateMessage(contactId, msgId);
+  else if (action === "task") createTaskFromMessage(contactId, msgId);
+  else if (action === "remind") openRemindSheet(contactId, msgId);
 }
+// Универсальная шторка действий (#action-sheet): список {label, icon, danger, fn}; закрывается перед вызовом fn.
+function openActionSheet(title, items) {
+  const sheet = $("#action-sheet"), body = $("#action-sheet-body"); if (!sheet || !body) return;
+  const t = $("#action-sheet-title"); if (t) { t.textContent = title || ""; t.classList.toggle("hidden", !title); }
+  body.innerHTML = "";
+  for (const it of items) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "sheet-action" + (it.danger ? " destructive" : "");
+    b.style.minHeight = "44px";
+    b.innerHTML = (it.icon ? Icons.html(it.icon, 20) : "") + `<span>${escapeHtml(it.label)}</span>`;
+    b.addEventListener("click", () => { sheet.classList.add("hidden"); if (it.fn) it.fn(); });
+    body.appendChild(b);
+  }
+  sheet.classList.remove("hidden");
+}
+// «Создать задачу из сообщения»: карточка в колонке «К выполнению» первой доски чата (доски нет — создаётся).
+async function createTaskFromMessage(contactId, msgId) {
+  const c = state.contacts.get(contactId); const m = c && c.messages.find((x) => x.id === msgId); if (!m) return;
+  const text = (m.text || (m.file && m.file.name) || "").trim().slice(0, 120);
+  if (!text) { toast(T("chat.toTask.empty")); return; }
+  const findBoard = () => c.messages.find((x) => x.board && !x.deleted);
+  let bm = findBoard();
+  if (!bm) { if (!await createBoard(contactId, T("chat.board.defaultTitle"))) return; bm = findBoard(); }
+  if (!bm || !bm.board || !bm.board.cols.length) return;
+  await boardOp(contactId, bm.id, { t: "add", card: { id: crypto.randomUUID(), t: text, col: bm.board.cols[0].id } });
+  toast(T("chat.toTask.done"));
+}
+// Напоминания о сообщениях: локально (localStorage), проверка таймером при открытом приложении и при запуске.
+function loadReminders() { try { const a = JSON.parse(localStorage.getItem("ether.reminders") || "[]"); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+function saveReminders(a) { try { localStorage.setItem("ether.reminders", JSON.stringify(a.slice(-100))); } catch (e) {} }
+function addReminder(contactId, msgId, at) {
+  const c = state.contacts.get(contactId); const m = c && c.messages.find((x) => x.id === msgId); if (!m) return;
+  const a = loadReminders(); a.push({ id: crypto.randomUUID(), contactId, msgId, at, name: c.name || "", text: String(m.text || (m.file && m.file.name) || "").slice(0, 80) });
+  saveReminders(a); toast(T("chat.remind.set"));
+}
+function openRemindSheet(contactId, msgId) {
+  const now = Date.now(), tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); tomorrow.setHours(9, 0, 0, 0);
+  openActionSheet(T("chat.remind"), [
+    { label: T("chat.remind.15m"), icon: "clock", fn: () => addReminder(contactId, msgId, now + 15 * 60000) },
+    { label: T("chat.remind.1h"), icon: "clock", fn: () => addReminder(contactId, msgId, now + 3600000) },
+    { label: T("chat.remind.3h"), icon: "clock", fn: () => addReminder(contactId, msgId, now + 3 * 3600000) },
+    { label: T("chat.remind.tomorrow"), icon: "clock", fn: () => addReminder(contactId, msgId, tomorrow.getTime()) },
+  ]);
+}
+function checkReminders() {
+  const a = loadReminders(); if (!a.length) return;
+  const now = Date.now(), due = a.filter((r) => r.at <= now);
+  if (!due.length) return;
+  saveReminders(a.filter((r) => r.at > now));
+  for (const r of due) {
+    toast(T("chat.remind.due", { name: r.name || T("sys.someone"), text: r.text }));
+    try { showNotification(r.name || T("sys.someone"), r.text, { contactId: r.contactId, kind: "message", tag: "remind-" + r.id, force: true }); } catch (e) {}
+  }
+}
+function wireReminders() { checkReminders(); setInterval(checkReminders, 20000); }
 function toggleMessageFavorite(contactId, msgId) {
   const c = state.contacts.get(contactId); if (!c) return;
   const m = c.messages.find((x) => x.id === msgId); if (!m) return;
@@ -11136,11 +11457,34 @@ function wireEmojiPicker() {
 function setComposerFan(open) {
   const sheet = $("#composer-menu-sheet"); if (sheet) sheet.classList.toggle("hidden", !open);
   const plus = $("#chat-plus-btn"); if (plus) plus.setAttribute("aria-expanded", open ? "true" : "false");
-  // плашки выезжают вверх из самой кнопки «+»: якорим колонку над ней
+  // меню привязано к кнопке «+»: над ней, не выходя за экран и не заходя под клавиатуру (visualViewport)
   if (open && sheet && plus) {
+    renderComposerRecent();
     const r = plus.getBoundingClientRect(), panel = sheet.querySelector(".sheet-panel");
-    if (panel && r.width) { panel.style.setProperty("--menu-bottom", Math.max(8, Math.round(window.innerHeight - r.top + 10)) + "px"); panel.style.setProperty("--menu-left", Math.max(8, Math.round(r.left)) + "px"); }
+    if (panel && r.width) {
+      const vv = window.visualViewport, vh = vv ? vv.height + vv.offsetTop : window.innerHeight, vw = window.innerWidth;
+      const pw = Math.min(320, vw - 24);
+      let left = Math.round(r.left);
+      if (left + pw > vw - 8) left = vw - 8 - pw;
+      panel.style.setProperty("--menu-bottom", Math.max(8, Math.round(window.innerHeight - Math.min(r.top, vh) + 10)) + "px");
+      panel.style.setProperty("--menu-left", Math.max(8, left) + "px");
+    }
+    const first = sheet.querySelector(".composer-menu-item"); if (first) { try { first.focus({ preventScroll: true }); } catch (e) {} }
   }
+}
+// «Недавнее»: последнее фото/файл этого чата; тап прокручивает к нему. Нет файлов — ряд скрыт.
+function renderComposerRecent() {
+  const el = $("#composer-recent"); if (!el) return;
+  const c = state.chatId && state.contacts.get(state.chatId);
+  let last = null;
+  if (c) for (let i = c.messages.length - 1; i >= 0; i--) { const f = c.messages[i].file; if (f && !f.pending && !f.failed) { last = c.messages[i]; break; } }
+  if (!last) { el.classList.add("hidden"); el.innerHTML = ""; el.dataset.msgId = ""; return; }
+  const kind = last.file.kind === "image" || last.file.kind === "video" ? "camera" : "paperclip";
+  el.dataset.msgId = last.id;
+  el.innerHTML = `<svg data-icon="${kind}" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg><span class="cr-cap">${escapeHtml(T("chat.menu.recent"))}</span><span class="cr-name">${escapeHtml(last.file.name || T("chat.file.preview." + last.file.kind))}</span>`;
+  el.setAttribute("aria-label", T("chat.menu.recent") + ": " + (last.file.name || ""));
+  try { if (window.Icons) Icons.hydrate(el); } catch (e) {}
+  el.classList.remove("hidden");
 }
 function collapseComposerPlus() { setComposerFan(false); }
 function wireComposerPlusMode() {
@@ -11148,11 +11492,23 @@ function wireComposerPlusMode() {
   const plusBtn = $("#chat-plus-btn"); if (!plusBtn) return;
   plusBtn.addEventListener("click", (e) => {
     e.preventDefault();
+    if (plusBtn.__lpFired) { plusBtn.__lpFired = false; return; }
     const sheet = $("#composer-menu-sheet");
     setComposerFan(!!(sheet && sheet.classList.contains("hidden")));
   });
+  // Долгое нажатие на «+» — быстрое действие: камера
+  let plusLP = null;
+  const plusLPCancel = () => { clearTimeout(plusLP); plusLP = null; };
+  plusBtn.addEventListener("pointerdown", () => {
+    plusLPCancel(); plusBtn.__lpFired = false;
+    plusLP = setTimeout(() => { plusLP = null; plusBtn.__lpFired = true; try { if (navigator.vibrate) navigator.vibrate(12); } catch (e) {} collapseComposerPlus(); const cam = $("#chat-camera-btn"); if (cam && state.chatId) cam.click(); }, 550);
+  });
+  for (const ev of ["pointerup", "pointerleave", "pointercancel"]) plusBtn.addEventListener(ev, plusLPCancel);
+  plusBtn.addEventListener("contextmenu", (e) => { if (plusBtn.__lpFired) e.preventDefault(); });
+  const recent = $("#composer-recent");
+  if (recent) recent.addEventListener("click", () => { const id = recent.dataset.msgId; collapseComposerPlus(); if (id && state.chatId) jumpToMessageInChat(state.chatId, id); });
   // Выбор любого из трёх действий закрывает меню (capture — раньше, чем сработают обработчики самих кнопок)
-  for (const id of ["#chat-attach-btn", "#chat-emoji-btn", "#chat-camera-btn"]) {
+  for (const id of ["#chat-attach-btn", "#chat-emoji-btn", "#chat-camera-btn", "#chat-poll-btn", "#chat-board-btn", "#chat-note-btn", "#chat-summary-btn"]) {
     const btn = $(id);
     if (btn) btn.addEventListener("click", collapseComposerPlus, { capture: true });
   }

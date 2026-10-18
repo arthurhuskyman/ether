@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
+<!-- CSP: хэши inline-скриптов обновляет tools/csp-hash.js (его же проверяет tests/infra-csp.test.js) -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob: 'sha256-oPVWKtZj/eJ87w2D2H4TalMjLqDoOadj/pPiK9x7iTo=' 'sha256-FTwWWAvsNKkwY/B4y8vD1yXBsmp1jVobcCqfPlGoVVU='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self'; connect-src 'self' https: wss: ws://localhost:* http://localhost:* blob: data:; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'" />
 <script>
   // Pre-paint: язык/направление читаются из localStorage ДО первого
   // рендера, а не после I18N.init() в DOMContentLoaded — раньше
@@ -23,6 +25,18 @@
       document.documentElement.dataset.scheme = light ? "light" : "dark";
       var sk = localStorage.getItem("ether.skin");
       if (sk && /^[a-z]{3,12}$/.test(sk) && sk !== "default") document.documentElement.setAttribute("data-skin", sk);
+    } catch (e) {}
+    // CSS скина грузится лениво — только для активного (css/skins/<id>.css); смена скина в настройках подхватывается наблюдателем.
+    try {
+      var root = document.documentElement;
+      var skinCss = function () {
+        var id = root.getAttribute("data-skin");
+        if (!id || !/^[a-z]{3,12}$/.test(id) || document.querySelector('link[data-skin-css="' + id + '"]')) return;
+        var l = document.createElement("link"); l.rel = "stylesheet"; l.href = "css/skins/" + id + ".css"; l.setAttribute("data-skin-css", id);
+        document.head.appendChild(l);
+      };
+      skinCss();
+      if (window.MutationObserver) new MutationObserver(skinCss).observe(root, { attributes: true, attributeFilter: ["data-skin"] });
     } catch (e) {}
   })();
 </script>
@@ -47,21 +61,10 @@
 <meta name="apple-mobile-web-app-title" content="Ether" />
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
 <link rel="icon" href="icons/favicon-32.png" sizes="32x32" />
+<link rel="preload" href="fonts/InterVariable.woff2" as="font" type="font/woff2" crossorigin />
 <link rel="stylesheet" href="css/tokens.css" />
 <link rel="stylesheet" href="css/styles.css" />
 <link rel="stylesheet" href="css/skins.css" />
-<link rel="stylesheet" href="css/skins/cartoon.css" />
-<link rel="stylesheet" href="css/skins/comic.css" />
-<link rel="stylesheet" href="css/skins/watercolor.css" />
-<link rel="stylesheet" href="css/skins/neon.css" />
-<link rel="stylesheet" href="css/skins/steampunk.css" />
-<link rel="stylesheet" href="css/skins/gothic.css" />
-<link rel="stylesheet" href="css/skins/clay.css" />
-<link rel="stylesheet" href="css/skins/lego.css" />
-<link rel="stylesheet" href="css/skins/wood.css" />
-<link rel="stylesheet" href="css/skins/glass.css" />
-<link rel="stylesheet" href="css/skins/chalk.css" />
-<link rel="stylesheet" href="css/skins/newyear.css" />
 </head>
 <body>
 <a class="skip-link" href="#content" data-i18n="a11y.skip">Skip to content</a>
@@ -201,6 +204,7 @@
       <button type="button" id="chat-search-btn" class="icon-btn" aria-label="Search" data-i18n-aria="a11y.search"><svg data-icon="search" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"></svg></button>
       <button type="button" id="chat-call-btn" class="icon-btn call-icon" aria-label="Call" data-i18n-aria="chat.call"><svg data-icon="phone" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"></svg></button>
       <button type="button" id="chat-video-call-btn" class="icon-btn call-icon" aria-label="Video call" data-i18n-aria="call.video"><svg data-icon="video" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"></svg></button>
+      <button type="button" id="chat-more-btn" class="icon-btn" aria-label="More" aria-haspopup="dialog" data-i18n-aria="chat.moreMenu"><svg data-icon="more" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"></svg></button>
     </div>
     <div id="nav-contact-mode" class="nav-mode-chat hidden">
       <button type="button" id="contact-back" class="icon-btn back-btn"><svg data-icon="chevron-left" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"></svg></button>
@@ -885,7 +889,8 @@
   <div class="sheet-backdrop"></div>
   <div class="sheet-panel glass-content">
     <div class="sheet-handle"></div>
-    <div class="sheet-actions composer-menu-actions" role="menu">
+    <button type="button" id="composer-recent" class="composer-recent hidden" aria-label="Recent"></button>
+    <div class="sheet-actions composer-menu-actions" role="menu" aria-label="Attach menu" data-i18n-aria="chat.menu.aria">
       <button type="button" id="chat-emoji-btn" class="sheet-action composer-menu-item"><svg data-icon="smile" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg><span data-i18n="chat.emoji">Emoji</span></button>
       <button type="button" id="chat-camera-btn" class="sheet-action composer-menu-item"><svg data-icon="camera" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg><span data-i18n="chat.camera">Camera</span></button>
       <button type="button" id="chat-attach-btn" class="sheet-action composer-menu-item"><svg data-icon="paperclip" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg><span data-i18n="chat.menu.file">File</span></button>
@@ -1022,6 +1027,16 @@
     <div id="reaction-bar" class="reaction-bar" role="toolbar"></div>
     <div id="message-sheet-body" class="sheet-actions"></div>
     <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="message-sheet" data-i18n="sys.cancel">Cancel</button>
+  </div>
+</div>
+
+<div id="action-sheet" class="sheet hidden" role="dialog" aria-modal="true" aria-labelledby="action-sheet-title">
+  <div class="sheet-backdrop"></div>
+  <div class="sheet-panel glass-content">
+    <div class="sheet-handle"></div>
+    <h3 id="action-sheet-title" class="sheet-title"></h3>
+    <div id="action-sheet-body" class="sheet-actions"></div>
+    <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="action-sheet" data-i18n="sys.cancel">Cancel</button>
   </div>
 </div>
 

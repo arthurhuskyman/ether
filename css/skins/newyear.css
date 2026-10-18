@@ -162,3 +162,6 @@ html[data-skin="newyear"] #composer-menu-sheet .sheet-panel::before { content: n
 
 /* 4 сегмента темы в узкой колонке: display-шрифт шире обычного */
 html[data-skin="newyear"] .theme-seg button { font-size: min(12px, 3vw); }
+
+/* Переключатель темы: подписи не выходят за кнопку (мелкий шрифт, перенос по словам) */
+html[data-skin="newyear"] .theme-seg button { min-width: 0; white-space: normal; overflow-wrap: anywhere; word-break: normal; line-height: 1.15; font-size: min(11.5px, 3vw); padding: 6px 3px; letter-spacing: 0; text-transform: none; display: flex; align-items: center; justify-content: center; text-align: center; }

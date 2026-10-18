@@ -204,3 +204,6 @@ html[data-calm-mode="1"][data-skin="steampunk"] :is(#nav-title::before, .tab-btn
 html[data-skin="steampunk"] #tab-bar .tab-btn.active, html[data-skin="steampunk"] #tab-bar .tab-btn.active span { color: #1c1006; }
 html[data-skin="steampunk"] .chat-peer-avatar { margin-right: 10px; }
 html[data-skin="steampunk"] .contact-profile :is(.avatar-xl, .contact-avatar) { margin: 8px auto 18px; }
+
+/* Переключатель темы: подписи не выходят за кнопку (мелкий шрифт, перенос по словам) */
+html[data-skin="steampunk"] .theme-seg button { min-width: 0; white-space: normal; overflow-wrap: anywhere; word-break: normal; line-height: 1.15; font-size: min(11.5px, 3vw); padding: 6px 3px; letter-spacing: 0; text-transform: none; display: flex; align-items: center; justify-content: center; text-align: center; }

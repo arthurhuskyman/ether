@@ -384,6 +384,8 @@ async function getIceServers() {
 const LINK_PREVIEW_CACHE_MS = 60 * 60 * 1000; // час — большинство ссылок не меняют title/картинку так часто
 const LINK_PREVIEW_MAX_BYTES = 512 * 1024; // не скачиваем больше полумегабайта HTML
 const LINK_PREVIEW_TIMEOUT_MS = 6000;
+const LINK_PREVIEW_IMAGE_MAX_BYTES = Math.max(1024, Number(process.env.LINK_PREVIEW_IMAGE_MAX_BYTES) || 1024 * 1024); // прокси og:image: потолок 1 МБ
+const LINK_PREVIEW_IMAGE_CACHE_MAX_BYTES = Math.max(1024 * 1024, Number(process.env.LINK_PREVIEW_IMAGE_CACHE_BYTES) || 32 * 1024 * 1024); // суммарный объём кэша картинок в памяти
 const LINK_PREVIEW_RATE_LIMIT_PER_MIN = 30;
 const linkPreviewCache = new Map(); // url -> { at, data }
 const linkPreviewHits = new Map();
@@ -437,7 +439,8 @@ function decodeHtmlBody(buf, ctype) {
   return buf.toString("utf8");
 }
 
-async function fetchUrlSafe(targetUrl, redirectsLeft, deadlineAt) {
+async function fetchUrlSafe(targetUrl, redirectsLeft, deadlineAt, opts) {
+  const imageMode = !!(opts && opts.image); // режим прокси картинки: image/* до LINK_PREVIEW_IMAGE_MAX_BYTES, без распаковки, результат { buf, type }
   if (!deadlineAt) deadlineAt = Date.now() + LINK_PREVIEW_DEADLINE_MS;
   const u = new URL(targetUrl);
   if (u.protocol !== "http:" && u.protocol !== "https:") throw new Error("scheme not allowed");
@@ -480,13 +483,13 @@ async function fetchUrlSafe(targetUrl, redirectsLeft, deadlineAt) {
       lookup: customLookup,
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept": imageMode ? "image/avif,image/webp,image/png,image/jpeg,image/gif,image/*;q=0.8" : "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
-        "Accept-Encoding": "gzip, deflate, br",
+        "Accept-Encoding": imageMode ? "identity" : "gzip, deflate, br",
         "Cache-Control": "max-age=0",
         "Connection": "keep-alive",
         "Upgrade-Insecure-Requests": "1",
-        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Dest": imageMode ? "image" : "document",
         "Sec-Fetch-Mode": "navigate",
         "Sec-Fetch-Site": "none",
         "Sec-Fetch-User": "?1",
@@ -501,11 +504,26 @@ async function fetchUrlSafe(targetUrl, redirectsLeft, deadlineAt) {
         res.resume();
         let next;
         try { next = new URL(res.headers.location, u).toString(); } catch (e) { return fail(e); }
-        fetchUrlSafe(next, redirectsLeft - 1, deadlineAt).then(ok, fail);
+        fetchUrlSafe(next, redirectsLeft - 1, deadlineAt, opts).then(ok, fail);
         return;
       }
       if (res.statusCode !== 200) { res.resume(); fail(new Error("HTTP " + res.statusCode)); return; }
       const ctype = String(res.headers["content-type"] || "");
+      if (imageMode) {
+        const itype = guards.imageMimeOk(ctype);
+        if (!itype) { res.resume(); fail(new Error("not an image")); return; }
+        const clen = Number(res.headers["content-length"]);
+        if (Number.isFinite(clen) && clen > LINK_PREVIEW_IMAGE_MAX_BYTES) { res.resume(); fail(new Error("too large")); return; }
+        let itotal = 0; const ichunks = [];
+        res.on("data", (chunk) => {
+          if (settled) return;
+          itotal += chunk.length;
+          if (itotal > LINK_PREVIEW_IMAGE_MAX_BYTES) { fail(new Error("too large")); return; }
+          ichunks.push(chunk);
+        });
+        res.on("end", () => ok({ buf: Buffer.concat(ichunks), type: itype }));
+        return;
+      }
       if (ctype && !ctype.includes("html")) { res.resume(); fail(new Error("not html")); return; }
 
       // Сжатый ответ распаковываем: без этого github.com и ya.ru переваливают за LINK_PREVIEW_MAX_BYTES.
@@ -547,6 +565,29 @@ async function fetchUrlSafe(targetUrl, redirectsLeft, deadlineAt) {
 // До этой правки ошибка fetchUrlSafe ПРОБРАСЫВАЛАСЬ наверх и НЕ попадала
 // в кеш — каждый вход в чат с той же ссылкой снова дёргал сайт.
 const LINK_PREVIEW_NEGATIVE_CACHE_MS = 15 * 60 * 1000;
+
+const linkPreviewImageCache = new Map(); // url -> { at, data: {buf,type}|null }
+let linkPreviewImageCacheBytes = 0;
+async function getLinkPreviewImage(targetUrl) {
+  const now = Date.now();
+  const cached = linkPreviewImageCache.get(targetUrl);
+  if (cached) {
+    const ttl = cached.data ? LINK_PREVIEW_CACHE_MS : LINK_PREVIEW_NEGATIVE_CACHE_MS;
+    if (now - cached.at < ttl) return cached.data;
+    linkPreviewImageCache.delete(targetUrl); linkPreviewImageCacheBytes -= cached.data ? cached.data.buf.length : 0;
+  }
+  let data = null;
+  try { data = await fetchUrlSafe(targetUrl, 3, undefined, { image: true }); }
+  catch (e) { console.log("[link-preview-image] ошибка для " + (() => { try { return new URL(targetUrl).hostname; } catch (e2) { return "?"; } })() + ": " + e.message); }
+  linkPreviewImageCache.set(targetUrl, { at: now, data });
+  if (data) linkPreviewImageCacheBytes += data.buf.length;
+  // вытесняем самые старые записи, пока не уложимся в лимит по байтам и числу записей
+  while ((linkPreviewImageCacheBytes > LINK_PREVIEW_IMAGE_CACHE_MAX_BYTES || linkPreviewImageCache.size > 1000) && linkPreviewImageCache.size > 1) {
+    const k = linkPreviewImageCache.keys().next().value; const v = linkPreviewImageCache.get(k);
+    linkPreviewImageCache.delete(k); if (v && v.data) linkPreviewImageCacheBytes -= v.data.buf.length;
+  }
+  return data;
+}
 
 async function getLinkPreview(targetUrl) {
   const now = Date.now();
@@ -668,6 +709,33 @@ const httpServer = http.createServer(async (req, res) => {
       res.writeHead(204); // тихо ничего не показываем в самом чате — не хотим шумных ошибок из-за недоступной ссылки, но в логах теперь видно
       res.end();
     }
+    return;
+  }
+
+  // Прокси og:image: браузер пользователя не ходит на чужой сайт напрямую (IP не раскрывается). Те же SSRF-защиты, что у /link-preview.
+  if (req.method === "GET" && (url === "/link-preview-image" || url.startsWith("/link-preview-image?"))) {
+    const ip = clientIp(req);
+    if (!linkPreviewRateLimitOk(ip)) {
+      res.writeHead(429, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "rate limited" }));
+      return;
+    }
+    let target = "";
+    try { target = new URL(req.url, "http://x").searchParams.get("url") || ""; } catch (e) {}
+    if (!target || target.length > 2000) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "missing url" }));
+      return;
+    }
+    try {
+      const data = await getLinkPreviewImage(target);
+      if (!data) { res.writeHead(204); res.end(); return; }
+      res.writeHead(200, {
+        "Content-Type": data.type, "Content-Length": data.buf.length, "Cache-Control": "public, max-age=3600",
+        "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "default-src 'none'; sandbox", "Cross-Origin-Resource-Policy": "cross-origin",
+      });
+      res.end(data.buf);
+    } catch (e) { res.writeHead(204); res.end(); }
     return;
   }
 

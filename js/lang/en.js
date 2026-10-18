@@ -521,6 +521,7 @@ window.__LANG_DICTS["en"] = {
     "ai.loading": "Downloading model… {n}%",
     "ai.working": "Recognizing…",
     "ai.nothing": "(nothing recognized)",
+    "ai.integrity": "Library integrity check failed - local AI was not loaded",
     "ai.failed": "Could not transcribe this message",
     "ai.tooLong": "Message is too long to transcribe (over 5 minutes)",
     "ai.deleted": "Model deleted",
