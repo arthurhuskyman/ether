@@ -248,13 +248,14 @@
     updateAppBadge();
   };
 
+  const isBlob = (b) => !!b && typeof b.arrayBuffer === "function" && typeof b.size === "number";
   const toB64 = (buf) => arrayBufferToBase64(buf);
-  async function customBlob(id) { try { const b = await IDB.get(userKey(id)); return b instanceof Blob ? b : null; } catch (e) { return null; } }
+  async function customBlob(id) { try { const b = await IDB.get(userKey(id)); return isBlob(b) ? b : null; } catch (e) { return null; } }
   async function payloadFor(m, blobForCustom) {
     const st = m.sticker, p = { kind: "sticker", id: m.id, ts: m.ts, pack: st.pack, sticker: st.id };
     if (st.custom) {
       const b = blobForCustom || await IDB.get("file:" + m.id).catch(() => null);
-      if (!(b instanceof Blob)) return null;
+      if (!isBlob(b)) return null;
       p.mime = st.mime; p.dataB64 = toB64(await b.arrayBuffer()); if (st.w) p.w = st.w; if (st.h) p.h = st.h;
     }
     if (m.replyTo) p.replyTo = { id: m.replyTo.id, text: m.replyTo.text, authorName: m.replyTo.authorName };
@@ -332,7 +333,7 @@
   };
   // Добавить готовый webp/png/jpeg-блоб (проверка сигнатуры и размера обязательна и здесь)
   S.addBlob = async function (blob, name) {
-    if (!(blob instanceof Blob) || blob.size > S.USER_MAX_BYTES || !S.MIMES.includes(blob.type)) return null;
+    if (!isBlob(blob) || blob.size > S.USER_MAX_BYTES || !S.MIMES.includes(blob.type)) return null;
     const bytes = new Uint8Array(await blob.arrayBuffer());
     if (!S.bytesOk(bytes, blob.type)) return null;
     if (S.userItems().length >= S.USER_MAX_ITEMS) { toast(T("sticker.limit", { n: S.USER_MAX_ITEMS })); return null; }
