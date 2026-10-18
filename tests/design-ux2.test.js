@@ -245,7 +245,7 @@ test("меню «+»: порядок Эмодзи, Камера, Файл, Оп�
   const a = await booted("ru");
   const d = a.document;
   const ids = Array.from(d.querySelectorAll("#composer-menu-sheet .composer-menu-item")).map((b) => b.id);
-  assert.deepEqual(ids, ["chat-emoji-btn", "chat-camera-btn", "chat-attach-btn", "chat-poll-btn", "chat-board-btn", "chat-note-btn", "chat-summary-btn"]);
+  assert.deepEqual(ids, ["chat-emoji-btn", "chat-camera-btn", "chat-attach-btn", "chat-poll-btn", "chat-board-btn", "chat-note-btn", "chat-summary-btn", "chat-sticker-btn"]);
   assert.equal(d.querySelector("#chat-attach-btn span").textContent, "Файл");
   a.close();
 });
