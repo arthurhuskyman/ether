@@ -13,3 +13,9 @@
 - Проект: https://github.com/cozmo/jsQR
 - Лицензия: Apache-2.0
 - Версия: 1.4.0 (минифицирована через terser, без изменения логики)
+
+## transformers.min.js
+- Проект: https://github.com/huggingface/transformers.js
+- Лицензия: Apache-2.0
+- Версия: 3.0.0 (dist/transformers.min.js без изменений; SHA-384 закреплён в js/localai.js как TF_SHA384)
+- Лежит на нашем origin, чтобы CSP не разрешал чужие скрипты. Подгружается лениво, только после согласия на локальный ИИ.

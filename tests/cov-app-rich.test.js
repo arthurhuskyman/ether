@@ -17,7 +17,7 @@ const sentKinds = (a) => J(a.window.__sent).map((x) => x[1]);
 
 test("отложенные сообщения: шторка, пресеты, список, отмена, рассылка по сроку, долгое нажатие на «Отправить»", async () => {
   const a = await boot(); const t = fakeTimers(a); seedChat(a);
-  a.run(`window.sendChatMessage = (id, text, r) => { (window.__plain = window.__plain || []).push([id, text]); }; window.sendGroupMessage = (id, text, r) => { (window.__plain = window.__plain || []).push([id, text, "g"]); };`);
+  a.run(`window.sendChatMessage = async (id, text, r) => { (window.__plain = window.__plain || []).push([id, text]); return true; }; window.sendGroupMessage = async (id, text, r) => { (window.__plain = window.__plain || []).push([id, text, "g"]); return true; };`);
   const input = a.document.querySelector("#chat-input");
   a.run(`openScheduleSheet();`); assert.ok(!a.document.querySelector("#schedule-sheet").classList.contains("hidden")); assert.ok(a.document.querySelector("#schedule-custom-input").value.length > 8);
   // пустое поле: ничего не планируется
@@ -33,6 +33,7 @@ test("отложенные сообщения: шторка, пресеты, с�
   assert.equal(a.run(`scheduledCountFor("alice")`), 2);
   // срок наступил: уходит обычным сообщением; чужие/удалённые контакты пропускаются
   a.run(`state.scheduledMessages.forEach((s) => s.sendAt = Date.now() - 5); state.scheduledMessages.push({ id: "x", contactId: "gone", text: "z", sendAt: 1 }, { id: "y", contactId: "g1", isGroup: true, text: "grp", sendAt: 1 }); sweepScheduledMessages(); sweepScheduledMessages();`);
+  for (let k = 0; k < 8; k++) await Promise.resolve(); // запись снимается после успешной постановки (sendChatMessage вернул true)
   assert.equal(a.run(`state.scheduledMessages.length`), 0); assert.equal(a.window.__plain.length, 3);
   // долгое нажатие на кнопку отправки
   const btn = a.document.querySelector('#chat-form button[type="submit"].send-btn'); wire(a);

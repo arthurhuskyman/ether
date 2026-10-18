@@ -404,9 +404,9 @@ function fxOpenSigilSheet(opts) {
   sh.innerHTML = `<div class="sheet-backdrop"></div><div class="sheet-panel glass-content fx-sigil-panel"><div class="sheet-handle"></div>
     <h3>${escapeHtml(mine ? T("fx.mySigil") : T("fx.sigil.of", { name }))}</h3>
     <div class="fx-sigil-big">${sigilSvg(keyStr, 220)}</div>
-    <p class="fine muted fx-sigil-quick">${escapeHtml(T("fx.sigil.quickNote"))}</p>
+    <p class="fine muted fx-sigil-quick">${escapeHtml(T("sigil.quickNote"))}</p>
     <div class="fx-sigil-fp" id="fx-sigil-fp">…</div>
-    <h4 class="fx-sigil-long-title">${escapeHtml(T("fx.sigil.long"))}</h4>
+    <h4 class="fx-sigil-long-title">${escapeHtml(T("sigil.long"))}</h4>
     <div class="fx-sigil-big fx-sigil-long" id="fx-sigil-long"></div>
     <div class="fx-sigil-fp fx-sigil-long-fp" id="fx-sigil-long-fp" style="word-spacing:.4em">…</div>
     <p class="fine muted fx-sigil-how">${escapeHtml(T(opts.noKey ? "toast.safetyNumberNoKey" : "fx.sigil.verifyHow"))}</p>

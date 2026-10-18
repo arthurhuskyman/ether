@@ -33,6 +33,7 @@ const SHELL_FILES = [
   "./js/group-call.js",
   "./js/rooms.js",
   "./js/localai.js",
+  "./js/devicecheck.js",
   "./js/webrtc.js",
   "./js/file-limits.js",
   "./js/signaling-codec.js",

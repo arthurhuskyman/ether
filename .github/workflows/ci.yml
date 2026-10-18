@@ -1,0 +1,55 @@
+# Проверки на каждый push и pull request. Публикация (GitHub Pages) здесь не затрагивается — она деплоится отдельно.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  client:
+    name: Client tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            tests/package-lock.json
+            signaling-server/package-lock.json
+      - name: Install client test deps
+        run: npm ci
+        working-directory: tests
+      - name: Install server deps (клиентские e2e-тесты поднимают сервер)
+        run: npm ci
+        working-directory: signaling-server
+      - name: CSP is up to date
+        run: node tools/csp-hash.js --check
+      - name: Client tests
+        run: node --test --test-concurrency=2 --test-timeout=180000 *.test.js
+        working-directory: tests
+
+  server:
+    name: Server tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: signaling-server/package-lock.json
+      - run: npm ci
+        working-directory: signaling-server
+      - run: npm test
+        working-directory: signaling-server

@@ -30,7 +30,7 @@ test("linkPreviewCardHtml: только http(s), всё экранируется
   const html = a.run(`linkPreviewCardHtml({url:"https://e.com/?a=1&b=2",title:"<b>t</b>",description:"d",siteName:"s",image:"javascript:x"})`);
   assert.match(html, /&lt;b&gt;t&lt;\/b&gt;/);
   assert.doesNotMatch(html, /<img/);
-  assert.match(a.run(`linkPreviewCardHtml({url:"https://e.com",image:"https://e.com/i.png"})`), /<img[^>]+src="https:\/\/e.com\/i.png"/);
+  assert.match(a.run(`linkPreviewCardHtml({url:"https://e.com",image:"https://e.com/i.png"})`), /<img[^>]+src="[^"]*\/link-preview-image\?url=https%3A%2F%2Fe\.com%2Fi\.png"/); // картинка идёт через прокси сервера, не напрямую
   a.close();
 });
 
