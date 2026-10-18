@@ -2750,11 +2750,11 @@ html:not([data-skin])[data-scheme="dark"] :is(.chat-filter-chip.active, .summary
 /* ===== Меню «+»: сетка 2 колонки, крупные плашки одной ширины; контейнер без рамки ===== */
 #composer-menu-sheet .sheet-panel { width: min(320px, calc(100vw - 24px)); max-width: calc(100vw - 24px); border: 0 !important; outline: 0; box-shadow: none; background: none; }
 #composer-menu-sheet .composer-menu-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; width: 100%; min-width: 0; align-items: stretch; border: 0; outline: 0; box-shadow: none; background: none; padding: 0; }
-#composer-menu-sheet .composer-menu-item { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; width: 100%; min-width: 0; min-height: 76px; padding: 12px 8px; border-radius: 20px; font-size: 14px; text-align: center; box-sizing: border-box; transform-origin: center bottom; }
+#composer-menu-sheet .composer-menu-item { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; width: 100%; min-width: 0; min-height: 76px; padding: 12px 8px; border-radius: 24px; font-size: 14px; text-align: center; box-sizing: border-box; transform-origin: center bottom; }
 #composer-menu-sheet .composer-menu-item svg { width: 26px; height: 26px; flex: none; }
 #composer-menu-sheet .composer-menu-item span { overflow-wrap: anywhere; line-height: 1.2; }
 #composer-menu-sheet .composer-menu-item:focus-visible, .sheet-action:focus-visible, .cmdk-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.composer-recent { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; margin: 0 0 8px; padding: 8px 14px; border-radius: 20px; border: 0; font-size: 14px; font-weight: 600; text-align: start; box-shadow: 0 6px 18px rgba(0,0,0,.22); background: var(--glass-bg, rgba(40,40,50,.85)); color: inherit; -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
+.composer-recent { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; margin: 0 0 8px; padding: 8px 14px; border-radius: 24px; border: 0; font-size: 14px; font-weight: 600; text-align: start; box-shadow: 0 6px 18px rgba(0,0,0,.22); background: var(--glass-bg, rgba(40,40,50,.85)); color: inherit; -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
 .composer-recent.hidden { display: none; }
 .composer-recent .cr-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .composer-recent .cr-cap { font-weight: 500; opacity: .7; font-size: 12px; flex: none; }
@@ -2769,7 +2769,7 @@ html:not([data-skin])[data-scheme="dark"] :is(.chat-filter-chip.active, .summary
 
 /* Командная палитра */
 .cmdk { align-items: flex-start; justify-content: center; }
-.cmdk .sheet-panel { margin-top: 10vh; width: min(560px, calc(100vw - 24px)); border-radius: 20px; max-height: 70vh; padding: 14px; }
+.cmdk .sheet-panel { margin-top: 10vh; width: min(560px, calc(100vw - 24px)); border-radius: 24px; max-height: 70vh; padding: 14px; }
 .cmdk-list { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; max-height: calc(70vh - 90px); overflow-y: auto; }
 .cmdk-item { gap: 10px; }
 .cmdk-item[aria-selected="true"] { outline: 2px solid var(--accent); outline-offset: -2px; }
