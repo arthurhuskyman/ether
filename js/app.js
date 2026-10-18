@@ -1055,6 +1055,7 @@ function observeLinkPreviewSlot(el) {
   }
   linkPreviewObserver.observe(el);
 }
+try { if (typeof document !== "undefined" && document.addEventListener) document.addEventListener("error", (ev) => { const t = ev && ev.target; if (t && t.classList && t.classList.contains("link-preview-img")) { try { t.remove(); } catch (e) {} } }, true); } catch (e) {}
 function linkPreviewCardHtml(data) {
   if (!data) return "";
   // data.url приходит от сервера (сам сервер безопасен, но это его
@@ -1068,7 +1069,10 @@ function linkPreviewCardHtml(data) {
   // всё равно вернётся к CSS-парсеру как есть — теоретическая CSS-
   // инъекция через og:image с чужого сайта. У src атрибута такого
   // контекста нет вовсе.
-  const img = data.image && /^https?:\/\//i.test(data.image) ? `<img class="link-preview-img" src="${escapeHtml(data.image)}" alt="" loading="lazy">` : "";
+  // Картинку тянем через прокси нашего сервера (/link-preview-image): браузер не обращается к чужому сайту напрямую, IP пользователя не раскрывается.
+  // Старый сервер без эндпоинта отдаст 404 — слушатель ошибок ниже уберёт сломанную картинку, карточка останется без неё.
+  const imgBase = data.image && /^https?:\/\//i.test(data.image) ? signalingHttpBase() : "";
+  const img = imgBase ? `<img class="link-preview-img" src="${escapeHtml(imgBase + "/link-preview-image?url=" + encodeURIComponent(data.image))}" alt="" loading="lazy" referrerpolicy="no-referrer">` : "";
   const title = data.title ? `<div class="link-preview-title">${escapeHtml(data.title)}</div>` : "";
   const desc = data.description ? `<div class="link-preview-desc">${escapeHtml(data.description)}</div>` : "";
   const site = data.siteName ? `<div class="link-preview-site">${escapeHtml(data.siteName)}</div>` : "";
@@ -2123,6 +2127,7 @@ function startApp() {
   safeCall(wireScheduleSend, "wireScheduleSend");
   safeCall(wireReminders, "wireReminders");
   safeCall(wireChatHeaderMenu, "wireChatHeaderMenu");
+  safeCall(wireCmdk, "wireCmdk");
   safeCall(wireMuteSheet, "wireMuteSheet");
   safeCall(wireCallScreen, "wireCallScreen");
   safeCall(wireSettingsScreen, "wireSettingsScreen");
@@ -2445,24 +2450,15 @@ function migrateServerAckedFlags() {
 
 function maybeShowOnboardingHint() {
   if (localStorage.getItem(ONBOARDING_HINT_SHOWN) === "1") return;
-  // Показываем один раз за жизнь профиля и только в спокойный момент: без открытых шторок, без клавиатуры (фокус в поле ввода).
+  // Один раз за жизнь профиля (флаг ставим сразу) и только в спокойный момент: без открытых шторок и без клавиатуры.
+  try { localStorage.setItem(ONBOARDING_HINT_SHOWN, "1"); } catch (e) {}
   let tries = 0;
   const attempt = () => {
     const ae = document.activeElement, typing = ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName);
     if (document.querySelector(".sheet:not(.hidden)") || typing) { if (++tries < 8) setTimeout(attempt, 4000); return; }
-    try { localStorage.setItem(ONBOARDING_HINT_SHOWN, "1"); } catch (e) {}
-    setTimeout(() => { try { toast(T("onboarding.gestureHint")); } catch (e) {} }, 1500);
+    try { toast(T("onboarding.gestureHint")); } catch (e) {}
   };
-  attempt();
-  return;
-  // Небольшая задержка — чтобы подсказка не всплыла поверх самого
-  // первого рендера (пока ещё идёт анимация появления экрана чатов),
-  // а появилась через чуть погодя, когда пользователь уже освоился
-  // с интерфейсом.
-  // Отдельный ключ от "onboarding.hint" (тот уже занят текстом про
-  // восстановление личности на экране входа) — здесь подсказка про
-  // жесты в самом интерфейсе чата.
-  setTimeout(() => { try { toast(T("onboarding.gestureHint")); } catch (e) {} }, 1500);
+  setTimeout(attempt, 1500);
 }
 
 // Push о входящем звонке «живёт» недолго: если нажали на него позже минуты, звонящий уже сдался.
@@ -5008,10 +5004,10 @@ function chatMuteItems(c, after) {
   const apply = (until, forever) => { if (forever) { c.muted = true; c.muteUntil = null; } else { c.muted = false; c.muteUntil = until; } persistContacts(); toast(forever ? T("toast.muted") : T("chat.mute.until", { time: formatChatListTime(until) })); if (after) after(); };
   const tmr = new Date(); tmr.setDate(tmr.getDate() + 1); tmr.setHours(9, 0, 0, 0);
   return [
-    { label: T("chat.contact.mute.1h"), icon: "bell-off", fn: () => apply(Date.now() + 3600000, false) },
-    { label: T("chat.contact.mute.8h"), icon: "bell-off", fn: () => apply(Date.now() + 8 * 3600000, false) },
-    { label: T("chat.contact.mute.tomorrow"), icon: "bell-off", fn: () => apply(tmr.getTime(), false) },
-    { label: T("chat.contact.mute.forever"), icon: "bell-off", fn: () => apply(null, true) },
+    { label: T("chat.contact.mute.1h"), icon: "bell", fn: () => apply(Date.now() + 3600000, false) },
+    { label: T("chat.contact.mute.8h"), icon: "bell", fn: () => apply(Date.now() + 8 * 3600000, false) },
+    { label: T("chat.contact.mute.tomorrow"), icon: "bell", fn: () => apply(tmr.getTime(), false) },
+    { label: T("chat.contact.mute.forever"), icon: "bell", fn: () => apply(null, true) },
   ];
 }
 function toggleChatMute(c, after) {
@@ -5029,7 +5025,7 @@ function openChatRowMenu(c) {
   const refresh = () => { try { renderChatsList(); } catch (e) {} };
   openActionSheet(c.name || T("sys.someone"), [
     { label: c.pinned ? T("chats.unpin") : T("chats.pin"), icon: "pin", fn: () => { c.pinned = !c.pinned; c.pinOrder = c.pinned ? nextPinOrder() : null; persistContacts(); refresh(); } },
-    { label: isContactMuted(c) ? T("chats.action.unmute") : T("chats.action.mute"), icon: "bell-off", fn: () => toggleChatMute(c, refresh) },
+    { label: isContactMuted(c) ? T("chats.action.unmute") : T("chats.action.mute"), icon: "bell", fn: () => toggleChatMute(c, refresh) },
     { label: T("chats.action.folder"), icon: "archive", fn: () => openChatFolderPicker(c) },
     { label: c.markedUnread ? T("chats.action.markRead") : T("chats.action.markUnread"), icon: "chat", fn: () => { c.markedUnread = !c.markedUnread; persistContacts(); refresh(); } },
     { label: c.archived ? T("chats.action.unarchive") : T("chats.action.archive"), icon: "archive", fn: () => { c.archived = !c.archived; persistContacts(); refresh(); } },
@@ -5049,7 +5045,7 @@ function openChatHeaderMenu() {
     { label: T("chat.search"), icon: "search", fn: () => { const b = $("#chat-search-btn"); if (b) b.click(); } },
     { label: T("chat.contact.gallery"), icon: "image", fn: () => openContactCard(id) },
     { label: T("chat.pinned"), icon: "pin", fn: () => { if (!c.pinnedMessageId) { toast(T("chat.pinned.none")); return; } const j = $("#pinned-msg-jump"); if (j) j.click(); } },
-    { label: isContactMuted(c) ? T("chats.action.unmute") : T("chat.contact.mute"), icon: "bell-off", fn: () => toggleChatMute(c, () => { try { renderChatThreadInner(); } catch (e) {} }) },
+    { label: isContactMuted(c) ? T("chats.action.unmute") : T("chat.contact.mute"), icon: "bell", fn: () => toggleChatMute(c, () => { try { renderChatThreadInner(); } catch (e) {} }) },
     { label: T("chat.disappearing"), icon: "clock", fn: () => openActionSheet(T("chat.disappearing"), [["chat.disappearing.off", 0], ["chat.disappearing.1h", 3600000], ["chat.disappearing.1d", 86400000], ["chat.disappearing.1w", 604800000]].map(([k, ms]) => ({ label: ((c.disappearingTimer || 0) === ms ? "✓ " : "") + T(k), icon: "clock", fn: () => setDisappearingTimer(id, ms) }))) },
     { label: T("summary.menu"), icon: "sparkle", fn: () => { if (typeof openChatSummary === "function") openChatSummary(id); } },
     { label: T("chat.contact.export"), icon: "download", fn: () => exportChat(id) },
@@ -5063,6 +5059,59 @@ function openChatHeaderMenu() {
 }
 function wireChatHeaderMenu() {
   const b = $("#chat-more-btn"); if (b) b.addEventListener("click", openChatHeaderMenu);
+}
+// ===== Командная палитра (Ctrl/⌘+K) =====
+let __cmdkIdx = 0, __cmdkItems = [];
+function cmdkBuildItems(q) {
+  q = (q || "").trim().toLowerCase();
+  const go = (tab) => () => { state.tab = tab; state.chatId = null; state.contactCardId = null; renderTab(); };
+  const all = [];
+  for (const c of state.contacts.values()) { if (c.isDemo && false) continue; all.push({ g: T("cmdk.chats"), label: c.name || T("sys.someone"), icon: "chat", fn: () => { state.tab = "chats"; state.chatId = c.id; state.contactCardId = null; renderTab(); } }); }
+  all.push({ g: T("cmdk.actions"), label: T("cmdk.newChat"), icon: "plus", fn: go("connect") });
+  all.push({ g: T("cmdk.actions"), label: T("cmdk.openSettings"), icon: "sliders", fn: go("settings") });
+  for (const [th, k] of [["light", "cmdk.themeLight"], ["dark", "cmdk.themeDark"], ["auto", "cmdk.themeAuto"]]) all.push({ g: T("cmdk.actions"), label: T(k), icon: "palette", fn: () => { Store.theme = th; applyTheme(th); $$(".theme-seg button").forEach((b) => b.classList.toggle("active", b.dataset.theme === th)); } });
+  try { for (const sk of Skins.LIST) all.push({ g: T("cmdk.actions"), label: T("cmdk.skin", { name: Skins.name(sk.id) }), icon: "palette", fn: () => Skins.set(sk.id) }); } catch (e) {}
+  for (const cat of SETTINGS_CATEGORIES) all.push({ g: T("cmdk.settings"), label: T(cat.labelKey), icon: cat.icon, fn: () => { go("settings")(); openSettingsCategory(cat.id); } });
+  const res = q ? all.filter((it) => it.label.toLowerCase().includes(q)) : all.filter((it) => it.g !== T("cmdk.settings")).slice(0, 12);
+  return res.slice(0, 30);
+}
+function cmdkRender() {
+  const input = $("#cmdk-input"), list = $("#cmdk-list"); if (!input || !list) return;
+  __cmdkItems = cmdkBuildItems(input.value);
+  if (__cmdkIdx >= __cmdkItems.length) __cmdkIdx = 0;
+  list.innerHTML = "";
+  __cmdkItems.forEach((it, i) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "sheet-action cmdk-item"; b.id = "cmdk-opt-" + i; b.setAttribute("role", "option"); b.setAttribute("aria-selected", i === __cmdkIdx ? "true" : "false");
+    b.style.minHeight = "44px";
+    b.innerHTML = (it.icon ? Icons.html(it.icon, 18) : "") + `<span class="cmdk-label">${escapeHtml(it.label)}</span><span class="fine muted cmdk-group">${escapeHtml(it.g)}</span>`;
+    b.addEventListener("click", () => { closeCmdk(); it.fn(); });
+    list.appendChild(b);
+  });
+  if (!__cmdkItems.length) list.innerHTML = `<p class="fine muted" style="padding:12px;">${escapeHtml(T("cmdk.none"))}</p>`;
+  input.setAttribute("aria-activedescendant", __cmdkItems.length ? "cmdk-opt-" + __cmdkIdx : "");
+}
+function openCmdk() {
+  const sheet = $("#cmdk"), input = $("#cmdk-input"); if (!sheet || !input) return;
+  if (!sheet.classList.contains("hidden")) { closeCmdk(); return; }
+  input.value = ""; __cmdkIdx = 0; cmdkRender();
+  sheet.classList.remove("hidden"); setTimeout(() => { try { input.focus(); } catch (e) {} }, 0);
+}
+function closeCmdk() { const sheet = $("#cmdk"); if (sheet) sheet.classList.add("hidden"); }
+function wireCmdk() {
+  const input = $("#cmdk-input"); if (!input) return;
+  input.addEventListener("input", () => { __cmdkIdx = 0; cmdkRender(); });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault(); if (!__cmdkItems.length) return;
+      __cmdkIdx = (__cmdkIdx + (e.key === "ArrowDown" ? 1 : -1) + __cmdkItems.length) % __cmdkItems.length; cmdkRender();
+      const o = $("#cmdk-opt-" + __cmdkIdx); if (o && o.scrollIntoView) o.scrollIntoView({ block: "nearest" });
+    } else if (e.key === "Enter") { e.preventDefault(); const it = __cmdkItems[__cmdkIdx]; if (it) { closeCmdk(); it.fn(); } }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { const cs = $("#cmdk"); if (cs && !cs.classList.contains("hidden")) closeCmdk(); return; }
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === "k" || e.key === "K")) { if (!Store.myId) return; e.preventDefault(); openCmdk(); }
+  });
 }
 function attachSwipeReply(el, m, c) {
   let startX = 0, startY = 0, swiping = false, thresholdCrossed = false;
@@ -8748,6 +8797,30 @@ function refreshSignalingStatusText() {
   if (signaling && signaling.connected) { updateSignalingStatusUI("online", T("status.online")); return; }
   updateSignalingStatusUI("off", T("status.offline"));
 }
+// Потерян claim-токен (нет резервной копии): id занят «чужим» устройством. Два безопасных выхода: подождать, пока закрепление
+// истечёт (сервер освобождает id через CLAIM_TTL_HOURS после последнего появления владельца), либо создать НОВЫЙ случайный id.
+// Механизма «уведомить контакты о смене id» в протоколе нет (а старый id принадлежит другому устройству — писать на него нельзя),
+// поэтому после смены контактам нужно отправить новый инвайт-код/QR; существующие чаты и история на устройстве сохраняются.
+async function offerIdClaimedRecovery(ttlH) {
+  if (state._idClaimedDialog) return;
+  state._idClaimedDialog = true;
+  try {
+    const days = Math.max(1, Math.round((Number(ttlH) || 336) / 24));
+    const create = await confirmSheet(T("claim.dialog", { days }), { okLabel: T("claim.createNew"), cancelLabel: T("claim.wait", { days }) });
+    if (!create) return;
+    if (!(await confirmSheet(T("claim.confirmNew"), { destructive: true, okLabel: T("claim.createNew") }))) return;
+    regenerateMyId();
+  } finally { state._idClaimedDialog = false; }
+}
+function regenerateMyId() {
+  Store.myIdentityRaw = "";
+  Store.myId = crypto.randomUUID();
+  try { Ratchet.resetAll(); } catch (e) {} // сессии привязаны к паре id: со старым id они бесполезны
+  try { envelopeCache.clear(); } catch (e) {}
+  toast(T("claim.newIdDone"));
+  initSignaling();
+  try { renderTab(); } catch (e) {}
+}
 let __lastReclaimAt = 0;
 let __replacedHits = [];
 function reclaimSignaling() {
@@ -8915,6 +8988,7 @@ function wireSignalingEvents(sig) {
     if (ev.detail && ev.detail.error === "id-claimed") {
       updateSignalingStatusUI("off", T("status.idClaimed"));
       toast(T("toast.idClaimed"));
+      offerIdClaimedRecovery(ev.detail.claimTtlH).catch(() => {});
     }
   }));
   subs.push(on("register-rate-limited", () => {
@@ -9034,6 +9108,7 @@ function wireSignalingEvents(sig) {
         if (!busySent) etherLog("warn", "[call] не удалось отправить call-busy (сигналинг недоступен)");
         return;
       }
+      if (callGlareYields(from)) yieldCallGlare(from, false);
       if (state.callId === from) {
         const ackSent = sig.signal(from, { t: "call-invite-ack" });
         if (!ackSent) etherLog("warn", "[call] повторный call-invite — не удалось подтвердить (сигналинг недоступен)");
@@ -10553,7 +10628,8 @@ function confirmSheet(message, opts) {
     if (!sheet) { resolve(false); return; } // шторки нет в DOM (не должно случаться) — не блокируем действие молча навсегда
     __confirmSheetResolve = resolve;
     const msgEl = $("#confirm-sheet-message"); if (msgEl) msgEl.textContent = message;
-    const okBtn = $("#confirm-sheet-ok"); if (okBtn) okBtn.classList.toggle("destructive", !!opts.destructive);
+    const okBtn = $("#confirm-sheet-ok"); if (okBtn) { okBtn.classList.toggle("destructive", !!opts.destructive); okBtn.textContent = opts.okLabel || T("sys.confirm"); }
+    const cancelBtn0 = $("#confirm-sheet-cancel"); if (cancelBtn0) cancelBtn0.textContent = opts.cancelLabel || T("sys.cancel");
     sheet.classList.remove("hidden");
   });
 }
@@ -11843,6 +11919,20 @@ function startCallInviteResend(id, invite) {
   }, CALL_INVITE_RESEND_MS);
 }
 
+// Glare: A звонит B и B звонит A одновременно. Детерминированно (одинаково с обеих сторон): звонящим остаётся тот, у кого id МЕНЬШЕ
+// (совпадает с порядком в WebRTC: меньший id — «вежливая» сторона). Второй вызов превращается в «принять входящий»: тот же экран,
+// фаза ringing; звонящая сторона ничего не замечает (её вызов считается основным, встречный invite/ringing она просто подтверждает).
+function callGlareYields(id) { return !!(state.callId === id && state.callPhase === "calling" && !state._callUserAccepted && String(Store.myId) > String(id)); }
+function yieldCallGlare(id, video) {
+  etherLog("info", "[call] glare: встречный вызов от " + String(id).slice(0, 10) + "… — мой id больше, перехожу на «входящий»");
+  clearPendingCall();
+  try { stopCallSounds(); } catch (e) {}
+  if (video) state.callWantsVideo = true;
+  openCallScreen(id, "ringing");
+  if (state.currentCallRecord) { try { state.currentCallRecord.direction = "in"; state.currentCallRecord.status = "ringing"; } catch (e) {} }
+  try { ensureAudioCtx(); } catch (e) {}
+  playRingtone();
+}
 async function beginCall(id, withVideo) {
   const c = state.contacts.get(id);
   if (!c) return;
@@ -14699,6 +14789,7 @@ if (payload && payload.kind === "call-state") {
     try { ensureAudioCtx(); } catch (e) {}
     playRingtone();
   }
+  if (payload.state === "ringing" && !isStale && callGlareYields(id)) yieldCallGlare(id, !!payload.video);
   if (payload.state === "screen" && state.callId === id && !isStale) {
     const cs1 = $("#call-screen"); if (cs1) cs1.classList.toggle("remote-screen", !!payload.on);
   }

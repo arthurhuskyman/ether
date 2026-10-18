@@ -1,27 +1,19 @@
 // =====================================================================
 // Локальный ИИ: распознавание голосовых (Whisper-base в WebAssembly, transformers.js) и краткое содержание.
 // Звук никуда не отправляется — модель выполняется на устройстве. Единственное обращение в сеть — разовая загрузка библиотеки
-// (cdn.jsdelivr.net) и модели (huggingface.co, ≈40 МБ); поэтому функция включается только после явного согласия,
+// (wasm-файлы onnxruntime с cdn.jsdelivr.net) и модели (huggingface.co, ≈40 МБ); поэтому функция включается только после явного согласия,
 // а при загрузке эти серверы видят IP-адрес. Модель кэшируется браузером; удалить её можно в настройках.
 // «Краткое содержание» — выжимка ключевых предложений без нейросети (работает сразу и без загрузок).
 // Загружается после app.js; использует его глобалы (state, Store, IDB, T, toast, confirmSheet, persistContacts…).
 // =====================================================================
 const LocalAI = (() => {
-  const TF_URL = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0/dist/transformers.min.js";
-  // SHA-384 (base64) файла TF_URL. Библиотека исполняется только если хэш совпал. Выбор: не копируем файл к себе (743 КБ, но ему всё равно нужны
-  // wasm-файлы onnxruntime с CDN), а закрепляем версию и хэш. При смене TF_URL: curl -sL <url> | openssl dgst -sha384 -binary | openssl base64 -A
+  // Библиотека лежит на нашем origin (js/vendor/transformers.min.js, 743 КБ, Apache-2.0, версия 3.0.0): CSP не пускает чужие скрипты,
+  // а import() из blob: у неё не работает (webpack считает publicPath через new URL("./", import.meta.url)). Подлинность файла
+  // закреплена хэшем TF_SHA384 (его проверяет tests/infra-csp.test.js; обновление: openssl dgst -sha384 -binary <файл> | openssl base64 -A).
+  // Из сети (HF CDN, jsdelivr) приходят только модель и wasm-файлы onnxruntime — это данные/код wasm, а не наш JS.
+  const TF_URL = "js/vendor/transformers.min.js";
   const TF_SHA384 = "arMqFKceYrLR/J+5OXE+8jl9+A/ZR7C6u4byZI/THasUD9WZPB3sAz8/9KyKAMio";
-  // fetch → проверка хэша → import() из blob:-URL (CSP: script-src не содержит CDN, только blob:). Несовпадение — библиотека не запускается.
-  async function importVerified(url, expected) {
-    const res = await fetch(url, { cache: "force-cache" });
-    if (!res.ok) throw new Error("tf-fetch-" + res.status);
-    const buf = await res.arrayBuffer();
-    const dig = new Uint8Array(await crypto.subtle.digest("SHA-384", buf));
-    let bin = ""; for (let i = 0; i < dig.length; i++) bin += String.fromCharCode(dig[i]);
-    if (btoa(bin) !== expected) throw new Error("integrity");
-    const u = URL.createObjectURL(new Blob([buf], { type: "text/javascript" }));
-    try { return await import(u); } finally { setTimeout(() => { try { URL.revokeObjectURL(u); } catch (e) {} }, 0); }
-  }
+  async function importLib() { return import(new URL(TF_URL, document.baseURI).href); }
   // whisper-base заметно точнее tiny на русском и коротких фразах (≈80 МБ в квантованном виде вместо ≈40)
   const MODEL = "Xenova/whisper-base";
   const FALLBACK_MODEL = "Xenova/whisper-tiny"; // если base не загрузилась или не стартовала
@@ -54,7 +46,7 @@ const LocalAI = (() => {
     if (engine) return engine;
     if (loading) return loading;
     loading = (async () => {
-      const mod = await importVerified(TF_URL, TF_SHA384);
+      const mod = await importLib();
       mod.env.allowLocalModels = false;
       // Библиотека присылает события по каждому файлу модели отдельно (конфиг, токенайзер, веса…), и у каждого процент свой —
       // раньше число прыгало 100→0→100. Считаем общий прогресс по сумме байт и не даём ему уменьшаться.
@@ -192,7 +184,7 @@ const LocalAI = (() => {
       topics, key, questions: questions.slice(-5), links: links.slice(0, 8), files, polls: polls.slice(0, 5), notes: notes.slice(0, 5), tasks: tasks.slice(0, 10),
     };
   }
-  return { importVerified, TF_SHA384, TF_URL, chatDigest, makeProgress, cleanTranscript, rms, setEngine, isReady, loadEngine, decodeToMono16k, transcribeBlob, summarize, sentences, onProgress: (fn) => { progressListeners.add(fn); return () => progressListeners.delete(fn); }, MODEL, TF_URL };
+  return { TF_SHA384, chatDigest, makeProgress, cleanTranscript, rms, setEngine, isReady, loadEngine, decodeToMono16k, transcribeBlob, summarize, sentences, onProgress: (fn) => { progressListeners.add(fn); return () => progressListeners.delete(fn); }, MODEL, TF_URL };
 })();
 
 // ---- Интеграция с чатом ----
@@ -223,7 +215,7 @@ async function transcribeVoiceMessage(contactId, msgId) {
     if (state.chatId === contactId) renderChatThread();
   } catch (e) {
     const b = box(); const t = b && b.querySelector(".voice-transcript"); if (t) t.remove();
-    toast(T(e && e.message === "too-long" ? "ai.tooLong" : e && e.message === "integrity" ? "ai.integrity" : "ai.failed"));
+    toast(T(e && e.message === "too-long" ? "ai.tooLong" : "ai.failed"));
     try { etherLog("warn", "[localai]", String(e && e.message || e)); } catch (x) {}
   } finally { off(); }
 }

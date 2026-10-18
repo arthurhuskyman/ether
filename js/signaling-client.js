@@ -176,7 +176,7 @@ class SignalingClient extends EventTarget {
         etherLog("warn", "[signaling] регистрация отклонена:", String(msg.error || "").slice(0, 40));
         this.lastRegisterError = typeof msg.error === "string" ? msg.error.slice(0, 40) : "error";
         if (msg.error === "id-claimed") this.stop();
-        this.dispatchEvent(new CustomEvent("register-error", { detail: { error: this.lastRegisterError } }));
+        this.dispatchEvent(new CustomEvent("register-error", { detail: { error: this.lastRegisterError, claimTtlH: Number.isFinite(msg.claimTtlH) ? msg.claimTtlH : undefined } }));
       } else if (msg.type === "register-rate-limited") {
         // Сервер отклонил регистрацию по лимиту попыток — раньше клиент
         // это молча игнорировал, и пользователь просто видел "офлайн" без

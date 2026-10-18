@@ -113,4 +113,10 @@ function sanitizeForLog(s, max = 64) {
   return t.length > max ? t.slice(0, max) + "…" : t;
 }
 
-module.exports = { isPrivateIp, parseIPv6, validatePushSubscription, pushHostAllowed, validLang, clientIpFrom, sanitizeForLog };
+// Разрешённые типы картинок для прокси og:image. SVG не пропускаем (активный контент), остальное — растровые форматы.
+function imageMimeOk(ctype) {
+  const t = String(ctype || "").split(";")[0].trim().toLowerCase();
+  if (!/^image\/(png|jpe?g|gif|webp|avif|bmp|x-icon|vnd\.microsoft\.icon)$/.test(t)) return null;
+  return t === "image/jpg" ? "image/jpeg" : t;
+}
+module.exports = { imageMimeOk, isPrivateIp, parseIPv6, validatePushSubscription, pushHostAllowed, validLang, clientIpFrom, sanitizeForLog };

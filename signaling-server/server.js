@@ -26,7 +26,7 @@ const crypto = require("crypto");
 const path = require("path");
 const { WebSocketServer, WebSocket } = require("ws");
 const { extractMeta } = require("./meta-extract");
-const { isPrivateIp, validatePushSubscription, validLang, clientIpFrom, sanitizeForLog } = require("./guards");
+const { imageMimeOk, isPrivateIp, validatePushSubscription, validLang, clientIpFrom, sanitizeForLog } = require("./guards");
 
 // Ни одна неожиданная ошибка не должна ронять релей: логируем и живём дальше.
 process.on("uncaughtException", (e) => { try { console.error("[fatal-guard] uncaughtException:", sanitizeForLog(e && e.stack || e, 500)); } catch (e2) {} });
@@ -510,7 +510,7 @@ async function fetchUrlSafe(targetUrl, redirectsLeft, deadlineAt, opts) {
       if (res.statusCode !== 200) { res.resume(); fail(new Error("HTTP " + res.statusCode)); return; }
       const ctype = String(res.headers["content-type"] || "");
       if (imageMode) {
-        const itype = guards.imageMimeOk(ctype);
+        const itype = imageMimeOk(ctype);
         if (!itype) { res.resume(); fail(new Error("not an image")); return; }
         const clen = Number(res.headers["content-length"]);
         if (Number.isFinite(clen) && clen > LINK_PREVIEW_IMAGE_MAX_BYTES) { res.resume(); fail(new Error("too large")); return; }
@@ -819,6 +819,20 @@ function mailboxEvictFromHeaviestSender() {
   return mailboxRemove(bestUser, bestMsg);
 }
 // Вставка с проверкой потолков ПРЯМО В МОМЕНТ записи (раньше лишнее срезалось раз в минуту, и за это время ящик раздувался без предела).
+// Недавно подтверждённые получателем конверты (to|from|msgId|хеш конверта): повторный deliver с теми же байтами после mailbox-ack
+// не должен снова попасть в ящик (иначе получатель увидит дубль). Окно DELIVER_DEDUP_TTL_MS, потолок записей DELIVER_DEDUP_MAX.
+const DELIVER_DEDUP_TTL_MS = envInt("DELIVER_DEDUP_TTL_MIN", 15) * 60 * 1000, DELIVER_DEDUP_MAX = 20000;
+const recentAcked = new Map(); // ключ -> ts
+function deliverDupKey(to, from, msgId, envelope) {
+  let h = ""; try { h = crypto.createHash("sha1").update(JSON.stringify(envelope)).digest("hex").slice(0, 20); } catch (e) {}
+  return to + "|" + from + "|" + msgId + "|" + h;
+}
+function rememberAcked(key) {
+  const now = Date.now();
+  recentAcked.delete(key); recentAcked.set(key, now);
+  for (const [k, t] of recentAcked) { if (now - t > DELIVER_DEDUP_TTL_MS || recentAcked.size > DELIVER_DEDUP_MAX) recentAcked.delete(k); else break; }
+}
+setInterval(() => { const now = Date.now(); for (const [k, t] of recentAcked) { if (now - t > DELIVER_DEDUP_TTL_MS) recentAcked.delete(k); else break; } }, 60 * 1000).unref();
 function mailboxPut(userId, msgId, entry) {
   mailboxRemove(userId, msgId);
   let box = mailbox.get(userId);
@@ -1386,7 +1400,7 @@ wss.on("connection", (ws, req) => {
       }
       // Claim-токен: id, занятый другим владельцем (его claim ещё не истёк), занять нельзя — ни новому клиенту с другим токеном, ни старому без токена.
       if (claimCheckRegister(msg.id, msg.claim, ipAddr) === "claimed") {
-        safeSend(ws, { type: "register-error", error: "id-claimed", id: msg.id });
+        safeSend(ws, { type: "register-error", error: "id-claimed", id: msg.id, claimTtlH: Math.round(CLAIM_TTL_MS / 3600000) });
         console.log("[reg] " + shortId(msg.id) + " отклонён: id-claimed");
         return;
       }
@@ -1580,6 +1594,16 @@ wss.on("connection", (ws, req) => {
         kind,
       };
 
+      // Идемпотентность: повтор того же (from, to, msgId) с ТЕМ ЖЕ конвертом (ретрай клиента, лаг подтверждения) в ящик не кладём
+      // и не пересылаем — получатель уже получил его или получит из ящика. Конверт, зашифрованный заново (другие байты), проходит как раньше.
+      const dupKey = deliverDupKey(msg.to, myId, msg.msgId, envelope);
+      const inBox = mailbox.get(msg.to);
+      const prev = inBox && inBox.get(msg.msgId);
+      const isDup = recentAcked.has(dupKey) || !!(prev && prev.from === myId && deliverDupKey(msg.to, myId, msg.msgId, prev.envelope) === dupKey);
+      if (isDup) {
+        safeSend(ws, { type: "deliver-ack", msgId: msg.msgId });
+        return;
+      }
       mailboxPut(msg.to, msg.msgId, { ...payload, ts: Date.now() }); // потолки (на получателя и общие) проверяются при вставке
       scheduleMailboxSave();
 
@@ -1645,6 +1669,7 @@ wss.on("connection", (ws, req) => {
     }
 
     if (msg.type === "mailbox-ack" && myId && typeof msg.msgId === "string") {
+      { const e0 = mailbox.get(myId) && mailbox.get(myId).get(msg.msgId); if (e0) rememberAcked(deliverDupKey(myId, e0.from, msg.msgId, e0.envelope)); }
       if (mailboxRemove(myId, msg.msgId)) scheduleMailboxSave();
       return;
     }

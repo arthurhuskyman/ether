@@ -2766,3 +2766,13 @@ html:not([data-skin])[data-scheme="dark"] :is(.chat-filter-chip.active, .summary
 .first-step .fs-n { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: rgba(255,255,255,.22); font-weight: 700; }
 .btn-secondary.first-step .fs-n { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent); }
 .first-step .fs-t { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+
+/* Командная палитра */
+.cmdk { align-items: flex-start; justify-content: center; }
+.cmdk .sheet-panel { margin-top: 10vh; width: min(560px, calc(100vw - 24px)); border-radius: 20px; max-height: 70vh; padding: 14px; }
+.cmdk-list { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; max-height: calc(70vh - 90px); overflow-y: auto; }
+.cmdk-item { gap: 10px; }
+.cmdk-item[aria-selected="true"] { outline: 2px solid var(--accent); outline-offset: -2px; }
+.cmdk-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmdk-group { flex: none; }
+.cmdk .sheet-handle { display: none; }

@@ -102,6 +102,26 @@ function sigilSvg(str, size) {
     + `<g fill="url(#sg${hue})">${cells}</g></svg>`;
 }
 
+// «Длинная руна»: 8×8 клеток, зеркальная симметрия (4 колонки × 8 рядов = 32 клетки), у каждой клетки 4 состояния (пусто / цвет 1-3):
+// 64 бита видимой информации из SHA-256 (+ палитра ещё из ≥16 бит). Старая 5×5-руна (≈30 бит) остаётся «быстрым знаком».
+// hex — 64 hex-символа SHA-256 (fxSigilLongHex); функция чистая и синхронная.
+function sigilLongSvg(hex, size) {
+  const h = String(hex || "").toLowerCase().replace(/[^0-9a-f]/g, "").padEnd(64, "0");
+  const b = []; for (let i = 0; i < 32; i++) b.push(parseInt(h.substr(i * 2, 2), 16));
+  const hue = Math.round(b[8] * 360 / 256), hue2 = (hue + 50 + (b[9] % 70)) % 360, hue3 = (hue + 170 + (b[10] % 70)) % 360;
+  const cols = [`hsl(${hue} 85% 62%)`, `hsl(${hue2} 80% 60%)`, `hsl(${hue3} 75% 64%)`];
+  let cells = "";
+  for (let i = 0; i < 32; i++) {
+    const st = (b[i >> 2] >> ((i & 3) * 2)) & 3; // 2 бита на клетку: 32 × 2 = 64 бита из b[0..7]
+    if (!st) continue;
+    const x = i % 4, y = i >> 2, fill = cols[st - 1];
+    cells += `<rect x="${x * 7 + 4}" y="${y * 7 + 4}" width="6" height="6" rx="1.5" fill="${fill}"/>`;
+    cells += `<rect x="${(7 - x) * 7 + 4}" y="${y * 7 + 4}" width="6" height="6" rx="1.5" fill="${fill}"/>`;
+  }
+  const s = size || 64;
+  return `<svg class="fx-sigil-svg fx-sigil-long-svg" viewBox="0 0 64 64" width="${s}" height="${s}" role="img" aria-label="sigil">`
+    + `<rect x="1" y="1" width="62" height="62" rx="9" fill="none" stroke="${cols[0]}" stroke-width="1.5"/>${cells}</svg>`;
+}
 // ---------- The Vault: кристалл «истории вместе» (виден только вам) ----------
 function vaultLevel(count) { return Math.max(0, Math.min(1, Math.log10((count || 0) + 1) / 4)); }
 function fxUpdateVault() {
@@ -353,6 +373,9 @@ async function fxSigilFingerprint(str) {
   const hex = await fxSha256Hex("sigil-fp|" + str);
   return hex.slice(0, 16).toUpperCase().replace(/(.{4})/g, "$1 ").trim();
 }
+async function fxSigilLongHex(str) { return fxSha256Hex("sigil-long|" + str); }
+// Текстовый отпечаток для сверки: первые 128 бит того же SHA-256, группами по 4 hex
+function fxSigilLongFingerprint(hex) { return String(hex || "").slice(0, 32).toUpperCase().replace(/(.{4})/g, "$1 ").trim(); }
 // PNG-картинка руны с подписью — для «поделиться» и «сохранить»
 function fxSigilPng(keyStr, name, fp) {
   return new Promise((resolve) => {
@@ -381,7 +404,11 @@ function fxOpenSigilSheet(opts) {
   sh.innerHTML = `<div class="sheet-backdrop"></div><div class="sheet-panel glass-content fx-sigil-panel"><div class="sheet-handle"></div>
     <h3>${escapeHtml(mine ? T("fx.mySigil") : T("fx.sigil.of", { name }))}</h3>
     <div class="fx-sigil-big">${sigilSvg(keyStr, 220)}</div>
+    <p class="fine muted fx-sigil-quick">${escapeHtml(T("fx.sigil.quickNote"))}</p>
     <div class="fx-sigil-fp" id="fx-sigil-fp">…</div>
+    <h4 class="fx-sigil-long-title">${escapeHtml(T("fx.sigil.long"))}</h4>
+    <div class="fx-sigil-big fx-sigil-long" id="fx-sigil-long"></div>
+    <div class="fx-sigil-fp fx-sigil-long-fp" id="fx-sigil-long-fp" style="word-spacing:.4em">…</div>
     <p class="fine muted fx-sigil-how">${escapeHtml(T(opts.noKey ? "toast.safetyNumberNoKey" : "fx.sigil.verifyHow"))}</p>
     <div class="row-actions"><button type="button" class="btn-tertiary fx-sigil-close">${escapeHtml(T("sys.close"))}</button><button type="button" class="btn-primary fx-sigil-share">${escapeHtml(T("fx.sigil.share"))}</button></div></div>`;
   document.body.appendChild(sh);
@@ -390,6 +417,10 @@ function fxOpenSigilSheet(opts) {
   sh.querySelector(".fx-sigil-close").addEventListener("click", close);
   let fp = "";
   fxSigilFingerprint(keyStr).then((v) => { fp = v; const el = sh.querySelector("#fx-sigil-fp"); if (el) el.textContent = v; });
+  fxSigilLongHex(keyStr).then((hex) => {
+    const lg = sh.querySelector("#fx-sigil-long"); if (lg) lg.innerHTML = sigilLongSvg(hex, 180);
+    const lf = sh.querySelector("#fx-sigil-long-fp"); if (lf) lf.textContent = fxSigilLongFingerprint(hex);
+  }).catch(() => {});
   sh.querySelector(".fx-sigil-share").addEventListener("click", async () => {
     const title = mine ? (Store.name || "") : name;
     const blob = await fxSigilPng(keyStr, title, fp);
