@@ -67,7 +67,7 @@ body {
 button, input, textarea { font-family: inherit; color: inherit; }
 
 /* ============================================================
-   Фон — «эфирная волна»
+   Фон — «плавная волна»
    ============================================================ */
 body::before {
   content: "";
@@ -1145,7 +1145,7 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
 .bubble-row.theirs .bubble-reaction-chip { background: var(--input-bg); }
 
 /* ============================================================
-   Ack-тики — «Эфирная прогрессия» (Вариант B для статусов).
+   Ack-тики — «Плавная прогрессия» (Вариант B для статусов).
    5 состояний, единая SVG-форма, различия — через opacity,
    толщину обводки и цвет:
      pending   — пульсирующая точка 4px
@@ -1958,7 +1958,7 @@ html.kb-open #tab-bar { padding-bottom: 0; }
 .fx-ritual { position: fixed; inset: 0; z-index: 99992; pointer-events: none; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 50% 45%, rgba(190, 170, 255, .55), transparent 65%); animation: fxRitual 2.4s var(--ease-out) forwards; }
 .fx-ritual span { color: #fff; font-size: 22px; font-weight: 600; text-shadow: 0 2px 14px rgba(0, 0, 0, .5); }
 @keyframes fxRitual { 0% { opacity: 0; } 25% { opacity: 1; } 75% { opacity: 1; } 100% { opacity: 0; } }
-/* Ether Breathing: дыхание фона открытого чата */
+/* Messenger Breathing: дыхание фона открытого чата */
 #fx-breath { display: none; position: fixed; inset: 0; z-index: 0; pointer-events: none; background: radial-gradient(ellipse 90% 60% at 50% 70%, rgba(138, 109, 255, .16), transparent 70%); }
 html.fx-breathing.fx-chat-open #fx-breath { display: block; animation: fxBreath var(--breath-s, 8s) ease-in-out infinite; }
 @keyframes fxBreath { 0%, 100% { opacity: .35; transform: scale(1); } 50% { opacity: 1; transform: scale(1.04); } }

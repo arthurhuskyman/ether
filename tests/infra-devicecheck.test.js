@@ -52,12 +52,12 @@ test("шаги: на моках собирается отчёт со всеми 
   assert.equal(by.audio.ok, true); assert.match(by.audio.detail, /state after resume: running/);
   assert.equal(by.vibration.ok, null);
   assert.equal(by.mic.ok, true); assert.match(by.mic.detail, /recorded mime audio\/mp4, 4 B/);
-  assert.equal(by.media.ok, true); assert.match(by.media.detail, /metadata set: Ether - test/);
+  assert.equal(by.media.ok, true); assert.match(by.media.detail, /metadata set: Messenger - test/);
   assert.equal(by.push.ok, false); assert.match(by.push.detail, /supported=false/);
   assert.ok(by.viewport.detail.includes("safe-area"));
   assert.ok(asked.length >= 3);
-  assert.match(report, /^Ether — device check/); assert.match(report, /\[SKIP\]/); assert.match(report, /\[OK\]/);
-  assert.ok(!/eyJ|@/.test(report.replace(/Ether — device check/, "")), "в отчёте нет почты/токенов");
+  assert.match(report, /^Messenger — device check/); assert.match(report, /\[SKIP\]/); assert.match(report, /\[OK\]/);
+  assert.ok(!/eyJ|@/.test(report.replace(/Messenger — device check/, "")), "в отчёте нет почты/токенов");
 });
 
 test("шаг Whisper: без согласия пропускается, с согласием идёт через LocalAI", async () => {
@@ -77,7 +77,7 @@ test("UI: кнопки во вкладке «Отладка» открывают
   assert.match(d.querySelector("#report-problem-btn span").textContent, /Сообщить об ошибке/);
   d.getElementById("report-problem-btn").click();
   const sheet = d.getElementById("devicecheck-sheet");
-  assert.ok(sheet); assert.match(sheet.textContent, /Ether — problem report/);
+  assert.ok(sheet); assert.match(sheet.textContent, /Messenger — problem report/);
   sheet.remove();
   d.getElementById("devicecheck-btn").click();
   assert.ok(d.getElementById("devicecheck-sheet").querySelector("button.btn-primary"));

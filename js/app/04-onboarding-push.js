@@ -729,7 +729,7 @@ function handleNotificationNavigateParams() {
     }
   } catch (e) {}
 }
-// killer-features-backlog 0.4 — Share Target (Android "Поделиться" → Эфир).
+// killer-features-backlog 0.4 — Share Target (Android "Поделиться" → Мессенджер).
 // GET-метод, только text/url (см. manifest.webmanifest "share_target") —
 // без POST/файлов, чтобы не усложнять sw.js перехватом multipart-запроса.
 // Открываем список контактов (переиспользуя forward-sheet) — пользователь

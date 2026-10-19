@@ -10,7 +10,7 @@ const DeviceCheck = (() => {
     copied: "Отчёт скопирован", copyFail: "Не удалось скопировать", running: "Выполняется…", done: "Готово. Отчёт ниже — его можно скопировать или отправить разработчику.",
     reportBtn: "Сообщить об ошибке", checkBtn: "Проверка устройства", reportTitle: "Сообщить об ошибке",
     reportHint: "Отчёт содержит версию, тип устройства и технический журнал. Текстов сообщений, имён, ключей и токенов в нём нет — проверьте и отправьте сами.",
-    qSound: "Вы услышали короткий тон?", qVib: "Телефон завибрировал?", qNow: "На экране блокировки/в шторке появилась карточка «Эфир — тест»?",
+    qSound: "Вы услышали короткий тон?", qVib: "Телефон завибрировал?", qNow: "На экране блокировки/в шторке появилась карточка «Мессенджер — тест»?",
     qKb: "Нажмите в поле ниже: появилась клавиатура?", qWhisper: "Проверить распознавание речи? Скачается модель (около 80 МБ) — лучше по Wi-Fi.", qPush: "Запросить разрешение на уведомления?",
     s: { env: "Устройство и версия", audio: "Звук", vibration: "Вибрация", mic: "Микрофон и запись", media: "Now Playing (MediaSession)", whisper: "Whisper (локальный ИИ)", push: "Push-уведомления", viewport: "Экран и клавиатура", storage: "Хранилище" },
   };
@@ -19,7 +19,7 @@ const DeviceCheck = (() => {
     copied: "Report copied", copyFail: "Could not copy", running: "Running…", done: "Done. The report is below: copy it or send it to the developer.",
     reportBtn: "Report a problem", checkBtn: "Device check", reportTitle: "Report a problem",
     reportHint: "The report has the version, device type and a technical log. It has no message texts, names, keys or tokens - review it and send it yourself.",
-    qSound: "Did you hear a short tone?", qVib: "Did the phone vibrate?", qNow: "Does a card \"Ether - test\" show on the lock screen / notification shade?",
+    qSound: "Did you hear a short tone?", qVib: "Did the phone vibrate?", qNow: "Does a card \"Messenger - test\" show on the lock screen / notification shade?",
     qKb: "Tap the field below: did the keyboard appear?", qWhisper: "Test speech recognition? This downloads a model (about 80 MB) - better on Wi-Fi.", qPush: "Ask for notification permission?",
     s: { env: "Device and version", audio: "Sound", vibration: "Vibration", mic: "Microphone and recording", media: "Now Playing (MediaSession)", whisper: "Whisper (local AI)", push: "Push notifications", viewport: "Screen and keyboard", storage: "Storage" },
   };
@@ -61,7 +61,7 @@ const DeviceCheck = (() => {
   // Отчёт об ошибке: версия + окружение + технический журнал (etherLog), всё через sanitize
   function buildErrorReport(opts) {
     const o = opts || {};
-    const lines = ["Ether — problem report", "Time: " + new Date().toISOString()].concat(envLines());
+    const lines = ["Messenger — problem report", "Time: " + new Date().toISOString()].concat(envLines());
     if (o.note) lines.push("Note: " + sanitize(o.note));
     lines.push("", "--- log (last " + (o.max || 150) + ", sanitized) ---");
     let diag = []; try { diag = (window.__etherDiag || []).slice(-(o.max || 150)); } catch (e) {}
@@ -120,7 +120,7 @@ const DeviceCheck = (() => {
         w(0, "RIFF"); v.setUint32(4, 36 + n * 2, true); w(8, "WAVE"); w(12, "fmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, "data"); v.setUint32(40, n * 2, true);
         for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, Math.round(Math.sin(i / 8) * 600), true);
         url = URL.createObjectURL(new Blob([buf], { type: "audio/wav" })); el = new Audio(url); el.volume = 0.2;
-        navigator.mediaSession.metadata = new MediaMetadata({ title: "Ether - test", artist: "Ether" });
+        navigator.mediaSession.metadata = new MediaMetadata({ title: "Messenger - test", artist: "Messenger" });
         d.push("metadata set: " + (navigator.mediaSession.metadata && navigator.mediaSession.metadata.title));
         try { await el.play(); d.push("audio.play ok"); } catch (e) { d.push("audio.play: " + errStr(e)); }
         const seen = await ctx.ask(L().qNow);
@@ -218,7 +218,7 @@ const DeviceCheck = (() => {
     return { results, report: buildReport(results) };
   }
   function buildReport(results) {
-    const lines = ["Ether — device check", "Time: " + new Date().toISOString(), ""];
+    const lines = ["Messenger — device check", "Time: " + new Date().toISOString(), ""];
     for (const r of results) lines.push("[" + (r.ok === true ? "OK" : r.ok === false ? "FAIL" : "SKIP") + "] " + (L().s[r.id] || r.id) + (r.detail ? ": " + r.detail : ""));
     return sanitizeReport(lines.join("\n"));
   }
@@ -230,7 +230,7 @@ const DeviceCheck = (() => {
   // ---------- UI ----------
   function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   function shareOrCopy(text) {
-    if (navigator.share) return navigator.share({ title: "Ether report", text }).catch(() => {});
+    if (navigator.share) return navigator.share({ title: "Messenger report", text }).catch(() => {});
     return copy(text);
   }
   function copy(text) {

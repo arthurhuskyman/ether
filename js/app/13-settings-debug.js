@@ -1307,7 +1307,7 @@ function collectViewportMetrics() {
 }
 function buildDiagnosticsText() {
   const lines = [];
-  lines.push("Ether — diagnostics, " + APP_VERSION);
+  lines.push("Messenger — diagnostics, " + APP_VERSION);
   lines.push("Time: " + new Date().toLocaleString(I18N.current));
   lines.push("Lang: " + I18N.current + " / sys " + I18N.systemLang());
   lines.push("My id: " + (Store.myId ? Store.myId.slice(0, 16) + "…" : "—"));

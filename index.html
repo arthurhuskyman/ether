@@ -42,7 +42,7 @@
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 <meta name="color-scheme" content="dark light" />
-<title>Ether — direct connection</title>
+<title>Messenger — direct connection</title>
 <meta name="description" content="Messages and calls directly between devices." />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#08080a" />
@@ -58,7 +58,7 @@
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="apple-mobile-web-app-title" content="Ether" />
+<meta name="apple-mobile-web-app-title" content="Messenger" />
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
 <link rel="icon" href="icons/favicon-32.png" sizes="32x32" />
 <link rel="preload" href="fonts/InterVariable.woff2" as="font" type="font/woff2" crossorigin />
@@ -75,7 +75,7 @@
     <div class="lock-icon">
       <svg data-icon="lock" viewBox="0 0 24 24" width="40" height="40" aria-hidden="true"></svg>
     </div>
-    <h1 class="lock-title" data-i18n="lock.title">Ether locked</h1>
+    <h1 class="lock-title" data-i18n="lock.title">Messenger locked</h1>
     <p class="onboarding-sub" data-i18n="lock.sub">Enter PIN code</p>
     <input id="lock-pin" type="password" inputmode="numeric" maxlength="8" placeholder="••••" class="pin-input" autocomplete="off" />
     <button type="button" id="lock-submit" class="btn-primary" data-i18n="lock.unlock">Unlock</button>
@@ -105,7 +105,7 @@
         <div class="glyph-bubble b1"></div>
         <div class="glyph-bubble b2"></div>
       </div>
-      <h1 data-i18n="app.name">Ether</h1>
+      <h1 data-i18n="app.name">Messenger</h1>
       <p class="onboarding-sub" data-i18n="app.tagline">Messages and calls directly between devices.</p>
       <button type="button" class="btn-primary onboarding-next" data-i18n="onboarding.next">Next</button>
       <p class="onboarding-fine" data-i18n="onboarding.hint">Registered on this phone/email before? Entering the same info restores your identity, but not your contacts, groups or message history — those live only on the device that had them, unless you import a backup below.</p>
@@ -482,7 +482,7 @@
       </div>
       <div class="settings-group flat-content" data-settings-category="data">
         <div class="settings-row column"><span class="settings-group-title" data-i18n="settings.backup.title">Backup</span></div>
-        <p class="fine muted" style="margin:0 0 10px;" data-i18n="settings.backup.explain">Ether has no server backup — everything lives only on this device. If you lose or replace this device, contacts, groups and messages are gone unless you save a backup file yourself.</p>
+        <p class="fine muted" style="margin:0 0 10px;" data-i18n="settings.backup.explain">Messenger has no server backup — everything lives only on this device. If you lose or replace this device, contacts, groups and messages are gone unless you save a backup file yourself.</p>
         <button type="button" id="settings-export-backup-btn" class="settings-row link-row"><span data-i18n="debug.exportData">Export all data</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
         <button type="button" id="settings-import-backup-btn" class="settings-row link-row"><span data-i18n="debug.importData">Import data from file</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
         <button type="button" id="settings-link-device-btn" class="settings-row link-row"><span data-i18n="devlink.settings">Move to a new device</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
@@ -559,7 +559,7 @@
       </div>
       <div data-settings-adv class="settings-group flat-content" data-settings-category="privacy">
         <div class="settings-row column"><span class="settings-group-title" data-i18n="settings.deadMan.title">Dead man's switch</span></div>
-        <p class="fine muted" style="margin:0 0 10px;" data-i18n="settings.deadMan.explain">Best-effort, not a guaranteed background trigger: each time you open Ether, it sends a small "I'm alive" signal to the contact below; it only updates when the other side also opens Ether. If you'd like, enable it there too to be alerted after your own silence.</p>
+        <p class="fine muted" style="margin:0 0 10px;" data-i18n="settings.deadMan.explain">Best-effort, not a guaranteed background trigger: each time you open Messenger, it sends a small "I'm alive" signal to the contact below; it only updates when the other side also opens Messenger. If you'd like, enable it there too to be alerted after your own silence.</p>
         <label class="settings-row"><span data-i18n="settings.deadMan.enable">Enable</span><input id="settings-deadman-enabled" type="checkbox" class="switch" /></label>
         <label class="settings-row"><span data-i18n="settings.deadMan.threshold">Alert after</span>
           <select id="settings-deadman-threshold" class="settings-select">
@@ -579,8 +579,8 @@
       </div>
       <div class="settings-group flat-content" data-settings-category="help">
         <div class="settings-row column" style="align-items:center; text-align:center;">
-          <img class="about-logo" src="icons/logo-256.png" width="96" height="96" alt="Ether" />
-          <span id="about-app-logo" class="about-app-name">Ether</span>
+          <img class="about-logo" src="icons/logo-256.png" width="96" height="96" alt="Messenger" />
+          <span id="about-app-logo" class="about-app-name">Messenger</span>
           <span id="about-version" class="fine muted"></span>
           <span class="fine muted about-designed-by">Designed by AIK in Moscow, Holy Russia, Planet Earth, Solar System, Local Interstellar Cloud, Local Bubble, Orion Arm, Milky Way Galaxy, Local Group of Galaxies, Virgo Supercluster, Laniakea Supercluster, Pisces–Cetus Supercluster Complex, Observable Universe, Universe</span>
         </div>
@@ -1402,10 +1402,10 @@
   <div class="sheet-panel glass-content">
     <div class="sheet-handle"></div>
     <h2 data-i18n="selfHost.title">Host your own server</h2>
-    <p class="fine muted" data-i18n="selfHost.explain">Ether's signaling server never sees message content — only who's online and brief routing metadata (and, for file previews, a fetched link). Running your own gives full control over that metadata, useful for firms, clinics or teams that need "the vendor can't see our traffic" in writing.</p>
+    <p class="fine muted" data-i18n="selfHost.explain">Messenger's signaling server never sees message content — only who's online and brief routing metadata (and, for file previews, a fetched link). Running your own gives full control over that metadata, useful for firms, clinics or teams that need "the vendor can't see our traffic" in writing.</p>
     <div class="code-box"><code>cd signaling-server &amp;&amp; cp .env.example .env &amp;&amp; docker compose up -d</code></div>
     <p class="fine muted" data-i18n="selfHost.steps">1) Edit .env with your VAPID keys (npm run generate-vapid) and domain. 2) Deploy behind HTTPS/WSS (a reverse proxy like Caddy or nginx works well). 3) Paste your wss:// URL into "Signaling server" above.</p>
-    <p class="fine muted" data-i18n="selfHost.docsHint">Full steps, env variables and a sample compose file are in signaling-server/SELF_HOSTING.md in the Ether repository.</p>
+    <p class="fine muted" data-i18n="selfHost.docsHint">Full steps, env variables and a sample compose file are in signaling-server/SELF_HOSTING.md in the Messenger repository.</p>
     <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="self-host-sheet" data-i18n="sys.close">Close</button>
   </div>
 </div>

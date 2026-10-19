@@ -1,4 +1,4 @@
-const CACHE_VERSION = "ether-shell-v237";
+const CACHE_VERSION = "ether-shell-v238";
 // В предзагрузке только ядро. css/skins/<id>.css и fonts/skins/*.woff2 подтягиваются по требованию (активный скин) и
 // кладутся в кэш обработчиком fetch ниже (runtime-cache, stale-while-revalidate).
 const SHELL_FILES = [
@@ -196,7 +196,7 @@ self.addEventListener("message", (event) => {
     return;
   }
   if (data.type !== "show-notification") return;
-  const title = String(data.title || "Эфир").slice(0, 60);
+  const title = String(data.title || "Мессенджер").slice(0, 60);
   const body = String(data.body || "").slice(0, 200);
   const tag = String(data.tag || "ether");
   // P2.37 (урезанный вариант) — actions пришли уже локализованными из
@@ -226,7 +226,7 @@ self.addEventListener("push", (event) => {
   let n = raw && raw.notification && typeof raw.notification === "object"
     ? raw.notification
     : (raw && typeof raw === "object" ? raw : null);
-  if (!n) n = { title: "Эфир", body: "", tag: "ether", data: {} };
+  if (!n) n = { title: "Мессенджер", body: "", tag: "ether", data: {} };
   const data = n.data || {};
   event.waitUntil(
     caches.open("ether-meta").then((c) => c.match("./__blocked.json")).then((r) => r ? r.json() : []).catch(() => []).then((blockedIds) => {
@@ -243,7 +243,7 @@ self.addEventListener("push", (event) => {
       // разумный фолбэк, а не оставляем кнопку без неё вовсе.
       const actions = Array.isArray(n.actions) ? n.actions.slice(0, 2)
         : (data.kind !== "call" && data.contactId ? [{ action: "reply", title: "Reply" }] : undefined);
-      return self.registration.showNotification(n.title || "Эфир", {
+      return self.registration.showNotification(n.title || "Мессенджер", {
         body: n.body || "",
         tag: n.tag || "ether",
         badge: "./icons/icon-192.png",

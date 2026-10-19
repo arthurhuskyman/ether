@@ -35,7 +35,7 @@ function startBackgroundAudioSession() {
     backgroundAudioEl = el;
     if ("mediaSession" in navigator) {
       try {
-        navigator.mediaSession.metadata = new MediaMetadata({ title: (T("app.name") || "Эфир") + " — " + T("audio.background.title") });
+        navigator.mediaSession.metadata = new MediaMetadata({ title: (T("app.name") || "Мессенджер") + " — " + T("audio.background.title") });
         navigator.mediaSession.playbackState = "playing";
         navigator.mediaSession.setActionHandler("play", () => { try { el.play().catch(() => {}); } catch (e) {} });
         navigator.mediaSession.setActionHandler("pause", () => {}); // не даём системе трактовать паузу как повод освободить сессию

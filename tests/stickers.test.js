@@ -21,9 +21,9 @@ const customP = (o) => Object.assign({ kind: "sticker", id: "c1", ts: Date.now()
 const recv = async (a, p, from) => { a.run(`applyIncomingPayload(${JSON.stringify(from || "alice")}, "e-" + Math.random(), ${JSON.stringify(p)}, true)`); await sleep(80); };
 const msgs = (a, id) => JSON.parse(a.run(`JSON.stringify(state.contacts.get(${JSON.stringify(id || "alice")}).messages)`));
 
-test("встроенные паки: ≥2 набора по ≥12 стикеров, есть «Эфир», SVG без скриптов и внешних ссылок", () => {
+test("встроенные паки: ≥2 набора по ≥12 стикеров, есть «Мессенджер», SVG без скриптов и внешних ссылок", () => {
   assert.ok(ES.PACKS.length >= 2);
-  assert.ok(ES.PACKS.some((p) => p.id === "ether" && p.name.ru === "Эфир"));
+  assert.ok(ES.PACKS.some((p) => p.id === "ether" && p.name.ru === "Мессенджер"));
   for (const p of ES.PACKS) {
     assert.ok(p.items.length >= 12, p.id);
     for (const it of p.items) {

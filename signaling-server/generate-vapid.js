@@ -7,7 +7,7 @@ const webpush = require("web-push");
 const keys = webpush.generateVAPIDKeys();
 
 console.log("");
-console.log("=== VAPID-ключи для Эфир ===");
+console.log("=== VAPID-ключи для Мессенджер ===");
 console.log("");
 console.log("Скопируйте в переменные окружения сервера:");
 console.log("");

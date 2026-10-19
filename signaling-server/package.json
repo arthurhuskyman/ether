@@ -2,7 +2,7 @@
   "name": "ether-signaling-relay",
   "version": "1.1.0",
   "private": true,
-  "description": "Сигнальный релей и Web Push для приложения Эфир",
+  "description": "Сигнальный релей и Web Push для приложения Мессенджер",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

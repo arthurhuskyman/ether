@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Установка TURN-сервера (coturn) для «Эфира» на Ubuntu/Debian.
+# Установка TURN-сервера (coturn) для «Мессенджера» на Ubuntu/Debian.
 # Запуск от root на VPS с БЕЛЫМ (не серым) IPv4:   sudo bash setup-coturn.sh [домен]
 # Домен нужен только для TLS на 443 (turns:…:443); без домена ставится TURN по UDP/TCP на 3478.
 # Не проверялось на конкретных хостерах — читай вывод команд и сверяйся с README.

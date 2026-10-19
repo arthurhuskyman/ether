@@ -1,6 +1,6 @@
 require("dotenv").config();
 
-// Сигнальный сервер Эфир с поддержкой Web Push + прокси ICE-серверов.
+// Сигнальный сервер Мессенджер с поддержкой Web Push + прокси ICE-серверов.
 //
 // Задачи:
 //   (1) рандеву — двум устройствам сообщить, что они онлайн, и один раз
@@ -742,7 +742,7 @@ const httpServer = http.createServer(async (req, res) => {
 
   if (req.method === "GET" && (url === "/" || url === "/health")) {
     res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
-    res.end("Ether signaling relay OK\n");
+    res.end("Messenger signaling relay OK\n");
     return;
   }
 
@@ -1028,7 +1028,7 @@ function buildDeclarativePush(payload, lang) {
   // ts для звонка: клиент по нему понимает, свежий ли это звонок (push старше минуты — звонящий уже сдался).
   const navigate = APP_ORIGIN + (isCall ? "?call=" : "?chat=") + encodeURIComponent(payload.contactId || "") + (isCall ? "&ts=" + now : "");
   const notification = {
-    title: payload.title || "Эфир",
+    title: payload.title || "Мессенджер",
     body: payload.body || "",
     navigate,
     tag: payload.tag || "ether",
@@ -2010,7 +2010,7 @@ process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
 
 httpServer.listen(PORT, () => {
-  console.log(`Сигнальный релей "Эфир" слушает порт ${PORT}`);
+  console.log(`Сигнальный релей "Мессенджер" слушает порт ${PORT}`);
   if (CF_TURN_KEY_ID && CF_TURN_API_TOKEN) console.log("[ice] заданы CF_TURN_* — используется Cloudflare TURN");
   { const n = extraTurnServers().length; if (process.env.TURN_EXTRA_JSON) console.log("[ice] TURN_EXTRA_JSON: серверов с логином — " + n); }
   if (staticTurnServers()) {

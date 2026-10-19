@@ -4,7 +4,7 @@
 // Держать в синхроне с файлом VERSION в корне проекта и с CACHE_VERSION
 // в sw.js при каждом повышении версии — здесь оно только для показа в
 // "О приложении" (#about-version), больше нигде не участвует.
-const APP_VERSION = "V.76.0.0";
+const APP_VERSION = "V.76.1.0";
 
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 // Сервер перевода по умолчанию (LibreTranslate-совместимый). Официальный публичный инстанс обычно
@@ -333,7 +333,7 @@ const Store = {
   // открытии приложения отправляем доверенному контакту heartbeat
   // ("я жив"), а получатель при СВОЁМ открытии приложения сравнивает время
   // последнего полученного heartbeat с порогом. Срабатывает только если
-  // кто-то из двоих реально откроет Эфир — это предел того, что может
+  // кто-то из двоих реально откроет Мессенджер — это предел того, что может
   // честно гарантировать чистый PWA без сервера.
   get deadManEnabled() { return localStorage.getItem("ether.deadManEnabled") === "1"; },
   set deadManEnabled(v) { localStorage.setItem("ether.deadManEnabled", v ? "1" : "0"); scheduleIDBBackup(); },
