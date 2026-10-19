@@ -156,6 +156,7 @@ window.__LANG_DICTS["en"] = {
     "settings.fontSize.normal": "Standard",
     "settings.fontSize.large": "Large",
     "settings.fontSize.system": "Follow system (Dynamic Type)",
+    "devicecheck.title": "Device check",
     "settings.wallpaper": "Chat wallpaper",
     "settings.wallpaper.none": "None",
     "settings.wallpaper.dots": "Dots",
