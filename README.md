@@ -27,7 +27,7 @@
 
 ## Архитектура
 
-- **Клиент:** статическое одностраничное приложение на чистом JavaScript без сборки. Скрипты подключаются в `index.html` по порядку и делят глобальные имена: `app.js` (основное приложение), `group-call.js`, `features.js`, `features2.js`. Рядом `webrtc.js` (P2P-соединения), `signaling-client.js`, `signaling-codec.js`, `crypto-helper.js`, `crypto-worker.js`, `file-limits.js`, `i18n.js`.
+- **Клиент:** статическое одностраничное приложение на чистом JavaScript без сборки. Скрипты подключаются в `index.html` по порядку и делят глобальные имена: `js/app/*.js` (основное приложение), `group-call.js`, `features.js`, `features2.js`. Рядом `webrtc.js` (P2P-соединения), `signaling-client.js`, `signaling-codec.js`, `crypto-helper.js`, `crypto-worker.js`, `file-limits.js`, `i18n.js`.
 - **PWA:** `manifest.webmanifest`, service worker `sw.js` (оболочка кешируется, приложение работает офлайн, push-уведомления). Хостинг фронтенда: GitHub Pages из ветки `main` (в репозитории нет `.github/workflows`, сборку делает встроенный механизм Pages).
 - **Сервер:** `signaling-server/` на Node.js (`ws`, `web-push`, `dotenv`). По умолчанию клиент подключается к `wss://ether-1-baqy.onrender.com`; адрес меняется в Настройках → Приватность.
 - **Транспорт сообщений:** WebRTC data channel, когда собеседник онлайн. Если нет, то зашифрованный конверт через почтовый ящик сервера.
@@ -249,7 +249,7 @@
 |---|---|
 | `index.html` | оболочка приложения (единственная HTML-страница) |
 | `css/styles.css` | все стили |
-| `js/app.js` | основное приложение (~12 тыс. строк) |
+| `js/app/01-…14-*.js` | основное приложение, бывший `js/app.js`, разрезан механически на 14 последовательных классических скриптов (общая глобальная область; порядок `<script>` в `index.html` и `sw.js` важен): core-store, state-util, audio-pin, onboarding-push, contacts-nav, thread, send-outbox, files-voice, groups, signaling, qr-sheets-translate, calls-search, settings-debug, backup-boot |
 | `js/webrtc.js` | `PeerLink` (одно P2P-соединение) и `MeshManager` |
 | `js/group-call.js` | групповые звонки |
 | `js/features.js`, `js/features2.js` | слой эффектов |
@@ -277,7 +277,7 @@
 
 - **Клиентские тесты:** `cd tests && npm install && npm test` (jsdom + `fake-indexeddb` + реальный WebRTC через `@roamhq/wrtc`; профили iOS, Android, десктоп). Сейчас 338 тестов, весь прогон занимает несколько минут. Покрытие: `npm run coverage` (c8).
 - **Тесты сервера:** `cd signaling-server && npm test` (цепочка скриптов `test-*.js`: два клиента, WebRTC, шифрование, ссылочное превью, файлы, видеозвонок, relay и др.).
-- **Версии:** файл `VERSION`, `APP_VERSION` в `js/app.js` и `CACHE_VERSION` в `sw.js` поднимаются вместе. Правило: мелкие правки и документация — второе число (`V.X.Y → V.X.(Y+1)`), новые функции и крупные переделки — первое (`V.X.Y → V.(X+1).0`).
+- **Версии:** файл `VERSION`, `APP_VERSION` в `js/app/01-core-store.js` и `CACHE_VERSION` в `sw.js` поднимаются вместе. Правило: мелкие правки и документация — второе число (`V.X.Y → V.X.(Y+1)`), новые функции и крупные переделки — первое (`V.X.Y → V.(X+1).0`).
 - **Деплой:** фронтенд — публикация ветки `main` на GitHub Pages; сервер — Render (автодеплой по `render.yaml`). Новый service worker не активируется сам: клиент ждёт сообщения `SKIP_WAITING` от страницы.
 
 ## Ограничения и известные проблемы

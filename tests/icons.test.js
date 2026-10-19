@@ -10,7 +10,7 @@ test.after(closeAll);
 
 test("все data-icon в index.html и Icons.html(...) в js/app.js есть в наборе", () => {
   const html = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
-  const app = fs.readFileSync(path.join(ROOT, "js", "app.js"), "utf8");
+  const app = require("./src-helper").readAppSource();
   const names = new Set();
   for (const m of html.matchAll(/data-icon="([a-z0-9-]+)"/g)) names.add(m[1]);
   for (const m of app.matchAll(/Icons\.html\("([a-z0-9-]+)"/g)) names.add(m[1]);

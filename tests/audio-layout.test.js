@@ -223,7 +223,7 @@ test("[iPhone] футер использует тот же токен --glass-re
 
 // ---------- Футер, safe area, запрет зума и поворота ----------
 const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, "manifest.webmanifest"), "utf8"));
-const appJs = fs.readFileSync(path.join(ROOT, "js/app.js"), "utf8");
+const appJs = require("./src-helper").readAppSource();
 
 test("футер: подчёркивание активной вкладки удалено (разметка, стили, скрипт)", async () => {
   assert.doesNotMatch(html, /tab-indicator/);

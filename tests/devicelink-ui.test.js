@@ -74,5 +74,5 @@ test("санитайзер диагностики вырезает код пер
   const code = DL.encodeCode(DL.newSecret(), "https://srv.example.org");
   const out = a.run("DeviceCheck").sanitize("scan " + code + " ok");
   assert.ok(!out.includes(code.slice(15, 40)) && out.includes("<link-code>"), out);
-  assert.ok(fs.readFileSync(path.join(__dirname, "..", "js/app.js"), "utf8").includes('indexOf("ether://link?") === 0'));
+  assert.ok(require("./src-helper").readAppSource().includes('indexOf("ether://link?") === 0'));
 });
