@@ -586,6 +586,31 @@ function closeQuickReactionFlyout() {
 // Лёгкая плывущая панель реакций над пузырём — см. комментарий у
 // #quick-reaction-flyout в index.html. Открывается ТОЛЬКО из long-press
 // в 1-к-1 чатах (группы по-прежнему идут прямо в openMessageSheet).
+// Ряд быстрых реакций (6 частых + «ещё») — общий для плавающей панели и шторки сообщения; обработчик один.
+function fillReactionRow(row, msgId, contactId, anchorEl, done) {
+  const DEFAULT_QUICK_REACTIONS = ["❤️", "👍", "👎", "😂", "😮", "😢"];
+  const recent = Store.recentReactions;
+  const quickSet = (recent.length > 0 ? recent : DEFAULT_QUICK_REACTIONS).slice(0, 6);
+  quickSet.forEach((emoji) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "reaction-emoji"; b.textContent = emoji;
+    b.setAttribute("aria-label", emoji);
+    b.addEventListener("click", () => {
+      done();
+      toggleReaction(contactId, msgId, emoji);
+      if (anchorEl) spawnReactionBurst(anchorEl, emoji);
+    });
+    row.appendChild(b);
+  });
+  const plus = document.createElement("button");
+  plus.type = "button"; plus.className = "reaction-emoji reaction-expand";
+  plus.setAttribute("aria-label", T("chat.reactionMore")); plus.textContent = "+";
+  plus.addEventListener("click", () => {
+    done();
+    openEmojiPicker({ closeOnPick: true, onPick: (emoji) => { recordRecentReaction(emoji); toggleReaction(contactId, msgId, emoji); } });
+  });
+  row.appendChild(plus);
+}
 function openQuickReactionFlyout(anchorEl, msgId, contactId) {
   const el = $("#quick-reaction-flyout"); if (!el || !anchorEl) return;
   closeQuickReactionFlyout();
@@ -593,28 +618,8 @@ function openQuickReactionFlyout(anchorEl, msgId, contactId) {
   const m = c.messages.find((x) => x.id === msgId); if (!m) return;
   // Одна панель на долгое нажатие: ряд реакций (только в личных чатах) и ряд быстрых действий. Остальное — в «Ещё».
   if (!isGroup(c)) {
-    const DEFAULT_QUICK_REACTIONS = ["❤️", "👍", "👎", "😂", "😮", "😢"];
-    const recent = Store.recentReactions;
-    const quickSet = (recent.length > 0 ? recent : DEFAULT_QUICK_REACTIONS).slice(0, 6);
     const row = document.createElement("div"); row.className = "qrf-row qrf-reactions";
-    quickSet.forEach((emoji) => {
-      const b = document.createElement("button");
-      b.type = "button"; b.className = "reaction-emoji"; b.textContent = emoji;
-      b.addEventListener("click", () => {
-        closeQuickReactionFlyout();
-        toggleReaction(contactId, msgId, emoji);
-        spawnReactionBurst(anchorEl, emoji);
-      });
-      row.appendChild(b);
-    });
-    const plus = document.createElement("button");
-    plus.type = "button"; plus.className = "reaction-emoji reaction-expand";
-    plus.setAttribute("aria-label", T("chat.reactionMore")); plus.textContent = "+";
-    plus.addEventListener("click", () => {
-      closeQuickReactionFlyout();
-      openEmojiPicker({ closeOnPick: true, onPick: (emoji) => { recordRecentReaction(emoji); toggleReaction(contactId, msgId, emoji); } });
-    });
-    row.appendChild(plus);
+    fillReactionRow(row, msgId, contactId, anchorEl, closeQuickReactionFlyout);
     el.appendChild(row);
   }
   const acts = document.createElement("div"); acts.className = "qrf-row qrf-actions";
@@ -653,8 +658,16 @@ function openMessageSheet(msgId, contactId) {
   const c = state.contacts.get(contactId); if (!c) return;
   const m = c.messages.find((x) => x.id === msgId); if (!m) return;
   const groupCtx = isGroup(c);
-  // Реакции живут только в плавающей панели (долгое нажатие); в шторке их больше нет — раньше они дублировались и там, и там.
-  const bar = $("#reaction-bar"); if (bar) { bar.innerHTML = ""; bar.classList.add("hidden"); }
+  // Ряд быстрых реакций над действиями (только личные чаты); тап по сообщению открывает шторку, долгое нажатие — плавающую панель с тем же рядом.
+  const bar = $("#reaction-bar");
+  if (bar) {
+    bar.innerHTML = ""; bar.classList.toggle("hidden", groupCtx);
+    if (!groupCtx) {
+      bar.setAttribute("aria-label", T("chat.reactionsAria"));
+      const row = Array.from(document.querySelectorAll("[data-msg-id]")).find((x) => x.dataset.msgId === msgId), bub = row && (row.querySelector(".bubble") || row);
+      fillReactionRow(bar, msgId, contactId, bub, () => { const ms = $("#message-sheet"); if (ms) ms.classList.add("hidden"); });
+    }
+  }
   const isOwn = m.from === "me";
   const body = $("#message-sheet-body"); if (!body) return;
   const act = (name, label, cls) => `<button type="button" class="sheet-action${cls ? " " + cls : ""}" data-action="${name}">${escapeHtml(label)}</button>`;
@@ -1424,10 +1437,15 @@ function renderComposerRecent() {
   let last = null;
   if (c) for (let i = c.messages.length - 1; i >= 0; i--) { const f = c.messages[i].file; if (f && !f.pending && !f.failed) { last = c.messages[i]; break; } }
   if (!last) { el.classList.add("hidden"); el.innerHTML = ""; el.dataset.msgId = ""; return; }
-  const kind = last.file.kind === "image" || last.file.kind === "video" ? "camera" : "paperclip";
+  const fk = last.file.kind, isGif = /\.gif$/i.test(last.file.name || "");
+  const icon = fk === "video" ? "video" : fk === "audio" ? "mic" : (fk === "image" || isGif) ? "image" : "paperclip";
+  const nm = last.file.name || T("chat.file.preview." + fk);
   el.dataset.msgId = last.id;
-  el.innerHTML = `<svg data-icon="${kind}" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg><span class="cr-cap">${escapeHtml(T("chat.menu.recent"))}</span><span class="cr-name">${escapeHtml(last.file.name || T("chat.file.preview." + last.file.kind))}</span>`;
-  el.setAttribute("aria-label", T("chat.menu.recent") + ": " + (last.file.name || ""));
+  // миниатюра — только если картинка уже в кэше blob-URL (без загрузки из IDB)
+  let thumb = ""; try { thumb = fk === "image" && typeof fileBlobUrlCache !== "undefined" ? (fileBlobUrlCache.get(last.id) || "") : ""; } catch (e) {}
+  const lead = thumb ? `<img class="cr-thumb" src="${escapeHtml(thumb)}" alt="" width="32" height="32" />` : `<svg class="cr-icon" data-icon="${icon}" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg>`;
+  el.innerHTML = `${lead}<span class="cr-text"><span class="cr-cap">${escapeHtml(T("chat.menu.recentLast"))}</span><span class="cr-name">${escapeHtml(nm)}</span></span>`;
+  el.setAttribute("aria-label", T("chat.menu.recentLast") + ": " + nm);
   try { if (window.Icons) Icons.hydrate(el); } catch (e) {}
   el.classList.remove("hidden");
 }
@@ -1451,7 +1469,10 @@ function wireComposerPlusMode() {
   for (const ev of ["pointerup", "pointerleave", "pointercancel"]) plusBtn.addEventListener(ev, plusLPCancel);
   plusBtn.addEventListener("contextmenu", (e) => { if (plusBtn.__lpFired) e.preventDefault(); });
   const recent = $("#composer-recent");
-  if (recent) recent.addEventListener("click", () => { const id = recent.dataset.msgId; collapseComposerPlus(); if (id && state.chatId) jumpToMessageInChat(state.chatId, id); });
+  if (recent) recent.addEventListener("click", () => {
+    const id = recent.dataset.msgId; collapseComposerPlus();
+    if (id && state.chatId) jumpToMessageInChat(state.chatId, id); // прокрутка + подсветка (highlight-origin)
+  });
   // Выбор любого из трёх действий закрывает меню (capture — раньше, чем сработают обработчики самих кнопок)
   for (const id of ["#chat-attach-btn", "#chat-emoji-btn", "#chat-camera-btn", "#chat-poll-btn", "#chat-board-btn", "#chat-note-btn", "#chat-summary-btn"]) {
     const btn = $(id);

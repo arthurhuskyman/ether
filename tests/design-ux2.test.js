@@ -244,7 +244,7 @@ test("звук при запуске: пул разблокируется тих
 test("меню «+»: порядок Эмодзи, Камера, Файл, Опрос, Доска, Заметка, Сводка; плашки якорятся над кнопкой", async () => {
   const a = await booted("ru");
   const d = a.document;
-  const ids = Array.from(d.querySelectorAll("#composer-menu-sheet .composer-menu-item")).map((b) => b.id);
+  const ids = Array.from(d.querySelectorAll("#composer-menu-sheet .composer-menu-item:not(.composer-recent)")).map((b) => b.id);
   assert.deepEqual(ids, ["chat-emoji-btn", "chat-camera-btn", "chat-attach-btn", "chat-poll-btn", "chat-board-btn", "chat-note-btn", "chat-summary-btn", "chat-sticker-btn"]);
   assert.equal(d.querySelector("#chat-attach-btn span").textContent, "Файл");
   a.close();

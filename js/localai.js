@@ -42,25 +42,98 @@ const LocalAI = (() => {
       shown = Math.max(shown, Math.min(99, (loaded / total) * 100)); emit(shown);
     };
   }
+  // ---- Диагностика загрузки: этап, имя ошибки, http-коды, размер скачанного, окружение (без текстов и ссылок с токенами) ----
+  const WASM_MIRRORS = [null, "https://unpkg.com/@huggingface/transformers@3.0.0/dist/"]; // null = путь по умолчанию (cdn.jsdelivr.net)
+  const LOAD_PLAN = [
+    { model: MODEL, dtype: "q8", mirror: 0, cache: true },
+    { model: FALLBACK_MODEL, dtype: "q8", mirror: 0, cache: true },
+    { model: FALLBACK_MODEL, dtype: "q8", mirror: 0, cache: false }, // без Cache API (Safari иногда не даёт писать в него)
+  ];
+  const STALL_MS = 90000; // нет ни одного байта прогресса столько — попытка считается зависшей
+  let diag = null;
+  function envInfo() {
+    const o = {};
+    try { o.coi = typeof crossOriginIsolated !== "undefined" ? !!crossOriginIsolated : null; } catch (e) {}
+    try { o.sab = typeof SharedArrayBuffer !== "undefined"; } catch (e) {}
+    try { o.webgpu = !!navigator.gpu; } catch (e) {}
+    try { if (navigator.deviceMemory) o.memGB = navigator.deviceMemory; } catch (e) {}
+    try { if (performance.memory) o.heapMB = Math.round(performance.memory.jsHeapSizeLimit / 1048576); } catch (e) {}
+    try { o.cores = navigator.hardwareConcurrency; } catch (e) {}
+    try { o.cache = typeof caches !== "undefined"; } catch (e) {}
+    try { o.online = navigator.onLine; } catch (e) {}
+    return o;
+  }
+  const cleanMsg = (m) => String(m || "").replace(/https?:\/\/([^\s/?#"')]+)[^\s"')]*/g, "$1").replace(/[A-Za-z0-9_\-]{32,}/g, "…").replace(/\s+/g, " ").slice(0, 200);
+  // Подсказка по этапу/ошибке — что делать пользователю
+  function hintFor(stage, name, msg, http) {
+    const m = String(msg || "");
+    if (/timeout|stall/i.test(m)) return "сеть слишком медленная или соединение оборвалось: повторите по Wi-Fi";
+    if (stage === "lib") return "не загрузился js/vendor/transformers.min.js: обновите приложение (закройте и откройте его заново)";
+    if (stage === "hash") return "файл библиотеки повреждён или устарел в кэше: обновите приложение";
+    if (http && http.some((h) => h >= 400)) return "сервер модели/wasm ответил ошибкой (huggingface.co или cdn.jsdelivr.net недоступны или заблокированы сетью/блокировщиком)";
+    if (/Failed to fetch|NetworkError|Load failed|fetching of the wasm failed|no available backend/i.test(m)) return "не удалось скачать wasm/модель: нет доступа к huggingface.co или cdn.jsdelivr.net (VPN, блокировщик, сеть)";
+    if (/Content Security Policy|CSP|unsafe-eval|wasm.*compile|CompileError|LinkError/i.test(m + " " + name)) return "браузер запретил/не смог скомпилировать wasm (политика безопасности или старая версия iOS)";
+    if (/memory|allocat|RangeError|out of/i.test(m + " " + name)) return "не хватило памяти: закройте другие приложения и вкладки и повторите";
+    if (/QuotaExceeded|quota|Cache/i.test(m + " " + name)) return "нет места в хранилище для кэша модели: освободите место";
+    if (stage === "decode") return "не удалось декодировать звук (Web Audio)";
+    return "неизвестная ошибка этапа " + stage;
+  }
   async function loadEngine() {
     if (engine) return engine;
     if (loading) return loading;
     loading = (async () => {
-      const mod = await importLib();
-      mod.env.allowLocalModels = false;
-      // Библиотека присылает события по каждому файлу модели отдельно (конфиг, токенайзер, веса…), и у каждого процент свой —
-      // раньше число прыгало 100→0→100. Считаем общий прогресс по сумме байт и не даём ему уменьшаться.
-      const progress = makeProgress(notify);
-      let asr = null, name = MODEL;
-      try { asr = await mod.pipeline("automatic-speech-recognition", MODEL, { progress_callback: progress }); }
-      catch (e) { try { etherLog("warn", "[localai] base не загрузилась, пробую tiny:", String(e && e.message || e)); } catch (x) {} name = FALLBACK_MODEL; asr = await mod.pipeline("automatic-speech-recognition", FALLBACK_MODEL, { progress_callback: progress }); }
-      notify(100);
-      engine = async (audio, o) => { const out = await asr(audio, Object.assign({ chunk_length_s: 30, return_timestamps: false }, o || {})); return String((out && out.text) || "").trim(); };
-      engine.modelName = name;
-      return engine;
+      const d = diag = { stage: "lib", attempts: [], env: envInfo(), bytes: 0, http: [], t0: Date.now() };
+      let mod;
+      try { mod = await importLib(); } catch (e) { d.stage = "lib"; d.error = { name: String(e && e.name || "Error"), msg: cleanMsg(e && e.message) }; d.hint = hintFor("lib", d.error.name, d.error.msg, d.http); throw tagged(e, d); }
+      const progress0 = makeProgress(notify);
+      let lastAct = Date.now(), lastErr = null;
+      // onnxruntime запоминает неудачную инициализацию wasm в рамках страницы, поэтому хост wasm выбираем ДО первой попытки пробным запросом
+      d.stage = "wasm"; let wasmBase = null;
+      for (let m = 0; m < WASM_MIRRORS.length; m++) {
+        const base = WASM_MIRRORS[m] || "https://cdn.jsdelivr.net/npm/@huggingface/transformers@" + ((mod.env && mod.env.version) || "3.0.0") + "/dist/";
+        try {
+          const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 15000);
+          try { const r = await fetch(base + "ort-wasm-simd-threaded.jsep.wasm", { headers: { Range: "bytes=0-0" }, signal: ctl.signal }); d.probe = (d.probe || "") + (m ? " " : "") + (WASM_MIRRORS[m] ? "mirror" : "default") + "=" + r.status; if (r.ok || r.status === 206) { wasmBase = WASM_MIRRORS[m]; d.wasmHost = new URL(base).host; break; } } finally { clearTimeout(tm); }
+        } catch (e) { d.probe = (d.probe || "") + (m ? " " : "") + (WASM_MIRRORS[m] ? "mirror" : "default") + "=" + String(e && e.name || "err"); }
+      }
+      const progress = (p) => { lastAct = Date.now(); try { if (p && p.status === "progress" && typeof p.loaded === "number" && p.file) { fileBytes[p.file] = p.loaded; d.bytes = Object.values(fileBytes).reduce((a, b) => a + b, 0); } } catch (e) {} progress0(p); };
+      let fileBytes = {};
+      // iPhone/iPad: у WebContent мало памяти — сначала лёгкая модель (tiny), потом остальные
+      const ios = typeof navigator !== "undefined" && (/iP(hone|ad|od)/.test(navigator.userAgent || "") || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
+      const PLAN = ios ? LOAD_PLAN.slice().sort((a, b) => (a.model === FALLBACK_MODEL ? 0 : 1) - (b.model === FALLBACK_MODEL ? 0 : 1)) : LOAD_PLAN;
+      for (let i = 0; i < PLAN.length; i++) {
+        const plan = PLAN[i];
+        const at = { model: plan.model, dtype: plan.dtype, mirror: plan.mirror, stage: "env" };
+        d.attempts.push(at); d.stage = "env"; fileBytes = {}; d.http = [];
+        try {
+          const env = mod.env; env.allowLocalModels = false; env.useBrowserCache = !!plan.cache;
+          // Safari без cross-origin isolation не даёт SharedArrayBuffer: onnxruntime должен работать в один поток без прокси-воркера
+          try { const w = env.backends.onnx.wasm; w.numThreads = 1; w.proxy = false; if (wasmBase) w.wasmPaths = wasmBase; } catch (e) {}
+          at.stage = d.stage = "model"; lastAct = Date.now();
+          let timer;
+          const stall = new Promise((_, rej) => { timer = setInterval(() => { if (Date.now() - lastAct > STALL_MS) { clearInterval(timer); rej(new Error("timeout: stall " + STALL_MS / 1000 + "s")); } }, 3000); });
+          let asr;
+          try { asr = await Promise.race([mod.pipeline("automatic-speech-recognition", plan.model, { progress_callback: progress, dtype: plan.dtype, device: "wasm" }), stall]); } finally { clearInterval(timer); }
+          notify(100);
+          engine = async (audio, o) => { const out = await asr(audio, Object.assign({ chunk_length_s: 30, return_timestamps: false }, o || {})); return String((out && out.text) || "").trim(); };
+          engine.modelName = plan.model;
+          at.ok = true; d.stage = "ready"; d.ok = true; return engine;
+        } catch (e) {
+          lastErr = e; const msg = String(e && e.message || e);
+          const codes = (msg.match(/\b(?:status|code)\D{0,3}(\d{3})\b|\((\d{3})\)|\b([45]\d\d)\b/g) || []).map((x) => +x.replace(/\D/g, "")).filter((n) => n >= 400 && n < 600);
+          if (codes.length) d.http = codes;
+          at.error = { name: String(e && e.name || "Error"), msg: cleanMsg(msg) };
+          try { etherLog("warn", "[localai] попытка загрузки " + (i + 1) + " (" + plan.model + ", этап " + at.stage + ") не удалась:", at.error.name, at.error.msg); } catch (x) {}
+        }
+      }
+      const last = d.attempts[d.attempts.length - 1] || {};
+      d.error = last.error || { name: "Error", msg: "?" }; d.stage = last.stage || d.stage; d.hint = hintFor(d.stage, d.error.name, d.error.msg, d.http);
+      throw tagged(lastErr, d);
     })();
     try { return await loading; } finally { loading = null; }
   }
+  function tagged(e, d) { const err = e instanceof Error ? e : new Error(String(e)); try { err.localAiDiag = d; } catch (x) {} return err; }
+  function getDiag() { return diag; }
   // Звук → моно 16 кГц Float32 (вход Whisper)
   async function decodeToMono16k(blob) {
     const AC = window.AudioContext || window.webkitAudioContext, OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
@@ -184,7 +257,7 @@ const LocalAI = (() => {
       topics, key, questions: questions.slice(-5), links: links.slice(0, 8), files, polls: polls.slice(0, 5), notes: notes.slice(0, 5), tasks: tasks.slice(0, 10),
     };
   }
-  return { TF_SHA384, chatDigest, makeProgress, cleanTranscript, rms, setEngine, isReady, loadEngine, decodeToMono16k, transcribeBlob, summarize, sentences, onProgress: (fn) => { progressListeners.add(fn); return () => progressListeners.delete(fn); }, MODEL, TF_URL };
+  return { TF_SHA384, chatDigest, makeProgress, cleanTranscript, rms, setEngine, isReady, loadEngine, decodeToMono16k, transcribeBlob, summarize, sentences, onProgress: (fn) => { progressListeners.add(fn); return () => progressListeners.delete(fn); }, MODEL, TF_URL, getDiag, envInfo, hintFor, LOAD_PLAN, importLib };
 })();
 
 // ---- Интеграция с чатом ----

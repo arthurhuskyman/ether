@@ -85,7 +85,13 @@ test("меню сообщения: панель на долгое нажатие
   assert.deepEqual(acts, ["Reply", "Copy", "More"]);
   flyout.querySelector(".qrf-act:last-child").click();
   assert.equal(a.document.querySelector("#message-sheet").classList.contains("hidden"), false, "«More» открывает шторку");
-  assert.equal(a.document.querySelector("#reaction-bar").children.length, 0, "в шторке реакций нет");
+  const rb = a.document.querySelector("#reaction-bar");
+  assert.equal(rb.children.length, 7, "в шторке — ряд из 6 реакций и «+» (тот же обработчик, что в панели)");
+  assert.ok(rb.querySelector(".reaction-expand").getAttribute("aria-label"));
+  rb.children[1].click();
+  assert.ok(a.document.querySelector("#message-sheet").classList.contains("hidden"), "реакция закрывает шторку");
+  assert.ok(JSON.stringify(a.run(`state.contacts.get("alice").messages[0].reactions || null`)).length > 4, "реакция применена");
+  a.run(`openMessageSheet("m1", "alice")`);
   const labels = Array.from(a.document.querySelectorAll("#message-sheet-body .sheet-action")).map((b) => b.dataset.action);
   assert.deepEqual(labels.slice(0, 4), ["reply", "forward", "copy", "pin"], "основные действия сверху");
   assert.ok(a.document.querySelector("#message-sheet-body .sheet-divider"));
@@ -94,7 +100,9 @@ test("меню сообщения: панель на долгое нажатие
   a.run(`openMessageSheet("m2", "alice")`);
   const del = Array.from(a.document.querySelectorAll("#message-sheet-body .destructive")).map((b) => b.textContent);
   assert.deepEqual(del, ["Delete for me only", "Delete for everyone"]);
-  // группа: реакций нет, только быстрые действия
+  // группа: реакций нет ни в панели, ни в шторке
+  a.run(`state.contacts.set("g0", { id: "g0", name: "G0", managed: true, isGroup: true, createdBy: "me-test-id", members: [{ id: "me-test-id", name: "T", role: "admin" }], messages: [{ id: "gz", from: "them", fromId: "x", text: "yo", ts: Date.now() }], lastActivity: Date.now() }); openMessageSheet("gz", "g0")`);
+  assert.equal(a.document.querySelector("#reaction-bar").children.length, 0);
   a.run(`state.contacts.set("g1", { id: "g1", name: "G", managed: true, isGroup: true, createdBy: "me-test-id", members: [{ id: "me-test-id", name: "T", role: "admin" }], messages: [{ id: "gm", from: "them", fromId: "x", text: "yo", ts: Date.now() }], lastActivity: Date.now() }); openQuickReactionFlyout(document.querySelector(".bubble"), "gm", "g1")`);
   assert.equal(a.document.querySelectorAll("#quick-reaction-flyout .qrf-reactions").length, 0);
   assert.ok(a.document.querySelector("#quick-reaction-flyout .qrf-actions"));

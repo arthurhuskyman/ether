@@ -1119,6 +1119,21 @@ async function sendPushTo(recipientId, senderId, payload, opts = {}) {
   }
 }
 
+// Push устройству-companion: подписка лежит под ключом "id#deviceId"; как и для основного — только если сообщение за PUSH_AFTER_MS не забрали.
+function notifyDevice(ownerId, devId, fromId, msgId, key) {
+  if (!PUSH_ENABLED || !pushSubs.has(key)) return;
+  const dk = msgId + "#" + devId;
+  if (pushSentForMsgId.has(dk)) return;
+  setTimeout(() => {
+    const box = mailbox.get(key);
+    if (!box || !box.has(msgId) || pushSentForMsgId.has(dk) || !pushSubs.has(key)) return;
+    pushSentForMsgId.set(dk, Date.now());
+    const lang = (pushSubs.get(key) || {}).lang;
+    const fr = clients.get(fromId);
+    sendPushTo(key, fromId, { title: (fr && fr.name) || pushText(lang, "newMessage"), body: pushText(lang, "newMessage"), tag: "ether-msg-" + fromId, contactId: fromId, kind: "message" }).catch(() => {});
+  }, PUSH_AFTER_MS);
+}
+
 function clearThrottleForRecipient(recipientId) {
   const prefix = recipientId + ":";
   for (const key of Array.from(pushThrottle.keys())) {
@@ -1386,16 +1401,56 @@ function isValidEnvelope(env) {
 }
 // Возможности сервера, о которых он сообщает клиентам при регистрации: клиент включает новый формат только если сервер его понимает.
 const devicesMod = require("./devices");
-const deviceLists = new Map(), deviceListHits = new Map(); // id -> {seq, list}; в памяти: после рестарта основное устройство публикует список заново
+const deviceLists = new Map(), deviceListHits = new Map(); // id -> {seq, list, at}; хранится в DATA_DIR/.ether-devices.json, основное по-прежнему публикует список при каждом подключении
 const DEVICE_LIST_MAX_BYTES = 8 * 1024, DEVICE_LISTS_MAX = 20000;
+// Списки устройств переживают рестарт: DATA_DIR/.ether-devices.json (атомарно, 0600), TTL записи без обновления, потолок числа и размера.
+// Подпись сервер не проверяет (контакты проверяют сами), поэтому подмена файла ничего не даёт: ни один клиент не примет список без подписи владельца.
+const DEVICES_PERSIST = process.env.DEVICES_PERSIST ? process.env.DEVICES_PERSIST !== "0" : process.env.MAILBOX_PERSIST !== "0";
+const DEVICES_FILE = process.env.DEVICES_FILE || path.join(process.env.DATA_DIR || __dirname, ".ether-devices.json");
+const DEVICES_TTL_MS = 400 * 86400_000, DEVICES_FILE_MAX_BYTES = 40 * 1024 * 1024;
+function validDeviceList(id, l) {
+  if (!l || typeof l !== "object" || l.id !== id || !Number.isSafeInteger(l.seq) || l.seq <= 0 || typeof l.sig !== "string" || l.sig.length > 200 || !Array.isArray(l.certs) || l.certs.length > 8) return false;
+  try { return JSON.stringify(l).length <= DEVICE_LIST_MAX_BYTES; } catch (e) { return false; }
+}
+function loadDeviceLists() {
+  if (!DEVICES_PERSIST) return 0;
+  try {
+    if (!fs.existsSync(DEVICES_FILE) || fs.statSync(DEVICES_FILE).size > DEVICES_FILE_MAX_BYTES) return 0;
+    const data = JSON.parse(fs.readFileSync(DEVICES_FILE, "utf8")), now = Date.now();
+    if (!data || data.v !== 1 || !Array.isArray(data.lists)) return 0;
+    for (const e of data.lists) {
+      if (!Array.isArray(e) || typeof e[0] !== "string" || !e[0] || e[0].length > 128 || !e[1] || typeof e[1].at !== "number" || now - e[1].at > DEVICES_TTL_MS || !validDeviceList(e[0], e[1].list)) continue;
+      if (deviceLists.size >= DEVICE_LISTS_MAX) break;
+      deviceLists.set(e[0], { seq: e[1].list.seq, list: e[1].list, at: e[1].at });
+    }
+    console.log("[devices] восстановлено списков: " + deviceLists.size);
+    return deviceLists.size;
+  } catch (e) { console.warn("[devices] не удалось прочитать файл:", e.message); return 0; }
+}
+function saveDeviceLists() {
+  if (!DEVICES_PERSIST) return;
+  try {
+    const tmp = DEVICES_FILE + ".tmp";
+    fs.writeFileSync(tmp, JSON.stringify({ v: 1, lists: Array.from(deviceLists.entries()).map(([id, e]) => [id, { at: e.at || Date.now(), list: e.list }]) }), { mode: 0o600 });
+    fs.renameSync(tmp, DEVICES_FILE); // атомарно
+  } catch (e) { console.warn("[devices] не удалось сохранить:", e.message); }
+}
+let devicesTimer = null;
+function scheduleDevicesSave() {
+  if (!DEVICES_PERSIST || devicesTimer) return;
+  devicesTimer = setTimeout(() => { devicesTimer = null; saveDeviceLists(); }, 1000);
+}
+loadDeviceLists();
 function devicesCtx() {
   return { deviceLists, safeSend, mailboxPut, mailboxRemove, scheduleSave: scheduleMailboxSave, isValidEnvelope, cleanEnvelope, cleanKind, WebSocket, features: SERVER_FEATURES,
     clientsGet: (id) => clients.get(id), flush: (key, w) => flushMailbox(key, w),
     rateOk: (from, to) => wsRateLimitPairOk(from, to, DELIVER_RATE_LIMIT_PER_MIN) && wsRateLimitOk(deliverTotalHits, from, DELIVER_TOTAL_LIMIT_PER_MIN),
+    pushSubs, validatePushSubscription, normLang, schedulePushSubsSave, maxPushSubs: MAX_PUSH_SUBS, vapidKey: () => (PUSH_ENABLED ? VAPID_PUBLIC : ""),
+    pushHit: (k) => wsRateLimitOk(pushSubHits, k, 10), notifyDevice,
     mailboxKeys: (prefix) => Array.from(mailbox.keys()).filter((k) => k.startsWith(prefix)),
     mailboxDropBox: (k) => { const b = mailbox.get(k); if (b) for (const m of Array.from(b.keys())) mailboxRemove(k, m); scheduleMailboxSave(); } };
 }
-const SERVER_FEATURES = ["ratchet2", "prekeys", "watch", "claim", "env2", "devicelink", "devlist", "devmail"].concat(DISCOVERY_ENABLED ? ["discovery"] : []);
+const SERVER_FEATURES = ["ratchet2", "prekeys", "watch", "claim", "env2", "devicelink", "devlist", "devmail", "devsync", "devpush", "devnotify"].concat(DISCOVERY_ENABLED ? ["discovery"] : []);
 
 // ---------- Prekey-пакеты для начала Double Ratchet (3DH/4DH) ----------
 // Клиент заранее выкладывает подписанный-по-смыслу prekey (spk, меняется раз в неделю) и пачку одноразовых (opks).
@@ -1655,7 +1710,7 @@ wss.on("connection", (ws, req) => {
       // и попытается сделать доставку через свой же WS, что немедленно
       // провалится в "target.readyState !== OPEN" (это тот же WS).
       // Отсекаем сразу.
-      if (msg.to === myId && !(msg.kind === "sync-sent" && Array.isArray(msg.copies))) return;
+      if (msg.to === myId && !((msg.kind === "sync-sent" || msg.kind === "sync-op") && Array.isArray(msg.copies))) return;
       if (!wsRateLimitPairOk(myId, msg.to, DELIVER_RATE_LIMIT_PER_MIN)) return;
       if (!wsRateLimitOk(deliverTotalHits, myId, DELIVER_TOTAL_LIMIT_PER_MIN)) return; // общий потолок на отправителя независимо от получателей
       const syncOnly = msg.to === myId && msg.envelope == null; // sync-sent: только копии другим устройствам аккаунта
@@ -1767,9 +1822,18 @@ wss.on("connection", (ws, req) => {
       const cur = deviceLists.get(myId);
       if (cur && cur.seq >= l.seq) { safeSend(ws, { type: "devices-stored", error: "stale", seq: cur.seq }); return; }
       if (!cur && deviceLists.size >= DEVICE_LISTS_MAX) deviceLists.delete(deviceLists.keys().next().value);
-      deviceLists.set(myId, { seq: l.seq, list: l });
+      deviceLists.set(myId, { seq: l.seq, list: l, at: Date.now() });
+      scheduleDevicesSave();
       devicesMod.onListChanged(myId, devicesCtx()); // отозванные companion отключаются, их ящики чистятся
       safeSend(ws, { type: "devices-stored", seq: l.seq });
+      // Контактам, у кого владелец в watch и кто онлайн, и устройствам самого владельца: список изменился, пора перезапросить (кэш клиента остаётся запасным путём)
+      const meRec = clients.get(myId), note = { type: "devices-updated", id: myId, seq: l.seq };
+      for (const [oid, other] of clients) {
+        if (oid === myId || !other.watch || !other.watch.has(myId) || other.ws.readyState !== WebSocket.OPEN) continue;
+        if (meRec && !canSeePresence(other, oid, myId, meRec)) continue;
+        safeSend(other.ws, note);
+      }
+      devicesMod.broadcastOwn(myId, note, devicesCtx());
       return;
     }
     if (msg.type === "devices-get" && myId && typeof msg.to === "string" && msg.to.length <= 128 && typeof msg.rid === "string" && msg.rid.length <= 40) {
@@ -1934,6 +1998,7 @@ function shutdown() {
   try { saveClaims(); } catch (e) {}
   try { if (DISCOVERY_ENABLED) saveDiscovery(); } catch (e) {}
   try { savePushSubs(); } catch (e) {}
+  try { saveDeviceLists(); } catch (e) {}
   try { saveMailbox(); } catch (e) {}
   for (const ws of wss.clients) { try { ws.close(1001, "server shutdown"); } catch (e) {} }
   wss.close(() => {

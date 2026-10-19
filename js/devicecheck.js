@@ -134,17 +134,36 @@ const DeviceCheck = (() => {
       const go = await ctx.ask(L().qWhisper);
       if (!go) return { ok: null, detail: "пропущено пользователем" };
       const off = LocalAI.onProgress ? LocalAI.onProgress((p) => ctx.progress("Whisper: " + Math.round(p) + "%")) : null;
-      const t0 = Date.now();
+      const t0 = Date.now(); let stage = "wav";
+      const whisperEnv = () => { const e = (LocalAI.envInfo && LocalAI.envInfo()) || {}; const g = LocalAI.getDiag && LocalAI.getDiag(); return (g && g.probe ? ", wasm probe " + g.probe : "") + (g && g.wasmHost ? " host=" + g.wasmHost : "") + ", env " + Object.keys(e).map((k) => k + "=" + e[k]).join(" "); };
       try {
         // встроенное аудио — синтетический тон 1.2 с (речь в репозиторий не кладём): проверяем, что конвейер модели грузится и отрабатывает
         const sr = 16000, n = Math.round(sr * 1.2), buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
         const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
         w(0, "RIFF"); v.setUint32(4, 36 + n * 2, true); w(8, "WAVE"); w(12, "fmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, "data"); v.setUint32(40, n * 2, true);
         for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, Math.round(Math.sin(i * 0.12) * 9000), true);
+        // этап hash: библиотека на нашем origin должна совпасть с закреплённым SHA-384
+        stage = "hash";
+        try {
+          const r = await withTimeout(fetch(LocalAI.TF_URL, { cache: "force-cache" }), 20000, "hash");
+          if (!r.ok) throw new Error("http " + r.status);
+          const dg = new Uint8Array(await crypto.subtle.digest("SHA-384", await r.arrayBuffer()));
+          let b = ""; for (const x of dg) b += String.fromCharCode(x);
+          if (btoa(b) !== LocalAI.TF_SHA384) throw new Error("sha384 mismatch");
+        } catch (e) { if (/mismatch|http/.test(String(e && e.message))) throw Object.assign(e, { stage: "hash" }); /* subtle недоступен — не блокируем */ }
+        stage = "pipeline";
         const text = await withTimeout(LocalAI.transcribeBlob(new Blob([buf], { type: "audio/wav" })), 600000, "whisper");
         const eng = LocalAI.isReady() ? "ready" : "not ready";
-        return { ok: true, detail: "engine " + eng + ", " + (Date.now() - t0) + " ms, output length " + String(text || "").length };
-      } catch (e) { return { ok: false, detail: errStr(e) + " (" + (Date.now() - t0) + " ms)" }; }
+        return { ok: true, detail: "engine " + eng + ", model " + ((LocalAI.isReady() && LocalAI.getDiag && LocalAI.getDiag() && (LocalAI.getDiag().attempts.slice(-1)[0] || {}).model) || "?") + ", " + (Date.now() - t0) + " ms, output length " + String(text || "").length + whisperEnv() };
+      } catch (e) {
+        const dg = (LocalAI.getDiag && LocalAI.getDiag()) || e.localAiDiag || null;
+        const st = (dg && dg.ok) ? "decode" : ((dg && dg.stage) || e.stage || stage);
+        const nm = (dg && !dg.ok && dg.error && dg.error.name) || (e && e.name) || "Error";
+        const msg = (dg && !dg.ok && dg.error && dg.error.msg) || String((e && e.message) || e).slice(0, 200);
+        const att = dg ? dg.attempts.map((a, i) => (i + 1) + ":" + String(a.model).replace("Xenova/", "") + "/" + a.stage + (a.ok ? " ok" : a.error ? " " + a.error.name : "")).join("; ") : "";
+        const hint = (dg && dg.hint) || (LocalAI.hintFor ? LocalAI.hintFor(st, nm, msg, []) : "");
+        return { ok: false, detail: "stage=" + st + ", " + nm + ": " + msg + (dg && dg.http && dg.http.length ? ", http=" + dg.http.join("/") : "") + (dg ? ", downloaded " + Math.round(dg.bytes / 1024) + " KB" : "") + (att ? ", attempts [" + att + "]" : "") + whisperEnv() + ", " + (Date.now() - t0) + " ms. Подсказка: " + hint };
+      }
       finally { if (off) off(); }
     } },
     { id: "push", run: async (ctx) => {

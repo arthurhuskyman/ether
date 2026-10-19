@@ -8,3 +8,5 @@ coverage/
 .claude/worktrees/
 .ether-discovery.json
 .ether-discovery.json.tmp
+.ether-devices.json
+.ether-devices.json.tmp

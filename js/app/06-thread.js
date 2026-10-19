@@ -952,6 +952,7 @@ function updateScrollBottomButton() {
 function markThreadRead(c) {
   const toAck = [];
   for (const m of c.messages) if (m.from === "them" && !m.readAckSent) { m.readAckSent = true; startExpiryOnRead(m); toAck.push(m); }
+  if (toAck.length && typeof Devices !== "undefined") { try { Devices.syncRead(c, toAck); } catch (e) {} } // «прочитано» синхронизируется на другие устройства аккаунта
   state.mentionedChats.delete(c.id); // весь тред помечен прочитанным выше — упоминания в нём больше не "непрочитанные"
   if (toAck.length === 0) return;
   persistContacts();

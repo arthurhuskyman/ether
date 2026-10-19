@@ -44,6 +44,7 @@ function onMessage(ws, msg, ctx) {
     m.set(p.devId, { ws, since: Date.now() });
     ws._dev = { id: p.id, devId: p.devId }; ws.lastClientPing = Date.now();
     safeSend(ws, { type: "registered", id: p.id, device: true, deviceId: p.devId, online: [], features: ctx.features });
+    const vk = ctx.vapidKey && ctx.vapidKey(); if (vk) safeSend(ws, { type: "vapid-key", key: vk });
     ctx.flush(boxKey(p.id, p.devId), ws);
     return true;
   }
@@ -51,6 +52,17 @@ function onMessage(ws, msg, ctx) {
   const { id, devId } = ws._dev;
   if (!activeCert(ctx.deviceLists, id, devId)) { drop(id, devId); try { ws.close(); } catch (e) {} return true; }
   if (msg.type === "mailbox-ack" && typeof msg.msgId === "string") { if (ctx.mailboxRemove(boxKey(id, devId), msg.msgId)) ctx.scheduleSave(); return true; }
+  // Собственная push-подписка companion: под ключом "id#deviceId" в общем хранилище подписок; отзыв устройства её удаляет
+  if (msg.type === "push-subscribe" && msg.subscription && ctx.pushSubs) {
+    if (!ctx.pushHit(boxKey(id, devId))) return true;
+    const sub = ctx.validatePushSubscription(msg.subscription);
+    if (!sub) { safeSend(ws, { type: "push-subscribe-error", error: "invalid-subscription" }); return true; }
+    const k = boxKey(id, devId);
+    if (!ctx.pushSubs.has(k) && ctx.pushSubs.size >= ctx.maxPushSubs) { safeSend(ws, { type: "push-subscribe-error", error: "full" }); return true; }
+    ctx.pushSubs.set(k, { subscription: sub, lang: ctx.normLang(msg.lang) }); ctx.schedulePushSubsSave();
+    safeSend(ws, { type: "push-subscribed" }); return true;
+  }
+  if (msg.type === "push-unsubscribe" && ctx.pushSubs) { ctx.pushSubs.delete(boxKey(id, devId)); ctx.schedulePushSubsSave(); safeSend(ws, { type: "push-unsubscribed" }); return true; }
   if (msg.type === "devices-get" && typeof msg.to === "string" && msg.to.length <= 128 && typeof msg.rid === "string" && msg.rid.length <= 40) {
     const e = ctx.deviceLists.get(msg.to); safeSend(ws, { type: "devices-list", rid: msg.rid, to: msg.to, list: e ? e.list : null }); return true;
   }
@@ -90,6 +102,7 @@ function dispatch(ctx, { fromId, fromDev, to, msgId, kind, envelope, copies, fro
     } else {
       if (!activeCert(ctx.deviceLists, to, dev)) continue; // нет в списке / отозвано / просрочено: не доставляем
       ctx.mailboxPut(boxKey(to, dev), msgId, { ...payload, ts: Date.now() });
+      if (kind === "chat" && fromId !== to && ctx.notifyDevice) ctx.notifyDevice(to, dev, fromId, msgId, boxKey(to, dev));
       const m = companions.get(to), c = m && m.get(dev);
       if (c && c.ws.readyState === ctx.WebSocket.OPEN) ctx.safeSend(c.ws, { type: "deliver", ...payload, queued: false });
     }
@@ -105,5 +118,8 @@ function onListChanged(id, ctx) {
   for (const [devId, c] of m ? Array.from(m) : []) if (!activeCert(ctx.deviceLists, id, devId)) { ctx.safeSend(c.ws, { type: "device-revoked" }); try { c.ws.close(); } catch (e) {} drop(id, devId); }
   const e = ctx.deviceLists.get(id);
   if (e) for (const k of ctx.mailboxKeys(id + "#")) { const devId = k.slice(id.length + 1); if (!activeCert(ctx.deviceLists, id, devId)) ctx.mailboxDropBox(k); }
+  if (ctx.pushSubs) { let n = 0; for (const k of Array.from(ctx.pushSubs.keys())) if (k.startsWith(id + "#") && !activeCert(ctx.deviceLists, id, k.slice(id.length + 1))) { ctx.pushSubs.delete(k); n++; } if (n) ctx.schedulePushSubsSave(); }
 }
-module.exports = { onMessage, dispatch, onClose, onListChanged, companions, activeCert, MAX_COPIES };
+// Событие всем подключённым companion владельца (основному оно уходит через watch/клиентов отдельно)
+function broadcastOwn(id, note, ctx) { const m = companions.get(id); if (m) for (const c of m.values()) ctx.safeSend(c.ws, note); }
+module.exports = { onMessage, dispatch, onClose, onListChanged, broadcastOwn, companions, activeCert, MAX_COPIES };

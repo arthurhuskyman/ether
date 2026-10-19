@@ -166,6 +166,7 @@ class SignalingClient extends EventTarget {
         return;
       }
       if (msg.type === "devices-list" && typeof msg.rid === "string") { this.dispatchEvent(new CustomEvent("devices-list", { detail: { rid: msg.rid, to: msg.to, list: msg.list || null } })); return; }
+      if (msg.type === "devices-updated" && typeof msg.id === "string") { this.dispatchEvent(new CustomEvent("devices-updated", { detail: { id: msg.id, seq: msg.seq } })); return; }
       if (msg.type === "device-revoked") { this.shouldRun = false; this.dispatchEvent(new CustomEvent("device-revoked")); return; }
       if (msg.type === "register-error" && msg.error === "device-not-authorized") { this.dispatchEvent(new CustomEvent("device-unauthorized")); return; }
 

@@ -753,10 +753,11 @@ async function handleDeliver(detail, replay) {
       return;
     }
 
-    if (kind === "sync-sent" && from === Store.myId && typeof Devices !== "undefined") { // отправленное с другого моего устройства
-      try { Devices.applySyncSent(payload); } catch (e) {}
+    if ((kind === "sync-sent" || kind === "sync-op") && from === Store.myId && typeof Devices !== "undefined") { // отправленное/сделанное с другого моего устройства (применяется локально, без рассылки: анти-эхо)
+      try { if (kind === "sync-op") Promise.resolve(Devices.applySyncOp(payload)).catch(() => {}); else Devices.applySyncSent(payload); } catch (e) {}
       markSeenMsg(from, msgId); ackBox(); return;
     }
+    if ((kind === "sync-sent" || kind === "sync-op") && from === Store.myId) { ackBox(); return; }
     // Первый отправитель из ящика: конверт расшифровался этим ключом — запоминаем его, иначе ответить и квитировать нельзя
     if (learnKey) {
       try {
@@ -1063,6 +1064,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     if (payload.state === "sent" || payload.state === "delivered" || payload.state === "read") {
       const ids = (Array.isArray(payload.ids) ? payload.ids : [payload.id]).filter((x) => typeof x === "string").slice(0, 500);
       for (const id of ids) markMessageAck(from, id, payload.state);
+      if (typeof Devices !== "undefined") { try { Devices.syncAckIn(from, payload.state, ids); } catch (e) {} } // другие мои устройства тоже увидят «доставлено/прочитано»
     }
   } else if (kind === "typing") {
     handleIncomingTyping(from, !!payload.active);

@@ -192,7 +192,7 @@ async function exportBackup() {
   }
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
   downloadBlob(blob, `ether-backup-${new Date().toISOString().slice(0, 10)}.json`);
-  toast(T("toast.backupSaved"));
+  toast(T("toast.backupSaved") + (typeof Devices !== "undefined" && Devices.isCompanion() ? " " + T("devices.backupCopy") : ""));
 }
 async function importBackup(ev) {
   const file = ev.target.files && ev.target.files[0];

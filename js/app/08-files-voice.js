@@ -220,6 +220,7 @@ async function sendFileMessage(contactId, file, opts) {
     }
   }
   if (inGroup) { await sendGroupFile(contactId, file, { caption }); return; }
+  if (typeof Devices !== "undefined" && Devices.needsServer(c)) { await sendFileOffline(contactId, file, { caption }); return; } // есть другие устройства: вложение идёт через ящик, чтобы его увидели все
   const existingLink = mesh.get(contactId);
   const alreadyLive = existingLink && (existingLink.status === "connected" || existingLink.status === "in-call");
   if (!alreadyLive && !silent) toast(T("toast.connecting"));
@@ -369,6 +370,7 @@ async function sendVoiceMessage(contactId, blob, durationSec, wave) {
   const voiceCap = inGroup ? GROUP_FILE_MAX : MAX_FILE_SIZE;
   if (blob.size > voiceCap) { toast(T("toast.fileTooLarge", { size: formatFileSize(voiceCap) })); return; }
   if (inGroup) { await sendGroupFile(contactId, blob, { name: "voice-message", duration: durationSec, wave, mime: blob.type || "audio/webm" }); return; }
+  if (typeof Devices !== "undefined" && Devices.needsServer(c)) { await sendVoiceOffline(contactId, blob, durationSec, wave); return; }
   const existingLink2 = mesh.get(contactId);
   const alreadyLive2 = existingLink2 && (existingLink2.status === "connected" || existingLink2.status === "in-call");
   if (!alreadyLive2) toast(T("toast.connecting"));
@@ -1132,6 +1134,7 @@ function hydrateFileSlots(root) {
     const kind = el.getAttribute("data-file-kind");
     getFileBlobUrl(msgId).then((url) => {
       if (!url) {
+        if (typeof Devices !== "undefined" && Devices.stubFile(el, msgId)) return; // файл остался на другом устройстве аккаунта: кнопка «Запросить»
         // Раньше при неудаче (файл не докачан/удалён/ошибка IDB) слот
         // так и оставался с "Загрузка…" навсегда — пользователь не мог
         // понять, что происходит.
@@ -1168,6 +1171,7 @@ function hydrateFileSlots(root) {
     backfillVoiceWave(msgId, el);
     getFileBlobUrl(msgId).then((url) => {
       if (!url || !playBtn) {
+        if (!url && typeof Devices !== "undefined" && Devices.stubFile(el, msgId)) return;
         // Та же проблема для голосовых — кнопка play оставалась
         // disabled навсегда без единого объяснения.
         if (durEl) durEl.textContent = T("chat.file.unavailable");
