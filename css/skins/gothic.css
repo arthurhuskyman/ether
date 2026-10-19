@@ -207,3 +207,4 @@ html[data-calm-mode="1"] :is(.gt-fog, .gt-bat, .gt-bat svg) { animation: none !i
 html[data-calm-mode="1"] .gt-bat { display: none; }
 html[data-calm-mode="1"][data-skin="gothic"] :is(#nav-title::after, #nav-bar.glass::after, .tab-btn.active > svg, .bubble-row .bubble, .sheet-panel) { animation: none !important; }
 @media (prefers-reduced-motion: reduce) { html[data-skin="gothic"] :is(#nav-title::after, #nav-bar.glass::after, .tab-btn.active > svg, .bubble-row .bubble, .sheet-panel) { animation: none !important; } }
+html[data-skin="gothic"] #composer-menu-sheet .composer-recent.composer-menu-item { min-height: 76px; padding: 14px 40px; }
