@@ -701,7 +701,8 @@ class PeerLink extends EventTarget {
     const metaPayload = { kind: "file-meta", id: meta.id, name: meta.name, mime: meta.mime, size: meta.size, totalChunks: base64Chunks.length };
     if (meta.duration != null) metaPayload.duration = meta.duration;
     if (meta.wave) metaPayload.wave = meta.wave;
-    if (meta.forwarded) metaPayload.forwarded = true;
+    if (meta.forwarded) { metaPayload.forwarded = true; if (typeof meta.fwdFrom === "string" && meta.fwdFrom) metaPayload.fwdFrom = meta.fwdFrom.slice(0, 80); }
+    if (Number.isFinite(meta.ttl) && meta.ttl > 0) metaPayload.ttl = meta.ttl;
     if (meta.caption) metaPayload.caption = meta.caption;
     if (!this.send(metaPayload)) return false;
     const BACKPRESSURE_TIMEOUT_MS = 30000; // залипший SCTP-буфер не должен вешать отправку вечно
