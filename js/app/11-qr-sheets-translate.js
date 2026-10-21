@@ -39,8 +39,9 @@ function parseQrAddPayload(text) {
     return { id, name: qs.get("name") || "" };
   } catch (e) { return null; }
 }
-let qrScanStream = null, qrScanRafId = null, qrScanCanvas = null, qrScanVerifyMode = false;
+let qrScanStream = null, qrScanRafId = null, qrScanCanvas = null, qrScanVerifyMode = false, qrScanToken = 0;
 async function startQrScan() {
+  const myToken = ++qrScanToken; // stopQrScan() инвалидирует токен: камера, полученная после закрытия шторки, не должна остаться включённой
   const sheet = $("#scan-qr-sheet"); if (sheet) sheet.classList.remove("hidden");
   const video = $("#qr-scan-video");
   const statusEl = $("#qr-scan-status");
@@ -49,15 +50,24 @@ async function startQrScan() {
     if (statusEl) statusEl.textContent = T("connect.qr.scan.unsupported");
     return;
   }
+  let gotStream;
   try {
-    qrScanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+    gotStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
   } catch (e) {
+    if (myToken !== qrScanToken) return;
     if (statusEl) statusEl.textContent = T("connect.qr.scan.noCamera");
     etherLog("warn", "[qr] getUserMedia failed:", String(e));
     return;
   }
+  if (myToken !== qrScanToken || (sheet && sheet.classList.contains("hidden"))) {
+    try { gotStream.getTracks().forEach((t) => t.stop()); } catch (e) {}
+    return;
+  }
+  if (qrScanStream) { try { qrScanStream.getTracks().forEach((t) => t.stop()); } catch (e) {} }
+  qrScanStream = gotStream;
   video.srcObject = qrScanStream;
   await video.play().catch(() => {});
+  if (myToken !== qrScanToken) return;
   if (!qrScanCanvas) qrScanCanvas = document.createElement("canvas");
   const tick = () => {
     if (!qrScanStream) return; // сканирование уже остановлено
@@ -104,6 +114,7 @@ async function startQrScan() {
 }
 function stopQrScan() {
   qrScanVerifyMode = false;
+  qrScanToken++;
   if (qrScanRafId) { cancelAnimationFrame(qrScanRafId); qrScanRafId = null; }
   if (qrScanStream) { qrScanStream.getTracks().forEach((t) => t.stop()); qrScanStream = null; }
   const video = $("#qr-scan-video"); if (video) video.srcObject = null;
@@ -278,6 +289,7 @@ function wireConnectScreen() {
     const groupId = createGroup(name, checked, state._newGroupAvatar);
     if (!groupId) return;
     const sheet = $("#new-group-sheet"); if (sheet) sheet.classList.add("hidden");
+    if (typeof resetChatTransientState === "function") resetChatTransientState(groupId);
     state.chatId = groupId;
     renderTab();
   });
@@ -392,7 +404,13 @@ function resetConnectScreen() {
   const pc = $("#paste-code-in"); if (pc) pc.value = "";
   const ib = $("#incoming-banner"); if (ib) ib.classList.add("hidden");
 }
+let __createInviteBusy = false;
 async function createInvite() {
+  if (__createInviteBusy) return; // повторный вызов во время генерации оффера плодил бы осиротевшие линки/контакты
+  __createInviteBusy = true;
+  try { await createInviteInner(); } finally { __createInviteBusy = false; }
+}
+async function createInviteInner() {
   const id = crypto.randomUUID();
   const link = mesh.createOutgoingLink(id);
   const packet = await link.createInitialOffer("");
@@ -417,8 +435,9 @@ async function createInvite() {
 async function handleIncomingCode(code) {
   let packet;
   try { packet = await SignalingCodec.decode(code); }
-  catch (e) { return; }
-  if (packet && packet.t === "offer") {
+  catch (e) { throw new Error("bad invite code"); } // вызывающие показывают toast.badInviteCode
+  if (!packet || packet.t !== "offer") throw new Error("not an offer");
+  {
     if (!packet.d || typeof packet.d.sdp !== "string") throw new Error("bad offer");
     const id = crypto.randomUUID();
     let link;
@@ -426,12 +445,12 @@ async function handleIncomingCode(code) {
       link = mesh.createIncomingLink(id);
       const answerPacket = await link.acceptOfferAndCreateAnswer(packet);
       const answerCode = await SignalingCodec.encode(answerPacket);
-      state.contacts.set(id, { id, name: packet.n || T("sys.someone"), raw: "", managed: false, online: false, status: "connecting", messages: [], lastActivity: Date.now(), archived: false, muted: false, blocked: false });
+      state.contacts.set(id, { id, name: (typeof packet.n === "string" ? packet.n.slice(0, 40) : "") || T("sys.someone"), raw: "", managed: false, online: false, status: "connecting", messages: [], lastActivity: Date.now(), archived: false, muted: false, blocked: false });
       state.tab = "connect"; renderTab();
       const ms = $("#manual-section"); if (ms) ms.classList.remove("hidden");
       const tm = $("#toggle-manual-btn"); if (tm) tm.textContent = T("connect.manual.hide");
       const ib = $("#incoming-banner"); if (ib) ib.classList.remove("hidden");
-      const ibt = $("#incoming-banner-text"); if (ibt) ibt.textContent = packet.n || "";
+      const ibt = $("#incoming-banner-text"); if (ibt) ibt.textContent = typeof packet.n === "string" ? packet.n.slice(0, 40) : "";
       const aoc = $("#answer-out-code"); if (aoc) aoc.textContent = answerCode;
       const aow = $("#answer-out-wrap"); if (aow) aow.classList.remove("hidden");
       const pcw = $("#paste-code-wrap"); if (pcw) pcw.classList.add("hidden");
@@ -494,6 +513,7 @@ function confirmSheet(message, opts) {
   return new Promise((resolve) => {
     const sheet = $("#confirm-sheet");
     if (!sheet) { resolve(false); return; } // шторки нет в DOM (не должно случаться) — не блокируем действие молча навсегда
+    if (__confirmSheetResolve) { const prev = __confirmSheetResolve; __confirmSheetResolve = null; try { prev(false); } catch (e) {} } // предыдущий вопрос не должен висеть вечно
     __confirmSheetResolve = resolve;
     const msgEl = $("#confirm-sheet-message"); if (msgEl) msgEl.textContent = message;
     const okBtn = $("#confirm-sheet-ok"); if (okBtn) { okBtn.classList.toggle("destructive", !!opts.destructive); okBtn.textContent = opts.okLabel || T("sys.confirm"); }
@@ -867,6 +887,7 @@ function openFavoritesSheet() {
   const fs = $("#favorites-sheet"); if (fs) fs.classList.remove("hidden");
 }
 function jumpToMessageInChat(contactId, msgId) {
+  if (typeof resetChatTransientState === "function") resetChatTransientState(contactId);
   state.chatId = contactId;
   state.contactCardId = null;
   state.tab = "chats";

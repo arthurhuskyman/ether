@@ -111,7 +111,7 @@ test("idOk/tally: зарезервированные имена отвергаю
 
 test("sw.js: ether-meta не удаляется при активации, showNotification под waitUntil", () => {
   const sw = fs.readFileSync(path.join(ROOT, "sw.js"), "utf8");
-  assert.ok(/k !== CACHE_VERSION && k !== "ether-meta"/.test(sw));
+  assert.ok(/k\.startsWith\("ether-shell-"\) && k !== CACHE_VERSION/.test(sw)); // M1: только старые кэши оболочки; ether-meta и transformers-cache не трогаем
   assert.ok(/event\.waitUntil\(self\.registration\.showNotification\(/.test(sw));
 });
 

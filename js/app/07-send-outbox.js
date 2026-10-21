@@ -213,9 +213,30 @@ async function commitEdit(contactId, msgId, newText) {
   const payload = { kind: "edit", id: msgId, text: newText, ts: editTs };
   await dispatchRich(c, payload); // личный чат — как раньше; группа — каждому участнику с groupId
 }
+// B2: удалённое неотправленное сообщение оставалось в outbox/pendingNoKey и доходило до собеседника
+// после появления сети/ключа. Для группы запись очереди ключуется deliveryId — ищем через groupDeliveryMap
+// (contentId === msgId) и по payload.id. Служебный "delete" не трогаем: он как раз должен уйти.
+function purgeUnsentForMessage(msgId, batch) {
+  const deliveryIds = new Set([msgId]);
+  for (const [did, v] of groupDeliveryMap) if (v && v.contentId === msgId) deliveryIds.add(did);
+  const isTarget = (key, payload) => deliveryIds.has(key) || (payload && payload.id === msgId && payload.kind !== "delete");
+  let outboxChanged = false, noKeyChanged = false, mapChanged = false;
+  for (const [key, e] of Array.from(outbox)) if (isTarget(key, e && e.payload)) { outbox.delete(key); envelopeCache.delete(key); outboxChanged = true; }
+  for (const [cid, list] of Array.from(pendingNoKey)) {
+    if (!Array.isArray(list)) continue;
+    const keep = list.filter((x) => !isTarget(x && x.msgId, x && x.payload));
+    if (keep.length !== list.length) { noKeyChanged = true; if (keep.length) pendingNoKey.set(cid, keep); else pendingNoKey.delete(cid); }
+  }
+  for (const did of deliveryIds) if (did !== msgId && groupDeliveryMap.delete(did)) mapChanged = true;
+  envelopeCache.delete(msgId);
+  if (outboxChanged) persistOutbox();
+  if (noKeyChanged) persistPendingNoKey();
+  if (mapChanged) persistGroupDeliveryMap();
+}
 function deleteMessageLocal(contactId, msgId, batch) {
   const c = state.contacts.get(contactId); if (!c) return;
   const m = c.messages.find((x) => x.id === msgId);
+  purgeUnsentForMessage(msgId);
   if (m && (m.file || (m.sticker && m.sticker.custom))) {
     IDB.del("file:" + msgId).catch(() => {});
     const url = fileBlobUrlCache.get(msgId);
@@ -936,6 +957,10 @@ async function setDisappearingTimer(contactId, ms) {
   persistContacts();
   if (state.chatId === contactId) renderChatThread();
   if (state.tab === "chats") renderChatsList();
+  // B3: у группы нет publicKey — "disappearing-timer" уходил в pendingNoKey группы навсегда, а получатель
+  // применил бы его к личному чату с отправителем. Таймер группы действует через ttl в каждом
+  // групповом сообщении (sendGroupMessage/sendGroupFile), отдельная рассылка не нужна.
+  if (isGroup(c)) return;
   const actionId = crypto.randomUUID();
   await trySendOrQueue(c, actionId, { kind: "disappearing-timer", id: actionId, timer: ms });
 }

@@ -101,7 +101,8 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_VERSION && k !== "ether-meta").map((k) => caches.delete(k)))
+      // M1: удаляем только старые кэши оболочки (ether-shell-*); transformers-cache (модели Whisper) и ether-meta переживают релизы
+      Promise.all(keys.filter((k) => k.startsWith("ether-shell-") && k !== CACHE_VERSION).map((k) => caches.delete(k)))
     )
   );
   self.clients.claim();
@@ -141,6 +142,27 @@ async function handleManifestRequest(request) {
   }
 }
 
+// M3: файлы оболочки пишет только install; фоновый cache.put из fetch не должен подменять код текущего (активного) кэша новым
+const SHELL_PATHS = new Set(SHELL_FILES.map((f) => new URL(f, self.location.href).pathname));
+// M4: Range (audio/video, iOS Safari требует 206) — из кэшированного 200 нарезаем нужный диапазон
+function rangeResponse(cached, rangeHeader) {
+  const m = /^bytes=(\d*)-(\d*)$/.exec(String(rangeHeader || "").trim());
+  if (!m || (m[1] === "" && m[2] === "")) return Promise.resolve(cached);
+  return cached.arrayBuffer().then((buf) => {
+    const size = buf.byteLength;
+    let start, end;
+    if (m[1] === "") { const n = parseInt(m[2], 10); start = Math.max(0, size - n); end = size - 1; }
+    else { start = parseInt(m[1], 10); end = m[2] === "" ? size - 1 : Math.min(parseInt(m[2], 10), size - 1); }
+    if (!(start <= end) || start >= size) return new Response(null, { status: 416, headers: { "Content-Range": "bytes */" + size } });
+    const headers = new Headers();
+    headers.set("Content-Type", cached.headers.get("Content-Type") || "application/octet-stream");
+    headers.set("Content-Range", "bytes " + start + "-" + end + "/" + size);
+    headers.set("Content-Length", String(end - start + 1));
+    headers.set("Accept-Ranges", "bytes");
+    return new Response(buf.slice(start, end + 1), { status: 206, statusText: "Partial Content", headers });
+  });
+}
+
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   const url = new URL(event.request.url);
@@ -157,11 +179,19 @@ self.addEventListener("fetch", (event) => {
     }
     return;
   }
+  const rangeHdr = event.request.headers.get("range");
+  if (rangeHdr) {
+    event.respondWith(
+      caches.match(event.request, { ignoreSearch: true }).then((cached) => (cached && cached.status === 200 ? rangeResponse(cached, rangeHdr) : fetch(event.request)))
+        .catch(() => fetch(event.request))
+    );
+    return;
+  }
   event.respondWith(
     caches.match(event.request).then((cached) => {
       const network = fetch(event.request)
         .then((response) => {
-          if (response && response.status === 200 && response.type === "basic") {
+          if (response && response.status === 200 && response.type === "basic" && !SHELL_PATHS.has(url.pathname)) {
             const copy = response.clone();
             caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, copy));
           }

@@ -130,7 +130,7 @@ async function handleIncomingOffer(from, packet, replySignal) {
     return;
   }
   if (existing) mesh.remove(from);
-  ensureContactEntry(from, packet.n);
+  ensureContactEntry(from, typeof packet.n === "string" ? packet.n.slice(0, 40) : null);
   if (packet.rl) markRelayOnly(from); // собеседник обнаружил, что UDP «глухой» — отвечаем тоже только через TURN
   const link = mesh.createIncomingLink(from);
   flushPendingIceFor(from, link);
@@ -295,7 +295,7 @@ function wireSignalingEvents(sig) {
   subs.push(on("online-list", (ev) => {
     for (const u of ev.detail.users) {
       onlineSet.add(u.id);
-      onlineRoster.set(u.id, { name: u.name, visible: u.visible !== false, publicKey: u.publicKey || null });
+      onlineRoster.set(u.id, { name: typeof u.name === "string" ? u.name.slice(0, 40) : u.name, visible: u.visible !== false, publicKey: u.publicKey || null });
       const c = state.contacts.get(u.id);
       if (c && c.managed) {
         c.online = true;
@@ -347,8 +347,8 @@ function wireSignalingEvents(sig) {
       // человека, пользователь продолжал бы получать от него звонки.
       const existingBlocked = state.contacts.get(from);
       if (existingBlocked && existingBlocked.blocked) { scheduleBlockedCallDecline(from, sig); return; }
-      ensureContactEntry(from, packet.n);
-      if (state.callId && state.callId !== from) {
+      ensureContactEntry(from, typeof packet.n === "string" ? packet.n.slice(0, 40) : null);
+      if ((state.callId && state.callId !== from) || (typeof gcallBusy === "function" && gcallBusy())) {
         const busySent = sig.signal(from, { t: "call-busy" });
         if (!busySent) etherLog("warn", "[call] не удалось отправить call-busy (сигналинг недоступен)");
         return;
@@ -1149,8 +1149,10 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     // непрочитанного: получатель узнаёт об этом только если сам
     // настроил наблюдение и у него сработает проверка в checkDeadManSwitch().
     const c = state.contacts.get(from); if (!c) return;
-    c.lastHeartbeatAt = payload.ts || Date.now();
-    if (payload.thresholdDays) c.heartbeatThresholdDays = payload.thresholdDays;
+    const nowTs = Date.now();
+    c.lastHeartbeatAt = (typeof payload.ts === "number" && isFinite(payload.ts) && payload.ts > 0 && payload.ts <= nowTs + 60000) ? payload.ts : nowTs;
+    const thr = Number(payload.thresholdDays);
+    if (isFinite(thr) && thr >= 1 && thr <= 3650) c.heartbeatThresholdDays = Math.floor(thr);
     delete c.heartbeatAlertedAt; // новый heartbeat пришёл — отправитель снова "на связи", сбрасываем отметку уже показанного предупреждения
     persistContacts();
   }
@@ -1376,7 +1378,7 @@ function renderOnlineRosterList() {
     row.querySelector(".roster-add-btn").addEventListener("click", () => {
       if (recentlyDeletedIds.delete(id)) persistRecentlyDeleted(); // осознанное повторное добавление снимает блокировку из deleteContact
       state.contacts.set(id, {
-        id, name: u.name || T("sys.someone"), raw: "", managed: true,
+        id, name: (typeof u.name === "string" ? u.name.slice(0, 40) : "") || T("sys.someone"), raw: "", managed: true,
         publicKey: u.publicKey || null, online: true, status: "disconnected",
         messages: [], lastActivity: Date.now(), archived: false, muted: false, blocked: false,
       });

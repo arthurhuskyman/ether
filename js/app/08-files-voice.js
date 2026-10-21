@@ -455,6 +455,9 @@ let voiceRecordStarting = false;
 let voiceWaveSamples = [], voiceRecordPaused = false, voiceRecordPausedAt = 0, voiceRecordPausedTotal = 0;
 function voiceRecordElapsedSec() { return Math.max(0, (Date.now() - voiceRecordStartedAt - voiceRecordPausedTotal - (voiceRecordPaused ? Date.now() - voiceRecordPausedAt : 0)) / 1000); }
 let voiceRecordCancelPending = false; // чат покинули, пока висел getUserMedia
+let voiceRecordBytes = 0, voiceRecordWarned = false, voiceRecordCapBytes = 0; // B1: размер записи (сумма чанков) и потолок для автостопа
+const VOICE_CAP_WARN_SEC = 10; // за сколько секунд до лимита предупредить
+const VOICE_BPS_BYTES = 96000 / 8 * 1.1; // оценка байт/с (audioBitsPerSecond=96000 + запас на контейнер)
 let voiceRecordTargetChatId = null; // чат, в котором НАЧАЛАСЬ запись — используется при остановке, а не state.chatId в тот момент (пользователь мог переключиться в другой чат за время записи)
 // Реальный level meter поверх MediaRecorder (раздел 6 роадмапа) — раньше
 // 5 столбиков .voice-recording-wave просто бесконечно крутили одну и ту же
@@ -558,7 +561,9 @@ async function startVoiceRecording() {
   voiceRecordStarting = false;
   // локальный массив: финальный dataavailable приходит ПОСЛЕ того, как stopVoiceRecording обнулил глобальную переменную
   const recChunks = []; voiceRecordChunks = recChunks;
-  voiceRecorder.addEventListener("dataavailable", (ev) => { if (ev.data && ev.data.size > 0) recChunks.push(ev.data); });
+  voiceRecordBytes = 0; voiceRecordWarned = false;
+  { const tc = state.contacts.get(voiceRecordTargetChatId); voiceRecordCapBytes = (tc && isGroup(tc)) ? GROUP_FILE_MAX : MAX_FILE_SIZE; }
+  voiceRecorder.addEventListener("dataavailable", (ev) => { if (ev.data && ev.data.size > 0) { recChunks.push(ev.data); voiceRecordBytes += ev.data.size; } });
   // start(200): запрашиваем чанк каждые 200мс вместо одного финального
   // при stop(). На iOS одиночный stop() в конце длинной записи может
   // занимать 1-2 секунды, пока весь кодек-буфер дойдёт до JS. С
@@ -572,10 +577,21 @@ async function startVoiceRecording() {
   const timeEl = $("#voice-recording-time");
   voiceRecordTimerId = setInterval(() => {
     if (timeEl) timeEl.textContent = formatVoiceDuration(voiceRecordElapsedSec());
+    voiceRecordLimitCheck();
   }, 200);
   // AudioContext для индикатора уровня создаём не в момент старта записи — иначе на iOS смена частоты аудиосессии даёт щелчок в записи
   const meterStream = voiceRecordStream;
   setTimeout(() => { if (voiceRecorder && voiceRecordStream && voiceRecordStream === meterStream) { stopVoiceLevelMeter(); startVoiceLevelMeter(voiceRecordStream); } }, 600); // свой поток: устаревший таймер от прошлой записи не заводит второй измеритель
+}
+// B1: без лимита запись > потолка файла (2 МБ ≈ 175 с, группа 1 МБ ≈ 87 с) не отправлялась и
+// терялась. Теперь за VOICE_CAP_WARN_SEC до потолка показываем предупреждение, а у потолка
+// останавливаем и отправляем то, что записано.
+function voiceRecordLimitCheck() {
+  if (!voiceRecorder || voiceRecordPaused || !voiceRecordCapBytes) return;
+  const rate = VOICE_BPS_BYTES;
+  const left = (voiceRecordCapBytes - voiceRecordBytes) / rate; // осталось секунд до потолка
+  if (left <= 1) { toast(T("toast.voiceLimitReached")); stopVoiceRecording(true); return; }
+  if (left <= VOICE_CAP_WARN_SEC && !voiceRecordWarned) { voiceRecordWarned = true; toast(T("toast.voiceLimitSoon", { sec: Math.round(left) })); }
 }
 // Запись привязана к конкретному чату (voiceRecordTargetChatId) — если
 // пользователь уходит из этого чата, не дожидаясь окончания записи,
@@ -631,13 +647,19 @@ function stopVoiceRecording(send) {
   voiceRecorder = null;
   voiceRecordStream = null;
   voiceRecordChunks = [];
-  recorder.addEventListener("stop", () => {
+  let finalized = false;
+  const finalize = () => {
+    if (finalized) return; finalized = true;
     if (streamSnapshot) streamSnapshot.getTracks().forEach((t) => t.stop());
     if (!send || durationSec < 0.6) return; // случайное короткое нажатие — не отправляем пустышку
     const blob = new Blob(chunksSnapshot, { type: mimeType });
     if (contactId) sendVoiceMessage(contactId, blob, durationSec, waveOut);
-  });
-  try { recorder.stop(); } catch (e) {}
+  };
+  recorder.addEventListener("stop", finalize);
+  // B11: recorder уже inactive (браузер/ОС остановили, трек оборван) — stop() бросит и "stop" не придёт:
+  // собираем голосовое из уже накопленных чанков.
+  if (recorder.state === "inactive") { finalize(); return; }
+  try { recorder.stop(); } catch (e) { finalize(); }
 }
 
 const incomingFileBuffers = new Map(); // id -> { name, mime, size, totalChunks, chunks: [] }

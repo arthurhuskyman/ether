@@ -17,11 +17,14 @@ const MAX_BLOB = Number(process.env.LINK_MAX_BLOB) || 20 * 1024 * 1024;
 const MAX_CHANNELS = 200;
 const MAX_TOTAL_BYTES = 120 * 1024 * 1024;
 const INIT_PER_MIN = Number(process.env.LINK_INIT_PER_MIN) || 6, CALL_PER_MIN = 120, FAIL_PER_10MIN = 30;
+const MAX_CHANNELS_PER_IP = Number(process.env.LINK_MAX_PER_IP) || 10; // открытых каналов с одного IP (иначе один IP занимает все MAX_CHANNELS)
+const MAX_PUTS_INFLIGHT = Number(process.env.LINK_MAX_PUTS) || 4;       // одновременно читаемых тел /link/put (каждое — до MAX_BLOB в памяти)
+const GLOBAL_FAIL_PER_MIN = Number(process.env.LINK_GLOBAL_FAIL_PER_MIN) || 600; // потолок неудачных попыток по всем IP (распределённый перебор)
 const HEX64 = /^[0-9a-f]{64}$/, B64U = /^[A-Za-z0-9_-]{20,200}$/;
 
 const channels = new Map(); // t -> {u, pubOld, pubNew, jt, blob, created, blobAt, delivered}
 const hits = new Map(), fails = new Map();
-let totalBytes = 0, globalFails = { start: Date.now(), n: 0 };
+let totalBytes = 0, putsInflight = 0, putsReserved = 0, globalFails = { start: Date.now(), n: 0 };
 
 function bump(map, key, windowMs, limit) {
   const now = Date.now();
@@ -51,6 +54,7 @@ function readBody(req, limit) {
     req.on("data", (d) => { n += d.length; if (n > limit) { over = true; chunks.length = 0; } else if (!over) chunks.push(d); });
     req.on("end", () => over ? reject(Object.assign(new Error("too large"), { code: 413 })) : resolve(Buffer.concat(chunks)));
     req.on("error", reject);
+    req.on("close", () => reject(new Error("aborted"))); // обрыв клиентом: слот/резерв /link/put обязаны освободиться (после «end» reject — no-op)
   });
 }
 function eq(a, b) {
@@ -72,24 +76,47 @@ async function handle(req, res, ip) {
     const okIp = bump(fails, ip, 10 * 60_000, FAIL_PER_10MIN);
     const now = Date.now(); if (now - globalFails.start > 60_000) globalFails = { start: now, n: 0 };
     globalFails.n++;
-    jsonOut(res, okIp ? 404 : 429, { error: okIp ? "not found" : "rate limited" });
+    const ok = okIp && globalFails.n <= GLOBAL_FAIL_PER_MIN;
+    if (op === "put") res.setHeader("Connection", "close"); // тело не читаем — соединение не переиспользуем
+    jsonOut(res, ok ? 404 : 429, { error: ok ? "not found" : "rate limited" });
   };
+  // Глобальный потолок неудач: при распределённом переборе временно отвечаем 429 на всё, кроме init (S — 256 бит, потолок страхует от флуда, а не от реального подбора).
+  { const now = Date.now(); if (op !== "init" && now - globalFails.start <= 60_000 && globalFails.n > GLOBAL_FAIL_PER_MIN) { jsonOut(res, 429, { error: "rate limited" }); return true; } }
   // Уже накопленные неудачи блокируют IP, даже если следующая догадка «верна».
   { const f = fails.get(ip); if (f && Date.now() - f.start <= 10 * 60_000 && f.n > FAIL_PER_10MIN) { jsonOut(res, 429, { error: "rate limited" }); return true; } }
-  let body = Buffer.alloc(0), j = {};
+  const hdr = (n) => String(req.headers[n] || "");
+  let body = Buffer.alloc(0), j = {}, putSlot = false;
+  if (op === "put") {
+    // Заголовки, состояние канала и размер проверяем ДО чтения тела: иначе любой аноним заставлял сервер буферизовать до MAX_BLOB.
+    const t = hdr("x-link-t"), u = hdr("x-link-u");
+    const c = HEX64.test(t) && channels.get(t);
+    if (!c || !HEX64.test(u) || !eq(c.u, u)) return failed(), true;
+    res.setHeader("Connection", "close");
+    if (!c.pubNew || c.blob || c.delivered) { jsonOut(res, 409, { error: "bad state" }); return true; }
+    const cl = req.headers["content-length"];
+    if (cl === undefined || !/^\d+$/.test(String(cl))) { jsonOut(res, 411, { error: "length required" }); return true; }
+    if (Number(cl) > MAX_BLOB) { jsonOut(res, 413, { error: "too large" }); return true; }
+    if (Number(cl) === 0) { jsonOut(res, 400, { error: "empty" }); return true; }
+    if (totalBytes + putsReserved + Number(cl) > MAX_TOTAL_BYTES || putsInflight >= MAX_PUTS_INFLIGHT || c.putting) { jsonOut(res, 503, { error: "busy" }); return true; }
+    putsInflight++; putSlot = true; c.putting = true; putsReserved += Number(cl);
+    var reserved = Number(cl), chan = c;
+  }
   try {
     body = await readBody(req, op === "put" ? MAX_BLOB : 4096);
     if (op !== "put" && body.length) j = JSON.parse(body.toString("utf8"));
-  } catch (e) { jsonOut(res, e && e.code === 413 ? 413 : 400, { error: e && e.code === 413 ? "too large" : "bad request" }); return true; }
+  } catch (e) {
+    if (putSlot) { putsInflight--; putsReserved -= reserved; chan.putting = false; }
+    jsonOut(res, e && e.code === 413 ? 413 : 400, { error: e && e.code === 413 ? "too large" : "bad request" }); return true; }
+  if (putSlot) { putsInflight--; putsReserved -= reserved; chan.putting = false; }
   if (!j || typeof j !== "object") j = {};
   sweep();
-  const hdr = (n) => String(req.headers[n] || "");
 
   if (op === "init") {
     if (!HEX64.test(j.t || "") || !HEX64.test(j.u || "") || !B64U.test(j.pub || "")) { jsonOut(res, 400, { error: "bad request" }); return true; }
     if (channels.has(j.t)) { jsonOut(res, 409, { error: "exists" }); return true; }
+    { let n = 0; for (const c of channels.values()) if (c.ip === ip) n++; if (n >= MAX_CHANNELS_PER_IP) { jsonOut(res, 429, { error: "too many channels" }); return true; } }
     if (channels.size >= MAX_CHANNELS) { jsonOut(res, 503, { error: "busy" }); return true; }
-    channels.set(j.t, { u: j.u, pubOld: j.pub, pubNew: null, jt: null, blob: null, created: Date.now(), blobAt: 0, delivered: false });
+    channels.set(j.t, { u: j.u, pubOld: j.pub, pubNew: null, jt: null, blob: null, ip, created: Date.now(), blobAt: 0, delivered: false });
     jsonOut(res, 200, { ok: true, ttl: Math.floor(CHANNEL_TTL_MS / 1000), maxBlob: MAX_BLOB });
     return true;
   }
@@ -109,9 +136,8 @@ async function handle(req, res, ip) {
     return true;
   }
   if (op === "put") {
-    const t = hdr("x-link-t"), u = hdr("x-link-u");
-    const c = HEX64.test(t) && channels.get(t);
-    if (!c || !HEX64.test(u) || !eq(c.u, u)) return failed(), true;
+    const t = hdr("x-link-t"), c = channels.get(t); // повторная проверка: за время чтения тела канал могли отменить/истёк
+    if (!c) return failed(), true;
     if (!c.pubNew || c.blob || c.delivered) { jsonOut(res, 409, { error: "bad state" }); return true; }
     if (!body.length) { jsonOut(res, 400, { error: "empty" }); return true; }
     if (totalBytes + body.length > MAX_TOTAL_BYTES) { jsonOut(res, 503, { error: "busy" }); return true; }

@@ -32,8 +32,9 @@ const { imageMimeOk, isPrivateIp, validatePushSubscription, validLang, clientIpF
 process.on("uncaughtException", (e) => { try { console.error("[fatal-guard] uncaughtException:", sanitizeForLog(e && e.stack || e, 500)); } catch (e2) {} });
 process.on("unhandledRejection", (e) => { try { console.error("[fatal-guard] unhandledRejection:", sanitizeForLog(e && e.stack || e, 500)); } catch (e2) {} });
 
-// За прокси (Render и т.п.) IP клиента — ПОСЛЕДНЯЯ запись X-Forwarded-For (её дописывает прокси). TRUST_PROXY=0 — не доверять заголовку.
-const TRUST_PROXY = process.env.TRUST_PROXY !== "0";
+// За прокси (Render и т.п.) IP клиента — ПОСЛЕДНЯЯ запись X-Forwarded-For (её дописывает прокси). По умолчанию заголовку НЕ доверяем
+// (прямое подключение: иначе клиент подделкой XFF обходит все лимиты по IP); за reverse-proxy нужно явно задать TRUST_PROXY=1 (render.yaml это делает).
+const TRUST_PROXY = process.env.TRUST_PROXY === "1" || process.env.TRUST_PROXY === "true";
 const clientIp = (req) => clientIpFrom(req, TRUST_PROXY);
 
 let webpush = null;
@@ -568,6 +569,19 @@ const LINK_PREVIEW_NEGATIVE_CACHE_MS = 15 * 60 * 1000;
 
 const linkPreviewImageCache = new Map(); // url -> { at, data: {buf,type}|null }
 let linkPreviewImageCacheBytes = 0;
+const linkPreviewImageInflight = new Map(); // url -> Promise: параллельные запросы одной картинки делят один fetch
+function linkPreviewImageCacheSet(url, entry) {
+  const old = linkPreviewImageCache.get(url);
+  if (old && old.data) linkPreviewImageCacheBytes -= old.data.buf.length; // прежнюю запись заменяем — её байты вычитаем (иначе счётчик дрейфует вверх)
+  linkPreviewImageCache.delete(url); // и переставляем в конец порядка вытеснения
+  linkPreviewImageCache.set(url, entry);
+  if (entry.data) linkPreviewImageCacheBytes += entry.data.buf.length;
+  // вытесняем самые старые записи, пока не уложимся в лимит по байтам и числу записей
+  while ((linkPreviewImageCacheBytes > LINK_PREVIEW_IMAGE_CACHE_MAX_BYTES || linkPreviewImageCache.size > 1000) && linkPreviewImageCache.size > 1) {
+    const k = linkPreviewImageCache.keys().next().value; const v = linkPreviewImageCache.get(k);
+    linkPreviewImageCache.delete(k); if (v && v.data) linkPreviewImageCacheBytes -= v.data.buf.length;
+  }
+}
 async function getLinkPreviewImage(targetUrl) {
   const now = Date.now();
   const cached = linkPreviewImageCache.get(targetUrl);
@@ -576,17 +590,17 @@ async function getLinkPreviewImage(targetUrl) {
     if (now - cached.at < ttl) return cached.data;
     linkPreviewImageCache.delete(targetUrl); linkPreviewImageCacheBytes -= cached.data ? cached.data.buf.length : 0;
   }
-  let data = null;
-  try { data = await fetchUrlSafe(targetUrl, 3, undefined, { image: true }); }
-  catch (e) { console.log("[link-preview-image] ошибка для " + (() => { try { return new URL(targetUrl).hostname; } catch (e2) { return "?"; } })() + ": " + e.message); }
-  linkPreviewImageCache.set(targetUrl, { at: now, data });
-  if (data) linkPreviewImageCacheBytes += data.buf.length;
-  // вытесняем самые старые записи, пока не уложимся в лимит по байтам и числу записей
-  while ((linkPreviewImageCacheBytes > LINK_PREVIEW_IMAGE_CACHE_MAX_BYTES || linkPreviewImageCache.size > 1000) && linkPreviewImageCache.size > 1) {
-    const k = linkPreviewImageCache.keys().next().value; const v = linkPreviewImageCache.get(k);
-    linkPreviewImageCache.delete(k); if (v && v.data) linkPreviewImageCacheBytes -= v.data.buf.length;
-  }
-  return data;
+  const pending = linkPreviewImageInflight.get(targetUrl);
+  if (pending) return pending;
+  const p = (async () => {
+    let data = null;
+    try { data = await fetchUrlSafe(targetUrl, 3, undefined, { image: true }); }
+    catch (e) { console.log("[link-preview-image] ошибка для " + (() => { try { return new URL(targetUrl).hostname; } catch (e2) { return "?"; } })() + ": " + e.message); }
+    linkPreviewImageCacheSet(targetUrl, { at: Date.now(), data });
+    return data;
+  })();
+  linkPreviewImageInflight.set(targetUrl, p);
+  try { return await p; } finally { linkPreviewImageInflight.delete(targetUrl); }
 }
 
 async function getLinkPreview(targetUrl) {
@@ -867,36 +881,49 @@ function loadMailbox() {
     return n;
   } catch (e) { console.warn("[mailbox] не удалось прочитать файл ящика:", e.message); return 0; }
 }
+// Сохранение ящика: размер считаем заранее по approxEntrySize (без гигантского JSON.stringify всего ящика), при превышении потолка оставляем
+// САМЫЕ НОВЫЕ записи любых видов (раньше ветка «только текст» теряла не-chat: sync-sent/правки/реакции) и пишем файл потоково — по записи за раз.
 function saveMailbox() {
   if (!MAILBOX_PERSIST) return;
+  let fd = null; const tmp = MAILBOX_FILE + ".tmp";
   try {
-    const now = Date.now(); let boxes = [];
+    const now = Date.now(); let total = 0;
+    const live = []; // [id, [[msgId, entry, size]...]]
     for (const [id, box] of mailbox) {
       const entries = [];
-      for (const [msgId, entry] of box) if (!mailboxEntryExpired(entry, now)) entries.push([msgId, entry]);
-      if (entries.length) boxes.push([id, entries]);
+      for (const [msgId, entry] of box) if (!mailboxEntryExpired(entry, now)) { const sz = approxEntrySize(entry); entries.push([msgId, entry, sz]); total += sz; }
+      if (entries.length) live.push([id, entries]);
     }
-    let json = JSON.stringify({ v: 1, boxes });
-    if (json.length > MAILBOX_PERSIST_MAX_BYTES) { // слишком много — на диск только текст (файлы остаются в памяти)
-      boxes = boxes.map(([id, es]) => [id, es.filter(([, e]) => !e.kind || e.kind === "chat")]).filter(([, es]) => es.length);
-      json = JSON.stringify({ v: 1, boxes });
-    }
-    if (json.length > MAILBOX_PERSIST_MAX_BYTES) { // потолок действует и на текст: оставляем самые новые записи, самые старые отбрасываем
+    let boxes = live;
+    if (total > MAILBOX_PERSIST_MAX_BYTES) { // потолок: оставляем самые новые, самые старые отбрасываем
       const flat = [];
-      for (const [id, es] of boxes) for (const [msgId, e] of es) flat.push({ id, msgId, e, sz: approxEntrySize(e) });
-      flat.sort((a, b) => b.e.ts - a.e.ts);
+      for (const [id, es] of live) for (const x of es) flat.push({ id, x });
+      flat.sort((a, b) => b.x[1].ts - a.x[1].ts);
       let sum = 0; const keep = new Map();
       for (const f of flat) {
-        sum += f.sz; if (sum > MAILBOX_PERSIST_MAX_BYTES * 0.9) break;
+        sum += f.x[2]; if (sum > MAILBOX_PERSIST_MAX_BYTES * 0.9) break;
         if (!keep.has(f.id)) keep.set(f.id, []);
-        keep.get(f.id).unshift([f.msgId, f.e]);
+        keep.get(f.id).unshift(f.x);
       }
-      json = JSON.stringify({ v: 1, boxes: Array.from(keep.entries()) });
+      boxes = Array.from(keep.entries());
     }
-    const tmp = MAILBOX_FILE + ".tmp";
-    fs.writeFileSync(tmp, json, { mode: 0o600 });
+    fd = fs.openSync(tmp, "w", 0o600);
+    let buf = [], bufLen = 0;
+    const put = (str) => { buf.push(str); bufLen += str.length; if (bufLen >= 1 << 20) { fs.writeSync(fd, buf.join("")); buf = []; bufLen = 0; } };
+    put('{"v":1,"boxes":[');
+    boxes.forEach(([id, es], i) => {
+      put((i ? "," : "") + "[" + JSON.stringify(id) + ",[");
+      es.forEach(([msgId, e], j) => put((j ? "," : "") + JSON.stringify([msgId, e])));
+      put("]]");
+    });
+    put("]}");
+    if (buf.length) fs.writeSync(fd, buf.join(""));
+    fs.closeSync(fd); fd = null;
     fs.renameSync(tmp, MAILBOX_FILE); // атомарно: обрыв посреди записи не портит прежний файл
-  } catch (e) { console.warn("[mailbox] не удалось сохранить ящик:", e.message); }
+  } catch (e) {
+    if (fd !== null) { try { fs.closeSync(fd); } catch (e2) {} try { fs.unlinkSync(tmp); } catch (e2) {} }
+    console.warn("[mailbox] не удалось сохранить ящик:", e.message);
+  }
 }
 let mailboxDirty = false, mailboxTimer = null;
 function scheduleMailboxSave() {
@@ -1401,6 +1428,8 @@ function isValidEnvelope(env) {
 }
 // Возможности сервера, о которых он сообщает клиентам при регистрации: клиент включает новый формат только если сервер его понимает.
 const devicesMod = require("./devices");
+// id/адресат основного устройства не может содержать "#": такой ключ — ящик companion-устройства ("id#deviceId") и подписка на push.
+const validPeerId = devicesMod.validPeerId;
 const deviceLists = new Map(), deviceListHits = new Map(); // id -> {seq, list, at}; хранится в DATA_DIR/.ether-devices.json, основное по-прежнему публикует список при каждом подключении
 const DEVICE_LIST_MAX_BYTES = 8 * 1024, DEVICE_LISTS_MAX = 20000;
 // Списки устройств переживают рестарт: DATA_DIR/.ether-devices.json (атомарно, 0600), TTL записи без обновления, потолок числа и размера.
@@ -1465,6 +1494,8 @@ const PREKEY_FETCH_PER_TARGET_PER_MIN = 10;
 const callPushRecipientAt = new Map(); // получатель -> ts последнего принудительного push о звонке
 const callPushPairAt = new Map();      // отправитель→получатель -> ts
 const CALL_PUSH_RECIPIENT_BURST = 3;
+const CALL_PUSH_PER_IP_PER_MIN = Number(process.env.CALL_PUSH_PER_IP_PER_MIN) || 10;
+const callPushIpHits = new Map();
 const CALL_PUSH_RECIPIENT_MS = 15 * 1000, CALL_PUSH_PAIR_MS = 30 * 1000;
 const ipConnCount = new Map();         // ip -> число открытых сокетов
 // Язык push приходит от клиента: нормализуем ("ru_RU" → "ru-RU") и проверяем по белому списку формы, иначе "en".
@@ -1545,6 +1576,10 @@ wss.on("connection", (ws, req) => {
     // Всё, кроме register/ping, — только от текущего (не вытесненного) соединения зарегистрированного id.
     if (msg.type !== "register" && (!myId || !clients.get(myId) || clients.get(myId).ws !== ws)) return;
 
+    if (msg.type === "register" && typeof msg.id === "string" && msg.id.includes("#") && msg.id.length <= 128) {
+      safeSend(ws, { type: "register-error", error: "invalid-id", id: msg.id });
+      return;
+    }
     if (msg.type === "register" && typeof msg.id === "string" && msg.id && msg.id.length <= 128) {
       if (!registerRateLimitOk(ipAddr)) {
         safeSend(ws, { type: "register-rate-limited" });
@@ -1591,7 +1626,7 @@ wss.on("connection", (ws, req) => {
         caps: Array.isArray(msg.caps) ? msg.caps.filter((x) => typeof x === "string" && /^[a-z0-9]{1,12}$/.test(x)).slice(0, 8) : [],
         publicKey: validPublicKeyJwk(msg.publicKey) ? msg.publicKey : null, // раньше без проверки типа/размера и рассылалось всем наблюдателям
         // Новый клиент передаёт список контактов уже при регистрации — первый ростер сразу урезан (иначе до отдельного watch он бы получил всех)
-        watch: Array.isArray(msg.watch) ? new Set(msg.watch.filter((x) => typeof x === "string" && x.length > 0 && x.length <= 128).slice(0, WATCH_MAX)) : null,
+        watch: Array.isArray(msg.watch) ? new Set(msg.watch.filter((x) => typeof x === "string" && validPeerId(x)).slice(0, WATCH_MAX)) : null,
       });
       console.log("[reg] " + shortId(myId) + " visible=" + (msg.visible !== false) + " clients=" + clients.size);
       const me0 = clients.get(myId);
@@ -1612,7 +1647,7 @@ wss.on("connection", (ws, req) => {
     if (msg.type === "watch" && myId) {
       if (!wsRateLimitOk(watchHits, myId, 20)) return;
       const me = clients.get(myId); if (!me) return;
-      const ids = Array.isArray(msg.ids) ? msg.ids.filter((x) => typeof x === "string" && x.length > 0 && x.length <= 128).slice(0, WATCH_MAX) : [];
+      const ids = Array.isArray(msg.ids) ? msg.ids.filter((x) => typeof x === "string" && validPeerId(x)).slice(0, WATCH_MAX) : [];
       const prevWatch = me.watch;
       me.watch = new Set(ids);
       // Скрытого чужой watch не делает видимым: нужен он сам в чужом ростере (см. canSeePresence).
@@ -1658,7 +1693,7 @@ wss.on("connection", (ws, req) => {
       return;
     }
 
-    if (msg.type === "signal" && myId && typeof msg.to === "string" && msg.to.length <= 128) {
+    if (msg.type === "signal" && myId && typeof msg.to === "string" && validPeerId(msg.to)) {
       if (!wsRateLimitOk(signalHits, myId, SIGNAL_RATE_LIMIT_PER_MIN)) return;
       const target = clients.get(msg.to);
       const payload = { type: "signal", from: myId, data: msg.data };
@@ -1678,6 +1713,10 @@ wss.on("connection", (ws, req) => {
         // сигнала, но push к тому моменту уже был бы отправлен повторно.
         const inviteNonce = (typeof msg.data.x === "string" || typeof msg.data.x === "number") ? String(msg.data.x).slice(0, 128) : null;
         if (inviteNonce && callInvitePushSent.has(inviteNonce)) return;
+        // Push только если он осмыслен и допустим: у получателя есть подписка, а если он онлайн — отправитель вправе его достичь (canReach;
+        // скрытому «чужому» звонок и push не уходят). Иначе мусорные приглашения с разных id не расходуют лимит получателя (3/15 с) и не глушат настоящие звонки.
+        if (!pushSubs.has(msg.to) || (target && !canReach(myId, clients.get(myId), msg.to, target))) return;
+        if (!wsRateLimitOk(callPushIpHits, ipAddr, CALL_PUSH_PER_IP_PER_MIN)) { console.log("[call-push] ip-throttled " + shortId(myId)); return; } // отдельный лимит на IP отправителя (на смену id не реагирует)
         // Принудительные (force) push о звонке обходят общий троттлинг — ограничиваем отдельно: не чаще раза в 15 с на получателя
         // и раза в 30 с на пару отправитель→получатель (первый push уходит сразу).
         { const tNow = Date.now(), pk = myId + "→" + msg.to;
@@ -1704,7 +1743,7 @@ wss.on("connection", (ws, req) => {
     }
 
     // ---------- Доставка зашифрованного конверта ----------
-    if (msg.type === "deliver" && myId && typeof msg.to === "string" && msg.to.length <= 128 && typeof msg.msgId === "string" && msg.msgId.length <= 128) {
+    if (msg.type === "deliver" && myId && typeof msg.to === "string" && validPeerId(msg.to) && typeof msg.msgId === "string" && msg.msgId.length <= 128) {
       // Доставка самому себе бессмысленна: клиент не имеет причин так
       // делать, а сервер только зря потратит память на запись в mailbox
       // и попытается сделать доставку через свой же WS, что немедленно
@@ -1836,13 +1875,13 @@ wss.on("connection", (ws, req) => {
       devicesMod.broadcastOwn(myId, note, devicesCtx());
       return;
     }
-    if (msg.type === "devices-get" && myId && typeof msg.to === "string" && msg.to.length <= 128 && typeof msg.rid === "string" && msg.rid.length <= 40) {
+    if (msg.type === "devices-get" && myId && typeof msg.to === "string" && validPeerId(msg.to) && typeof msg.rid === "string" && msg.rid.length <= 40) {
       if (!wsRateLimitOk(deviceListHits, myId + "|g", 120)) { safeSend(ws, { type: "devices-list", rid: msg.rid, to: msg.to, list: null }); return; }
       const e = deviceLists.get(msg.to);
       safeSend(ws, { type: "devices-list", rid: msg.rid, to: msg.to, list: e ? e.list : null });
       return;
     }
-    if (msg.type === "prekey-fetch" && myId && typeof msg.to === "string" && msg.to.length <= 128 && typeof msg.rid === "string" && msg.rid.length <= 40) {
+    if (msg.type === "prekey-fetch" && myId && typeof msg.to === "string" && validPeerId(msg.to) && typeof msg.rid === "string" && msg.rid.length <= 40) {
       if (!wsRateLimitOk(prekeyFetchHits, myId, 60) || !wsRateLimitPairOk(myId, msg.to, 12, prekeyPairHits)) { safeSend(ws, { type: "prekey-bundle", rid: msg.rid, to: msg.to, error: "rate" }); return; }
       const e = prekeys.get(msg.to);
       let opk = null;

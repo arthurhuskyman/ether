@@ -21,6 +21,10 @@ function loadContacts() {
   let loadFailed = false;
   try { arr = JSON.parse(Store.contactsJson) || []; } catch (e) { arr = []; loadFailed = true; }
   if (!Array.isArray(arr)) { arr = []; loadFailed = true; }
+  if (loadFailed) {
+    // сырой (битый) JSON сохраняем в IndexedDB, чтобы следующая запись не затёрла его безвозвратно
+    try { const raw = Store.contactsJson; if (raw && raw !== "[]") IDB.set("contactsCorrupt", raw).catch(() => {}); } catch (e) {}
+  }
   if (loadFailed) { try { toast(T("toast.contactsLoadFailed")); } catch (e) {} }
   for (const c of arr) {
     if (!c || typeof c.id !== "string") continue;
@@ -582,7 +586,7 @@ function isContactMuted(c) {
   return !!(c && (c.muted || (c.muteUntil && c.muteUntil > Date.now())));
 }
 function contactStatusLabel(c) {
-  if (c.isGroup) return T("group.memberCount", { n: c.members.length });
+  if (c.isGroup) return T("group.memberCount", { n: (c.members || []).length });
   if (c.isDemo) return T("demo.hint");
   if (c.isSelf) return T("chats.selfChat.hint");
   if (c.status === "in-call") return T("status.inCall");
@@ -655,7 +659,11 @@ function handleAddLinkFromLocation() {
   try { id = decodeURIComponent(m[1]); const n = location.hash.match(/&name=([^&]*)/); name = n ? decodeURIComponent(n[1]) : ""; } catch (e) { return false; }
   try { history.replaceState(null, "", location.pathname); } catch (e) {}
   if (!id || id === Store.myId) return true;
-  try { addContactFromCard(id, name.slice(0, 40)); } catch (e) {}
+  name = name.slice(0, 40);
+  // чужая ссылка не должна молча добавлять контакт — спрашиваем подтверждение
+  Promise.resolve().then(() => confirmSheet(T("confirm.addContactLink", { name: name || id })))
+    .then((ok) => { if (ok) addContactFromCard(id, name); })
+    .catch(() => {});
   return true;
 }
 function buildFirstRunCard() {
@@ -986,11 +994,12 @@ function attachPinDragHandle(handle, wrapper, pinnedPairs, startIndex) {
     if (!dragging) return;
     wrapper.style.transform = `translateY(${e.clientY - startY}px)`;
   });
-  const finish = (e) => {
+  const finish = (e, cancelled) => {
     if (!dragging) return;
     dragging = false;
     wrapper.classList.remove("pin-dragging");
     wrapper.style.transform = "";
+    if (cancelled) return; // жест прерван системой (pointercancel) — порядок не меняем
     let targetIndex = startIndex, bestDist = Infinity;
     rects.forEach((r, i) => {
       const d = Math.abs((r.top + r.height / 2) - e.clientY);
@@ -1006,8 +1015,8 @@ function attachPinDragHandle(handle, wrapper, pinnedPairs, startIndex) {
       renderChatsList();
     }
   };
-  handle.addEventListener("pointerup", finish);
-  handle.addEventListener("pointercancel", finish);
+  handle.addEventListener("pointerup", (e) => finish(e, false));
+  handle.addEventListener("pointercancel", (e) => finish(e, true));
   // Сам клик по ручке (без перетаскивания) не должен открывать чат — row
   // это <button>, клик на вложенном <span> всплывёт на него, если не
   // остановить.
@@ -1094,7 +1103,7 @@ function renderContactsList() {
   for (const c of contacts) {
     const row = document.createElement("div");
     row.className = "roster-row";
-    const letter = (c.name || "").trim().charAt(0).toUpperCase() || "#";
+    const letter = (Array.from((c.name || "").trim())[0] || "").toUpperCase() || "#";
     if (showIndex) row.dataset.letter = letter;
     row.innerHTML = `
       <div class="avatar avatar-sm" style="background:${avatarGradient(c.name)}">${escapeHtml(initials(c.name))}</div>
@@ -1143,7 +1152,7 @@ function openGroupInfo(groupId) {
   state.activeGroupContext = groupId;
   const avatarBtn = $("#group-info-avatar-btn");
   if (avatarBtn) {
-    if (g.avatar) { avatarBtn.style.backgroundImage = `url('${g.avatar}')`; avatarBtn.style.background = ""; avatarBtn.textContent = ""; }
+    if (g.avatar) { avatarBtn.style.backgroundImage = `url('${g.avatar}')`; avatarBtn.textContent = ""; }
     else { avatarBtn.style.backgroundImage = ""; avatarBtn.style.background = avatarGradient(g.name); avatarBtn.textContent = initials(g.name); }
   }
   const nameInput = $("#group-info-name"); if (nameInput) nameInput.value = g.name || "";

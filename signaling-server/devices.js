@@ -21,6 +21,7 @@ function verifySig(cert, nonce, id, devId, sigB64) {
     return crypto.verify("sha256", authMsg(nonce, id, devId), { key, dsaEncoding: "ieee-p1363" }, Buffer.from(String(sigB64), "base64"));
   } catch (e) { return false; }
 }
+const validPeerId = (x) => typeof x === "string" && x.length > 0 && x.length <= 128 && !x.includes("#");
 const boxKey = (id, devId) => id + "#" + devId;
 
 // ctx: { deviceLists, safeSend, mailboxPut, mailboxRemove, scheduleSave, flush(key, ws, extra), isValidEnvelope, cleanEnvelope, cleanKind, rateOk(key, to), WebSocket, clientsGet }
@@ -29,7 +30,7 @@ function onMessage(ws, msg, ctx) {
   const { safeSend } = ctx;
   if (msg.type === "register" && typeof msg.deviceId === "string") {
     const id = msg.id, devId = msg.deviceId;
-    if (typeof id !== "string" || !id || id.length > 128 || !DEV_RE.test(devId)) { safeSend(ws, { type: "register-error", error: "device-not-authorized" }); return true; }
+    if (!validPeerId(id) || !DEV_RE.test(devId)) { safeSend(ws, { type: "register-error", error: "device-not-authorized" }); return true; }
     const cert = activeCert(ctx.deviceLists, id, devId);
     if (!cert) { safeSend(ws, { type: "register-error", error: "device-not-authorized", id }); return true; }
     ws._devPending = { id, devId, nonce: crypto.randomBytes(16).toString("base64url"), cert, at: Date.now() };
@@ -63,10 +64,10 @@ function onMessage(ws, msg, ctx) {
     safeSend(ws, { type: "push-subscribed" }); return true;
   }
   if (msg.type === "push-unsubscribe" && ctx.pushSubs) { ctx.pushSubs.delete(boxKey(id, devId)); ctx.schedulePushSubsSave(); safeSend(ws, { type: "push-unsubscribed" }); return true; }
-  if (msg.type === "devices-get" && typeof msg.to === "string" && msg.to.length <= 128 && typeof msg.rid === "string" && msg.rid.length <= 40) {
+  if (msg.type === "devices-get" && validPeerId(msg.to) && typeof msg.rid === "string" && msg.rid.length <= 40) {
     const e = ctx.deviceLists.get(msg.to); safeSend(ws, { type: "devices-list", rid: msg.rid, to: msg.to, list: e ? e.list : null }); return true;
   }
-  if (msg.type === "deliver" && typeof msg.to === "string" && msg.to.length <= 128 && typeof msg.msgId === "string" && msg.msgId.length <= 128) {
+  if (msg.type === "deliver" && validPeerId(msg.to) && typeof msg.msgId === "string" && msg.msgId.length <= 128) {
     if (!ctx.rateOk(boxKey(id, devId), msg.to)) return true;
     const kind = ctx.cleanKind(msg.kind);
     const env = msg.envelope != null ? (ctx.isValidEnvelope(msg.envelope) ? ctx.cleanEnvelope(msg.envelope) : null) : undefined;
@@ -81,6 +82,7 @@ function onMessage(ws, msg, ctx) {
 // Раздаёт копии получателю и его устройствам. envelope — для основного устройства to (может отсутствовать), copies — [{dev, envelope}]
 // (dev "" = основное). Возвращает false при невалидных копиях.
 function dispatch(ctx, { fromId, fromDev, to, msgId, kind, envelope, copies, fromPublicKey }) {
+  if (!validPeerId(to)) return false;
   const list = [];
   if (copies != null) {
     if (!Array.isArray(copies) || copies.length > MAX_COPIES) return false;
@@ -122,4 +124,4 @@ function onListChanged(id, ctx) {
 }
 // Событие всем подключённым companion владельца (основному оно уходит через watch/клиентов отдельно)
 function broadcastOwn(id, note, ctx) { const m = companions.get(id); if (m) for (const c of m.values()) ctx.safeSend(c.ws, note); }
-module.exports = { onMessage, dispatch, onClose, onListChanged, broadcastOwn, companions, activeCert, MAX_COPIES };
+module.exports = { validPeerId, onMessage, dispatch, onClose, onListChanged, broadcastOwn, companions, activeCert, MAX_COPIES };

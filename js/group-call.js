@@ -219,7 +219,11 @@ function gcallToggleMute() {
 }
 
 async function gcallToggleCamera() {
-  if (!GC.stream) return;
+  if (!GC.stream || GC.camBusy) return; // двойное нажатие: второй getUserMedia оставил бы первую камеру включённой без владельца
+  GC.camBusy = true;
+  try { await gcallToggleCameraInner(); } finally { GC.camBusy = false; }
+}
+async function gcallToggleCameraInner() {
   if (GC.video) {
     GC.stream.getVideoTracks().forEach((t) => { try { t.stop(); } catch (e) {} GC.stream.removeTrack(t); });
     GC.video = false;

@@ -97,11 +97,22 @@ function refreshSettingsQuick() {
     }
   });
 }
+// D1: единый сброс состояния, привязанного к ОТКРЫТОМУ чату (ответ/правка/поиск/мультивыбор/запись голосового).
+// Вызывать перед любой прямой сменой state.chatId в обход closeChatSafely(), иначе цитата/правка из чата A уйдёт в чат B.
+function resetChatTransientState(nextId) {
+  const next = nextId == null ? null : nextId;
+  if (next !== null && next === state.chatId) return; // тот же чат — ничего не сбрасываем
+  try { cancelVoiceRecordingIfLeavingChat(next); } catch (e) {}
+  try { cancelEditing(); } catch (e) {}
+  try { cancelReply(); } catch (e) {}
+  try { closeChatSearch(); } catch (e) {}
+  state.multiSelect = null;
+}
 function onSettingsQuick(id) {
   const q = SETTINGS_QUICK.find((x) => x.id === id); if (!q) return;
   if (q.kind === "toggle") { const cb = $(q.input); if (cb) cb.click(); setTimeout(() => { try { refreshSettingsQuick(); } catch (e) {} }, 350); }
   else if (q.kind === "cycle") {
-    const order = ["light", "dark", "auto"], cur = Store.theme, next = order[(order.indexOf(cur) + 1) % order.length];
+    const order = ["light", "dark", "oled", "auto"], cur = Store.theme, next = order[(order.indexOf(cur) + 1) % order.length];
     Store.theme = next; applyTheme(next); $$(".theme-seg button").forEach((b) => b.classList.toggle("active", b.dataset.theme === next)); refreshSettingsQuick();
   } else {
     openSettingsCategory(q.cat);
@@ -350,6 +361,8 @@ function wireSettingsScreen() {
         try { discoveryUnpublishBeforeIdChange(); } catch (e2) {}
         Store.myIdentityRaw = identity.normalized;
         Store.myId = identity.id;
+        try { Ratchet.resetAll(); } catch (e2) {} // сессии привязаны к паре id: со старым id они бесполезны
+        try { envelopeCache.clear(); } catch (e2) {}
         idEl.classList.remove("input-invalid");
         toast(T("toast.idUpdated"));
         initSignaling();
@@ -464,7 +477,8 @@ function wireSettingsScreen() {
     syncEncUi(); pinOldValue = "";
   }).observe(pinSheetEl, { attributes: true, attributeFilter: ["class"] });
   const pinSave = $("#set-pin-save-btn");
-  if (pinSave) pinSave.addEventListener("click", async () => {
+  let pinSaveBusy = false; // два параллельных клика (rekey/enable/disable) портили бы хранилище
+  const pinSaveRun = async () => {
     const inp = $("#set-pin-input"); if (!inp) return;
     const v = inp.value.trim();
     if (!v || v.length < 4) { toast(T("toast.pinShort")); return; }
@@ -550,6 +564,11 @@ function wireSettingsScreen() {
       toast(T("toast.pinChanged"));
       return;
     }
+  };
+  if (pinSave) pinSave.addEventListener("click", async () => {
+    if (pinSaveBusy) return;
+    pinSaveBusy = true;
+    try { await pinSaveRun(); } finally { pinSaveBusy = false; }
   });
   const slider = $("#glass-slider");
   if (slider) slider.addEventListener("input", (e) => { const t = parseFloat(e.target.value); const v = transparencyToAlpha(t); Store.glassAlpha = v; applyGlassAlpha(v); });
@@ -608,6 +627,7 @@ function closeGlobalSearch() {
 // активный чат/карточку контакта и любой незакрытый #settings-search,
 // чтобы категория точно стала видимой (см. updateSettingsCategoryView).
 function navigateToSettingsCategory(catId) {
+  resetChatTransientState(null);
   state.chatId = null;
   state.contactCardId = null;
   state.tab = "settings";
@@ -792,7 +812,7 @@ function wireGlobalSearch() {
         if (!id || !state.contacts.has(id)) { closeGlobalSearch(); return; }
         closeGlobalSearch();
         try { cancelVoiceRecordingIfLeavingChat(id); } catch (e) {}
-        state.multiSelect = null;
+        resetChatTransientState(id);
         state.chatId = id;
         state.contactCardId = null;
         renderTab();
@@ -1250,7 +1270,15 @@ async function clearOldMedia(days) {
   let cleared = 0;
   for (const c of state.contacts.values()) {
     const old = c.messages.filter((m) => m.file && m.ts < cutoff);
-    for (const m of old) { try { await IDB.del("file:" + m.id); cleared++; } catch (e) {} }
+    for (const m of old) {
+      try { await IDB.del("file:" + m.id); cleared++; } catch (e) {}
+      try { // кэши держали бы удалённый файл (blob URL / играющее аудио) до перезапуска
+        const url = typeof fileBlobUrlCache !== "undefined" ? fileBlobUrlCache.get(m.id) : null;
+        if (url) { URL.revokeObjectURL(url); fileBlobUrlCache.delete(m.id); }
+        const vc = typeof voiceAudioCache !== "undefined" ? voiceAudioCache.get(m.id) : null;
+        if (vc) { try { vc.audio.pause(); } catch (e) {} voiceAudioCache.delete(m.id); }
+      } catch (e) {}
+    }
   }
   toast(T("toast.oldMediaCleared"));
   if (state.chatId) { try { renderChatThreadInner(); } catch (e) {} }

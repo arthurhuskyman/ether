@@ -415,6 +415,8 @@ function applyEmojiAutoReplace(text) {
 // тоже разобраны как форматирование).
 function applyMarkdown(html) {
   if (!html) return html;
+  // NUL — служебный разделитель плейсхолдеров ниже: во входе он позволил бы подделать \u0000CODE0\u0000
+  if (html.indexOf("\u0000") !== -1) html = html.replace(/\u0000/g, "");
   // Код — ПЕРВЫЙ проход, но содержимое `...` затем защищаем плейсхолдерами
   // перед bold/italic: раньше `**bold**` внутри code-спана сначала
   // становился <code>**bold**</code>, а второй проход (bold) находил
@@ -617,10 +619,25 @@ function highlightRaw(escapedText, query) {
   // иначе запрос «amp» или «a» вставил бы <mark> внутрь &amp; и сломал отображение.
   return escapedText.split(/(&(?:#\d+|#x[0-9a-f]+|[a-z][a-z0-9]*);|<[^>]*>)/i).map((part, k) => {
     if (k % 2 === 1) return part;
-    const lower = part.toLowerCase();
+    let lower = part.toLowerCase();
+    // toLowerCase меняет длину у части символов («İ» → «i̇»): тогда индексы в lower не равны индексам в part — строим карту соответствия
+    let mapS = null, mapE = null;
+    if (lower.length !== part.length) {
+      lower = ""; mapS = []; mapE = []; let pos = 0;
+      for (const ch of part) {
+        const l = ch.toLowerCase();
+        for (let u = 0; u < l.length; u++) { mapS.push(pos); mapE.push(pos + ch.length); }
+        lower += l; pos += ch.length;
+      }
+    }
     let idx = lower.indexOf(q); if (idx === -1) return part;
     let out = "", i = 0;
-    while (idx !== -1) { out += part.slice(i, idx) + `<mark class="search-hit">` + part.slice(idx, idx + q.length) + `</mark>`; i = idx + q.length; idx = lower.indexOf(q, i); }
+    while (idx !== -1) {
+      const s0 = mapS ? mapS[idx] : idx;
+      const e0 = mapS ? mapE[idx + q.length - 1] : idx + q.length;
+      if (s0 >= i) { out += part.slice(i, s0) + `<mark class="search-hit">` + part.slice(s0, e0) + `</mark>`; i = e0; }
+      idx = lower.indexOf(q, idx + q.length);
+    }
     return out + part.slice(i);
   }).join("");
 }

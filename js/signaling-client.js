@@ -417,6 +417,22 @@ const Identity = (() => {
     return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
   }
 
+  // C2 (аудит V.76): id = SHA-256 телефона без соли перебирается по всему пространству номеров. Полная замена (случайный id /
+  // HMAC с серверной солью) ломает существующие id и поиск контактов по номеру (обе стороны обязаны получить один id; старые клиенты
+  // считают v1), поэтому здесь только совместимый шаг: id v1 остаётся как есть (idFor), а для НОВЫХ механизмов есть версионированный
+  // медленный вывод v2 = PBKDF2-SHA256(600k итераций, соль "ether-id-v2") с тегом "v2:". Он не подключён к регистрации/поиску,
+  // пока сервер не научится принимать оба вида (v1 остаётся принимаемым). Перебор номеров становится дороже на ~5 порядков на попытку.
+  const ID_V2_TAG = "v2:", ID_V2_ITER = 600000;
+  async function hashIdV2(normalizedValue, iterations) {
+    const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(ID_V2_TAG + normalizedValue), "PBKDF2", false, ["deriveBits"]);
+    const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: new TextEncoder().encode("ether-id-v2"), iterations: iterations || ID_V2_ITER }, key, 256);
+    return ID_V2_TAG + Array.from(new Uint8Array(bits)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
+  async function idV2For(raw, iterations) {
+    const r = await idFor(raw); // та же нормализация и проверка формата
+    return { id: await hashIdV2(r.normalized, iterations), idV1: r.id, normalized: r.normalized, type: r.type };
+  }
+
   async function idFor(raw) {
     const { type, value } = normalize(raw);
     if (!value || value === "+") throw new Error("toast.emptyId");
@@ -437,5 +453,5 @@ const Identity = (() => {
     return { id, normalized: value, type };
   }
 
-  return { normalize, hashId, idFor };
+  return { normalize, hashId, idFor, hashIdV2, idV2For };
 })();

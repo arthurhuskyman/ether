@@ -495,7 +495,19 @@ class PeerLink extends EventTarget {
 
   // Отпечатки DTLS-сертификатов (свой и собеседника) из SDP — для привязки канала к ключам личности.
   fingerprints() {
-    const f = (d) => { const m = d && d.sdp ? /a=fingerprint:(\S+)\s+([0-9A-Fa-f:]+)/.exec(d.sdp) : null; return m ? (m[1] + " " + m[2]).toLowerCase() : null; };
+    // matchAll: берём ВСЕ a=fingerprint (session- и media-уровни). Если для одного алгоритма встречаются разные значения —
+    // SDP подозрительный (подмена на сигналинге), отпечаток считаем неизвестным (null), и проверка личности не пройдёт.
+    const f = (d) => {
+      if (!d || !d.sdp) return null;
+      const byAlg = new Map(); let first = null;
+      for (const m of String(d.sdp).matchAll(/a=fingerprint:(\S+)[ \t]+([0-9A-Fa-f:]+)/g)) {
+        const alg = m[1].toLowerCase(), val = m[2].toLowerCase();
+        if (byAlg.has(alg) && byAlg.get(alg) !== val) return null;
+        byAlg.set(alg, val);
+        if (!first) first = alg + " " + val;
+      }
+      return first;
+    };
     return { local: f(this.pc.currentLocalDescription || this.pc.localDescription), remote: f(this.pc.currentRemoteDescription || this.pc.remoteDescription) };
   }
 
@@ -943,28 +955,45 @@ class PeerLink extends EventTarget {
     }
   }
 
-  async _ensureLocalAudio() {
+  // In-flight promise: параллельные вызовы (answerCall + enableAudio и т.п.) делят один getUserMedia / один attach,
+  // иначе второй захват микрофона перетирал бы localAudioTrack, а первый оставался включённым без владельца.
+  _ensureLocalAudio() {
     if (this.localAudioTrack) {
       if (!this.localStream) this.localStream = new MediaStream([this.localAudioTrack]);
-      return;
+      return Promise.resolve();
     }
-    let stream;
-    try { stream = await navigator.mediaDevices.getUserMedia({ audio: AUDIO_CAPTURE }); }
-    catch (e) { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
-    if (this._closed) { try { stream.getTracks().forEach((t) => t.stop()); } catch (e) {} throw new Error("link closed"); } // микрофон не должен «зависать» после закрытия линка
-    this.localAudioTrack = stream.getAudioTracks()[0];
-    this.localStream = stream;
+    if (this._audioCapP) return this._audioCapP;
+    const p = (async () => {
+      let stream;
+      try { stream = await navigator.mediaDevices.getUserMedia({ audio: AUDIO_CAPTURE }); }
+      catch (e) { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+      if (this._closed || this.localAudioTrack) { try { stream.getTracks().forEach((t) => t.stop()); } catch (e) {} if (this._closed) throw new Error("link closed"); return; } // микрофон не должен «зависать» после закрытия линка
+      this.localAudioTrack = stream.getAudioTracks()[0];
+      this.localStream = stream;
+    })();
+    this._audioCapP = p;
+    const clear = () => { if (this._audioCapP === p) this._audioCapP = null; };
+    p.then(clear, clear);
+    return p;
   }
 
-  async _addAudioTrackOnce() {
+  _addAudioTrackOnce() {
     if (this._audioAdded) {
       if (this.localAudioTrack) this.localAudioTrack.enabled = !this._muted;
-      return;
+      return Promise.resolve();
     }
-    await this._ensureLocalAudio();
-    await this._attachTrack(this.localAudioTrack, this.localStream);
-    this._audioAdded = true;
-    if (this.localAudioTrack) this.localAudioTrack.enabled = !this._muted;
+    if (this._audioAddP) return this._audioAddP;
+    const p = (async () => {
+      await this._ensureLocalAudio();
+      if (this._closed) throw new Error("link closed");
+      await this._attachTrack(this.localAudioTrack, this.localStream);
+      this._audioAdded = true;
+      if (this.localAudioTrack) this.localAudioTrack.enabled = !this._muted;
+    })();
+    this._audioAddP = p;
+    const clear = () => { if (this._audioAddP === p) this._audioAddP = null; };
+    p.then(clear, clear);
+    return p;
   }
 
   // addTrack() после removeTrack() на каждом звонке заводит НОВЫЙ трансивер (m-line), а старые остаются inactive:
@@ -1206,13 +1235,18 @@ async startCall(withVideo) {
       this.localAudioTrack.enabled = !this._muted;
     }
     if (this._muteRecheckTimer) { clearInterval(this._muteRecheckTimer); this._muteRecheckTimer = null; }
+    if (this._muteStopTimer) { clearTimeout(this._muteStopTimer); this._muteStopTimer = null; }
     if (this._muted) {
       this._muteRecheckTimer = setInterval(() => {
         if (!this.localAudioTrack) return;
         if (this.localAudioTrack.enabled) this.localAudioTrack.enabled = false;
       }, 1500);
-      setTimeout(() => {
-        if (this._muteRecheckTimer) { clearInterval(this._muteRecheckTimer); this._muteRecheckTimer = null; }
+      const mine = this._muteRecheckTimer;
+      // Таймаут гасит только СВОЙ интервал: общий id затирал бы страховку следующего mute.
+      if (this._muteStopTimer) clearTimeout(this._muteStopTimer);
+      this._muteStopTimer = setTimeout(() => {
+        this._muteStopTimer = null;
+        if (this._muteRecheckTimer === mine) { clearInterval(mine); this._muteRecheckTimer = null; }
       }, 10000);
     }
   }
@@ -1338,6 +1372,7 @@ async startCall(withVideo) {
     this._closed = true;
     clearInterval(this._pingTimer);
     if (this._muteRecheckTimer) { clearInterval(this._muteRecheckTimer); this._muteRecheckTimer = null; }
+    if (this._muteStopTimer) { clearTimeout(this._muteStopTimer); this._muteStopTimer = null; }
     if (this._renegotiationRetryTimer) { clearTimeout(this._renegotiationRetryTimer); this._renegotiationRetryTimer = null; }
     if (this._iceDisconnectTimer) { clearTimeout(this._iceDisconnectTimer); this._iceDisconnectTimer = null; }
     if (this._connectStallTimer) { clearTimeout(this._connectStallTimer); this._connectStallTimer = null; }

@@ -43,7 +43,7 @@ function isMentioned(text, name) {
   if (!text || !name) return false;
   const escaped = String(name).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   if (!escaped) return false;
-  const re = new RegExp("@" + escaped + "(?![\\wа-яА-ЯёЁ])", "iu");
+  const re = new RegExp("@" + escaped + "(?![\\p{L}\\p{N}_])", "iu");
   return re.test(text);
 }
 
@@ -103,6 +103,7 @@ function broadcastGroupRoster(g) {
 function sendGroupRosterTo(g, memberId) {
   { const bc = state.contacts.get(memberId); if (bc && bc.blocked) return; }
   const payload = { kind: "group-invite", id: crypto.randomUUID(), groupId: g.id, groupName: g.name, members: g.members, groupAvatar: g.avatar || undefined, groupDescription: g.description || undefined };
+  if (g.createdBy) payload.createdBy = g.createdBy; // B5: создатель едет в ростере — иначе получатель новой группы делал создателем/админом того, кто прислал (любого участника при авто-досылке)
   if (g.rosterVer > 0) payload.ver = g.rosterVer;
   if (g.writeRestricted) payload.writeRestricted = true;
   else if (typeof g.writeRestricted === "boolean") payload.writeRestricted = false;
@@ -347,17 +348,29 @@ function openGroupInviteSheet(groupId) {
 async function forwardContact(fromContactId, toContactId) {
   const shared = state.contacts.get(fromContactId), to = state.contacts.get(toContactId);
   if (!shared || !to) return;
+  // B4: заблокированному личному контакту не пересылаем; в группу — только если можно писать
+  if (!isGroup(to) && to.blocked) { toast(T("toast.blocked")); return; }
+  if (isGroup(to) && !isGroupWriteAllowed(to, Store.myId)) { toast(T("toast.groupWriteRestricted")); return; }
   const msgId = crypto.randomUUID();
   const ts = Date.now();
-  const rec = { id: msgId, from: "me", text: "", ts, ack: "sent", serverAcked: false, contactCard: { id: shared.id, name: shared.name || T("sys.someone") } };
-  if (!to.isGroup && to.disappearingTimer) rec.ttl = to.disappearingTimer;
+  const inGroup = isGroup(to);
+  // В группе карточки контакта получатели не поддерживают (как и в forwardMessage) — уходит текст «📇 имя» каждому участнику.
+  const sharedName = shared.name || T("sys.someone");
+  const rec = inGroup
+    ? { id: msgId, from: "me", text: "📇 " + sharedName, ts, ack: "sent", serverAcked: false, forwarded: true }
+    : { id: msgId, from: "me", text: "", ts, ack: "sent", serverAcked: false, contactCard: { id: shared.id, name: sharedName } };
+  if (!inGroup && to.disappearingTimer) rec.ttl = to.disappearingTimer;
+  if (inGroup && to.disappearingTimer) rec.ttl = to.disappearingTimer;
   to.messages.push(rec); trimMessages(to); to.lastActivity = ts; persistContacts();
   if (state.chatId === toContactId) renderChatThread();
   if (state.tab === "chats") renderChatsList();
   toast(T("toast.contactForwarded"));
-  const payload = { kind: "contact-card", id: msgId, ts, contactId: shared.id, contactName: shared.name || "" };
+  const payload = inGroup
+    ? { kind: "chat", id: msgId, ts, text: rec.text, forwarded: true }
+    : { kind: "contact-card", id: msgId, ts, contactId: shared.id, contactName: shared.name || "" };
   if (rec.ttl) payload.ttl = rec.ttl;
-  await trySendOrQueue(to, msgId, payload);
+  if (inGroup) await dispatchRich(to, payload, msgId);
+  else await trySendOrQueue(to, msgId, payload);
 }
 // Пересылка в группу: каждому участнику уходит своя копия (как у обычных групповых сообщений), с пометкой «Переслано»
 async function forwardIntoGroup(g, rec, m, srcMsgId) {

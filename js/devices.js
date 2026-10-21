@@ -64,8 +64,15 @@ const Devices = (() => {
   }
   function peerCerts(id) { const me = self(); return rawCerts(id).filter((c) => !(me && id === Store.myId && c.devId === me.devId)); }
   const pubOf = (id) => (id === Store.myId ? Store.myPublicKeyJwk : (state.contacts.get(id) || {}).publicKey);
-  async function refreshPeer(id, force) {
-    const pub = pubOf(id); const all = peers(); const e = all[id] || { seq: 0, certs: [], known: null, at: 0 };
+  // M5: параллельные refreshPeer одного id делят один запрос; запись K_PEERS — по свежему снимку (иначе чужие записи теряются)
+  const peerInflight = new Map();
+  function refreshPeer(id, force) {
+    const k = String(id), cur = peerInflight.get(k); if (cur) return cur;
+    const p = refreshPeerOnce(id, force).finally(() => { if (peerInflight.get(k) === p) peerInflight.delete(k); });
+    peerInflight.set(k, p); return p;
+  }
+  async function refreshPeerOnce(id, force) {
+    const pub = pubOf(id); const e = peers()[id] || { seq: 0, certs: [], known: null, at: 0 };
     if (!pub || (!force && Date.now() - e.at < PEER_TTL_MS)) return e;
     if (typeof signaling === "undefined" || !signaling || !signaling.registered || !hasFeature("devlist")) return e;
     const rid = (crypto.randomUUID && crypto.randomUUID()) || String(Math.random());
@@ -86,7 +93,7 @@ const Devices = (() => {
       }
     }
     if (!e.known) e.known = []; // первая успешная сверка: уже существующие устройства не считаются «новыми»
-    all[id] = e; ls.set(K_PEERS, all); return e;
+    const all = peers(); all[id] = e; ls.set(K_PEERS, all); return e;
   }
   async function noteNewDevices(id, fresh) {
     const c = state.contacts.get(id); if (!c || id === Store.myId) return;
@@ -294,7 +301,14 @@ const Devices = (() => {
   const RENEW_BEFORE_MS = 30 * 86400_000;
   async function sendCert(nc) { return sendOp({ kind: "cert-renew", cert: nc }, Store.myId, nc.devId); }
   // Основное: за 30 дней до конца перевыпускает сертификат companion (тот же devId и ключ), публикует новый список и отправляет сертификат устройству
-  async function renewDue() {
+  // M6: один проход за раз (иначе два параллельных выдают два списка с одним seq)
+  let renewInflight = null;
+  function renewDue() {
+    if (renewInflight) return renewInflight;
+    const p = renewDueOnce().finally(() => { if (renewInflight === p) renewInflight = null; });
+    return (renewInflight = p);
+  }
+  async function renewDueOnce() {
     if (isCompanion() || !Store.myPrivateKeyJwk || !Store.myId) return 0;
     const l = listState(), now = Date.now(), renewed = [];
     for (let i = 0; i < l.certs.length; i++) {
@@ -332,6 +346,8 @@ const Devices = (() => {
   async function deviceSign(nonce, id, devId) { return DeviceCert.signText(Store.myPrivateKeyJwk, "ether-devauth-v1|" + nonce + "|" + id + "|" + devId); }
   function wireSignaling(sig) {
     const me = self();
+    // M7: отзыв запоминается и читается: отозванное устройство больше не подключается к сигналингу после перезапуска
+    if (me && ls.get(K_REVOKED)) { sig.start = () => {}; try { sig.stop(); } catch (e) {} toast(T("devices.revokedSelf")); }
     if (me) {
       sig.deviceId = me.devId; sig.deviceSign = deviceSign;
       sig.addEventListener("device-revoked", () => { ls.set(K_REVOKED, 1); try { sig.stop(); } catch (e) {} toast(T("devices.revokedSelf")); });

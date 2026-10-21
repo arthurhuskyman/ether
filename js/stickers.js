@@ -317,14 +317,16 @@
     try {
       if (!(bm.w > 0 && bm.h > 0)) return null;
       let side = Math.min(1, S.USER_MAX_SIDE / Math.max(bm.w, bm.h));
-      for (let attempt = 0; attempt < 4; attempt++) {
+      for (let attempt = 0; attempt < 8; attempt++) {
         const w = Math.max(1, Math.round(bm.w * side)), h = Math.max(1, Math.round(bm.h * side));
         const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
         const cx = cv.getContext("2d"); if (!cx) return null;
         cx.clearRect(0, 0, w, h); cx.drawImage(bm.src, 0, 0, w, h);
         for (const q of [0.9, 0.75, 0.55, 0.4]) {
           const blob = await new Promise((r) => cv.toBlob(r, "image/webp", q));
-          if (blob && blob.type === "image/webp" && blob.size > 0 && blob.size <= S.USER_MAX_BYTES) return { blob, w, h };
+          if (!blob || !(blob.size > 0) || !S.MIMES.includes(blob.type)) continue;
+          if (blob.size <= S.USER_MAX_BYTES) return { blob, w, h };
+          if (blob.type !== "image/webp") break; // Safari не умеет кодировать webp и отдаёт PNG: качество не влияет, уменьшаем сторону
         }
         side *= 0.75;
       }
@@ -379,7 +381,9 @@
     if (id === "user") return S.userItems().map((x) => "user/" + x.id);
     const p = S.PACKS.find((x) => x.id === id); return p ? p.items.map((it) => p.id + "/" + it.id) : [];
   }
+  let renderGen = 0;
   async function render() {
+    const gen = ++renderGen;
     const tabs = $("#sticker-tabs"), grid = $("#sticker-grid"), title = $("#sticker-section-title"); if (!tabs || !grid) return;
     const list = tabList(); if (!list.some((x) => x.id === tab)) tab = "ether";
     tabs.innerHTML = list.map((x) => `<button type="button" class="emoji-tab-btn sticker-tab${x.id === tab ? " active" : ""}" role="tab" aria-selected="${x.id === tab}" data-stab="${x.id}" aria-label="${esc(x.label)}" title="${esc(x.label)}">${x.img ? `<img src="${x.img}" alt="" width="24" height="24">` : x.icon}</button>`).join("");
@@ -390,6 +394,7 @@
     let html = "";
     if (manage) html += `<button type="button" class="sticker-add" id="sticker-add-btn" aria-label="${esc(T("sticker.add"))}"><span aria-hidden="true">＋</span><small>${esc(T("sticker.add"))}</small></button>`;
     const thumbs = await Promise.all(keys.map(thumbHtml));
+    if (gen !== renderGen) return; // M8: пока грузились превью, запущена более новая отрисовка
     keys.forEach((k, i) => {
       const [pack, id] = k.split("/"), name = S.label(pack, id);
       if (!thumbs[i]) return;

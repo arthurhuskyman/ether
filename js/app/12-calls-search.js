@@ -112,7 +112,7 @@ function renderCallsList() {
     // чат" отдельно от кнопки "перезвонить" — вложенные <button> внутри
     // <button> невалидны и ведут себя непредсказуемо в браузерах.
     const mainBtn = row.querySelector(".call-row-main");
-    if (mainBtn) mainBtn.addEventListener("click", () => { if (state.contacts.has(rec.contactId)) { state.chatId = rec.contactId; renderTab(); } });
+    if (mainBtn) mainBtn.addEventListener("click", () => { if (state.contacts.has(rec.contactId)) { if (typeof resetChatTransientState === "function") resetChatTransientState(rec.contactId); state.chatId = rec.contactId; renderTab(); } });
     list.appendChild(row);
   }
 }
@@ -224,7 +224,7 @@ async function beginCall(id, withVideo) {
       else if (name === "NotFoundError" || name === "DevicesNotFoundError") toast(T("toast.voiceNoMic"));
       else toast(T("calls.failed"));
       state._lastCallFailedAt = Date.now();
-      closeCallScreen("failed");
+      closeCallScreen("failed", { localError: true }); // локальная ошибка (микрофон): голосовую почту не предлагаем
       return;
     }
 
@@ -817,13 +817,14 @@ async function offerVoicemail(contactId) {
   const c = state.contacts.get(contactId);
   if (!c || c.isGroup || c.isSelf || c.blocked) return;
   if (!(await confirmSheet(T("call.voicemail.ask", { name: c.name || T("sys.someone") })))) return;
+  if (typeof resetChatTransientState === "function") resetChatTransientState(contactId);
   state.tab = "chats"; state.chatId = contactId; state.contactCardId = null; renderTab();
   setTimeout(() => { try { startVoiceRecording(); } catch (e) {} }, 150);
 }
 function closeCallScreen(reason, opts) {
   const rec = state.currentCallRecord;
   if (rec && opts && opts.noAnswer) rec.noAnswer = true; // «не ответили» — отдельный случай: в чате «Нет ответа» и предложение голосовой почты
-  const voicemailFor = rec && rec.direction === "out" && (["declined", "busy", "missed", "failed"].includes(reason) || (reason === "cancelled" && opts && opts.noAnswer)) && !rec.answeredAt ? rec.contactId : null;
+  const voicemailFor = rec && !(opts && opts.localError) && rec.direction === "out" && (["declined", "busy", "missed", "failed"].includes(reason) || (reason === "cancelled" && opts && opts.noAnswer)) && !rec.answeredAt ? rec.contactId : null;
   if (voicemailFor) setTimeout(() => offerVoicemail(voicemailFor), 700);
   clearInterval(callTimerInterval); callTimerInterval = null;
   const qIcon = $("#call-quality-icon"); if (qIcon) qIcon.classList.add("hidden");

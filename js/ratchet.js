@@ -49,7 +49,8 @@ const Ratchet = (() => {
     if (!db) {
       const raw = store.load() || {};
       db = { s: raw.s && typeof raw.s === "object" ? raw.s : {}, pk: raw.pk && typeof raw.pk === "object" ? raw.pk : {},
-        ri: raw.ri && typeof raw.ri === "object" ? raw.ri : {}, sg: raw.sg && typeof raw.sg === "object" ? raw.sg : {} };
+        ri: raw.ri && typeof raw.ri === "object" ? raw.ri : {}, sg: raw.sg && typeof raw.sg === "object" ? raw.sg : {},
+        ca: raw.ca && typeof raw.ca === "object" ? raw.ca : {} };
     }
     return db;
   }
@@ -103,7 +104,19 @@ const Ratchet = (() => {
     const out = await hkdf(mk, new Uint8Array(32), "ether-dr-aead", 44);
     return { key: await crypto.subtle.importKey("raw", out.slice(0, 32), "AES-GCM", false, ["encrypt", "decrypt"]), iv: out.slice(32) };
   }
-  function aad(from, to, h) { return te.encode(["ether-dr1", from, to, h.d[0], h.d[1], h.pn, h.n].join("|")); }
+  // AAD v1 (старые клиенты) не покрывает h.i и h.p. AAD v2 (env.a === 1) добавляет их: флаг «начальный» и prekey-заголовок (e, s, o) нельзя подменить.
+  // v2 шлём только контакту, чей клиент заявил поддержку (ca[contact], см. noteCap); старые клиенты v2 не расшифруют.
+  function aad(from, to, h, v2) {
+    if (!v2) return te.encode(["ether-dr1", from, to, h.d[0], h.d[1], h.pn, h.n].join("|"));
+    const p = h.p && typeof h.p === "object" ? h.p : null;
+    const px = p ? ["p", Array.isArray(p.e) ? p.e.join(".") : "", p.s == null ? "" : p.s, p.o == null ? "" : p.o].join(",") : "-";
+    return te.encode(["ether-dr2", from, to, h.d[0], h.d[1], h.pn, h.n, h.i === 1 ? 1 : 0, px].join("|"));
+  }
+  // Поддержка AAD v2 у собеседника: все новые клиенты ставят в конверт ac:1. Увидели — шлём v2; пришёл конверт без ac (собеседник откатился) — снова v1.
+  function noteCap(contactId, env) {
+    const d = getDb().ca, want = env && env.ac === 1;
+    if (want && !d[contactId]) d[contactId] = 1; else if (!want && d[contactId]) delete d[contactId];
+  }
   async function initialSecret(myPriv, theirPubXY, myId, theirId) {
     const shared = await dh(myPriv, theirPubXY);
     const ids = [myId, theirId].sort().join("|");
@@ -159,10 +172,12 @@ const Ratchet = (() => {
     s.cks = b64(nextCk);
     const h = { d: [s.dhs.x, s.dhs.y], pn: s.pn, n: s.ns };
     s.ns++;
+    if (s.init) { h.i = 1; if (s.px) h.p = s.px; }
+    const v2 = !!getDb().ca[to];
     const { key, iv } = await aeadKey(mk);
-    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: aad(from, to, h) }, key, te.encode(JSON.stringify(plain))));
-    const env = { v: 2, h, ct: b64(ct), rc: 1 };
-    if (s.init) { env.h.i = 1; if (s.px) env.h.p = s.px; }
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: aad(from, to, h, v2) }, key, te.encode(JSON.stringify(plain))));
+    const env = { v: 2, h, ct: b64(ct), rc: 1, ac: 1 };
+    if (v2) env.a = 1;
     return env;
   }
 
@@ -185,7 +200,7 @@ const Ratchet = (() => {
     const h = env.h; const ct = unb64(env.ct);
     const open = async (mk) => {
       const { key, iv } = await aeadKey(mk);
-      try { return JSON.parse(td.decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv, additionalData: aad(from, to, h) }, key, ct))); }
+      try { return JSON.parse(td.decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv, additionalData: aad(from, to, h, env.a === 1) }, key, ct))); }
       catch (e) { throw new Error("ratchet: auth failed"); }
     };
     const skId = dhKey(h.d) + "|" + h.n;
@@ -268,6 +283,7 @@ const Ratchet = (() => {
         try {
           const plain = await decryptWith(trial, from, to, env);
           list[i] = trial;
+          noteCap(from, env);
           if (i > 0) { list.splice(i, 1); list.unshift(trial); } // сессия, на которой нам отвечают, становится основной
           trial.t = Date.now();
           // Выбор при неудаче записи: плайнтекст всё равно возвращаем (сообщение уже расшифровано, терять его хуже),
@@ -292,12 +308,22 @@ const Ratchet = (() => {
           s = await newResponder(ctx.myPrivJwk, ctx.theirPubJwk, ctx.myId, from);
         }
         const plain = await decryptWith(s, from, to, env);
+        // Удаление opk должно быть записано ДО выдачи plaintext: иначе после падения/перезагрузки opk «воскреснет» и позволит
+        // расшифровать повтор. Не удалось записать — откатываем память и бросаем (сообщение придёт повторно).
+        const opkSaved = opkId ? pk().opks[opkId] : null, capBefore = getDb().ca[from], listBefore = list.slice(), riBefore = riList.slice();
         if (opkId) delete pk().opks[opkId]; // одноразовый ключ использован и уничтожен
         list.unshift(s);
         while (list.length > MAX_SESSIONS) list.pop();
         riList.push(riId);
         while (riList.length > RI_MAX) riList.shift();
-        persistSoft();
+        noteCap(from, env);
+        try { persist(); }
+        catch (e) {
+          if (opkId && opkSaved) pk().opks[opkId] = opkSaved;
+          list.splice(0, list.length, ...listBefore); riList.splice(0, riList.length, ...riBefore);
+          if (capBefore) getDb().ca[from] = capBefore; else delete getDb().ca[from];
+          throw e;
+        }
         return plain;
       }
       throw lastErr || new Error("ratchet: no session");
@@ -305,7 +331,7 @@ const Ratchet = (() => {
   }
 
   // ---------- prekeys получателя ----------
-  const SPK_ROTATE_MS = 7 * 24 * 3600 * 1000, SPK_KEEP_OLD = 3, OPK_STORE_MAX = 200, OPK_WANT = 20;
+  const SPK_ROTATE_MS = 7 * 24 * 3600 * 1000, SPK_KEEP_OLD = 3, OPK_STORE_MAX = 200, OPK_WANT = 20, OPK_TTL_MS = 60 * 24 * 3600 * 1000;
   function pk() { const d = getDb(); if (!d.pk.opks) d.pk.opks = {}; if (!d.pk.old) d.pk.old = []; return d.pk; }
   function rid() { return b64(crypto.getRandomValues(new Uint8Array(9))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
   // Нужно ли пополнить запас на сервере: нет spk, пора менять spk, или одноразовых там меньше OPK_WANT.
@@ -319,21 +345,23 @@ const Ratchet = (() => {
       const pair = await genPair();
       p.spk = { id: rid(), x: pair.x, y: pair.y, d: pair.d, t: now };
     }
+    // Сервер раздаёт загруженные opk, пока их не разберут: удалять «живые» нельзя (иначе первое сообщение придёт с «unknown one-time prekey»).
+    // Вытесняем только давно загруженные (старше OPK_TTL_MS), а новых создаём не больше, чем осталось места.
+    for (const id of Object.keys(p.opks)) if (now - (p.opks[id].t || 0) > OPK_TTL_MS) delete p.opks[id];
+    count = Math.max(0, Math.min(count, OPK_STORE_MAX - Object.keys(p.opks).length));
     const fresh = [];
     for (let i = 0; i < count; i++) {
       const pair = await genPair(), id = rid();
       p.opks[id] = { x: pair.x, y: pair.y, d: pair.d, t: now };
       fresh.push({ id, pub: [pair.x, pair.y] });
     }
-    const ids = Object.keys(p.opks);
-    if (ids.length > OPK_STORE_MAX) for (const id of ids.slice(0, ids.length - OPK_STORE_MAX)) delete p.opks[id];
     persistSoft();
     if (myPrivJwk && !p.spk.sig) { try { p.spk.sig = await signSpk(myPrivJwk, p.spk.id, p.spk.x, p.spk.y); persistSoft(); } catch (e) {} }
     return { spk: { id: p.spk.id, pub: [p.spk.x, p.spk.y], ...(p.spk.sig ? { sig: p.spk.sig } : {}) }, opks: fresh };
   }
 
   function reset(contactId) { const d = getDb().s; if (d[contactId]) { delete d[contactId]; persistSoft(); } }
-  function resetAll() { db = { s: {}, pk: {}, ri: {}, sg: {} }; persistSoft(); }
+  function resetAll() { db = { s: {}, pk: {}, ri: {}, sg: {}, ca: {} }; persistSoft(); }
   function info(contactId) { const l = (getDb().s[contactId] || []); return l.length ? l.length + " сесс., основная: ns=" + l[0].ns + " nr=" + l[0].nr + (l[0].init ? " (ждёт ответа)" : "") : "нет"; }
 
   return { encrypt, decrypt, reset, resetAll, setStore, info, needsPrekeys, prekeyUploadPayload, verifySpk, signSpk };

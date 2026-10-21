@@ -544,7 +544,7 @@ function maybeOfferSystemLanguage() {
   const yes = $("#lang-offer-yes");
   if (yes) {
     yes.textContent = T("lang.offer.yes");
-    yes.addEventListener("click", () => {
+    yes.onclick = () => { // onclick (а не addEventListener): повторный вызов не плодит обработчики
       I18N.ensureLoaded(sys, (ok) => {
         if (!ok) { toast(T("toast.langLoadFailed")); return; }
         I18N.setLang(sys);
@@ -555,14 +555,14 @@ function maybeOfferSystemLanguage() {
         try { renderTab(); } catch (e) {}
         const sel = $("#settings-language"); if (sel) sel.value = I18N.current;
       });
-    });
+    };
   }
   const no = $("#lang-offer-no");
-  if (no) no.addEventListener("click", () => {
+  if (no) no.onclick = () => {
     I18N.markOfferShown();
     banner.classList.add("hidden");
     try { updateNotifBanner(); } catch (e) {}
-  });
+  };
 }
 
 // iOS Safari/PWA в standalone-режиме иногда "замораживает" значения
@@ -602,7 +602,9 @@ function lockViewportGestures() {
     const now = Date.now();
     // двойной тап = зум; но на заголовке (5 быстрых тапов открывают «Отладку») click должен доходить
     const onTitle = e.target && e.target.closest && e.target.closest("#nav-title, #about-app-logo");
-    if (now - lastTouchEnd < 300 && e.cancelable && !onTitle) e.preventDefault();
+    // быстрые повторные тапы по кнопкам/полям/ссылкам (±, реакции, счётчики) не глотаем — зум по двойному тапу гасит touch-action в CSS
+    const interactive = e.target && e.target.closest && e.target.closest("button, a, input, select, textarea, label, summary, [role=button], [role=switch], [role=tab], [onclick]");
+    if (now - lastTouchEnd < 300 && e.cancelable && !onTitle && !interactive) e.preventDefault();
     lastTouchEnd = now;
   }, { passive: false });
   try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock("portrait").catch(() => {}); } catch (e) {}
@@ -768,6 +770,9 @@ function handleShareTargetParams() {
 function checkDeadManSwitch() {
   try {
     const now = Date.now();
+    // Наблюдение выключено, а heartbeat раньше отправлялся: один раз сообщаем получателю «выключено»,
+    // иначе он вечно получает ложные тосты «давно не выходил на связь»
+    if (!Store.deadManEnabled && Store.deadManLastSentAt) deadManSendOff();
     if (Store.deadManEnabled && Store.deadManContactId) {
       const target = state.contacts.get(Store.deadManContactId);
       if (target && now - Store.deadManLastSentAt > 12 * 60 * 60 * 1000) {
@@ -784,6 +789,14 @@ function checkDeadManSwitch() {
       persistContacts();
       toast(T("toast.deadManAlert", { name: c.name || T("sys.someone"), days: c.heartbeatThresholdDays }));
     }
+  } catch (e) {}
+}
+
+function deadManSendOff() {
+  try {
+    const target = state.contacts.get(Store.deadManContactId);
+    Store.deadManLastSentAt = 0; // только одна попытка; повторное включение начнёт цикл заново
+    if (target) trySendOrQueue(target, crypto.randomUUID(), { kind: "heartbeat", ts: Date.now(), off: true, thresholdDays: 0 }).catch(() => {});
   } catch (e) {}
 }
 
@@ -841,8 +854,12 @@ function wireServiceWorker() {
   // Когда новый SW активировался после SKIP_WAITING — перезагружаем
   // страницу, чтобы весь UI подхватил новые ресурсы. sessionStorage
   // защищает от петли перезагрузок.
+  // Первая установка SW: clients.claim() даёт controllerchange (контроллера не было) — это не обновление,
+  // перезагрузка здесь стёрла бы незавершённый онбординг. Перезагружаем только если контроллер уже был.
+  let hadController = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     __blockedSyncKey = ""; try { syncBlockedToSW(); } catch (e) {} // новый SW не знает список заблокированных — отправляем заново
+    if (!hadController) { hadController = true; return; }
     if (sessionStorage.getItem("ether.reloadingForUpdate")) return;
     sessionStorage.setItem("ether.reloadingForUpdate", "1");
     location.reload();

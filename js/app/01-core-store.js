@@ -158,13 +158,23 @@ const IDB = (() => {
           const db = req.result;
           if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
         };
-        req.onsuccess = () => resolve(req.result);
+        req.onsuccess = () => {
+          const db = req.result;
+          // соединение закрыто браузером / новая версия БД — сбрасываем кэш, чтобы следующий вызов открыл заново
+          db.onclose = () => { if (dbPromise === p) dbPromise = null; };
+          db.onversionchange = () => { try { db.close(); } catch (e) {} if (dbPromise === p) dbPromise = null; };
+          resolve(db);
+        };
         req.onerror = () => reject(req.error);
+        req.onblocked = () => {};
       } catch (e) { reject(e); }
     });
-    return dbPromise;
+    const p = dbPromise;
+    // отклонённый промис не кэшируем: иначе IDB остаётся сломанным до перезагрузки
+    p.catch(() => { if (dbPromise === p) dbPromise = null; });
+    return p;
   }
-  const SEALED_TEXT_KEYS = new Set(["contactsPrev"]);
+  const SEALED_TEXT_KEYS = new Set(["contactsPrev", "contactsCorrupt"]);
   async function set(key, value, opts) {
     if (__wiping) return null;
     try {
@@ -199,6 +209,7 @@ const IDB = (() => {
           res(v);
         };
         r.onerror = () => res(undefined);
+        tx.onabort = () => res(undefined);
       });
     } catch (e) { return undefined; }
   }
@@ -249,11 +260,20 @@ async function backupToIDB() {
   }
 }
 async function restoreFromIDB() {
-  for (const k of CRITICAL_LS_KEYS) {
-    if (lsRaw(k) !== null) continue;
-    const v = await IDB.get(k);
-    if (v !== null && v !== undefined) { if (typeof SecureStore !== "undefined") SecureStore.rawSet(k, v); else localStorage.setItem(k, v); }
-  }
+  let aborted = false;
+  const work = (async () => {
+    for (const k of CRITICAL_LS_KEYS) {
+      if (aborted) return;
+      if (lsRaw(k) !== null) continue;
+      const v = await IDB.get(k);
+      if (aborted) return;
+      if (v !== null && v !== undefined) { if (typeof SecureStore !== "undefined") SecureStore.rawSet(k, v); else localStorage.setItem(k, v); }
+    }
+  })();
+  // зависшая IndexedDB не должна блокировать старт приложения
+  let timer;
+  const timeout = new Promise((res) => { timer = setTimeout(() => { aborted = true; res(); }, 3000); });
+  try { await Promise.race([work, timeout]); } finally { clearTimeout(timer); }
 }
 let _idbBackupTimer = null;
 function scheduleIDBBackup() {

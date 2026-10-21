@@ -227,7 +227,7 @@ async function importBackupFile(file) {
     if (!Object.keys(data).some((k) => k.startsWith("ether.") && typeof data[k] === "string")) throw new Error("bad");
     if (!await confirmSheet(T("toast.confirmHardReset"), { destructive: true })) return;
     await applyImportedData(data);
-  } catch (e) { toast(String(e.message)); }
+  } catch (e) { toast(T("toast.importFailed")); } // сырой e.message пользователю не показываем (не локализован)
 }
 // Применение набора ether.* (резервная копия или пакет переезда с другого устройства, js/devicelink.js): заменяет локальные данные и перезагружает.
 async function applyImportedData(data) {
@@ -237,11 +237,27 @@ async function applyImportedData(data) {
   // поверх только что импортированных данных это старьё.
   if (__contactsPersistTimer) { clearTimeout(__contactsPersistTimer); __contactsPersistTimer = null; }
   __contactsPersistPending = null;
-  for (let i = localStorage.length - 1; i >= 0; i--) {
+  // Снимок прежних ether.* — при сбое записи (квота и т.п.) откатываем, а не оставляем наполовину применённый профиль.
+  const snapshot = {};
+  for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
-    if (k && k.startsWith("ether.")) localStorage.removeItem(k);
+    if (k && k.startsWith("ether.")) snapshot[k] = localStorage.getItem(k);
   }
-  for (const k of Object.keys(data)) if (k.startsWith("ether.") && typeof data[k] === "string") localStorage.setItem(k, data[k]);
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith("ether.")) localStorage.removeItem(k);
+    }
+    for (const k of Object.keys(data)) if (k.startsWith("ether.") && typeof data[k] === "string") localStorage.setItem(k, data[k]);
+  } catch (e) {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith("ether.")) { try { localStorage.removeItem(k); } catch (x) {} }
+    }
+    for (const k of Object.keys(snapshot)) { try { localStorage.setItem(k, snapshot[k]); } catch (x) {} }
+    toast(T("toast.importFailed"));
+    return false;
+  }
   // Резервная копия в IndexedDB — от прежнего профиля: пересоздаём её из импортированных данных, иначе при загрузке старые значения
   // отсутствующих в файле ключей (PIN, аватар, контакты) вернулись бы поверх импорта. И никакого сохранения «из памяти» при перезагрузке.
   __wiping = false;
@@ -574,7 +590,7 @@ if (cameraInput) {
   wireRichSheets();
   wireThreadSheet();
   wireStories();
-  { const cb = $("#calls-empty-btn"); if (cb) cb.addEventListener("click", () => { state.tab = "connect"; state.chatId = null; renderTab(); }); }
+  { const cb = $("#calls-empty-btn"); if (cb) cb.addEventListener("click", () => { state.tab = "connect"; if (typeof resetChatTransientState === "function") resetChatTransientState(null); state.chatId = null; renderTab(); }); }
   { const sb = $("#contacts-empty-scan"); if (sb) sb.addEventListener("click", () => { const b = $("#scan-qr-btn"); if (b) b.click(); }); }
   { const ib = $("#contacts-empty-invite"); if (ib) ib.addEventListener("click", () => { const t = $("#add-contact-card"); if (t && t.scrollIntoView) t.scrollIntoView({ behavior: "smooth", block: "start" }); }); }
   const micBtn = $("#voice-record-btn");

@@ -59,7 +59,8 @@ function chatRenderSig(c, q, list) {
   for (const m of (list || c.messages)) {
     h += "\n" + m.id + ":" + (m.rv || 0) + (m.ack || "") + (m.edited ? "e" : "") + (m.deleted ? "d" : "") + (m.favorite ? "f" : "") + (m.ttl || "") + (m.forwarded ? "w" : "") + ":" + (m.text || "")
       + (m.translation ? m.translation.text : "") + (m.reactions ? JSON.stringify(m.reactions) : "") + (m.poll && typeof EtherRich !== "undefined" && EtherRich.isClosed(m) ? "pc" : "")
-      + (m.file ? [m.file.pending ? 1 : 0, m.file.failed ? 1 : 0, m.file.progress || "", m.file.w || ""].join("") : "") + (m.replyTo ? "r" : "");
+      + (m.file ? [m.file.pending ? 1 : 0, m.file.failed ? 1 : 0, m.file.progress || "", m.file.w || ""].join("") : "") + (m.replyTo ? "r" : "")
+      + (m.contactCard ? (state.contacts.has(m.contactCard.id) ? "+" : "-") : ""); // B6: «Добавить» → «Уже добавлен» зависит от contacts, а не от самого сообщения
   }
   return h;
 }
