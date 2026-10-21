@@ -5,21 +5,22 @@
 // =====================================================================
 const Skins = (() => {
   const KEY = "ether.skin";
-  // id → { emoji, light/dark: [фон, панель, акцент] (цвета превью), bar: цвет полосы статуса iOS }
+  // id → { emoji, light/dark: [фон, панель, акцент] (цвета превью), bar: цвет полосы статуса iOS }.
+  // Значения = --bg-0 / --bg-2 / --accent из css/skins/<id>.css (при смене палитры скина обновлять и здесь; сверяет тест skins).
   const LIST = [
     { id: "default", emoji: "✨", light: ["#fafafc", "#ffffff", "#6446c9"], dark: ["#08080a", "#17171c", "#8a6dff"], bar: { light: "#fafafc", dark: "#08080a" } },
-    { id: "cartoon", emoji: "🎈", light: ["#fff1cf", "#ffffff", "#ffd23f"], dark: ["#1d1a3d", "#312d63", "#ffd23f"], bar: { light: "#fff1cf", dark: "#1d1a3d" } },
-    { id: "comic", emoji: "💥", light: ["#fff4d1", "#ffffff", "#d62839"], dark: ["#14141e", "#26263a", "#ffd60a"], bar: { light: "#fff4d1", dark: "#14141e" } },
-    { id: "watercolor", emoji: "🎨", light: ["#fbf6fb", "#ffffff", "#a9dcff"], dark: ["#171427", "#262142", "#b79cff"], bar: { light: "#fbf6fb", dark: "#171427" } },
-    { id: "neon", emoji: "🌃", light: ["#f1edfd", "#ffffff", "#c4009f"], dark: ["#07060f", "#130f28", "#00f0ff"], bar: { light: "#f1edfd", dark: "#07060f" } },
-    { id: "steampunk", emoji: "⚙️", light: ["#e6d5ae", "#f6ecd2", "#95581a"], dark: ["#1f150d", "#35251a", "#dca044"], bar: { light: "#e6d5ae", dark: "#1f150d" } },
-    { id: "gothic", emoji: "🦇", light: ["#d9d2cb", "#f0eae4", "#9b111e"], dark: ["#09060a", "#150c13", "#d11a2a"], bar: { light: "#d9d2cb", dark: "#09060a" } },
-    { id: "clay", emoji: "🧸", light: ["#f6e4d1", "#fff6ec", "#58c2b3"], dark: ["#2a2233", "#40354e", "#ff9f80"], bar: { light: "#f6e4d1", dark: "#2a2233" } },
-    { id: "lego", emoji: "🧱", light: ["#dde5ee", "#f5cd2a", "#d01012"], dark: ["#13202f", "#0055bf", "#ffd01f"], bar: { light: "#dde5ee", dark: "#13202f" } },
-    { id: "wood", emoji: "🌳", light: ["#ecdcbc", "#faf1dc", "#3f7a2d"], dark: ["#281a10", "#402c1f", "#8fd16a"], bar: { light: "#ecdcbc", dark: "#281a10" } },
-    { id: "glass", emoji: "🪟", light: ["#dfe9ff", "#ffffff", "#2a62f0"], dark: ["#0d0f2b", "#1b1f4c", "#8cb4ff"], bar: { light: "#dfe9ff", dark: "#0d0f2b" } },
-    { id: "chalk", emoji: "🖍️", light: ["#f5f6f0", "#ffffff", "#1e63d0"], dark: ["#1a2a23", "#263d33", "#ffd86b"], bar: { light: "#f5f6f0", dark: "#1a2a23" } },
-    { id: "newyear", emoji: "🎄", light: ["#e9f3ff", "#ffffff", "#c8102e"], dark: ["#0b1a3a", "#17325e", "#ff5a6a"], bar: { light: "#e9f3ff", dark: "#0b1a3a" } },
+    { id: "cartoon", emoji: "🎈", light: ["#fff1cf", "#ffffff", "#1366c0"], dark: ["#1d1a3d", "#312d63", "#ffd23f"], bar: { light: "#fff1cf", dark: "#1d1a3d" } },
+    { id: "comic", emoji: "💥", light: ["#fff4d1", "#ffffff", "#d62839"], dark: ["#1a1a38", "#26264d", "#ffd60a"], bar: { light: "#fff4d1", dark: "#1a1a38" } },
+    { id: "watercolor", emoji: "🎨", light: ["#fbf6fb", "#fdf8fc", "#5b3fc4"], dark: ["#171427", "#262142", "#b79cff"], bar: { light: "#fbf6fb", dark: "#171427" } },
+    { id: "neon", emoji: "🌃", light: ["#eaf4ff", "#ffffff", "#0068a0"], dark: ["#07060f", "#130f28", "#00f0ff"], bar: { light: "#eaf4ff", dark: "#07060f" } },
+    { id: "steampunk", emoji: "⚙️", light: ["#e8d6a9", "#f7edd2", "#8a4f12"], dark: ["#1a110a", "#33241a", "#e2a94d"], bar: { light: "#e8d6a9", dark: "#1a110a" } },
+    { id: "gothic", emoji: "🦇", light: ["#d9d2cb", "#f0eae4", "#9b111e"], dark: ["#09060a", "#180e16", "#ee4a58"], bar: { light: "#d9d2cb", dark: "#09060a" } },
+    { id: "clay", emoji: "🧸", light: ["#f6e4d1", "#fff6ec", "#b83f1d"], dark: ["#2a2233", "#40354e", "#ff9f80"], bar: { light: "#f6e4d1", dark: "#2a2233" } },
+    { id: "lego", emoji: "🧱", light: ["#a8d8a0", "#f4f6f9", "#b30d0d"], dark: ["#0f1d2e", "#1d3a5f", "#ffd01f"], bar: { light: "#a8d8a0", dark: "#0f1d2e" } },
+    { id: "wood", emoji: "🌳", light: ["#e6d1a8", "#f6ead0", "#2f6b1f"], dark: ["#241810", "#3b2a1c", "#a5d97b"], bar: { light: "#e6d1a8", dark: "#241810" } },
+    { id: "glass", emoji: "🪟", light: ["#dfe9ff", "#f7f9ff", "#2a55d8"], dark: ["#0d0f2b", "#1b1f4c", "#a9c8ff"], bar: { light: "#dfe9ff", dark: "#0d0f2b" } },
+    { id: "chalk", emoji: "🖍️", light: ["#fbf7ea", "#fffdf4", "#b5322a"], dark: ["#1b2e26", "#274236", "#ffd86b"], bar: { light: "#fbf7ea", dark: "#1b2e26" } },
+    { id: "newyear", emoji: "🎄", light: ["#eaf4ff", "#ffffff", "#c8102e"], dark: ["#0a1636", "#17325e", "#ff7b88"], bar: { light: "#eaf4ff", dark: "#0a1636" } },
   ];
   const IDS = LIST.map((s) => s.id);
   // Реестр «характера» скина: js/skins/<id>.js вызывает Skins.register(id, spec). spec:
@@ -40,8 +41,9 @@ const Skins = (() => {
     if (!live()) return;
     const meta = document.querySelector('meta[name="theme-color"]'); if (!meta) return;
     const s = LIST.find((x) => x.id === get()) || LIST[0];
-    // у обычного вида цвет зависит ещё и от OLED (чистый чёрный), у остальных скинов — от схемы
-    const dark = s.id === "default" && document.documentElement.dataset.theme === "oled" ? "#000000" : s.bar.dark;
+    // у обычного вида цвет зависит ещё и от темы (OLED — чистый чёрный, aurora — холодный синий), у остальных скинов — от схемы
+    const theme = document.documentElement.dataset.theme;
+    const dark = s.id === "default" ? (theme === "oled" ? "#000000" : theme === "aurora" ? "#05080d" : s.bar.dark) : s.bar.dark;
     meta.setAttribute("content", scheme() === "light" ? s.bar.light : dark);
   }
 
