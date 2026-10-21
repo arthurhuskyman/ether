@@ -75,7 +75,9 @@ test("командная палитра: Ctrl+K открывает диалог,
 test("ссылка-приглашение: #add= добавляет контакт; первый экран — три шага", async () => {
   const a = await booted();
   a.run(`history.replaceState(null, "", location.pathname + "#add=friend-id&name=Bob")`);
+  a.run(`window.confirmSheet = () => Promise.resolve(true)`); // V.77 A6: добавление по ссылке теперь с подтверждением
   assert.equal(a.run(`handleAddLinkFromLocation()`), true);
+  await new Promise((r) => setTimeout(r, 30));
   assert.ok(a.run(`state.contacts.has("friend-id")`));
   assert.match(a.run(`myAddLink()`), /#add=me-test-id/);
   a.run(`state.tab = "chats"; state.chatId = null; renderTab(); renderChatsList();`);
