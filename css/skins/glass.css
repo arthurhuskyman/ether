@@ -82,10 +82,10 @@ html[data-skin="glass"] .unread-badge, html[data-skin="glass"] .tab-badge { back
 
 /* ---- пузыри: капли стекла, разная прозрачность, без blur ---- */
 html[data-skin="glass"] .bubble { -webkit-backdrop-filter: none; backdrop-filter: none; padding: 11px 18px 9px; overflow: hidden; isolation: isolate; }
-html[data-skin="glass"] .bubble::before { content: ""; position: absolute; left: 6%; right: 38%; top: 0; height: 46%; border-radius: 0 0 60% 60% / 0 0 100% 100%; background: linear-gradient(180deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0)); pointer-events: none; z-index: -1; }
-html[data-skin="glass"] .bubble::after { content: ""; position: absolute; right: 10px; bottom: 5px; width: 36%; height: 1px; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5)); pointer-events: none; }
-html[data-skin="glass"] .bubble-row.mine .bubble { border-radius: 30px 30px var(--sk-tail) 30px; }
-html[data-skin="glass"] .bubble-row.theirs .bubble { border-radius: 30px 30px 30px var(--sk-tail); }
+html[data-skin="glass"] .bubble::before { content: ""; position: absolute; inset-inline: 6% 38%; top: 0; height: 46%; border-radius: 0 0 60% 60% / 0 0 100% 100%; background: linear-gradient(180deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0)); pointer-events: none; z-index: -1; }
+html[data-skin="glass"] .bubble::after { content: ""; position: absolute; inset-inline-end: 10px; bottom: 5px; width: 36%; height: 1px; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5)); pointer-events: none; }
+html[data-skin="glass"] .bubble-row.mine .bubble { border-radius: 30px; border-end-end-radius: var(--sk-tail); }
+html[data-skin="glass"] .bubble-row.theirs .bubble { border-radius: 30px; border-end-start-radius: var(--sk-tail); }
 html[data-skin="glass"] .bubble-row.mine .bubble.bubble-long { background: var(--bubble-mine-bg); }
 html[data-skin="glass"] .bubble-row.mine:nth-of-type(odd) .bubble { opacity: .96; }
 html[data-skin="glass"] .bubble-row.theirs:nth-of-type(3n) .bubble { background: linear-gradient(150deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.04)); }
@@ -147,3 +147,4 @@ html[data-skin="glass"] .theme-seg button { font-weight: 300; font-size: 13px; p
 html[data-skin="glass"] .theme-seg button.active, html[data-skin="glass"] .theme-seg button[aria-checked="true"], html[data-skin="glass"] .theme-seg button[aria-pressed="true"] { font-weight: 700; color: #0b0f33; }
 html[data-skin="glass"] .chat-filter-chip { border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.6); background-image: var(--gl-hi); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6); }
 html[data-skin="glass"] #composer-menu-sheet .sheet-panel { position: absolute; background-image: none; border: none; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+html[dir="rtl"][data-skin="glass"] .bubble::after { background: linear-gradient(270deg, transparent, rgba(255, 255, 255, 0.5)); }

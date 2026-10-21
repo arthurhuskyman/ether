@@ -985,9 +985,14 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
   // ver: версия ростера. Нет поля (старый клиент) — null: применяем как раньше, если прислал админ. Устаревшая версия от админа отбрасывается.
   const inVer = Number.isInteger(payload.ver) && payload.ver >= 0 && payload.ver < 1e9 ? payload.ver : null;
   if (isNew) {
+      // B5: новую группу принимаем только от её админа/создателя (по ролям в самом пакете); createdBy — лишь если он есть среди members.
+      const senderM = payload.members.find((m) => m && m.id === from);
+      const cbOk = typeof payload.createdBy === "string" && payload.members.some((m) => m && m.id === payload.createdBy);
+      const senderIsAdmin = !!senderM && (senderM.role === "admin" || (cbOk && payload.createdBy === from));
+      if (!senderIsAdmin) { etherLog("warn", "[group] новая группа от не-админа " + String(from).slice(0, 8) + "… проигнорирована"); return; }
       g = { id: payload.groupId, isGroup: true, name: payload.groupName || T("group.defaultName"),
         members: payload.members, messages: [], lastActivity: Date.now(), archived: false, muted: false,
-        createdBy: from, managed: true };
+        createdBy: cbOk ? payload.createdBy : from, managed: true };
       // Валидируем формат ДО записи в g.avatar — тогда "заражённый" аватар
       // (CSS-инъекция через background-image, см. AVATAR_DATAURL_RE выше
       // avatarCircleHtml) просто не попадёт в localStorage вовсе, а не
@@ -1149,6 +1154,11 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     // непрочитанного: получатель узнаёт об этом только если сам
     // настроил наблюдение и у него сработает проверка в checkDeadManSwitch().
     const c = state.contacts.get(from); if (!c) return;
+    if (payload.off) { // A3: отправитель выключил режим — снимаем наблюдение молча
+      delete c.lastHeartbeatAt; delete c.heartbeatThresholdDays; delete c.heartbeatAlertedAt;
+      persistContacts();
+      return;
+    }
     const nowTs = Date.now();
     c.lastHeartbeatAt = (typeof payload.ts === "number" && isFinite(payload.ts) && payload.ts > 0 && payload.ts <= nowTs + 60000) ? payload.ts : nowTs;
     const thr = Number(payload.thresholdDays);

@@ -92,8 +92,8 @@ html[data-skin="newyear"] .bubble-row.mine .bubble.bubble-long { background: rad
 html[data-skin="newyear"] .bubble::after { content: ""; position: absolute; top: -13px; width: 34px; height: 23px; background: var(--ny-bow-silver) center / contain no-repeat; pointer-events: none; filter: drop-shadow(0 2px 1px rgba(0, 0, 0, 0.3)); }
 html[data-skin="newyear"] .bubble-row.mine .bubble::after { right: 16px; background-image: var(--ny-bow-gold); }
 html[data-skin="newyear"] .bubble-row.theirs .bubble::after { left: 16px; }
-html[data-skin="newyear"] .bubble-row.mine .bubble { border-bottom-right-radius: 12px; border-end-end-radius: 12px; }
-html[data-skin="newyear"] .bubble-row.theirs .bubble { border-bottom-left-radius: 12px; border-end-start-radius: 12px; }
+html[data-skin="newyear"] .bubble-row.mine .bubble { border-end-end-radius: 12px; }
+html[data-skin="newyear"] .bubble-row.theirs .bubble { border-end-start-radius: 12px; }
 html[data-skin="newyear"] .bubble-row.mine .bubble-time, html[data-skin="newyear"] .bubble-row.theirs .bubble-time { color: rgba(255, 255, 255, 0.85); }
 html[data-skin="newyear"] .bubble-row .bubble a { color: #ffe27a; }
 html[data-skin="newyear"] .bubble-row.theirs .bubble :is(.board-title, .poll-q) { color: #fff; }

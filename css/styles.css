@@ -1082,7 +1082,6 @@ html[data-bubble-size="large"] .bubble { font-size: calc(var(--t-body) + 2px); p
 .bubble-row.mine .bubble {
   background: var(--bubble-mine-bg);
   color: var(--bubble-mine-ink);
-  border-bottom-right-radius: 4px;
   border-end-end-radius: 4px;
   border: none;
   box-shadow:
@@ -1094,7 +1093,6 @@ html[data-bubble-size="large"] .bubble { font-size: calc(var(--t-body) + 2px); p
   background: var(--bubble-theirs-bg);
   border: 1px solid var(--line-1);
   color: var(--bubble-theirs-ink);
-  border-bottom-left-radius: 4px;
   border-end-start-radius: 4px;
 }
 html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); }
@@ -2035,8 +2033,8 @@ html.fx-skin.fx-chat-open .bubble-row.mine .bubble, html.fx-skin.fx-chat-open .s
 #screen-chat[data-skin-shape="sharp"] .bubble { border-radius: 8px; }
 #screen-chat[data-skin-shape="soft"] .bubble { border-radius: 24px; }
 /* «Хвостик» пузыря (маленький угол) сохраняется при любой форме скина: общий border-radius выше его сбрасывал */
-#screen-chat[data-skin-shape] .bubble-row.mine .bubble { border-bottom-right-radius: 4px; border-end-end-radius: 4px; }
-#screen-chat[data-skin-shape] .bubble-row.theirs .bubble { border-bottom-left-radius: 4px; border-end-start-radius: 4px; }
+#screen-chat[data-skin-shape] .bubble-row.mine .bubble { border-end-end-radius: 4px; }
+#screen-chat[data-skin-shape] .bubble-row.theirs .bubble { border-end-start-radius: 4px; }
 #screen-chat[data-skin-font="serif"] .bubble { font-family: Georgia, "Times New Roman", serif; }
 #screen-chat[data-skin-font="rounded"] .bubble { font-family: ui-rounded, "SF Pro Rounded", "Nunito", system-ui, sans-serif; }
 #screen-chat .bubble { transition: border-radius var(--motion-fast) var(--ease-out); }

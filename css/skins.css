@@ -31,11 +31,11 @@ html[data-skin] .chat-row-wrapper { border-radius: var(--sk-radius, var(--r-lg))
 
 /* пузыри: форма, обводка, хвостик */
 html[data-skin] .bubble { border: var(--sk-bw) var(--sk-bs, solid) var(--sk-line); border-radius: var(--sk-bubble-r, var(--r-lg)); box-shadow: var(--sk-bubble-shadow, none); -webkit-backdrop-filter: var(--sk-blur, none); backdrop-filter: var(--sk-blur, none); }
-html[data-skin] .bubble-row.mine .bubble { background: var(--bubble-mine-bg); color: var(--bubble-mine-ink); border-bottom-right-radius: var(--sk-tail, 4px); border-end-end-radius: var(--sk-tail, 4px); border-color: var(--sk-line-mine, var(--sk-line)); }
-html[data-skin] .bubble-row.theirs .bubble, html[data-skin][data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bubble-theirs-bg); color: var(--bubble-theirs-ink); border-bottom-left-radius: var(--sk-tail, 4px); border-end-start-radius: var(--sk-tail, 4px); border-color: var(--sk-line-theirs, var(--sk-line)); }
+html[data-skin] .bubble-row.mine .bubble { background: var(--bubble-mine-bg); color: var(--bubble-mine-ink); border-end-end-radius: var(--sk-tail, 4px); border-color: var(--sk-line-mine, var(--sk-line)); }
+html[data-skin] .bubble-row.theirs .bubble, html[data-skin][data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bubble-theirs-bg); color: var(--bubble-theirs-ink); border-end-start-radius: var(--sk-tail, 4px); border-color: var(--sk-line-theirs, var(--sk-line)); }
 html[data-skin] #screen-chat[data-skin-shape] .bubble { border-radius: var(--sk-bubble-r, var(--r-lg)); }
-html[data-skin] #screen-chat[data-skin-shape] .bubble-row.mine .bubble { border-bottom-right-radius: var(--sk-tail, 4px); }
-html[data-skin] #screen-chat[data-skin-shape] .bubble-row.theirs .bubble { border-bottom-left-radius: var(--sk-tail, 4px); }
+html[data-skin] #screen-chat[data-skin-shape] .bubble-row.mine .bubble { border-end-end-radius: var(--sk-tail, 4px); }
+html[data-skin] #screen-chat[data-skin-shape] .bubble-row.theirs .bubble { border-end-start-radius: var(--sk-tail, 4px); }
 html[data-skin] .bubble-row.mine .bubble a, html[data-skin] .bubble-row.mine .bubble-time { color: inherit; }
 html[data-skin] .bubble-row.theirs .bubble-time { color: var(--ink-2); }
 

@@ -236,7 +236,25 @@ html[data-skin="wood"] .ico:not(.ico-fill) { stroke-width: 2.5; stroke-linecap: 
 html[data-skin="wood"] :is(.tab-btn, .icon-btn, .settings-category-icon, .composer-menu-item, .sheet-action) > .ico { filter: url(#wd-rough); }
 
 /* спокойный режим и reduce-motion */
-html[data-calm-mode="1"][data-skin="wood"] :is(.bubble, #toast, .toast, .composer-menu-item, .tab-btn .ico, .tab-btn::after, #nav-title, .chat-filter-chip, #skin-deco .wd-leaf, #skin-deco .wd-branch) { animation: none !important; }
+html[data-calm-mode="1"][data-skin="wood"] .bubble,
+html[data-calm-mode="1"][data-skin="wood"] #toast,
+html[data-calm-mode="1"][data-skin="wood"] .toast,
+html[data-calm-mode="1"][data-skin="wood"] .composer-menu-item,
+html[data-calm-mode="1"][data-skin="wood"] .tab-btn .ico,
+html[data-calm-mode="1"][data-skin="wood"] .tab-btn::after,
+html[data-calm-mode="1"][data-skin="wood"] #nav-title,
+html[data-calm-mode="1"][data-skin="wood"] .chat-filter-chip,
+html[data-calm-mode="1"][data-skin="wood"] #skin-deco .wd-leaf,
+html[data-calm-mode="1"][data-skin="wood"] #skin-deco .wd-branch { animation: none !important; }
 @media (prefers-reduced-motion: reduce) {
-  html[data-skin="wood"] :is(.bubble, #toast, .toast, .composer-menu-item, .tab-btn .ico, .tab-btn::after, #nav-title, .chat-filter-chip, #skin-deco .wd-leaf, #skin-deco .wd-branch) { animation: none !important; }
+  html[data-skin="wood"] .bubble,
+  html[data-skin="wood"] #toast,
+  html[data-skin="wood"] .toast,
+  html[data-skin="wood"] .composer-menu-item,
+  html[data-skin="wood"] .tab-btn .ico,
+  html[data-skin="wood"] .tab-btn::after,
+  html[data-skin="wood"] #nav-title,
+  html[data-skin="wood"] .chat-filter-chip,
+  html[data-skin="wood"] #skin-deco .wd-leaf,
+  html[data-skin="wood"] #skin-deco .wd-branch { animation: none !important; }
 }

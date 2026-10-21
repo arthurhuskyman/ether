@@ -84,8 +84,8 @@ html[data-skin="comic"][data-scheme] .bubble-row.mine .bubble { background-image
 html[data-skin="comic"][data-scheme="dark"] .bubble-row.mine .bubble { background-image: linear-gradient(135deg, var(--bubble-mine-bg) 0 46%, transparent 92%), radial-gradient(rgba(0, 0, 0, .4) 1.1px, transparent 1.7px); }
 html[data-skin="comic"][data-scheme] .bubble-row.theirs .bubble { background-image: linear-gradient(225deg, var(--bubble-theirs-bg) 0 46%, transparent 92%), radial-gradient(var(--cm-dot-soft) 1.1px, transparent 1.7px); background-size: auto, 5px 5px; }
 html[data-skin="comic"] .bubble-row .bubble::after { content: ""; position: absolute; top: 100%; margin-top: -3px; width: 50px; height: 40px; pointer-events: none; background: no-repeat 0 0 / 50px 40px; z-index: 1; }
-html[data-skin="comic"] .bubble-row.mine .bubble::after { right: -8px; background-image: var(--cm-tail-mine); }
-html[data-skin="comic"] .bubble-row.theirs .bubble::after { left: -8px; background-image: var(--cm-tail-theirs); }
+html[data-skin="comic"] .bubble-row.mine .bubble::after { inset-inline-end: -8px; background-image: var(--cm-tail-mine); }
+html[data-skin="comic"] .bubble-row.theirs .bubble::after { inset-inline-start: -8px; background-image: var(--cm-tail-theirs); }
 html[data-skin="comic"] .bubble-row { padding-bottom: 14px; }
 html[data-skin="comic"] .bubble-row.grouped { margin-top: -4px; }
 html[data-skin="comic"] .bubble-sender { background: #111; color: #ffe14d; display: inline-block; padding: 0 6px; transform: rotate(-2deg); text-transform: uppercase; }
@@ -212,3 +212,5 @@ html[data-skin="comic"] #skin-deco .cm-word { position: absolute; font-family: v
 @keyframes comic-word { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
 html[data-skin="comic"][data-calm-mode="1"] :is(.bubble, #toast, .sheet-panel, .composer-menu-item, .unread-badge, .tab-btn .ico, .icon-btn .ico, #skin-deco .cm-word) { animation: none !important; }
 @media (prefers-reduced-motion: reduce) { html[data-skin="comic"] :is(.bubble, #toast, .sheet-panel, .composer-menu-item, .unread-badge, .tab-btn .ico, .icon-btn .ico) { animation: none !important; } }
+/* RTL: хвостики зеркалятся */
+html[dir="rtl"][data-skin="comic"] .bubble-row .bubble::after { transform: scaleX(-1); }

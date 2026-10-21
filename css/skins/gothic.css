@@ -205,6 +205,16 @@ html[data-skin="gothic"][data-scheme="light"] .gt-bat { color: #2b1a1e; }
 @keyframes gt-wing { from { transform: scaleY(1); } to { transform: scaleY(.35); } }
 html[data-calm-mode="1"] :is(.gt-fog, .gt-bat, .gt-bat svg) { animation: none !important; }
 html[data-calm-mode="1"] .gt-bat { display: none; }
-html[data-calm-mode="1"][data-skin="gothic"] :is(#nav-title::after, #nav-bar.glass::after, .tab-btn.active > svg, .bubble-row .bubble, .sheet-panel) { animation: none !important; }
-@media (prefers-reduced-motion: reduce) { html[data-skin="gothic"] :is(#nav-title::after, #nav-bar.glass::after, .tab-btn.active > svg, .bubble-row .bubble, .sheet-panel) { animation: none !important; } }
+html[data-calm-mode="1"][data-skin="gothic"] #nav-title::after,
+html[data-calm-mode="1"][data-skin="gothic"] #nav-bar.glass::after,
+html[data-calm-mode="1"][data-skin="gothic"] .tab-btn.active > svg,
+html[data-calm-mode="1"][data-skin="gothic"] .bubble-row .bubble,
+html[data-calm-mode="1"][data-skin="gothic"] .sheet-panel { animation: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  html[data-skin="gothic"] #nav-title::after,
+  html[data-skin="gothic"] #nav-bar.glass::after,
+  html[data-skin="gothic"] .tab-btn.active > svg,
+  html[data-skin="gothic"] .bubble-row .bubble,
+  html[data-skin="gothic"] .sheet-panel { animation: none !important; }
+}
 html[data-skin="gothic"] #composer-menu-sheet .composer-recent.composer-menu-item { min-height: 76px; padding: 14px 40px; }

@@ -116,7 +116,7 @@ html[data-skin="clay"] .bubble-row.theirs .bubble { border-radius: 34px 30px 32p
 html[data-skin="clay"] #screen-chat[data-skin-shape] .bubble-row.mine .bubble { border-radius: 32px 34px 8px 30px / 30px 28px 12px 34px; }
 html[data-skin="clay"] #screen-chat[data-skin-shape] .bubble-row.theirs .bubble { border-radius: 34px 30px 32px 8px / 28px 34px 30px 12px; }
 html[data-skin="clay"] .bubble-row.mine .bubble, html[data-skin="clay"] .bubble-row.theirs .bubble { background-image: var(--clay-lump); background-size: 260px 260px; background-blend-mode: soft-light; }
-html[data-skin="clay"] .bubble::before { content: ""; position: absolute; left: 14px; top: 6px; width: 38%; max-width: 90px; height: 9px; border-radius: 50%; background: radial-gradient(ellipse at 50% 50%, var(--clay-gloss), transparent 72%); transform: rotate(-4deg); pointer-events: none; }
+html[data-skin="clay"] .bubble::before { content: ""; position: absolute; inset-inline-start: 14px; top: 6px; width: 38%; max-width: 90px; height: 9px; border-radius: 50%; background: radial-gradient(ellipse at 50% 50%, var(--clay-gloss), transparent 72%); transform: rotate(-4deg); pointer-events: none; }
 html[data-skin="clay"] .bubble::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: .5;
   background: radial-gradient(ellipse 16px 11px at 86% 74%, var(--clay-dent), transparent 72%), var(--clay-noise); background-size: auto, 180px 180px; }
 /* чередуем «цвета пластилина», чтобы лента была пёстрой */
@@ -207,3 +207,7 @@ html[data-calm-mode="1"][data-skin="clay"] :is(.btn-primary, .btn-secondary, .se
 @media (prefers-reduced-motion: reduce) {
   html[data-skin="clay"] :is(.bubble, #toast, .toast, .composer-menu-item, .tab-btn .ico, .avatar, #skin-deco .clay-blob) { animation: none !important; }
 }
+/* RTL: форма комочков и «вмятина» зеркалятся */
+html[dir="rtl"][data-skin="clay"] .bubble-row.mine .bubble, html[dir="rtl"][data-skin="clay"] #screen-chat[data-skin-shape] .bubble-row.mine .bubble { border-radius: 34px 32px 30px 8px / 28px 30px 34px 12px; }
+html[dir="rtl"][data-skin="clay"] .bubble-row.theirs .bubble, html[dir="rtl"][data-skin="clay"] #screen-chat[data-skin-shape] .bubble-row.theirs .bubble { border-radius: 30px 34px 8px 32px / 34px 28px 12px 30px; }
+html[dir="rtl"][data-skin="clay"] .bubble::after { background: radial-gradient(ellipse 16px 11px at 14% 74%, var(--clay-dent), transparent 72%), var(--clay-noise); background-size: auto, 180px 180px; }

@@ -71,14 +71,14 @@ html[data-skin="cartoon"] .bubble-row { padding-bottom: 6px; }
 html[data-skin="cartoon"][data-scheme] .bubble-row:is(.mine, .theirs) .bubble { border: 3.5px solid var(--sk-line); box-shadow: var(--sk-bubble-shadow); }
 html[data-skin="cartoon"] .bubble { position: relative; font-weight: 600; padding: 11px 16px 8px; border-radius: 26px; overflow: visible; transform-origin: 20% 100%; }
 html[data-skin="cartoon"][data-scheme] .bubble-row:is(.mine, .theirs) .bubble { background-image: linear-gradient(180deg, rgba(255, 255, 255, .38) 0, rgba(255, 255, 255, 0) 42%); }
-html[data-skin="cartoon"] .bubble-row.mine .bubble { border-bottom-right-radius: 3px; transform-origin: 85% 100%; rotate: -.5deg; }
-html[data-skin="cartoon"] .bubble-row.theirs .bubble { border-bottom-left-radius: 3px; rotate: .5deg; }
+html[data-skin="cartoon"] .bubble-row.mine .bubble { border-end-end-radius: 3px; transform-origin: 85% 100%; rotate: -.5deg; }
+html[data-skin="cartoon"] .bubble-row.theirs .bubble { border-end-start-radius: 3px; rotate: .5deg; }
 html[data-skin="cartoon"][data-scheme="light"] .bubble-row.theirs .bubble { background-image: linear-gradient(180deg, rgba(255, 210, 63, .3) 0, rgba(255, 255, 255, 0) 40%); }
 html[data-skin="cartoon"][data-scheme="dark"] .bubble-row.theirs .bubble { background-image: linear-gradient(180deg, rgba(255, 255, 255, .12) 0, rgba(255, 255, 255, 0) 40%); }
 /* хвостик: SVG-«загогулина» (контур, заливка и тень в одном) */
 html[data-skin="cartoon"] .bubble-row .bubble::after { content: ""; position: absolute; bottom: -31px; width: 44px; height: 34px; pointer-events: none; background: no-repeat 0 0 / 44px 34px; z-index: 1; }
-html[data-skin="cartoon"] .bubble-row.mine .bubble::after { right: -16px; background-image: var(--ct-mine); }
-html[data-skin="cartoon"] .bubble-row.theirs .bubble::after { left: -16px; transform: scaleX(-1); background-image: var(--ct-theirs); }
+html[data-skin="cartoon"] .bubble-row.mine .bubble::after { inset-inline-end: -16px; background-image: var(--ct-mine); }
+html[data-skin="cartoon"] .bubble-row.theirs .bubble::after { inset-inline-start: -16px; transform: scaleX(-1); background-image: var(--ct-theirs); }
 html[data-skin="cartoon"] .bubble-time { font-weight: 600; }
 html[data-skin="cartoon"] .bubble-reaction-chip { border-radius: 999px; background: #fff; color: #2a2550; box-shadow: 0 2px 0 var(--sk-line); }
 html[data-skin="cartoon"] .bubble-reply { border-inline-start: 5px solid var(--sk-line); border-radius: 10px; background: rgba(255, 255, 255, .4); }
@@ -203,3 +203,6 @@ html[data-skin="cartoon"][data-calm-mode="1"] :is(.bubble, .tab-btn .ico, .unrea
 
 /* доска «Задача»: пастельные колонки светлые в обеих схемах — подписи/кнопки всегда тёмные (иначе в тёмной схеме «Добавить» сливается) */
 html[data-skin="cartoon"] .board-col :is(.board-add, .board-col-h, .board-col-name, .board-card-acts button) { color: #2a2550; }
+/* RTL: хвостики зеркалятся вместе с расположением пузырей */
+html[dir="rtl"][data-skin="cartoon"] .bubble-row.mine .bubble::after { transform: scaleX(-1); }
+html[dir="rtl"][data-skin="cartoon"] .bubble-row.theirs .bubble::after { transform: none; }
