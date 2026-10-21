@@ -22,7 +22,7 @@ html[data-skin="wood"][data-scheme="light"] {
   --bg-0: #e6d1a8; --bg-1: #efdfba; --bg-2: #f6ead0; --bg-3: #d9c196;
   --line-1: rgba(90, 55, 20, 0.3); --line-2: rgba(90, 55, 20, 0.5);
   --ink-0: #2b1a0e; --ink-1: rgba(43, 26, 14, 0.95); --ink-2: rgba(43, 26, 14, 0.82); --ink-3: rgba(43, 26, 14, 0.72);
-  --accent: #2f6b1f; --accent-hi: #3f8a2a; --accent-lo: #234f17; --accent-ghost: rgba(63, 138, 42, 0.18); --text-link: #1f5a14;
+  --accent: #285b1a; --accent-hi: #3f8a2a; --accent-lo: #234f17; --accent-ghost: rgba(63, 138, 42, 0.18); --text-link: #1f5a14;
   --bubble-mine-bg: #3f6f2c; --bubble-mine-ink: #fff6dc; --bubble-theirs-bg: #f0dcb0; --bubble-theirs-ink: #2b1a0e;
   --card-bg: none; --card-base: #f3e4c4; --card-border: #6b4423; --card-shadow: 0 3px 0 #8a6a3c;
   --select-popup-bg: #f3e4c4; --select-popup-ink: #2b1a0e; --input-bg: #f8eed6; --input-border: #8a6a3c; --glass-border: #6b4423;
@@ -258,3 +258,5 @@ html[data-calm-mode="1"][data-skin="wood"] #skin-deco .wd-branch { animation: no
   html[data-skin="wood"] #skin-deco .wd-leaf,
   html[data-skin="wood"] #skin-deco .wd-branch { animation: none !important; }
 }
+/* Контраст: «Удалить» на тёмной деревянной плашке (общий цвет давал ≈3.2:1) */
+html[data-skin="wood"][data-scheme="dark"] button.sheet-action.destructive { color: #ffd2c4; }

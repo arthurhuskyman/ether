@@ -17,7 +17,7 @@ html[data-skin="newyear"][data-scheme="dark"] {
   --bg-0: #0a1636; --bg-1: #112448; --bg-2: #17325e; --bg-3: #1f4075;
   --line-1: rgba(255, 255, 255, 0.16); --line-2: rgba(255, 255, 255, 0.26);
   --ink-0: #f4f9ff; --ink-1: rgba(244, 249, 255, 0.96); --ink-2: rgba(244, 249, 255, 0.82); --ink-3: rgba(244, 249, 255, 0.7);
-  --accent: #ff7b88; --accent-hi: #ff9ba4; --accent-lo: #e03447; --accent-ghost: rgba(255, 90, 106, 0.18); --text-link: #ffd86b;
+  --accent: #ff8c97; --accent-hi: #ff9ba4; --accent-lo: #e03447; --accent-ghost: rgba(255, 90, 106, 0.18); --text-link: #ffd86b;
   --bubble-mine-bg: linear-gradient(160deg, #d9283f, #a3162a); --bubble-mine-ink: #ffffff; --bubble-theirs-bg: linear-gradient(160deg, #17855a, #0e6040); --bubble-theirs-ink: #ffffff;
   --card-bg: none; --card-base: #15305a; --card-border: #f4c430; --card-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
   --select-popup-bg: #112448; --select-popup-ink: #f4f9ff; --input-bg: #112448; --input-border: #f4c430; --glass-border: #f4c430;
@@ -94,7 +94,7 @@ html[data-skin="newyear"] .bubble-row.mine .bubble::after { right: 16px; backgro
 html[data-skin="newyear"] .bubble-row.theirs .bubble::after { left: 16px; }
 html[data-skin="newyear"] .bubble-row.mine .bubble { border-end-end-radius: 12px; }
 html[data-skin="newyear"] .bubble-row.theirs .bubble { border-end-start-radius: 12px; }
-html[data-skin="newyear"] .bubble-row.mine .bubble-time, html[data-skin="newyear"] .bubble-row.theirs .bubble-time { color: rgba(255, 255, 255, 0.85); }
+html[data-skin="newyear"] .bubble-row.mine .bubble-time, html[data-skin="newyear"] .bubble-row.theirs .bubble-time { color: #fff; }
 html[data-skin="newyear"] .bubble-row .bubble a { color: #ffe27a; }
 html[data-skin="newyear"] .bubble-row.theirs .bubble :is(.board-title, .poll-q) { color: #fff; }
 html[data-skin="newyear"] .bubble-row.just-received .bubble { animation: nyOpen .85s cubic-bezier(.2, .9, .3, 1) both; }
@@ -128,7 +128,7 @@ html[data-skin="newyear"] .sheet-backdrop { background: rgba(6, 16, 46, 0.55); }
 html[data-skin="newyear"][data-scheme="light"] .sheet-backdrop { background: rgba(20, 50, 90, 0.35); }
 html[data-skin="newyear"] #composer-menu-sheet .composer-menu-item { background: var(--sk-panel); border: 2px solid var(--sk-line); border-radius: 999px; }
 html[data-skin="newyear"] #toast { background: linear-gradient(180deg, #e0293f, #a3162a); color: #fff; border: 2px solid #ffd86b; border-radius: 6px 16px 6px 16px; font-family: var(--sk-display); font-size: 17px; font-weight: 400; -webkit-backdrop-filter: none; backdrop-filter: none; }
-html[data-skin="newyear"] #toast::before { content: "★"; color: #ffd86b; margin-right: 6px; }
+html[data-skin="newyear"] #toast::before { content: "★"; color: #ffd86b; margin-inline-end: 6px; }
 html[data-skin="newyear"] .board-card { background: var(--sk-panel); border: 2px solid var(--sk-line); border-radius: 12px; }
 html[data-skin="newyear"] .theme-seg { border-radius: 999px; border: 2px solid var(--sk-line); }
 html[data-skin="newyear"] .voice-play-btn { background: #ffd86b; color: #a3162a; border: 2px solid #fff; }

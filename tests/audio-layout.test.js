@@ -218,7 +218,7 @@ test("[iPhone] фон html — фон приложения (--bg-0), без чё
   assert.doesNotMatch(rule("body"), /--app-h/);
 });
 test("[iPhone] футер использует тот же токен --glass-regular", () => {
-  assert.match(rule(".glass,\n.glass-regular"), /background:\s*var\(--glass-regular\)/);
+  assert.match(rule(".glass"), /background:\s*var\(--glass-regular\)/);
 });
 
 // ---------- Футер, safe area, запрет зума и поворота ----------
@@ -247,7 +247,7 @@ test("футер и нижняя safe area: стекло как у хедера,
   assert.doesNotMatch(css, /--footer-bg/);
   assert.doesNotMatch(rule("#tab-bar"), /(^|[;\s])background:/, "фон футера даёт .glass (var(--glass-regular))");
   assert.match(rule("#nav-bar") + css.match(/#nav-bar\.glass[^{]*\{[^}]*\}/)?.[0], /blur|glass|padding/);
-  assert.match(rule(".glass,\n.glass-regular"), /background:\s*var\(--glass-regular\)/);
+  assert.match(rule(".glass"), /background:\s*var\(--glass-regular\)/);
   assert.match(html, /<nav id="tab-bar" class="glass"[^>]*>/);
 });
 

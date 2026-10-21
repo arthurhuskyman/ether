@@ -18,7 +18,7 @@ html[data-skin="watercolor"] {
 html[data-skin="watercolor"][data-scheme="light"] {
   --bg-0: #fbf6fb; --bg-1: #fffafd; --bg-2: #fdf8fc; --bg-3: #f0e6f6;
   --line-1: rgba(91, 63, 196, 0.16); --line-2: rgba(91, 63, 196, 0.3);
-  --ink-0: #2c2748; --ink-1: rgba(44, 39, 72, 0.92); --ink-2: rgba(44, 39, 72, 0.76); --ink-3: rgba(44, 39, 72, 0.66);
+  --ink-0: #2c2748; --ink-1: rgba(44, 39, 72, 0.92); --ink-2: rgba(44, 39, 72, 0.76); --ink-3: rgba(44, 39, 72, 0.68);
   --accent: #5b3fc4; --accent-hi: #7a5ee0; --accent-lo: #4730a3; --accent-ghost: rgba(122, 94, 224, 0.14); --text-link: #4730a3;
   --bubble-mine-bg: #cdd9ff; --bubble-mine-ink: #1d1a3c; --bubble-theirs-bg: #fff0f6; --bubble-theirs-ink: #2c2748;
   --card-bg: none; --card-base: #fdf8fc; --card-border: rgba(91, 63, 196, 0.2); --card-shadow: 0 8px 22px -12px rgba(91, 63, 196, 0.45);

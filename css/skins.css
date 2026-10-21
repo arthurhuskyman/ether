@@ -15,7 +15,7 @@ html[data-skin] body::before { background: var(--sk-bg); animation: none; transf
 html[data-skin] { background: var(--bg-0); --glass-blur: var(--sk-blur-px, 0px); --text-shadow-on-glass: none; }
 
 /* панели, карточки, строки */
-html[data-skin] :is(.glass, .glass-regular, .glass-content, .flat-content, .chat-row, .settings-row, .sheet-panel, .first-run-card, .contact-gallery-item, .sheet-action, .forward-row, .settings-category-row, .board-col),
+html[data-skin] :is(.glass, .glass-content, .flat-content, .chat-row, .settings-row, .sheet-panel, .first-run-card, .contact-gallery-item, .sheet-action, .forward-row, .settings-category-row, .board-col),
 html[data-skin] #nav-bar.glass, html[data-skin] #tab-bar.glass {
   background: var(--sk-panel);
   -webkit-backdrop-filter: var(--sk-blur, none); backdrop-filter: var(--sk-blur, none);
@@ -77,7 +77,7 @@ html[data-skin] :is(.chat-filter-chip.active, .theme-seg button.active, .contact
 html[data-skin] .summary-period.on { background: var(--sk-btn-bg); color: var(--sk-btn-ink); border-color: var(--sk-line); }
 /* Деструктивные пункты и индикатор «офлайн»: цвет danger подмешивается к контрастному полюсу схемы (≥4.5:1) */
 html[data-skin][data-scheme="dark"] :is(.sheet-action.destructive, #contact-clear-btn, #contact-delete-btn, .nav-conn-indicator) { color: color-mix(in srgb, var(--danger) 60%, #fff); }
-html[data-skin][data-scheme="light"] :is(.sheet-action.destructive, #contact-clear-btn, #contact-delete-btn) { color: color-mix(in srgb, var(--danger) 80%, #000); }
+html[data-skin][data-scheme="light"] :is(.sheet-action.destructive, #contact-clear-btn, #contact-delete-btn, .nav-conn-indicator) { color: color-mix(in srgb, var(--danger) 80%, #000); }
 
 /* Строки внутри группы настроек: группа уже в рамке/на панели скина — своя рамка, фон и тень у каждой строки давали двойную рамку («рамка в рамке»).
    Строка остаётся тонким разделителем; отдельные карточки-строки вне групп (.chat-row, .settings-category-row, .forward-row) не меняются. */
@@ -86,3 +86,11 @@ html[data-skin] .settings-group > .settings-row {
   background: none; background-image: none; box-shadow: none; clip-path: none; -webkit-backdrop-filter: none; backdrop-filter: none; overflow: visible;
 }
 html[data-skin] .settings-group > .settings-row:last-child { border-bottom: 0; }
+
+/* Фокус-кольцо клавиатуры во ВСЕХ скинах. Декоративные outline (wood, steampunk), clip-path (gothic, neon) и тени скинов
+   прятали или обрезали общий :focus-visible { outline-offset: 2px }, поэтому кольцо рисуется ВНУТРИ границы элемента:
+   двухцветное (светлая линия + тёмная подложка), читается на любом фоне и не режется clip-path.
+   Поля ввода сюда не входят: у них своё кольцо в :focus каждого скина (inset box-shadow). */
+html[data-skin] :is(button, a[href], summary, [role="button"], [role="tab"], [role="radio"], [role="switch"], [tabindex="0"], .chat-row, .tab-btn):focus-visible {
+  outline: 2px solid var(--ink-0); outline-offset: -2px; box-shadow: inset 0 0 0 4px var(--bg-0);
+}

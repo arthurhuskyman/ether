@@ -16,8 +16,8 @@ html[data-skin="clay"] {
 html[data-skin="clay"][data-scheme="light"] {
   --bg-0: #f6e4d1; --bg-1: #fbefe1; --bg-2: #fff6ec; --bg-3: #f1d9c0;
   --line-1: rgba(120, 76, 36, 0.14); --line-2: rgba(120, 76, 36, 0.24);
-  --ink-0: #43261a; --ink-1: rgba(67, 38, 26, 0.94); --ink-2: rgba(67, 38, 26, 0.78); --ink-3: rgba(67, 38, 26, 0.68);
-  --accent: #b83f1d; --accent-hi: #d9532f; --accent-lo: #96300f; --accent-ghost: rgba(217, 83, 47, 0.16); --text-link: #b53d1d;
+  --ink-0: #43261a; --ink-1: rgba(67, 38, 26, 0.94); --ink-2: rgba(67, 38, 26, 0.78); --ink-3: rgba(67, 38, 26, 0.71);
+  --accent: #a93a1b; --accent-hi: #d9532f; --accent-lo: #96300f; --accent-ghost: rgba(217, 83, 47, 0.16); --text-link: #aa391b;
   --bubble-mine-bg: #ff9f80; --bubble-mine-ink: #3a1608; --bubble-theirs-bg: #fffaf3; --bubble-theirs-ink: #43261a;
   --card-bg: none; --card-base: #fff6ec; --card-border: transparent; --card-shadow: 0 10px 18px rgba(120, 76, 36, 0.22), inset 0 -6px 8px rgba(120, 76, 36, 0.12), inset 0 6px 8px rgba(255, 255, 255, 0.85);
   --select-popup-bg: #fff6ec; --select-popup-ink: #43261a; --input-bg: #f3dcc2; --input-border: transparent; --glass-border: transparent;
@@ -212,3 +212,4 @@ html[dir="rtl"][data-skin="clay"] .bubble-row.mine .bubble, html[dir="rtl"][data
 html[dir="rtl"][data-skin="clay"] .bubble-row.theirs .bubble, html[dir="rtl"][data-skin="clay"] #screen-chat[data-skin-shape] .bubble-row.theirs .bubble { border-radius: 30px 34px 8px 32px / 34px 28px 12px 30px; }
 html[dir="rtl"][data-skin="clay"] .bubble::after { background: radial-gradient(ellipse 16px 11px at 14% 74%, var(--clay-dent), transparent 72%), var(--clay-noise); background-size: auto, 180px 180px; }
 html.kb-open[data-skin="clay"] #tab-bar.glass { padding-bottom: 6px; }
+html[data-skin="clay"][data-scheme="dark"] #tab-bar .tab-btn.active { color: #ffb59a; } /* акцент #ff9f80 на вдавленной подложке давал 4.06:1 */

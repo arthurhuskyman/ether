@@ -12,7 +12,7 @@
 html, body { touch-action: pan-x pan-y; width: 100%; max-width: 100%; overflow-x: hidden; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 #app-shell, .screen, #content { width: 100%; max-width: 100%; min-width: 0; overflow-x: hidden; }
 img, video, canvas, svg, iframe { max-width: 100%; }
-.bubble, .bubble-row, .chat-row, .settings-row, .contact-row { min-width: 0; overflow-wrap: anywhere; }
+.bubble, .bubble-row, .chat-row, .settings-row { min-width: 0; overflow-wrap: anywhere; }
 .bubble-row > *, .chat-row > *, .settings-row > * { min-width: 0; }
 .sheet-panel { max-width: 100%; box-sizing: border-box; overflow-x: hidden; }
 
@@ -114,8 +114,7 @@ html[data-calm-mode="1"] .bubble-row.just-received .bubble {
    правила ниже, переменные --glass-thin/--glass-thick в :root оставлены
    — они нужны .glass-content как цветовые токены, не как классы.
    ============================================================ */
-.glass,
-.glass-regular {
+.glass {
   background: var(--glass-regular);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
   backdrop-filter: blur(var(--glass-blur)) saturate(180%);
@@ -131,8 +130,7 @@ html[data-calm-mode="1"] .bubble-row.just-received .bubble {
   -webkit-backdrop-filter: blur(32px) saturate(180%);
   backdrop-filter: blur(32px) saturate(180%);
 }
-.glass, .glass *,
-.glass-regular, .glass-regular * { text-shadow: var(--text-shadow-on-glass); }
+.glass, .glass * { text-shadow: var(--text-shadow-on-glass); }
 .glass svg, .glass svg *,
 .glass-regular svg, .glass-regular svg * { text-shadow: none; }
 
@@ -166,7 +164,7 @@ html[data-scheme="light"] .glass-content {
 }
 
 #lock-screen {
-  position: fixed; inset: 0; z-index: 900;
+  position: fixed; inset: 0; z-index: var(--z-lock);
   display: flex; align-items: center; justify-content: center;
   padding: 24px; background: var(--bg-0);
 }
@@ -222,7 +220,6 @@ html[data-scheme="light"] .glass-content {
   animation: ptr-spin 0.7s linear infinite;
 }
 @keyframes ptr-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .ptr-spinner { animation-duration: 1.4s; } }
 .app-glyph { position: relative; width: 84px; height: 60px; margin: 0 auto 20px; }
 .glyph-bubble {
   position: absolute;
@@ -263,8 +260,8 @@ html[data-scheme="light"] .glass-content {
 .onboarding-lang-btn.active { border-color: var(--accent); background: rgba(138, 109, 255, 0.12); color: var(--accent); font-weight: 600; }
 #onboarding-lang-select { margin-bottom: 4px; }
 .onboarding-id-wrap { position: relative; }
-.onboarding-id-wrap input { padding-right: 38px; }
-.onboarding-id-check { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--success-text); }
+.onboarding-id-wrap input { padding-inline-end: 38px; }
+.onboarding-id-check { position: absolute; inset-inline-end: 14px; top: 50%; transform: translateY(-50%); color: var(--success-text); }
 .avatar-xl { width: 96px; height: 96px; border-radius: 50%; font-size: 32px; margin: 0 auto 14px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; }
 .onboarding-invite-code { font-family: var(--font-mono, monospace); font-size: var(--fs-md); font-weight: 600; letter-spacing: 0.02em; word-break: break-all; margin: 4px 0 18px; }
 
@@ -301,7 +298,7 @@ html[data-scheme="light"] .glass-content {
 #nav-bar {
   padding: calc(env(safe-area-inset-top) + 4px) 16px 4px;
   box-sizing: content-box;
-  height: 50px;
+  height: 60px; /* шапка выше на 10px: чипы по центру между шапкой и первой плашкой */
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -337,7 +334,7 @@ html[data-scheme="light"] .glass-content {
 .screen { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 16px calc(clamp(0px, env(safe-area-inset-bottom, 0px), 40px) + 100px); }
 
 .notif-banner { display: flex; align-items: center; gap: 10px; margin: 8px 12px 0; padding: 10px 12px; border-radius: var(--radius-m); font-size: var(--fs-sm); }
-#lang-offer { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 12px); inset-inline: 12px; z-index: 500; margin: 0; }
+#lang-offer { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 12px); inset-inline: 12px; z-index: var(--z-banner); margin: 0; }
 .notif-banner-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .notif-banner-text strong { font-size: var(--fs-sm); }
 .notif-banner-text span { font-size: var(--fs-xs); color: var(--ink-1); }
@@ -351,7 +348,7 @@ html[data-scheme="light"] .glass-content {
   left: 12px;
   right: 12px;
   bottom: calc(env(safe-area-inset-bottom, 0px) + 90px);
-  z-index: 600;
+  z-index: var(--z-banner);
   margin: 0;
 }
 @media (min-width: 640px) {
@@ -522,7 +519,6 @@ html[data-scheme="light"] .glass-content {
 .chat-row-preview-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .chat-row-typing { color: var(--success-text); font-style: normal; display: inline-flex; align-items: center; }
 .chat-row-draft { color: var(--danger-text); font-weight: 500; }
-.chat-row-fail-icon { color: var(--danger-text); flex-shrink: 0; }
 /* Drag-to-reorder закреплённых чатов (раздел 4 роадмапа, V.44.0.0).
    margin-inline-start: auto прижимает ручку к противоположному краю строки,
    как и .chat-row-time выше — та же техника, другая строка. touch-action:
@@ -545,12 +541,12 @@ html[data-scheme="light"] .glass-content {
 .skeleton-avatar, .skeleton-line { background: linear-gradient(90deg, var(--bg-2), var(--bg-3), var(--bg-2)); background-size: 200% 100%; animation: skeleton-shimmer 1.4s ease-in-out infinite; }
 @keyframes skeleton-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { .skeleton-avatar, .skeleton-line { animation: none; } }
-.chat-filters { display: flex; flex-shrink: 0; gap: 4px; padding: 2px 8px 10px; overflow-x: auto; scrollbar-width: none; }
+.chat-filters { display: flex; flex-shrink: 0; gap: 4px; padding: 20px 8px 4px; overflow-x: auto; scrollbar-width: none; }
 .chat-filters::-webkit-scrollbar { display: none; }
 /* Стандартные чипы (Все, Непрочитанные, Группы, Личные, Звонки) всегда помещаются в строку на любом языке: они
    сжимаются (с многоточием в самом крайнем случае), а прокручивается только хвост из пользовательских папок. */
 .chat-filter-chip {
-  flex: 0 1 auto; min-width: 3.2em; border: none; cursor: pointer;
+  flex: 0 1 auto; min-width: 3.2em; min-height: 36px; box-sizing: border-box; border: none; cursor: pointer;
   padding: 7px 7px; border-radius: 999px;
   background: var(--bg-2); color: var(--ink-1);
   font-size: 12.5px; font-weight: 600;
@@ -701,7 +697,7 @@ input.switch {
   transition: background var(--motion-fast) var(--ease-out);
 }
 input.switch::before {
-  content: ""; position: absolute; top: 2px; left: 2px;
+  content: ""; position: absolute; top: 2px; inset-inline-start: 2px;
   width: 22px; height: 22px; border-radius: 50%;
   background: #fff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
@@ -709,6 +705,7 @@ input.switch::before {
 }
 input.switch:checked { background: var(--success); border-color: transparent; }
 input.switch:checked::before { transform: translateX(18px); }
+html[dir="rtl"] input.switch:checked::before { transform: translateX(-18px); }
 
 .status-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-inline-start: 6px; background: var(--ink-3); vertical-align: middle; }
 .status-dot.online { background: var(--success); box-shadow: 0 0 6px rgba(76, 217, 100, 0.7); }
@@ -744,7 +741,7 @@ input.switch:checked::before { transform: translateX(18px); }
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px 0; border-bottom: 1px solid var(--line-1);
   font-size: var(--fs-base); width: 100%;
-  background: none; border-left: none; border-right: none; border-top: none;
+  background: none; border-inline: none; border-top: none;
   cursor: pointer;
 }
 .settings-group .settings-row:last-child { border-bottom: none; }
@@ -872,7 +869,7 @@ html[dir="rtl"] .chevron { display: inline-block; transform: scaleX(-1); }
 .tab-btn > span,
 .edit-banner > span { line-height: 1; }
 
-.chat-header-info { flex: 1; display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 8px; text-align: left; min-width: 0; background: none; border: none; padding: 0; cursor: pointer; }
+.chat-header-info { flex: 1; display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 8px; text-align: start; min-width: 0; background: none; border: none; padding: 0; cursor: pointer; }
 .chat-header-tappable:active { opacity: 0.7; }
 .chat-peer-avatar { width: 28px; height: 28px; flex-shrink: 0; }
 .chat-peer-avatar .avatar { width: 28px; height: 28px; font-size: 12px; }
@@ -916,7 +913,7 @@ html[dir="rtl"] .chevron { display: inline-block; transform: scaleX(-1); }
 .chat-messages::-webkit-scrollbar-track { background: transparent; }
 .chat-messages::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 3px; }
 .help-panel { max-height: 86vh; }
-.help-content { text-align: start; max-height: 60vh; overflow-y: auto; padding-right: 4px; }
+.help-content { text-align: start; max-height: 60vh; overflow-y: auto; padding-inline-end: 4px; }
 .help-content h3 { font-size: var(--fs-base); font-weight: 700; letter-spacing: var(--tr-tight); margin: 18px 0 6px; }
 .help-content h3:first-child { margin-top: 4px; }
 .help-content p { font-size: var(--fs-sm); line-height: var(--lh-relaxed); color: var(--ink-1); margin: 0 0 4px; }
@@ -942,7 +939,7 @@ html[dir="rtl"] .chevron { display: inline-block; transform: scaleX(-1); }
    #emoji-picker-sheet, остальные ~20 шторок делят общий .sheet как раньше. */
 #emoji-picker-sheet .sheet-backdrop { background: transparent; }
 #emoji-picker-sheet .sheet-panel {
-  width: calc(100% - 24px); margin-left: 12px; margin-right: 12px;
+  width: calc(100% - 24px); margin-inline: 12px;
   border-radius: 24px; max-height: 48vh;
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35), 0 0 0 1px var(--line-1);
 }
@@ -1050,6 +1047,7 @@ html[dir="rtl"] .chevron { display: inline-block; transform: scaleX(-1); }
   letter-spacing: var(--tr-normal);
   position: relative;
   cursor: pointer;
+  -webkit-user-select: text;
   user-select: text;
   transition: transform var(--motion-fast) var(--ease-out), opacity var(--motion-fast) var(--ease-out);
   overflow-wrap: anywhere;
@@ -1123,7 +1121,7 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
 }
 
 /* длинные сообщения: градиент на большой площади выглядит дёшево — плоская заливка (класс ставит рендер) */
-.bubble-row.mine .bubble.bubble-long { background: var(--accent); }
+.bubble-row.mine .bubble.bubble-long { background: var(--accent-bg); }
 .bubble-time { display: block; font-size: var(--t-meta); opacity: 0.75; margin-top: 3px; text-align: end; color: inherit; letter-spacing: var(--tr-loose); }
 .bubble-row.theirs .bubble-time { color: var(--ink-2); opacity: 1; }
 .bubble-edited { font-size: var(--t-meta); opacity: 0.7; margin-inline-start: 4px; }
@@ -1137,7 +1135,7 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
 /* Перевод сообщения (раздел 5 роадмапа) — под оригиналом, визуально
    отделён тонкой чертой, не подменяет исходный текст. */
 .bubble-translation { margin-top: 5px; padding-top: 5px; border-top: 1px dashed var(--line-1); font-style: italic; opacity: 0.88; }
-.bubble-translation-label { font-size: 10px; font-style: normal; opacity: 0.65; margin-right: 4px; }
+.bubble-translation-label { font-size: 10px; font-style: normal; opacity: 0.65; margin-inline-end: 4px; }
 .bubble-reactions { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; margin-bottom: -2px; }
 .bubble-reaction-chip { background: rgba(255, 255, 255, 0.18); border-radius: 12px; padding: 2px 6px; font-size: var(--fs-xs); }
 .bubble-row.theirs .bubble-reaction-chip { background: var(--input-bg); }
@@ -1667,7 +1665,7 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
    только для этой кнопки, иконка становится заметно крупнее. */
 #call-mute-btn svg { padding: 10px; }
 
-.sheet { position: fixed; inset: 0; z-index: 70; display: flex; align-items: flex-end; }
+.sheet { position: fixed; inset: 0; z-index: var(--z-sheet); display: flex; align-items: flex-end; }
 .sheet-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.45); }
 .sheet-panel { position: relative; transition: transform var(--motion-fast) var(--ease-out); width: 100%; max-height: 82vh; overflow-y: auto; border-radius: 24px 24px 0 0; padding: 10px 22px calc(clamp(0px, env(safe-area-inset-bottom, 0px), 40px) + 24px); }
 .sheet-handle { width: 36px; height: 5px; border-radius: 3px; background: var(--ink-3); margin: 6px auto 16px; touch-action: none; position: relative; }
@@ -1698,7 +1696,7 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
    только внешний вид и переходный класс .quick-reaction-flyout-show
    (анимация появления из точки нажатия, а не статичное появление). */
 .quick-reaction-flyout {
-  position: fixed; z-index: 75; display: flex; gap: 6px; align-items: center;
+  position: fixed; z-index: var(--z-popover); display: flex; gap: 6px; align-items: center;
   padding: 7px 8px; border-radius: 24px;
   background: var(--sheet-bg, var(--bg-1)); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), 0 0 0 1px var(--line-1);
   opacity: 0; transform: scale(0.85); transition: opacity var(--motion-fast) var(--ease-out), transform var(--motion-fast) var(--ease-out);
@@ -1731,7 +1729,7 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
 .diag-log { background: var(--input-bg); border: 1px solid var(--input-border); border-radius: var(--radius-m); padding: 12px 14px; max-height: 320px; overflow-y: auto; font-family: ui-monospace, "SF Mono", monospace; font-size: 11px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; color: var(--ink-1); margin: 0 0 12px; }
 
 #media-viewer {
-  position: fixed; inset: 0; z-index: 950;
+  position: fixed; inset: 0; z-index: var(--z-modal);
   background: rgba(0, 0, 0, 0.95);
   display: flex; align-items: center; justify-content: center;
 }
@@ -1762,7 +1760,7 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
   max-width: 86vw; text-align: center;
   opacity: 0; pointer-events: none;
   transition: opacity var(--motion-base) var(--ease-out), transform var(--motion-base) var(--ease-out);
-  z-index: 1000;
+  z-index: var(--z-toast);
   -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
@@ -1773,7 +1771,7 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
    Намеренно НЕ сливается с #toast: должен быть виден поверх ВСЕГО,
    с собственной кнопкой отмены, и не исчезать по таймеру toast'а. */
 .panic-shake-banner {
-  position: fixed; top: calc(env(safe-area-inset-top, 0px) + 10px); left: 12px; right: 12px; z-index: 1000;
+  position: fixed; top: calc(env(safe-area-inset-top, 0px) + 10px); left: 12px; right: 12px; z-index: var(--z-panic);
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
   background: var(--danger-bg); color: #fff; padding: 12px 14px; border-radius: 16px;
   font-size: var(--fs-sm); font-weight: 600;
@@ -1785,7 +1783,7 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
   padding: 6px 12px; font-size: var(--fs-sm); font-weight: 600; flex: none; cursor: pointer;
 }
 
-#boot-recovery { position: fixed; inset: 0; z-index: 999; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--bg-0); }
+#boot-recovery { position: fixed; inset: 0; z-index: var(--z-boot); display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--bg-0); }
 #boot-recovery .onboarding-card { width: min(380px, 100%); padding: 32px 24px; }
 .boot-recovery-card { text-align: center; }
 .boot-recovery-title { font-size: var(--fs-lg); letter-spacing: var(--tr-tight); }
@@ -1815,7 +1813,11 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
 @media (prefers-reduced-motion: reduce) {
   .onboarding-glow { animation: none; }
   .call-avatar::before, .call-avatar::after { animation: none; opacity: 0; }
-  * { transition-duration: 0.001ms !important; animation-duration: 0.001ms !important; }
+  /* Без animation-iteration-count:1 бесконечные анимации при 0.001ms «дребезжали» ~1000 раз в секунду. */
+  *, *::before, *::after { transition-duration: 0.001ms !important; animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
+  /* Функциональные индикаторы ожидания остаются живыми (медленнее), иначе непонятно, что операция идёт. */
+  .ptr-spinner, .file-spinner, #lock-submit.loading::after, .file-progress-indeterminate::before { animation-duration: 1.6s !important; animation-iteration-count: infinite !important; }
+  /* Остальные бесконечные анимации (пульсации, дрейф фона) отыгрывают один раз за 0.001ms и остаются в исходном состоянии. */
 }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
@@ -1837,12 +1839,13 @@ html[data-scheme="light"] body::before {
    кнопками (flip камеры + PiP) в ряд, на месте того же оверлея. */
 .call-video-overlays {
   position: absolute;
-  top: calc(env(safe-area-inset-top) + 16px + 108px);  /* под превью */
-  inset-inline-end: 16px;
+  top: auto; bottom: calc(env(safe-area-inset-bottom) + 210px);  /* над кнопками звонка */
+  inset-inline-end: 14px;
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
+  align-items: center;
   gap: 8px;
-  z-index: 4;
+  z-index: 7;
 }
 .call-overlay-btn {
   width: 36px; height: 36px; border-radius: 50%;
@@ -1878,7 +1881,7 @@ html[data-scheme="light"] body::before {
   border: none; cursor: pointer;
   background: linear-gradient(160deg, var(--accent-bg), var(--accent-lo));
   color: var(--on-accent);
-  z-index: 50;
+  z-index: var(--z-bar);
   box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.25);
 }
 #mini-call-bar.hidden { display: none !important; }
@@ -1891,7 +1894,7 @@ html[data-scheme="light"] body::before {
 #rotate-lock { display: none; }
 @media (orientation: landscape) and (max-height: 500px) and (pointer: coarse) {
   #rotate-lock {
-    position: fixed; inset: 0; z-index: 100000; display: flex; align-items: center; justify-content: center;
+    position: fixed; inset: 0; z-index: var(--z-rotate); display: flex; align-items: center; justify-content: center;
     background: var(--bg-0); color: var(--ink-0); font-size: var(--fs-md); font-weight: 600; text-align: center; padding: 24px;
   }
 }
@@ -1934,13 +1937,13 @@ html.kb-open #tab-bar { padding-bottom: 0; }
 /* Birthday Sparkle */
 @keyframes fxSparkle { 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 215, 120, .0); } 50% { box-shadow: 0 0 14px 4px rgba(255, 215, 120, .75); } }
 .fx-birthday { animation: fxSparkle 1.8s ease-in-out infinite; border-radius: 50%; }
-.fx-confetti { position: fixed; inset: 0; pointer-events: none; z-index: 99990; overflow: hidden; }
+.fx-confetti { position: fixed; inset: 0; pointer-events: none; z-index: var(--z-fx-top); overflow: hidden; }
 .fx-confetti i { position: absolute; top: -12px; width: 8px; height: 14px; border-radius: 2px; animation: fxFall linear forwards; }
 @keyframes fxFall { to { transform: translateY(110vh) rotate(540deg); opacity: .8; } }
 /* Easter eggs */
-.fx-starfall { position: fixed; inset: 0; pointer-events: none; z-index: 99990; overflow: hidden; }
+.fx-starfall { position: fixed; inset: 0; pointer-events: none; z-index: var(--z-fx-top); overflow: hidden; }
 .fx-starfall i { position: absolute; top: -10px; width: 4px; height: 4px; border-radius: 50%; background: #fff; box-shadow: 0 0 8px 2px rgba(190, 170, 255, .9); animation: fxFall linear forwards; }
-.fx-rocket { position: fixed; bottom: -60px; left: 10%; font-size: 48px; pointer-events: none; z-index: 99991; animation: fxRocket 2s var(--ease-in) forwards; }
+.fx-rocket { position: fixed; bottom: -60px; left: 10%; font-size: 48px; pointer-events: none; z-index: calc(var(--z-fx-top) + 1); animation: fxRocket 2s var(--ease-in) forwards; }
 @keyframes fxRocket { to { transform: translate(70vw, -110vh) rotate(35deg); } }
 /* Farewell Fade */
 .fx-farewell { animation: fxFarewell .9s var(--ease-out); }
@@ -1954,7 +1957,7 @@ html.kb-open #tab-bar { padding-bottom: 0; }
 @keyframes fxPoke { 0% { transform: scale(1); } 30% { transform: scale(1.35, 1.5); } 100% { transform: scale(1); } }
 .fx-scene-hint { font-size: var(--fs-xs); }
 /* Ритуал открытия дня */
-.fx-ritual { position: fixed; inset: 0; z-index: 99992; pointer-events: none; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 50% 45%, rgba(190, 170, 255, .55), transparent 65%); animation: fxRitual 2.4s var(--ease-out) forwards; }
+.fx-ritual { position: fixed; inset: 0; z-index: calc(var(--z-fx-top) + 2); pointer-events: none; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 50% 45%, rgba(190, 170, 255, .55), transparent 65%); animation: fxRitual 2.4s var(--ease-out) forwards; }
 .fx-ritual span { color: #fff; font-size: 22px; font-weight: 600; text-shadow: 0 2px 14px rgba(0, 0, 0, .5); }
 @keyframes fxRitual { 0% { opacity: 0; } 25% { opacity: 1; } 75% { opacity: 1; } 100% { opacity: 0; } }
 /* Messenger Breathing: дыхание фона открытого чата */
@@ -1974,7 +1977,7 @@ html.fx-skin.fx-chat-open .bubble-row.mine .bubble, html.fx-skin.fx-chat-open .s
 .bubble-row.fx-burn-ash { animation: fxBurnAsh .8s var(--ease-out) forwards; }
 @keyframes fxBurnFade { to { opacity: 0; } }
 @keyframes fxBurnAsh { 0% { filter: none; } 40% { filter: sepia(1) brightness(1.4) contrast(1.4); } 100% { opacity: 0; transform: translateY(-14px) scale(.96); filter: sepia(1) brightness(.4) blur(2px); } }
-.fx-ash { position: fixed; width: 3px; height: 3px; border-radius: 50%; background: #ffb454; box-shadow: 0 0 6px 1px rgba(255, 140, 60, .9); pointer-events: none; z-index: 99990; animation: fxAsh 1.2s var(--ease-out) forwards; }
+.fx-ash { position: fixed; width: 3px; height: 3px; border-radius: 50%; background: #ffb454; box-shadow: 0 0 6px 1px rgba(255, 140, 60, .9); pointer-events: none; z-index: var(--z-fx-top); animation: fxAsh 1.2s var(--ease-out) forwards; }
 @keyframes fxAsh { to { transform: translate(var(--dx, 12px), -60px); opacity: 0; } }
 /* Реакции: мини-стек аватаров */
 .fx-av-stack { display: inline-flex; margin-inline-end: 3px; vertical-align: middle; }
@@ -1983,7 +1986,7 @@ html.fx-skin.fx-chat-open .bubble-row.mine .bubble, html.fx-skin.fx-chat-open .s
 /* Знак (Sigil) */
 .fx-sigil { display: inline-flex; align-items: center; justify-content: center; margin: 6px 0; }
 /* Итоги года */
-.fx-wrapped { position: fixed; inset: 0; z-index: 99995; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 30% 20%, #3b1d8f, #07040f 70%); color: #fff; text-align: center; padding: 28px; cursor: pointer; }
+.fx-wrapped { position: fixed; inset: 0; z-index: calc(var(--z-fx-top) + 5); display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 30% 20%, #3b1d8f, #07040f 70%); color: #fff; text-align: center; padding: 28px; cursor: pointer; }
 .fx-wrapped-card { max-width: 420px; animation: fxRitual var(--motion-instant); }
 .fx-wrapped-card h2 { font-size: 44px; margin: 0 0 14px; background: linear-gradient(135deg, #fff, #b9a6ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .fx-wrapped-card p { font-size: 18px; opacity: .85; margin: 0 0 22px; }
@@ -1996,7 +1999,7 @@ html.fx-skin.fx-chat-open .bubble-row.mine .bubble, html.fx-skin.fx-chat-open .s
 }
 
 /* ===== Групповой звонок (mesh) ===== */
-.gcall-screen { position: fixed; inset: 0; z-index: 1200; display: flex; flex-direction: column; background: #0b0b14; color: #fff; padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); }
+.gcall-screen { position: fixed; inset: 0; z-index: var(--z-fullscreen); display: flex; flex-direction: column; background: #0b0b14; color: #fff; padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); }
 .gcall-head { padding: 14px 16px 8px; text-align: center; }
 .gcall-title { font-weight: 700; font-size: 17px; }
 .gcall-sub { font-size: 13px; opacity: 0.7; margin-top: 2px; }
@@ -2008,12 +2011,12 @@ html.fx-skin.fx-chat-open .bubble-row.mine .bubble, html.fx-skin.fx-chat-open .s
 .gcall-avatar { width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700; color: #fff; }
 .gcall-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
 .gcall-video.novid { width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.gcall-name { position: absolute; left: 8px; bottom: 8px; padding: 3px 9px; border-radius: 12px; background: rgba(0,0,0,0.5); font-size: 12px; backdrop-filter: blur(6px); }
+.gcall-name { position: absolute; inset-inline-start: 8px; bottom: 8px; padding: 3px 9px; border-radius: 12px; background: rgba(0,0,0,0.5); font-size: 12px; backdrop-filter: blur(6px); }
 .gcall-controls { display: flex; justify-content: center; gap: 18px; padding: 12px 16px 18px; }
 .gcall-btn { width: 56px; height: 56px; border-radius: 50%; border: 0; background: #2a2a3d; color: #fff; font-size: 22px; cursor: pointer; }
 .gcall-btn.off { background: #4a2a38; }
 .gcall-leave { background: #d9364b; transform: rotate(135deg); }
-.gcall-invite { position: fixed; left: 12px; right: 12px; top: calc(env(safe-area-inset-top) + 8px); z-index: 1250; display: flex; flex-direction: column; gap: 8px; }
+.gcall-invite { position: fixed; left: 12px; right: 12px; top: calc(env(safe-area-inset-top) + 8px); z-index: calc(var(--z-fullscreen) + 50); display: flex; flex-direction: column; gap: 8px; }
 .gcall-invite-row { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 16px; background: rgba(30,30,48,0.96); color: #fff; box-shadow: 0 8px 28px rgba(0,0,0,0.35); }
 .gcall-invite-text { flex: 1; font-size: 14px; }
 .gcall-invite-join, .gcall-invite-no { border: 0; border-radius: 12px; padding: 8px 14px; font-weight: 600; cursor: pointer; }
@@ -2025,10 +2028,10 @@ html.fx-skin.fx-chat-open .bubble-row.mine .bubble, html.fx-skin.fx-chat-open .s
 #screen-chat.fx-veil { animation: fx-veil-in var(--motion-fast) var(--ease-out); }
 @keyframes fx-veil-in { from { opacity: .35; filter: blur(3px); } to { opacity: 1; filter: none; } }
 /* Прощальная волна */
-.fx-wave { position: fixed; right: 18px; bottom: 120px; font-size: 44px; z-index: 1100; pointer-events: none; animation: fx-wave 1.7s var(--ease-out) forwards; transform-origin: 70% 80%; }
+.fx-wave { position: fixed; inset-inline-end: 18px; bottom: 120px; font-size: 44px; z-index: var(--z-fx); pointer-events: none; animation: fx-wave 1.7s var(--ease-out) forwards; transform-origin: 70% 80%; }
 @keyframes fx-wave { 0% { opacity: 0; transform: translateY(10px) rotate(0); } 15% { opacity: 1; } 30% { transform: rotate(18deg); } 45% { transform: rotate(-14deg); } 60% { transform: rotate(16deg); } 100% { opacity: 0; transform: translateY(-30px) rotate(0); } }
 /* Закрытие дня */
-.fx-dusk { position: fixed; inset: 0; z-index: 1150; display: flex; align-items: center; justify-content: center; background: rgba(4, 6, 20, 0); color: #dfe6ff; font-size: 22px; font-weight: 600; opacity: 0; transition: background 1.8s var(--ease-out), opacity 1.2s var(--ease-out); }
+.fx-dusk { position: fixed; inset: 0; z-index: calc(var(--z-fx) + 50); display: flex; align-items: center; justify-content: center; background: rgba(4, 6, 20, 0); color: #dfe6ff; font-size: 22px; font-weight: 600; opacity: 0; transition: background 1.8s var(--ease-out), opacity 1.2s var(--ease-out); }
 .fx-dusk.fx-dusk-in { background: rgba(4, 6, 20, .86); opacity: 1; }
 /* Мягкий скин: форма пузырей и шрифт */
 #screen-chat[data-skin-shape="sharp"] .bubble { border-radius: 8px; }
@@ -2056,14 +2059,14 @@ html.fx-skin.fx-chat-open .bubble-row.mine .bubble, html.fx-skin.fx-chat-open .s
 #fx-draw-btn.fx-on { background: var(--accent); }
 .fx-ask { position: absolute; left: 12px; right: 12px; top: calc(env(safe-area-inset-top) + 56px); z-index: 6; background: rgba(30,30,48,.96); color: #fff; }
 /* Vision Loop */
-.fx-look { position: fixed; inset: 0; z-index: 1300; background: #000; display: flex; align-items: center; justify-content: center; }
+.fx-look { position: fixed; inset: 0; z-index: calc(var(--z-fx) + 200); background: #000; display: flex; align-items: center; justify-content: center; }
 .fx-look img { max-width: 100%; max-height: 100%; object-fit: contain; }
-.fx-look-dot { position: absolute; top: calc(env(safe-area-inset-top) + 14px); left: 16px; width: 12px; height: 12px; border-radius: 50%; background: #ff3b30; animation: fx-blink 1s infinite; }
-.fx-look-note { position: absolute; top: calc(env(safe-area-inset-top) + 10px); left: 36px; right: 16px; color: #fff; font-size: 14px; font-weight: 600; text-shadow: 0 1px 4px rgba(0,0,0,.7); }
+.fx-look-dot { position: absolute; top: calc(env(safe-area-inset-top) + 14px); inset-inline-start: 16px; width: 12px; height: 12px; border-radius: 50%; background: #ff3b30; animation: fx-blink 1s infinite; }
+.fx-look-note { position: absolute; top: calc(env(safe-area-inset-top) + 10px); inset-inline: 36px 16px; color: #fff; font-size: 14px; font-weight: 600; text-shadow: 0 1px 4px rgba(0,0,0,.7); }
 @keyframes fx-blink { 50% { opacity: .25; } }
 /* Мини-треды реакций */
 .bubble-reaction-chip[data-emoji] { cursor: pointer; }
-#fx-thread-sheet { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: flex-end; }
+#fx-thread-sheet { position: fixed; inset: 0; z-index: var(--z-overlay); display: flex; align-items: flex-end; }
 #fx-thread-sheet .sheet-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.4); }
 #fx-thread-sheet .sheet-panel { position: relative; width: 100%; max-height: 70vh; overflow: auto; border-radius: 24px 24px 0 0; padding: 14px 16px calc(14px + env(safe-area-inset-bottom)); }
 .fx-thread-origin { font-size: 13px; margin: 2px 0 10px; }
@@ -2073,7 +2076,7 @@ html.fx-skin.fx-chat-open .bubble-row.mine .bubble, html.fx-skin.fx-chat-open .s
 .fx-thread-form input { flex: 1; }
 .reaction-burst.big { font-size: 56px; }
 /* Time Capsule Wall */
-.fx-wall { position: fixed; inset: 0; z-index: 1100; background: var(--bg); overflow: auto; padding: calc(env(safe-area-inset-top) + 12px) 14px 24px; }
+.fx-wall { position: fixed; inset: 0; z-index: var(--z-fx); background: var(--bg); overflow: auto; padding: calc(env(safe-area-inset-top) + 12px) 14px 24px; }
 .fx-wall-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .fx-wall-close { border: 0; background: var(--bg-2); color: var(--ink-0); width: 34px; height: 34px; border-radius: 50%; cursor: pointer; }
 .fx-wall-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
@@ -2081,10 +2084,10 @@ html.fx-skin.fx-chat-open .bubble-row.mine .bubble, html.fx-skin.fx-chat-open .s
 .fx-card-text { font-family: Georgia, serif; font-size: 14px; line-height: 1.35; }
 .fx-card-meta { font-size: 11px; opacity: .7; margin-top: 8px; }
 /* Краевой пульс */
-.fx-pulse { position: fixed; inset: 0; z-index: 1090; pointer-events: none; border-radius: 0; box-shadow: inset 0 0 0 0 transparent; animation: fx-pulse 1.2s var(--ease-out) forwards; }
+.fx-pulse { position: fixed; inset: 0; z-index: calc(var(--z-fx) - 10); pointer-events: none; border-radius: 0; box-shadow: inset 0 0 0 0 transparent; animation: fx-pulse 1.2s var(--ease-out) forwards; }
 @keyframes fx-pulse { 0% { box-shadow: inset 0 0 0 0 transparent; } 25% { box-shadow: inset 0 0 36px 6px color-mix(in srgb, var(--accent) 65%, transparent); } 100% { box-shadow: inset 0 0 0 0 transparent; } }
 /* Call Film */
-.fx-callfilm { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 84px); transform: translateX(-50%); z-index: 1200; display: flex; flex-direction: column; gap: 2px; padding: 12px 18px; border-radius: 16px; background: rgba(20,22,40,.94); color: #fff; font-size: 13px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,.4); }
+.fx-callfilm { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 84px); transform: translateX(-50%); z-index: var(--z-fullscreen); display: flex; flex-direction: column; gap: 2px; padding: 12px 18px; border-radius: 16px; background: rgba(20,22,40,.94); color: #fff; font-size: 13px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,.4); }
 .fx-callfilm b { font-size: 15px; }
 /* Погодный оттенок: мягкий слой поверх фона */
 html[data-sky]::before { content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: .16; }
@@ -2158,7 +2161,7 @@ html[data-voice-style="cassette"] .fx-voice-deco.cassette, html[data-voice-style
 .link-inline.destructive { color: var(--danger-text); }
 
 /* Шторка руны */
-#fx-sigil-sheet { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: flex-end; }
+#fx-sigil-sheet { position: fixed; inset: 0; z-index: var(--z-overlay); display: flex; align-items: flex-end; }
 #fx-sigil-sheet .sheet-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.45); }
 #fx-sigil-sheet .sheet-panel { position: relative; width: 100%; border-radius: 24px 24px 0 0; padding: 14px 18px calc(16px + env(safe-area-inset-bottom)); text-align: center; }
 .fx-sigil-big { display: flex; justify-content: center; padding: 8px 0; }
@@ -2184,7 +2187,6 @@ html[data-voice-style="cassette"] .fx-voice-deco.cassette, html[data-voice-style
 .call-btn > span { color: #fff; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.75); font-weight: 600; }
 .call-volume svg { filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6)); }
 .call-more-menu { background: rgba(22, 22, 40, 0.94); color: #fff; }
-.call-video-overlays { top: auto; bottom: calc(env(safe-area-inset-bottom) + 210px); inset-inline-end: 14px; flex-direction: column; align-items: center; z-index: 7; }
 .call-overlay-btn { width: 42px; height: 42px; background: rgba(16, 16, 32, 0.7); border: 1px solid rgba(255, 255, 255, 0.28); }
 #call-screen.remote-screen #call-remote-video { object-fit: contain; background: #000; }
 #call-screen.sharing #call-local-video { display: none; }
@@ -2323,15 +2325,13 @@ html[data-search-tab="debug"] #search-dock [data-search-tab="debug"] { display: 
 .chat-row-wrapper.drag-start .chat-row-actions-start, .chat-row-wrapper.swiped-start .chat-row-actions-start,
 .chat-row-wrapper.drag-end .chat-row-actions-end, .chat-row-wrapper.swiped-end .chat-row-actions-end { opacity: 1; visibility: visible; transition-delay: 0s; }
 
-/* ---- шапка выше на 10px, чипы по центру между шапкой и первой плашкой ---- */
-#nav-bar { height: 60px; }
-.chat-filters { padding: 16px 8px 10px; }
-
 /* ---- панель эмодзи: фиксированная высота (верх не «ездит» при смене категории) ---- */
 #emoji-picker-sheet .sheet-panel { height: min(54vh, 430px); max-height: none; }
 
-/* ---- долгое нажатие на сообщение: без системного меню копирования/выделения ---- */
-.bubble, .bubble * { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+/* ---- долгое нажатие на сообщение: без системного меню iOS (своё меню действий), но ТЕКСТ пузыря остаётся выделяемым
+   (user-select:text у .bubble); выделение отключено только у элементов управления внутри. ---- */
+.bubble { -webkit-touch-callout: none; }
+.bubble :is(button, summary, input, select, textarea, img, svg, audio, video, canvas, .voice-bubble, .bubble-reaction-chip, .bubble-time, .ack-tick, .poll-opt, .board-card, .contact-card-bubble, .file-bubble, .link-preview-card) { -webkit-user-select: none; user-select: none; }
 
 /* ---- «Переслано»: контрастная метка в любых сообщениях ---- */
 .bubble-row.mine .bubble-forwarded { background: rgba(255, 255, 255, 0.96); color: #3b2bb5; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25); }
@@ -2351,7 +2351,7 @@ html[data-voice-style="vinyl"] .voice-play-btn .vp-ico svg, html[data-voice-styl
 html[data-voice-style="vinyl"] .voice-play-btn .vp-ico svg { filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, 0.55)); }
 
 /* ===================== Пасхалки (js/easter.js) ===================== */
-#egg-layer { position: fixed; inset: 0; z-index: 1500; pointer-events: none; overflow: hidden; }
+#egg-layer { position: fixed; inset: 0; z-index: var(--z-egg); pointer-events: none; overflow: hidden; }
 .egg-p { position: absolute; left: var(--x); font-size: var(--s); line-height: 1; opacity: 0; will-change: transform, opacity; animation-delay: var(--d); animation-duration: var(--t); animation-fill-mode: both; }
 .egg-rise { bottom: -10%; animation-name: eggRise; animation-timing-function: ease-in; }
 .egg-fall { top: -10%; animation-name: eggFall; animation-timing-function: linear; }
@@ -2388,7 +2388,6 @@ html[data-voice-style="vinyl"] .voice-play-btn .vp-ico svg { filter: drop-shadow
 html.egg-disco #app-shell { animation: eggDisco 1.2s linear infinite; }
 @keyframes eggDisco { from { filter: hue-rotate(0deg) saturate(1.5); } to { filter: hue-rotate(360deg) saturate(1.5); } }
 @media (prefers-reduced-motion: reduce) { #egg-layer { display: none; } }
-.chat-filters { padding: 20px 8px 4px; }
 /* плашки настроек и прочие «серые» блоки — тот же стеклянный вид с оттенком, что и у списка чатов */
 .settings-category-row, .contact-gallery-item, .sheet-action, .forward-row { background: var(--card-bg), var(--card-base); border-color: var(--card-border); }
 .settings-category-row { box-shadow: var(--card-shadow); }
@@ -2407,7 +2406,7 @@ html.egg-disco #app-shell { animation: eggDisco 1.2s linear infinite; }
 .composer-menu-item svg { color: var(--accent); }
 
 /* ===================== Доступность ===================== */
-.skip-link { position: fixed; top: -100px; inset-inline-start: var(--sp-3); z-index: 1000; background: var(--accent-bg); color: var(--on-accent); padding: var(--sp-2) var(--sp-4); border-radius: var(--r-md); font-weight: 600; text-decoration: none; }
+.skip-link { position: fixed; top: -100px; inset-inline-start: var(--sp-3); z-index: var(--z-skip); background: var(--accent-bg); color: var(--on-accent); padding: var(--sp-2) var(--sp-4); border-radius: var(--r-md); font-weight: 600; text-decoration: none; }
 .skip-link:focus { top: calc(env(safe-area-inset-top, 0px) + var(--sp-2)); outline: 2px solid #fff; outline-offset: 2px; }
 #content:focus { outline: none; }
 #media-viewer[role="dialog"] .media-viewer-close:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
@@ -2476,9 +2475,9 @@ html[data-readable="1"] .chat-row-preview-text, html[data-readable="1"] .setting
 .poll-close-btn { background: none; border: 0; color: var(--accent); font: inherit; font-size: var(--t-meta, 12px); cursor: pointer; padding: 4px 0; }
 .poll-closed { font-weight: 600; }
 .board-cols { display: flex; gap: 6px; overflow-x: hidden; padding-bottom: 4px; max-width: 100%; -webkit-overflow-scrolling: touch; }
-.board-col { flex: 0 0 150px; background: color-mix(in srgb, currentColor 7%, transparent); border-radius: var(--radius-s, 8px); padding: 6px; display: flex; flex-direction: column; gap: 6px; }
+.board-col { flex: 1 1 0; min-width: 0; background: color-mix(in srgb, currentColor 7%, transparent); border-radius: var(--radius-s, 8px); padding: 6px; display: flex; flex-direction: column; gap: 6px; }
 .board-col-h { display: flex; justify-content: space-between; gap: 4px; overflow-wrap: anywhere; font-size: var(--t-meta, 12px); font-weight: 600; opacity: .8; padding: 2px 4px; }
-.board-card { background: var(--bg-1, rgba(255,255,255,.08)); border-radius: var(--radius-s, 8px); padding: 6px 8px; font-size: var(--t-body, 14px); display: flex; flex-direction: column; gap: 4px; border: 1px solid color-mix(in srgb, currentColor 14%, transparent); }
+.board-card { background: color-mix(in srgb, currentColor 16%, transparent); border-radius: var(--radius-s, 8px); padding: 6px 8px; font-size: 12px; line-height: 1.3; display: flex; flex-direction: column; gap: 4px; border: 1px solid color-mix(in srgb, currentColor 14%, transparent); }
 .board-card-t { cursor: pointer; overflow-wrap: anywhere; }
 .board-card-acts { display: flex; gap: 4px; justify-content: flex-end; }
 .board-card-acts button, .board-add { background: none; border: 0; color: inherit; cursor: pointer; opacity: .7; display: inline-flex; align-items: center; gap: 4px; padding: 4px; min-width: 28px; min-height: 28px; justify-content: center; border-radius: var(--radius-s, 8px); font: inherit; font-size: var(--t-meta, 12px); }
@@ -2494,8 +2493,6 @@ html[data-readable="1"] .chat-row-preview-text, html[data-readable="1"] .setting
 @media (prefers-reduced-motion: reduce) { .ack-pop .ack-svg, .bubble-copied { animation: none; } }
 
 /* Правки по скриншотам: компактная доска, голосовое без наложений */
-.board-card { font-size: 13px; line-height: 1.3; }
-.board-col { flex: 1 1 0; min-width: 0; }
 .board-add span { white-space: nowrap; }
 .voice-bubble .voice-live-wave { display: none; }
 .voice-duration { flex: none; white-space: nowrap; }
@@ -2547,7 +2544,7 @@ html.theme-fading, html.theme-fading *, html.theme-fading *::before, html.theme-
 .story-bg-3 { background: linear-gradient(160deg, #2e8b57, #9acd32); }
 .story-bg-4 { background: linear-gradient(160deg, #232526, #414345); }
 .story-bg-5 { background: linear-gradient(160deg, #f7971e, #ffd200); }
-.story-viewer { position: fixed; inset: 0; z-index: 1200; display: flex; flex-direction: column; color: #fff; padding: env(safe-area-inset-top, 0) 0 env(safe-area-inset-bottom, 0); }
+.story-viewer { position: fixed; inset: 0; z-index: var(--z-fullscreen); display: flex; flex-direction: column; color: #fff; padding: env(safe-area-inset-top, 0) 0 env(safe-area-inset-bottom, 0); }
 .story-viewer.hidden { display: none; }
 .story-bars { display: flex; gap: 4px; padding: 10px 12px 6px; }
 .story-bars span { flex: 1; height: 3px; border-radius: 2px; background: rgba(255,255,255,.35); overflow: hidden; position: relative; }
@@ -2667,10 +2664,8 @@ html.theme-fading, html.theme-fading *, html.theme-fading *::before, html.theme-
 .bubble:has(.board-bubble) { width: calc(100vw - 24px); max-width: 440px; box-sizing: border-box; }
 .board-col-h { flex-wrap: wrap; overflow-wrap: normal; word-break: normal; hyphens: auto; font-size: 11px; }
 .board-col-name { overflow-wrap: normal; word-break: normal; }
-.board-card { background: color-mix(in srgb, currentColor 16%, transparent); }
 .board-add { justify-content: center; width: 100%; font-size: 12px; gap: 2px; padding: 4px 2px; }
 .board-add svg { width: 12px; height: 12px; flex: none; }
-.board-card { font-size: 12px; }
 
 /* Меню «+»: все плашки одной ширины (по самой длинной подписи) */
 #composer-menu-sheet .composer-menu-actions { align-items: stretch; width: max-content; min-width: 156px; }
@@ -2735,10 +2730,6 @@ html[data-calm-mode="1"] .story-bars span.cur::after { animation: none; transfor
 .sheet-action { min-height: 44px; }
 .emoji-tab-btn { min-height: 40px; }
 .settings-row select, #screen-contact select { min-height: 40px; }
-.chat-filter-chip { min-height: 36px; box-sizing: border-box; }
-
-/* обычный вид, тёмная схема: белый текст на светлом фиолетовом акценте давал 3.7:1 — активные чипы получают тёмный текст */
-html:not([data-skin])[data-scheme="dark"] :is(.chat-filter-chip.active, .summary-period.on, .theme-seg button.active, .fx-view-toggle button.active) { color: #0b0620; }
 
 /* Строка «подпись — значение»: длинное значение переносится у правого края и не сжимает подпись до обрыва по буквам */
 .settings-row { gap: 12px; }
@@ -2803,7 +2794,7 @@ html[data-skin="gothic"], html[data-skin="steampunk"], html[data-skin="wood"], h
 
 /* панель выбора стикеров: та же карточка над композером, что и у эмодзи */
 #sticker-picker-sheet .sheet-backdrop { background: transparent; }
-#sticker-picker-sheet .sheet-panel { width: calc(100% - 24px); margin-left: 12px; margin-right: 12px; border-radius: 24px; box-shadow: 0 12px 36px rgba(0,0,0,.35), 0 0 0 1px var(--line-1); display: flex; flex-direction: column; overflow: hidden; height: min(54vh, 430px); max-height: none; }
+#sticker-picker-sheet .sheet-panel { width: calc(100% - 24px); margin-inline: 12px; border-radius: 24px; box-shadow: 0 12px 36px rgba(0,0,0,.35), 0 0 0 1px var(--line-1); display: flex; flex-direction: column; overflow: hidden; height: min(54vh, 430px); max-height: none; }
 #sticker-picker-sheet .sheet-panel > * { flex: 0 0 auto; }
 .sticker-title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .sticker-pack-rename { min-height: 32px; padding: 2px 10px; font-size: 13px; }

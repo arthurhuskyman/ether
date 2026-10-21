@@ -29,7 +29,7 @@ html[data-skin="glass"][data-scheme="light"] {
   --bg-0: #dfe9ff; --bg-1: #eef3ff; --bg-2: #f7f9ff; --bg-3: #cfdcfb;
   --line-1: rgba(20, 32, 58, 0.1); --line-2: rgba(20, 32, 58, 0.18);
   --ink-0: #14203a; --ink-1: rgba(20, 32, 58, 0.95); --ink-2: rgba(20, 32, 58, 0.8); --ink-3: rgba(20, 32, 58, 0.7);
-  --accent: #2a55d8; --accent-hi: #4a7df5; --accent-lo: #1c43b0; --accent-ghost: rgba(42, 85, 216, 0.12); --text-link: #1c43b0;
+  --accent: #2953d4; --accent-hi: #4a7df5; --accent-lo: #1c43b0; --accent-ghost: rgba(42, 85, 216, 0.12); --text-link: #1c43b0;
   --bubble-mine-bg: linear-gradient(150deg, rgba(90, 140, 255, 0.42), rgba(170, 130, 255, 0.34)); --bubble-mine-ink: #0a1840;
   --bubble-theirs-bg: linear-gradient(150deg, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.5)); --bubble-theirs-ink: #14203a;
   --card-bg: none; --card-base: rgba(255, 255, 255, 0.55); --card-border: rgba(255, 255, 255, 0.9); --card-shadow: 0 14px 40px rgba(50, 70, 160, 0.22);
@@ -101,7 +101,7 @@ html[data-skin="glass"] .bubble-row.mine .bubble-reaction-chip { color: #1a2a6a;
 html[data-skin="glass"] :is(.btn-primary, .send-btn) { background: radial-gradient(ellipse 70% 45% at 40% 14%, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0) 70%), var(--sk-btn-bg); border: 1px solid rgba(255, 255, 255, 0.7); box-shadow: 0 10px 24px rgba(70, 70, 220, 0.4), inset 0 -8px 14px rgba(40, 20, 140, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.9); border-radius: 999px; font-weight: 700; transition: transform .3s cubic-bezier(.3, 1.6, .5, 1), box-shadow .3s; }
 html[data-skin="glass"] .send-btn { width: 46px; height: 46px; padding: 0; }
 html[data-skin="glass"] .btn-secondary { background-image: var(--gl-hi); border-radius: 999px; font-weight: 700; box-shadow: var(--sk-shadow); }
-html[data-skin="glass"] .btn-primary.destructive { background: radial-gradient(ellipse 70% 45% at 40% 14%, rgba(255, 255, 255, 0.6), transparent 70%), linear-gradient(150deg, #ff7a8a, #e0405a); color: #fff; }
+html[data-skin="glass"] .btn-primary.destructive { background: radial-gradient(ellipse 70% 45% at 40% 14%, rgba(255, 255, 255, 0.6), transparent 70%), linear-gradient(150deg, #d92d4a, #b3173a); color: #fff; }
 html[data-skin="glass"] :is(.btn-primary, .send-btn):active { transform: scale(.9); box-shadow: 0 3px 8px rgba(70, 70, 220, 0.4), inset 0 4px 10px rgba(40, 20, 140, 0.35); }
 html[data-skin="glass"] .icon-btn { border-radius: 50%; transition: transform .3s cubic-bezier(.3, 1.6, .5, 1), background .25s; }
 html[data-skin="glass"] .icon-btn:active { transform: scale(.88); background: radial-gradient(circle at 50% 30%, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.08)); }
@@ -150,3 +150,5 @@ html[data-skin="glass"] #composer-menu-sheet .sheet-panel { position: absolute; 
 html[dir="rtl"][data-skin="glass"] .bubble::after { background: linear-gradient(270deg, transparent, rgba(255, 255, 255, 0.5)); }
 /* клавиатура закрывает нижнюю safe-area — таб-бару она не нужна (как у обычного вида) */
 html.kb-open[data-skin="glass"] #tab-bar.glass { margin-bottom: 10px; }
+/* Контраст: активный сегмент темы — белый на синем градиенте светлой схемы (тёмный #0b0f33 давал 3.0:1; тёмный текст нужен только на пастельной кнопке тёмной схемы) */
+html[data-skin="glass"][data-scheme="light"] .theme-seg button.active, html[data-skin="glass"][data-scheme="light"] .theme-seg button[aria-checked="true"], html[data-skin="glass"][data-scheme="light"] .theme-seg button[aria-pressed="true"] { color: #fff; }

@@ -10,17 +10,17 @@ const Skins = (() => {
   const LIST = [
     { id: "default", emoji: "✨", light: ["#fafafc", "#ffffff", "#6446c9"], dark: ["#08080a", "#17171c", "#8a6dff"], bar: { light: "#fafafc", dark: "#08080a" } },
     { id: "cartoon", emoji: "🎈", light: ["#fff1cf", "#ffffff", "#1366c0"], dark: ["#1d1a3d", "#312d63", "#ffd23f"], bar: { light: "#fff1cf", dark: "#1d1a3d" } },
-    { id: "comic", emoji: "💥", light: ["#fff4d1", "#ffffff", "#d62839"], dark: ["#1a1a38", "#26264d", "#ffd60a"], bar: { light: "#fff4d1", dark: "#1a1a38" } },
+    { id: "comic", emoji: "💥", light: ["#fff4d1", "#ffffff", "#c72535"], dark: ["#1a1a38", "#26264d", "#ffd60a"], bar: { light: "#fff4d1", dark: "#1a1a38" } },
     { id: "watercolor", emoji: "🎨", light: ["#fbf6fb", "#fdf8fc", "#5b3fc4"], dark: ["#171427", "#262142", "#b79cff"], bar: { light: "#fbf6fb", dark: "#171427" } },
     { id: "neon", emoji: "🌃", light: ["#eaf4ff", "#ffffff", "#0068a0"], dark: ["#07060f", "#130f28", "#00f0ff"], bar: { light: "#eaf4ff", dark: "#07060f" } },
-    { id: "steampunk", emoji: "⚙️", light: ["#e8d6a9", "#f7edd2", "#8a4f12"], dark: ["#1a110a", "#33241a", "#e2a94d"], bar: { light: "#e8d6a9", dark: "#1a110a" } },
+    { id: "steampunk", emoji: "⚙️", light: ["#e8d6a9", "#f7edd2", "#864d11"], dark: ["#1a110a", "#33241a", "#e2a94d"], bar: { light: "#e8d6a9", dark: "#1a110a" } },
     { id: "gothic", emoji: "🦇", light: ["#d9d2cb", "#f0eae4", "#9b111e"], dark: ["#09060a", "#180e16", "#ee4a58"], bar: { light: "#d9d2cb", dark: "#09060a" } },
-    { id: "clay", emoji: "🧸", light: ["#f6e4d1", "#fff6ec", "#b83f1d"], dark: ["#2a2233", "#40354e", "#ff9f80"], bar: { light: "#f6e4d1", dark: "#2a2233" } },
-    { id: "lego", emoji: "🧱", light: ["#a8d8a0", "#f4f6f9", "#b30d0d"], dark: ["#0f1d2e", "#1d3a5f", "#ffd01f"], bar: { light: "#a8d8a0", dark: "#0f1d2e" } },
-    { id: "wood", emoji: "🌳", light: ["#e6d1a8", "#f6ead0", "#2f6b1f"], dark: ["#241810", "#3b2a1c", "#a5d97b"], bar: { light: "#e6d1a8", dark: "#241810" } },
-    { id: "glass", emoji: "🪟", light: ["#dfe9ff", "#f7f9ff", "#2a55d8"], dark: ["#0d0f2b", "#1b1f4c", "#a9c8ff"], bar: { light: "#dfe9ff", dark: "#0d0f2b" } },
+    { id: "clay", emoji: "🧸", light: ["#f6e4d1", "#fff6ec", "#a93a1b"], dark: ["#2a2233", "#40354e", "#ff9f80"], bar: { light: "#f6e4d1", dark: "#2a2233" } },
+    { id: "lego", emoji: "🧱", light: ["#a8d8a0", "#f4f6f9", "#ac0c0c"], dark: ["#0f1d2e", "#1d3a5f", "#ffd01f"], bar: { light: "#a8d8a0", dark: "#0f1d2e" } },
+    { id: "wood", emoji: "🌳", light: ["#e6d1a8", "#f6ead0", "#285b1a"], dark: ["#241810", "#3b2a1c", "#a5d97b"], bar: { light: "#e6d1a8", dark: "#241810" } },
+    { id: "glass", emoji: "🪟", light: ["#dfe9ff", "#f7f9ff", "#2953d4"], dark: ["#0d0f2b", "#1b1f4c", "#a9c8ff"], bar: { light: "#dfe9ff", dark: "#0d0f2b" } },
     { id: "chalk", emoji: "🖍️", light: ["#fbf7ea", "#fffdf4", "#b5322a"], dark: ["#1b2e26", "#274236", "#ffd86b"], bar: { light: "#fbf7ea", dark: "#1b2e26" } },
-    { id: "newyear", emoji: "🎄", light: ["#eaf4ff", "#ffffff", "#c8102e"], dark: ["#0a1636", "#17325e", "#ff7b88"], bar: { light: "#eaf4ff", dark: "#0a1636" } },
+    { id: "newyear", emoji: "🎄", light: ["#eaf4ff", "#ffffff", "#c8102e"], dark: ["#0a1636", "#17325e", "#ff8c97"], bar: { light: "#eaf4ff", dark: "#0a1636" } },
   ];
   const IDS = LIST.map((s) => s.id);
   // Реестр «характера» скина: js/skins/<id>.js вызывает Skins.register(id, spec). spec:
@@ -58,6 +58,18 @@ const Skins = (() => {
     if (!r.height || !window.innerHeight) root.style.removeProperty("--tabbar-h");
     else root.style.setProperty("--tabbar-h", Math.max(0, Math.round(window.innerHeight - r.top)) + "px");
     if (!tbRO && typeof ResizeObserver !== "undefined") { tbRO = new ResizeObserver(syncTabbar); tbRO.observe(bar); window.addEventListener("resize", syncTabbar); }
+  }
+
+  // CSS скина добавляется ранним скриптом из <head> ДО основных таблиц (tokens/styles/skins.css), поэтому при холодном старте
+  // он оказывается РАНЬШЕ skins.css и проигрывает ему любую ничью специфичности (латунные панели steampunk, чёрный таб-бар comic
+  // перекрывались общей панелью → текст на тёмном/светлом фоне терялся). Переносим <link> скина сразу после css/skins.css.
+  function orderSkinCss() {
+    if (!live()) return;
+    const base = document.querySelector('link[rel="stylesheet"][href$="css/skins.css"]'); if (!base) return;
+    document.querySelectorAll("link[data-skin-css]").forEach((l) => {
+      if (base.compareDocumentPosition(l) & 4 /* DOCUMENT_POSITION_FOLLOWING: l после base — порядок верный */) return;
+      base.after(l);
+    });
   }
 
   // ---------- Звуки скина: партитура — массив нот {f|[f0,f1], t, d, v, w, lp, hp, q, n}; w: sine|square|sawtooth|triangle|noise ----------
@@ -133,6 +145,7 @@ const Skins = (() => {
     if (!live()) return id;
     const root = document.documentElement;
     if (id === "default") root.removeAttribute("data-skin"); else root.setAttribute("data-skin", id);
+    orderSkinCss();
     syncMeta();
     syncTabbar(); if (typeof requestAnimationFrame === "function") requestAnimationFrame(syncTabbar);
     markActive(id);

@@ -23,7 +23,7 @@ html[data-skin="lego"][data-scheme="light"] {
   --bg-0: #a8d8a0; --bg-1: #c9e8c3; --bg-2: #f4f6f9; --bg-3: #d3dce6;
   --line-1: rgba(16, 36, 14, 0.2); --line-2: rgba(16, 36, 14, 0.36);
   --ink-0: #10240f; --ink-1: rgba(16, 36, 14, 0.94); --ink-2: rgba(16, 36, 14, 0.82); --ink-3: rgba(16, 36, 14, 0.72);
-  --accent: #b30d0d; --accent-hi: #d01012; --accent-lo: #8c0808; --accent-ghost: rgba(201, 26, 9, 0.14); --text-link: #0a47a8;
+  --accent: #ac0c0c; --accent-hi: #d01012; --accent-lo: #8c0808; --accent-ghost: rgba(201, 26, 9, 0.14); --text-link: #0a47a8;
   --bubble-mine-bg: #0055bf; --bubble-mine-ink: #ffffff; --bubble-theirs-bg: #f5cd2a; --bubble-theirs-ink: #1a1a1a;
   --card-bg: none; --card-base: #f4f6f9; --card-border: transparent; --card-shadow: 0 4px 0 #9ba5b3;
   --select-popup-bg: #f4f6f9; --select-popup-ink: #10240f; --input-bg: #e2e8ef; --input-border: transparent; --glass-border: transparent;
@@ -218,3 +218,6 @@ html[data-calm-mode="1"][data-skin="lego"] :is(.bubble, #toast, .toast, .compose
   html[data-skin="lego"] :is(.bubble, #toast, .toast, .composer-menu-item, .tab-btn, .typing-dots span, #skin-deco .lego-brick) { animation: none !important; }
 }
 html.kb-open[data-skin="lego"] #tab-bar.glass { padding-bottom: 6px; }
+/* Контраст: имя отправителя на тёмно-синем кирпиче (7a0f06 на 4a5b70 = 1.59:1) и «Удалить» на светлой плашке (в тёмной схеме общий розовый давал 1.78:1) */
+html[data-skin="lego"][data-scheme="dark"] .bubble-row.theirs .bubble-sender { color: #ffe27a; }
+html[data-skin="lego"][data-scheme] button.sheet-action.destructive, html[data-skin="lego"][data-scheme] #contact-clear-btn, html[data-skin="lego"][data-scheme] #contact-delete-btn { color: #a3150b; }

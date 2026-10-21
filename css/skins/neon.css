@@ -179,9 +179,9 @@ html[data-skin="neon"] #chat-form, html[data-skin="neon"] #voice-recording-bar {
 html[data-skin="neon"] :is(.avatar, .avatar-xl, .avatar-sm, .contact-avatar, .chat-peer-avatar .avatar, .bubble-row-avatar .avatar) { border: 0; border-radius: 0; clip-path: var(--nx-hex); box-shadow: none; }
 html[data-skin="neon"] .contact-action-btn { border: 0; border-radius: 0; clip-path: var(--nx-poly-s); background: var(--sk-field); box-shadow: inset 0 0 0 1px var(--nx-a); }
 html[data-skin="neon"] .avatar-status-dot { clip-path: none; }
-html[data-skin="neon"] .unread-badge { border-radius: 0; clip-path: var(--nx-poly-s); background: var(--nx-b); color: #fff; padding: 4px 8px; box-shadow: none; font-weight: 700; }
+html[data-skin="neon"] .unread-badge { border-radius: 0; clip-path: var(--nx-poly-s); background: var(--nx-b); color: #07060f; padding: 4px 8px; box-shadow: none; font-weight: 700; }
 html[data-skin="neon"][data-scheme="light"] .unread-badge { background: #a00080; }
-html[data-skin="neon"] .tab-badge { border-radius: 0; clip-path: var(--nx-poly-s); background: var(--nx-b); color: #fff; box-shadow: none; }
+html[data-skin="neon"] .tab-badge { border-radius: 0; clip-path: var(--nx-poly-s); background: var(--nx-b); color: #07060f; box-shadow: none; }
 html[data-skin="neon"] .sheet-panel {
   border: 0; border-radius: 0; clip-path: polygon(var(--nx-cut) 0, calc(100% - var(--nx-cut)) 0, 100% var(--nx-cut), 100% 100%, 0 100%, 0 var(--nx-cut));
   background: linear-gradient(180deg, var(--sk-panel), var(--bg-1)); box-shadow: inset 0 3px 0 var(--nx-a), inset 0 0 30px var(--nx-glow-a);
@@ -251,3 +251,4 @@ html[data-skin="neon"][data-scheme="light"] .fx-view-toggle button.active { back
 html[data-skin="neon"] :is(.connect-card, .fx-card, .link-preview-card, .contact-card-bubble, .notif-banner, .banner, .edit-banner, .pinned-msg-banner, .contact-profile, .contact-accordion, .group-role-badge) { border: 0; border-radius: 0; clip-path: var(--nx-poly-s); box-shadow: inset 0 0 0 1px var(--nx-b); background-color: var(--sk-panel); }
 html[data-skin="neon"] .scroll-bottom-btn, html[data-skin="neon"] .call-btn { border-radius: 0; clip-path: var(--nx-hex); border: 0; }
 html[data-skin="neon"] :is(.btn-primary, .btn-secondary) { min-height: 44px; }
+html[data-skin="neon"][data-scheme="light"] :is(.unread-badge, .tab-badge) { color: #fff; }

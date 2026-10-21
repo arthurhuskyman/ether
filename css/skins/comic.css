@@ -14,7 +14,7 @@ html[data-skin="comic"][data-scheme="light"] {
   --bg-0: #fff4d1; --bg-1: #fffaf0; --bg-2: #ffffff; --bg-3: #ffe9a8;
   --line-1: rgba(17, 17, 17, 0.25); --line-2: rgba(17, 17, 17, 0.45);
   --ink-0: #111111; --ink-1: rgba(17, 17, 17, 0.92); --ink-2: rgba(17, 17, 17, 0.74); --ink-3: rgba(17, 17, 17, 0.64);
-  --accent: #d62839; --accent-hi: #ef4452; --accent-lo: #a81a29; --accent-ghost: rgba(214, 40, 57, 0.14); --text-link: #a81a29;
+  --accent: #c72535; --accent-hi: #ef4452; --accent-lo: #a81a29; --accent-ghost: rgba(214, 40, 57, 0.14); --text-link: #a81a29;
   --bubble-mine-bg: #ffe14d; --bubble-mine-ink: #111111; --bubble-theirs-bg: #ffffff; --bubble-theirs-ink: #111111;
   --card-bg: none; --card-base: #ffffff; --card-border: #111111; --card-shadow: 5px 5px 0 #111111;
   --select-popup-bg: #fffaf0; --select-popup-ink: #111111; --input-bg: #ffffff; --input-border: #111111; --glass-border: #111111;
@@ -113,7 +113,7 @@ html[data-skin="comic"] .btn-tertiary { letter-spacing: .08em; text-transform: u
 html[data-skin="comic"] .send-btn, html[data-skin="comic"] .composer-plus-btn { width: 52px; height: 52px; min-width: 52px; border: 0; border-radius: 0; background-color: var(--sk-btn-bg); color: var(--sk-btn-ink); clip-path: polygon(50% 0, 62% 14%, 80% 7%, 82% 26%, 100% 30%, 90% 47%, 100% 62%, 82% 70%, 80% 92%, 62% 86%, 50% 100%, 38% 86%, 20% 92%, 18% 70%, 0 62%, 10% 47%, 0 30%, 18% 26%, 20% 7%, 38% 14%); box-shadow: none; filter: none; transition: transform .12s var(--cm-snap); }
 html[data-skin="comic"] .send-btn:active, html[data-skin="comic"] .composer-plus-btn:active { transform: scale(.82) rotate(-12deg); box-shadow: none; }
 html[data-skin="comic"] .send-btn .ico, html[data-skin="comic"] .composer-plus-btn .ico { stroke: currentColor; }
-html[data-skin="comic"] .chat-input-bar .send-btn-wrap, html[data-skin="comic"] .chat-input-bar { gap: 6px; }
+html[data-skin="comic"] .chat-input-bar { gap: 6px; }
 html[data-skin="comic"] .composer-plus-btn { background-color: #6ee0ff; color: #111; }
 html[data-skin="comic"] .icon-btn:active .ico { animation: comic-shake .25s linear; }
 @keyframes comic-shake { 0%, 100% { transform: none; } 25% { transform: translate(-2px, 1px) rotate(-8deg); } 50% { transform: translate(2px, -1px) rotate(8deg); } 75% { transform: translate(-1px, 1px) rotate(-4deg); } }
