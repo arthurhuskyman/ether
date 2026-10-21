@@ -61,7 +61,7 @@ test("C6: gcallToggleCamera игнорирует повторный вызов �
   const a = createApp(); await a.ready;
   let gum = 0;
   Object.defineProperty(a.window.navigator, "mediaDevices", { configurable: true, value: { getUserMedia: () => { gum++; return new Promise((r) => setTimeout(() => r({ getVideoTracks: () => [], getTracks: () => [] }), 30)); } } });
-  a.run(`GC.gid = "g"; GC.stream = new MediaStream(); GC.video = false;`);
+  a.run(`GC.gid = "g"; GC.stream = { getVideoTracks: () => [], addTrack() {}, getTracks: () => [] }; GC.video = false;`);
   await Promise.all([a.run(`gcallToggleCamera()`), a.run(`gcallToggleCamera()`)]);
   assert.equal(gum, 1);
   assert.equal(a.run(`GC.camBusy`), false);

@@ -16,12 +16,12 @@ test("M2: Safari отдаёт PNG вместо webp — стикер прини�
   const a = await booted();
   a.run(`window.createImageBitmap = async () => ({ width: 800, height: 800, close() {} });
     window.__sizes = [];
-    HTMLCanvasElement.prototype.toBlob = function (cb, type) { const px = this.width * this.height; window.__sizes.push(this.width); cb(new Blob([new Uint8Array(Math.round(px / 2))], { type: "image/png" })); };`);
+    HTMLCanvasElement.prototype.toBlob = function (cb, type) { const px = this.width * this.height; window.__sizes.push(this.width); cb(new Blob([new Uint8Array(px)], { type: "image/png" })); };`);
   const r = await a.run(`EtherStickers.prepare(new File([new Uint8Array(100)], "a.png", { type: "image/png" })).then((p) => p && { type: p.blob.type, size: p.blob.size, w: p.w })`);
   assert.ok(r, "prepare вернул результат");
   assert.equal(r.type, "image/png");
   assert.ok(r.size <= a.run(`EtherStickers.USER_MAX_BYTES`));
-  assert.ok(r.w < 256, "сторона уменьшена");
+  assert.ok(r.w < 256, "сторона уменьшена: " + JSON.stringify(r));
   a.close();
 });
 

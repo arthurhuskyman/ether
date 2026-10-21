@@ -54,7 +54,9 @@ test("C3: старый клиент (без ac, AAD v1) принимается; 
   const r = await send(b, a, { 2: 2 }); await recv(a, b, r);
   assert.equal((await send(a, b, { 3: 3 })).a, 1);
   // Боб «откатился» на старый клиент: его конверт без ac
-  const old = await send(b, a, { 4: 4 }); delete old.ac; delete old.a;
+  const j = JSON.parse(b.mem.json); j.ca = {}; b.mem.json = JSON.stringify(j);
+  b.R.setStore({ load: () => JSON.parse(b.mem.json), save: (o) => { b.mem.json = JSON.stringify(o); return true; } });
+  const old = await send(b, a, { 4: 4 }); assert.equal(old.a, undefined); delete old.ac;
   assert.deepEqual(await recv(a, b, old), { 4: 4 });
   assert.equal((await send(a, b, { 5: 5 })).a, undefined, "снова AAD v1");
 });

@@ -499,7 +499,8 @@ if (m.replyTo) {
       // сообщения одновременно (раньше срабатывало и то, и другое).
       const docLink = ev.target.closest("a.file-bubble-doc[data-file-id]");
       if (docLink) {
-        // отдаём браузеру скачать blob — не перехватываем
+        // отдаём браузеру скачать blob — не перехватываем; но пока blob-URL не подставлен, href="#" менял бы location.hash (его читают инвайты) — гасим переход (B16)
+        if (docLink.getAttribute("href") === "#") ev.preventDefault();
         return;
       }
       const linkEl = ev.target.closest("a[href]");
@@ -881,7 +882,7 @@ function wireCmdk() {
   });
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") { const cs = $("#cmdk"); if (cs && !cs.classList.contains("hidden")) closeCmdk(); return; }
-    if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === "k" || e.key === "K")) { if (!Store.myId) return; e.preventDefault(); openCmdk(); }
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === "k" || e.key === "K" || e.code === "KeyK")) { if (!Store.myId) return; e.preventDefault(); openCmdk(); }
   });
 }
 function attachSwipeReply(el, m, c) {

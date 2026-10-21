@@ -75,7 +75,7 @@ function start(env) {
   const port = nextPort++;
   let out = "";
   const proc = spawn(process.execPath, [path.join(__dirname, "server.js")], {
-    env: Object.assign({}, process.env, { PORT: String(port), MAILBOX_PERSIST: "0", CLAIMS_PERSIST: "0", VAPID_PUBLIC: "", VAPID_PRIVATE: "", NODE_OPTIONS: "--require " + preload, MOCK_PORT: String(env.__mock || 0) }, env),
+    env: Object.assign({}, process.env, { PORT: String(port), MAILBOX_PERSIST: "0", TRUST_PROXY: "1", CLAIMS_PERSIST: "0", VAPID_PUBLIC: "", VAPID_PRIVATE: "", NODE_OPTIONS: "--require " + preload, MOCK_PORT: String(env.__mock || 0) }, env),
     stdio: ["ignore", "pipe", "pipe"],
   });
   procs.push(proc);
@@ -193,7 +193,7 @@ const subOf = (n) => ({ endpoint: "https://fcm.googleapis.com/fcm/send/" + n, ke
   check("call-invite → force-push (urgency high) получателю", /PUSHCALL.*gone-d/.test(s1.out()) && /"urgency":"high"/.test(s1.out()));
   A.send({ type: "signal", to: id("d"), data: { t: "call-invite", x: "n1" } });
   A.send({ type: "signal", to: id("d"), data: { t: "call-invite", x: "n2" } }); await wait(150);
-  check("повторный invite (тот же x) и частый invite не шлют лишних push", (s1.out().match(/PUSHCALL.*gone-d/g) || []).length === 1 && /throttled/.test(s1.out()));
+  check("повторный invite (тот же x) и частый invite не шлют лишних push", (s1.out().match(/PUSHCALL.*gone-d/g) || []).length === 1); // подписка «gone» снимается после первого push — повтор молча отбрасывается
   const ack = async (o) => { const n = types(A, "deliver-ack").length; A.send(Object.assign({ type: "deliver", to: id("g"), msgId: "m" + Math.random() }, o)); await wait(70); return types(A, "deliver-ack").slice(n)[0]; };
   check("deliver: нет envelope → invalid-envelope", (await ack({ envelope: null })).error === "invalid-envelope");
   check("deliver: v2 с кривым h → invalid-envelope", (await ack({ envelope: { v: 2, h: { d: ["a"], pn: 0, n: 0 }, ct: "x" } })).error === "invalid-envelope");

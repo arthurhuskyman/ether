@@ -38,3 +38,7 @@ services:
     startCommand: node server.js
     healthCheckPath: /health
     autoDeploy: true
+    envVars:
+      # Render ставит перед сервисом свой прокси и дописывает реальный IP клиента в конец X-Forwarded-For; по умолчанию сервер заголовку не доверяет.
+      - key: TRUST_PROXY
+        value: "1"

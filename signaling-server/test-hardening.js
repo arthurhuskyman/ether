@@ -18,7 +18,7 @@ const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ether-hard-"));
 async function startServer(env) {
   const port = await freePort();
   const child = spawn(process.execPath, [path.join(__dirname, "server.js")], {
-    env: Object.assign({}, process.env, { PORT: String(port), MAILBOX_PERSIST: "0", VAPID_PUBLIC: "", VAPID_PRIVATE: "", PUSH_SUBS_FILE: path.join(tmpDir, "subs-" + port + ".json") }, env || {}),
+    env: Object.assign({}, process.env, { PORT: String(port), MAILBOX_PERSIST: "0", TRUST_PROXY: "1", VAPID_PUBLIC: "", VAPID_PRIVATE: "", PUSH_SUBS_FILE: path.join(tmpDir, "subs-" + port + ".json") }, env || {}),
     stdio: ["ignore", "pipe", "pipe"],
   });
   const srv = { port, child, log: "", exited: false };
@@ -328,6 +328,9 @@ const env1 = { iv: "AAAA", ct: "BBBB", v: 1 };
     const srv = await startServer();
     const A = await connect(srv.port, id("a")), C = await connect(srv.port, id("c")), D = await connect(srv.port, id("d"));
     const inv = (c, to, x) => c.send({ type: "signal", to, data: { t: "call-invite", x } });
+    // push о звонке уходит только тем, у кого есть подписка: подписываем b и e и отключаем их (офлайн-получатели)
+    for (const n of ["b", "e"]) { const R = await connect(srv.port, id(n)); R.send({ type: "push-subscribe", subscription: validSub(), lang: "en" }); await wait(120); R.ws.close(); }
+    await wait(150);
     inv(A, id("b"), "n1"); await wait(150);
     inv(A, id("b"), "n2"); await wait(150);
     inv(C, id("b"), "n3"); await wait(150);

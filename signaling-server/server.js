@@ -797,7 +797,7 @@ const MAILBOX_FILE = process.env.MAILBOX_FILE || path.join(process.env.DATA_DIR 
 const MAILBOX_PERSIST = process.env.MAILBOX_PERSIST !== "0";
 const MAILBOX_TEXT_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const MAILBOX_HEAVY_CT = 256 * 1024;
-const MAILBOX_PERSIST_MAX_BYTES = 150 * 1024 * 1024;
+const MAILBOX_PERSIST_MAX_BYTES = Number(process.env.MAILBOX_PERSIST_MAX_BYTES) || 150 * 1024 * 1024;
 function mailboxEntryExpired(entry, now) {
   // 48 ч — только для тяжёлых записей (файлы/голосовые, ct > 256 КБ); опросы, карточки, приглашения, правки и реакции живут как текст.
   const heavy = (entry && (entry.kind === "file" || entry.kind === "audio")) || (entry && entry.envelope && typeof entry.envelope.ct === "string" && entry.envelope.ct.length > MAILBOX_HEAVY_CT);
@@ -1907,6 +1907,13 @@ wss.on("connection", (ws, req) => {
       if (!hashes.length) { discoveryDropId(myId); return reply({ ok: true, count: 0 }); } // снятие
       if (!claims.has(myId)) return reply({ ok: false, error: "no-claim" });
       if (!me.publicKey) return reply({ ok: false, error: "no-key" });
+      // Хэш, за которым числится ДРУГОЙ активный владелец (запись не истекла), не перезаписываем: иначе любой с claim вытесняет чужой номер/почту. Освободить его может сам владелец (снятие) или истечение TTL.
+      const nowC = Date.now();
+      const hashesAll = hashes.length;
+      const free = hashes.filter((h) => { const r = discovery.get(h); return !r || r.id === myId || (nowC - r.seen > DISCOVERY_TTL_MS && !clients.has(r.id)); });
+      const conflicts = hashesAll - free.length;
+      if (!free.length) return reply({ ok: false, error: "conflict", conflicts });
+      hashes.length = 0; hashes.push(...free);
       const fresh = hashes.filter((h) => !discovery.has(h) || discovery.get(h).id !== myId).length;
       if (discovery.size + fresh > DISCOVERY_MAX) { discoveryExpire(); if (discovery.size + fresh > DISCOVERY_MAX) return reply({ ok: false, error: "full" }); }
       const name = msg.shareName === true ? String(msg.name || me.name || "").slice(0, 60) : "";
@@ -1918,7 +1925,7 @@ wss.on("connection", (ws, req) => {
         if (prev && prev.id !== myId) { const s = discoveryById.get(prev.id); if (s) s.delete(h); }
       }
       scheduleDiscoverySave();
-      return reply({ ok: true, count: hashes.length, ttlDays: Math.round(DISCOVERY_TTL_MS / 86400000) });
+      return reply({ ok: true, count: hashes.length, ...(conflicts ? { conflicts } : {}), ttlDays: Math.round(DISCOVERY_TTL_MS / 86400000) });
     }
     if (msg.type === "discovery-lookup" && myId && typeof msg.rid === "string" && msg.rid.length <= 40) {
       const t0 = Date.now();

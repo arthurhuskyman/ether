@@ -242,6 +242,7 @@ function readImageAsAvatarDataUrl(file, size = 160) {
       const canvas = document.createElement("canvas");
       canvas.width = size; canvas.height = size;
       const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, size, size); // B15: JPEG без альфы — прозрачный PNG иначе становился чёрным кругом
       const side = Math.min(img.width, img.height);
       const sx = (img.width - side) / 2, sy = (img.height - side) / 2;
       ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
@@ -498,6 +499,7 @@ async function forwardMessage(msgId, fromContactId, toContactId) {
         }
         const meta = { id: msgId2, name: m.file.name, mime: m.file.mime, size: m.file.size, forwarded: true };
         if (rec.forwardedFrom) meta.fwdFrom = rec.forwardedFrom;
+        if (rec.ttl) meta.ttl = rec.ttl; // B13: таймер исчезновения; webrtc.js sendFile должен копировать fwdFrom/ttl в metaPayload (отдельный исполнитель)
         if (m.file.duration != null) meta.duration = m.file.duration;
         if (m.file.wave) meta.wave = m.file.wave;
         if (m.file.caption) meta.caption = m.file.caption;
@@ -1080,6 +1082,8 @@ function markMessageAck(contactId, msgId, ack) {
   if (targetMsg && ((rank[ack] ?? 0) >= (rank[targetMsg.ack] ?? 0) || (ack === "failed" && !groupAlreadyOk))) {
     targetMsg.ack = ack;
     if (ack === "read") startExpiryOnRead(targetMsg);
+    // B7: собеседник отключил квитанции прочтения — «read» не придёт никогда и ttl висел бы 30 суток: считаем от «доставлено»
+    else if (ack === "delivered" && ownerChat && !ownerChat.isGroup && ownerChat.peerReceiptsEnabled === false) startExpiryOnRead(targetMsg);
     persistContacts();
     if (ownerChat && state.chatId === ownerChat.id) renderChatThread();
   }

@@ -202,7 +202,7 @@ function wireGroupInfo() {
     if (!await confirmSheet(T("group.confirmLeave", { name: g.name }))) return;
     removeGroupMember(groupId, Store.myId, true);
     const gis = $("#group-info-sheet"); if (gis) gis.classList.add("hidden");
-    if (state.chatId === groupId) { state.chatId = null; state.multiSelect = null; renderTab(); }
+    if (state.chatId === groupId) { if (typeof resetChatTransientState === "function") resetChatTransientState(null); state.chatId = null; state.multiSelect = null; renderTab(); }
   });
   const inviteLinkBtn = $("#group-info-invite-link-btn");
   if (inviteLinkBtn) inviteLinkBtn.addEventListener("click", () => {
@@ -1524,7 +1524,7 @@ function wireJumpToDateSheet() {
       return d.getFullYear() === target.getFullYear() && d.getMonth() === target.getMonth() && d.getDate() === target.getDate();
     });
     if (!match) { toast(T("toast.noMessagesOnDate")); return; }
-    if (state.chatId !== contactId) { state.chatId = contactId; renderTab(); }
+    if (state.chatId !== contactId) { if (typeof resetChatTransientState === "function") resetChatTransientState(contactId); state.chatId = contactId; renderTab(); }
     // renderChatThread уже отрисовала DOM синхронно выше — ищем элемент
     // сообщения по data-msg-id, который проставляется в разметке пузыря.
     setTimeout(() => {

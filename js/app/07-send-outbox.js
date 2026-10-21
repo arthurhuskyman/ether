@@ -535,6 +535,12 @@ function wireStories() {
     if (rf && ri) {
       rf.addEventListener("click", (e) => e.stopPropagation());
       ri.addEventListener("focus", () => { if (__storyViewer) clearTimeout(__storyViewer.timer); });
+      // B12: после ухода фокуса таймер истории возобновляется (если в поле ответа ничего не набрано — иначе черновик пропал бы при автопереходе)
+      ri.addEventListener("blur", () => {
+        const v = __storyViewer; if (!v || ri.value) return;
+        clearTimeout(v.timer);
+        v.timer = setTimeout(() => { v.i++; showStory(); }, 6000);
+      });
       rf.addEventListener("submit", async (e) => {
         e.preventDefault(); const v = __storyViewer, text = ri.value.trim(); if (!v || !text) return;
         const st = v.items[v.i], c = state.contacts.get(st.owner); if (!c) return;

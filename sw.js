@@ -143,7 +143,11 @@ async function handleManifestRequest(request) {
 }
 
 // M3: файлы оболочки пишет только install; фоновый cache.put из fetch не должен подменять код текущего (активного) кэша новым
-const SHELL_PATHS = new Set(SHELL_FILES.map((f) => new URL(f, self.location.href).pathname));
+let SHELL_PATHS = null;
+function isShellPath(pathname) {
+  if (!SHELL_PATHS) SHELL_PATHS = new Set(SHELL_FILES.map((f) => new URL(f, self.location.href).pathname));
+  return SHELL_PATHS.has(pathname);
+}
 // M4: Range (audio/video, iOS Safari требует 206) — из кэшированного 200 нарезаем нужный диапазон
 function rangeResponse(cached, rangeHeader) {
   const m = /^bytes=(\d*)-(\d*)$/.exec(String(rangeHeader || "").trim());
@@ -191,7 +195,7 @@ self.addEventListener("fetch", (event) => {
     caches.match(event.request).then((cached) => {
       const network = fetch(event.request)
         .then((response) => {
-          if (response && response.status === 200 && response.type === "basic" && !SHELL_PATHS.has(url.pathname)) {
+          if (response && response.status === 200 && response.type === "basic" && !isShellPath(url.pathname)) {
             const copy = response.clone();
             caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, copy));
           }

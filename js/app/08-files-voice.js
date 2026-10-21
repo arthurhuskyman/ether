@@ -1312,7 +1312,7 @@ function hydrateFileSlots(root) {
 
 function cleanupExpiredFileBlobs(removedMessages) {
   for (const m of removedMessages) {
-    if (!m.file) continue;
+    if (!m.file && !(m.sticker && m.sticker.custom)) continue; // B14: блобы своих стикеров (sticker.custom) тоже лежат в IDB под file:<id>
     IDB.del("file:" + m.id).catch(() => {});
     const url = fileBlobUrlCache.get(m.id);
     if (url) { URL.revokeObjectURL(url); fileBlobUrlCache.delete(m.id); }
@@ -1336,7 +1336,7 @@ function wireChatInputKeys() {
     if (desc && desc.set) Object.defineProperty(el, "value", { configurable: true, get() { return desc.get.call(this); }, set(v) { desc.set.call(this, v); autoGrowChatInput(); } });
   } catch (e) {}
   el.addEventListener("keydown", (e) => {
-    if (e.key !== "Enter" || e.shiftKey || e.isComposing || e.ctrlKey || e.altKey || e.metaKey) return;
+    if (e.key !== "Enter" || e.shiftKey || e.isComposing || e.keyCode === 229 || e.ctrlKey || e.altKey || e.metaKey) return;
     const coarse = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
     if (coarse) return;
     e.preventDefault();
