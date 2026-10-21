@@ -705,7 +705,7 @@ function createDemoChat() {
     demoSay(c, T("demo.welcome1")); demoSay(c, T("demo.welcome2"));
   }
   persistContacts();
-  state.contactCardId = null; state.tab = "chats"; state.chatId = DEMO_CHAT_ID; renderTab();
+  state.contactCardId = null; state.tab = "chats"; if (typeof resetChatTransientState === "function") resetChatTransientState(DEMO_CHAT_ID); state.chatId = DEMO_CHAT_ID; renderTab();
 }
 function demoOnSend(c, payload) {
   if (!payload || !["chat", "poll", "board", "file-meta", "file"].includes(payload.kind)) return;
@@ -943,7 +943,7 @@ function renderChatsList() {
     row.addEventListener("click", () => {
       if (state.pinReorder) return; // в режиме порядка нажатие по строке чат не открывает
       if (row.__longPressed) { row.__longPressed = false; return; }
-      try { closeChatSearch(); } catch (e) {} cancelVoiceRecordingIfLeavingChat(c.id); state.multiSelect = null; state.chatId = c.id; renderTab();
+      try { closeChatSearch(); } catch (e) {} cancelVoiceRecordingIfLeavingChat(c.id); state.multiSelect = null; if (typeof resetChatTransientState === "function") resetChatTransientState(c.id); state.chatId = c.id; renderTab();
     });
     if (c.pinned && canReorderPins && pinnedCountTotal > 1 && !state.pinReorder) {
       // долгое нажатие на закреплённый чат включает режим порядка: только тогда появляются ручки перетаскивания
@@ -1329,7 +1329,7 @@ function wireContactCard() {
   if (msgBtn) msgBtn.addEventListener("click", () => {
     const id = state.contactCardId; if (!id) return;
     cancelVoiceRecordingIfLeavingChat(id);
-    state.contactCardId = null; state.chatId = id; renderTab();
+    state.contactCardId = null; if (typeof resetChatTransientState === "function") resetChatTransientState(id); state.chatId = id; renderTab();
   });
   const callBtn = $("#contact-call-btn");
   if (callBtn) callBtn.addEventListener("click", () => {

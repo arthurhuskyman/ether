@@ -94,12 +94,22 @@
   --accent-hi: #a08aff;
   --accent-lo: #6a4de0;
   --accent-ghost: rgba(138, 109, 255, 0.12);
+  /* Заливка под текст --on-accent (кнопки, свои пузыри, активные чипы). --accent как цвет текста/иконки остаётся светлым,
+     а как фон под белый текст в тёмной схеме давал 3.68:1 — поэтому у заливки свой, чуть темнее, оттенок. */
+  --accent-bg: var(--accent);
+  --on-accent: #ffffff;
   --text-link: #b3a2ff;                  /* ссылки светлее акцента: на тёмном фоне читаются лучше */
 
   /* --- Семантика состояний + мягкие фоны для бейджей --- */
   --success: #4cd964;
   --danger: #ff453a;
   --warning: #ffb340;
+  /* Текстовые варианты состояний (≥4.5:1 на своей теме) и заливки под белый/on-accent текст.
+     В тёмной схеме текстовые = основные; в светлой — темнее. */
+  --success-text: var(--success);
+  --warning-text: var(--warning);
+  --danger-text: var(--danger);
+  --danger-bg: #d9362c;                  /* заливка под белый текст: 4.65:1 (чистый --danger даёт 3.4:1) */
   --success-soft: rgba(76, 217, 100, 0.16);
   --danger-soft: rgba(255, 69, 58, 0.16);
   --warning-soft: rgba(255, 179, 64, 0.16);
@@ -145,8 +155,8 @@
 /* ============================= 3. COMPONENT ============================ */
 :root {
   /* пузыри: свой цвет, а не общий акцент */
-  --bubble-mine-bg: linear-gradient(160deg, var(--accent), var(--accent-lo));
-  --bubble-mine-ink: #fff;
+  --bubble-mine-bg: linear-gradient(160deg, var(--accent-bg), var(--accent-lo));
+  --bubble-mine-ink: var(--on-accent);
   --bubble-theirs-bg: var(--bg-2);
   --bubble-theirs-ink: var(--ink-0);
 
@@ -187,6 +197,10 @@ html[data-theme="oled"] {
   --select-popup-bg: #0e0e10;
 }
 
+/* Обычный вид (без скина), тёмная схема: заливка акцента темнее текстового акцента — белый текст на ней ≥4.5:1.
+   :where() держит специфичность ниже темы aurora, которая идёт следом. */
+html:where(:not([data-skin])):where(:not([data-scheme="light"])) { --accent-bg: #7357ee; }
+
 /* Светлая палитра — НЕ инверсия, а своя. Единственное описание: тема light и auto при светлой системе. */
 html[data-scheme="light"] {
   --bg-0: #fafafc;
@@ -210,10 +224,14 @@ html[data-scheme="light"] {
   --text-link: #5a3fd1;
 
   --success: #2fa84f;
-  --danger: #d93a30;
+  --danger: #c9322a;
   --warning: #d98700;
+  --success-text: #1f7a3a;               /* ≥4.8:1 на --bg-0..--bg-2 (чистый --success давал 2.7:1) */
+  --warning-text: #8a5600;
+  --danger-text: var(--danger);
+  --danger-bg: var(--danger);
   --success-soft: rgba(47, 168, 79, 0.14);
-  --danger-soft: rgba(217, 58, 48, 0.12);
+  --danger-soft: rgba(201, 50, 42, 0.12);
   --warning-soft: rgba(217, 135, 0, 0.14);
 
   --glass-tint: 255, 255, 255;
@@ -246,6 +264,8 @@ html[data-theme="aurora"] {
   --accent-hi: #7ecbff;
   --accent-lo: #3a90e0;
   --accent-ghost: rgba(90, 184, 255, 0.12);
+  --accent-bg: #5ab8ff;
+  --on-accent: #05080d;                  /* белый на голубом давал 2.16:1, тёмный — 9.3:1 */
   --text-link: #8fd0ff;
 
   --glass-tint: 10, 16, 22;

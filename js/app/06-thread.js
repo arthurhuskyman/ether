@@ -838,7 +838,7 @@ function cmdkBuildItems(q) {
   q = (q || "").trim().toLowerCase();
   const go = (tab) => () => { state.tab = tab; state.chatId = null; state.contactCardId = null; renderTab(); };
   const all = [];
-  for (const c of state.contacts.values()) { if (c.isDemo && false) continue; all.push({ g: T("cmdk.chats"), label: c.name || T("sys.someone"), icon: "chat", fn: () => { state.tab = "chats"; state.chatId = c.id; state.contactCardId = null; renderTab(); } }); }
+  for (const c of state.contacts.values()) { if (c.isDemo && false) continue; all.push({ g: T("cmdk.chats"), label: c.name || T("sys.someone"), icon: "chat", fn: () => { if (typeof resetChatTransientState === "function") resetChatTransientState(c.id); state.tab = "chats"; state.chatId = c.id; state.contactCardId = null; renderTab(); } }); }
   all.push({ g: T("cmdk.actions"), label: T("cmdk.newChat"), icon: "plus", fn: go("connect") });
   all.push({ g: T("cmdk.actions"), label: T("cmdk.openSettings"), icon: "sliders", fn: go("settings") });
   for (const [th, k] of [["light", "cmdk.themeLight"], ["dark", "cmdk.themeDark"], ["auto", "cmdk.themeAuto"]]) all.push({ g: T("cmdk.actions"), label: T(k), icon: "palette", fn: () => { Store.theme = th; applyTheme(th); $$(".theme-seg button").forEach((b) => b.classList.toggle("active", b.dataset.theme === th)); } });

@@ -682,7 +682,7 @@ function openFromNotification(contactId, kind, focusInput, meta) {
   if (!contactId) return;
   { const _nc = state.contacts.get(contactId); if (!_nc || _nc.blocked) return; } // ссылка/push с чужим id не должна открывать чат или звонок
   window.focus();
-  state.chatId = contactId;
+  if (typeof resetChatTransientState === "function") resetChatTransientState(contactId); state.chatId = contactId;
   __lastRenderedChatId = null;
   state.multiSelect = null;
   state.contactCardId = null; // иначе после закрытия этого чата могла неожиданно всплыть карточка контакта, на которой пользователь был до уведомления
@@ -749,7 +749,7 @@ function handleShareTargetParams() {
     cleanUrl.search = "";
     window.history.replaceState({}, "", cleanUrl.toString());
     openForwardSheet((contactId) => {
-      state.contactCardId = null; state.chatId = contactId; renderTab();
+      state.contactCardId = null; if (typeof resetChatTransientState === "function") resetChatTransientState(contactId); state.chatId = contactId; renderTab();
       const inp = $("#chat-input");
       if (inp) { inp.value = combined; inp.dispatchEvent(new Event("input")); setTimeout(() => inp.focus(), 50); }
     }, "shareTarget.pickChat");

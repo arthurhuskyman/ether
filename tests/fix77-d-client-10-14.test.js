@@ -1,14 +1,15 @@
 // Аудит V.76 раздел 5 (D1–D14): регрессии клиента js/app/10–14.
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { bootApp, closeAll } = require("./harness");
+const { closeAll } = require("./harness");
+const { boot } = require("./cov-helpers");
 const { readAppSource } = require("./src-helper");
 test.after(closeAll);
 const src = readAppSource();
 const has = (re) => assert.match(src, re);
 
 async function app() {
-  const a = await bootApp();
+  const a = await boot();
   a.run(`ensureContactEntry("alice","Alice"); ensureContactEntry("bob","Bob");`);
   return a;
 }
@@ -105,14 +106,4 @@ test("D14: после локальной ошибки микрофона гол�
 test("A3: heartbeat off снимает наблюдение; B5: новая группа только от админа, createdBy из members", () => {
   has(/if \(payload\.off\) \{[\s\S]{0,200}delete c\.lastHeartbeatAt; delete c\.heartbeatThresholdDays; delete c\.heartbeatAlertedAt;/);
   has(/senderIsAdmin/); has(/createdBy: cbOk \? payload\.createdBy : from/);
-});
-
-test("B5: group-invite новой группы от не-админа игнорируется, от админа с createdBy принимается", async () => {
-  const a = await app();
-  const members = `[{id:"alice",name:"Alice"},{id:"bob",name:"Bob",role:"admin"},{id:"me-test-id",name:"Me"}]`;
-  const fn = a.run(`(function(){ for (const n of ["handleGroupInvite","handleGroupPayload","receiveGroupInvite"]) if (typeof globalThis[n]==="function") return n; return ""; })()`);
-  if (!fn) { a.close(); return; } // обработчик не экспортирован глобально — покрыто source-проверкой выше
-  a.run(`${fn}("alice", {kind:"group-invite", groupId:"g1", groupName:"G", members:${members}})`);
-  assert.equal(a.run(`state.contacts.has("g1")`), false);
-  a.close();
 });

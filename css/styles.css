@@ -264,7 +264,7 @@ html[data-scheme="light"] .glass-content {
 #onboarding-lang-select { margin-bottom: 4px; }
 .onboarding-id-wrap { position: relative; }
 .onboarding-id-wrap input { padding-right: 38px; }
-.onboarding-id-check { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--success); }
+.onboarding-id-check { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--success-text); }
 .avatar-xl { width: 96px; height: 96px; border-radius: 50%; font-size: 32px; margin: 0 auto 14px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; }
 .onboarding-invite-code { font-family: var(--font-mono, monospace); font-size: var(--fs-md); font-weight: 600; letter-spacing: 0.02em; word-break: break-all; margin: 4px 0 18px; }
 
@@ -276,8 +276,8 @@ html[data-scheme="light"] .glass-content {
 }
 .btn-primary:active, .btn-secondary:active, .btn-tertiary:active { transform: scale(0.97); opacity: 0.9; }
 .btn-primary {
-  background: linear-gradient(160deg, var(--accent), var(--accent-lo));
-  color: #fff;
+  background: linear-gradient(160deg, var(--accent-bg), var(--accent-lo));
+  color: var(--on-accent);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.35),
     0 8px 22px rgba(138, 109, 255, 0.32);
@@ -319,7 +319,7 @@ html[data-scheme="light"] .glass-content {
 .nav-conn-indicator {
   display: flex; align-items: center; gap: 5px; margin-top: 2px;
   border: none; background: none; padding: 0; cursor: pointer;
-  font-size: var(--fs-xs); font-weight: 600; color: var(--danger);
+  font-size: var(--fs-xs); font-weight: 600; color: var(--danger-text);
   flex: 0 0 auto;
 }
 .nav-conn-indicator::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
@@ -470,8 +470,8 @@ html[data-scheme="light"] .glass-content {
 }
 .pinned-msg-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-1); font-size: var(--fs-sm); }
 .group-role-badge {
-  font-size: var(--fs-xs); font-weight: 700; color: #fff; text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
-  background: var(--accent); border-radius: 8px; padding: 2px 8px; margin-inline-start: 6px;
+  font-size: var(--fs-xs); font-weight: 700; color: var(--on-accent); text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+  background: var(--accent-bg); border-radius: 8px; padding: 2px 8px; margin-inline-start: 6px;
 }
 .group-avatar-picker { display: flex; justify-content: center; padding: 6px 0 10px; }
 .group-avatar-btn {
@@ -520,9 +520,9 @@ html[data-scheme="light"] .glass-content {
 .chat-row-name.unread + .chat-row-time { color: var(--accent); }
 .chat-row-sub { font-size: var(--fs-sm); color: var(--ink-1); display: flex; align-items: center; gap: 6px; min-width: 0; overflow: visible; }
 .chat-row-preview-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.chat-row-typing { color: var(--success); font-style: normal; display: inline-flex; align-items: center; }
-.chat-row-draft { color: var(--danger); font-weight: 500; }
-.chat-row-fail-icon { color: var(--danger); flex-shrink: 0; }
+.chat-row-typing { color: var(--success-text); font-style: normal; display: inline-flex; align-items: center; }
+.chat-row-draft { color: var(--danger-text); font-weight: 500; }
+.chat-row-fail-icon { color: var(--danger-text); flex-shrink: 0; }
 /* Drag-to-reorder закреплённых чатов (раздел 4 роадмапа, V.44.0.0).
    margin-inline-start: auto прижимает ручку к противоположному краю строки,
    как и .chat-row-time выше — та же техника, другая строка. touch-action:
@@ -558,7 +558,7 @@ html[data-scheme="light"] .glass-content {
   transition: background var(--motion-fast), color var(--motion-fast);
 }
 .chat-filter-chip[data-filter^="folder:"], .chat-filter-chip-add { flex-shrink: 0; }
-.chat-filter-chip.active { background: var(--accent); color: #fff; }
+.chat-filter-chip.active { background: var(--accent-bg); color: var(--on-accent); }
 /* Бейдж непрочитанных звонков внутри чипа "Звонки" — обычный .tab-badge
    позиционируется absolute (нужно для таб-бара), здесь он просто элемент
    инлайн-ряда чипа. */
@@ -572,9 +572,9 @@ html[data-scheme="light"] .glass-content {
 .search-hidden { display: none !important; }
 .call-phase-row { display: flex; align-items: center; justify-content: center; gap: 6px; }
 .call-quality-icon { display: inline-flex; color: var(--ink-2); }
-.call-quality-icon.quality-good { color: var(--success); }
+.call-quality-icon.quality-good { color: var(--success-text); }
 .call-quality-icon.quality-medium { color: #d9a52c; }
-.call-quality-icon.quality-poor { color: var(--danger); }
+.call-quality-icon.quality-poor { color: var(--danger-text); }
 .muted-icon { font-size: var(--fs-xs); margin-inline-start: 4px; }
 /* приглушённый чат: нейтральный бейдж и чуть тише имя (раньше — отдельная иконка колокольчика в строке) */
 .unread-badge.is-muted { background: var(--bg-3); color: var(--ink-1); box-shadow: none; }
@@ -583,8 +583,8 @@ html[data-scheme="light"] .glass-content {
 
 /* --- Непрочитанный бейдж: градиент + свечение --- */
 .unread-badge {
-  background: linear-gradient(160deg, var(--accent), var(--accent-lo));
-  color: #fff;
+  background: linear-gradient(160deg, var(--accent-bg), var(--accent-lo));
+  color: var(--on-accent);
   font-size: var(--fs-xs); font-weight: 700; line-height: 1;
   border-radius: 12px; padding: 3px 7px; margin-inline-start: 6px; flex-shrink: 0;
   box-shadow:
@@ -596,7 +596,7 @@ html[data-scheme="light"] .glass-content {
 .chat-row-mention {
   display: inline-flex; align-items: center; justify-content: center;
   width: 16px; height: 16px; border-radius: 50%;
-  background: var(--accent); color: #fff;
+  background: var(--accent-bg); color: var(--on-accent);
   font-size: 11px; font-weight: 700; line-height: 1;
   margin-inline-start: 6px; flex-shrink: 0;
 }
@@ -655,17 +655,17 @@ html[data-scheme="light"] .glass-content {
    только по направлению (in/out), а цвет — только для missed. */
 .call-direction-icon.in        { color: var(--ink-2); }
 .call-direction-icon.out       { color: var(--ink-2); }
-.call-direction-icon.completed { color: var(--success); }
-.call-direction-icon.missed    { color: var(--danger); }
-.call-direction-icon.declined  { color: var(--warning); }
+.call-direction-icon.completed { color: var(--success-text); }
+.call-direction-icon.missed    { color: var(--danger-text); }
+.call-direction-icon.declined  { color: var(--warning-text); }
 .call-body { flex: 1; min-width: 0; }
 .call-name { font-size: var(--fs-md); font-weight: 600; letter-spacing: var(--tr-tight); }
 .call-sub { font-size: var(--fs-sm); color: var(--ink-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .call-back-btn { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; border: none; background: var(--input-bg); color: var(--accent); display: flex; align-items: center; justify-content: center; cursor: pointer; }
 .call-back-btn:disabled { opacity: 0.35; }
 
-.banner { padding: 12px 16px; border-radius: var(--radius-m); margin-bottom: 14px; font-size: var(--fs-sm); color: var(--success); font-weight: 600; }
-.banner.warn { color: var(--warning); font-weight: 500; line-height: var(--lh-relaxed); }
+.banner { padding: 12px 16px; border-radius: var(--radius-m); margin-bottom: 14px; font-size: var(--fs-sm); color: var(--success-text); font-weight: 600; }
+.banner.warn { color: var(--warning-text); font-weight: 500; line-height: var(--lh-relaxed); }
 .link-toggle { display: block; width: 100%; text-align: start; background: none; border: none; color: var(--accent); font-size: var(--fs-sm); font-weight: 600; padding: 4px 4px 16px; cursor: pointer; }
 #toggle-archived::after { content: " \203A"; }
 #toggle-archived.is-open::after { content: " \2039"; }
@@ -805,7 +805,7 @@ html[dir="rtl"] .contact-accordion[open] > summary::after { transform: rotate(90
 .contact-accordion > summary .fine { margin-inline-end: 4px; }
 .chevron { color: var(--ink-3); display: inline-flex; flex-shrink: 0; }
 .chevron > svg { display: block; }
-.destructive { color: var(--danger); font-weight: 500; justify-content: flex-start; }
+.destructive { color: var(--danger-text); font-weight: 500; justify-content: flex-start; }
 
 .settings-select {
   background: var(--input-bg);
@@ -820,7 +820,7 @@ html[dir="rtl"] .contact-accordion[open] > summary::after { transform: rotate(90
 
 .theme-seg { display: flex; background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 12px; padding: 3px; gap: 3px; }
 .theme-seg button { flex: 1; border: none; background: transparent; padding: 8px 0; border-radius: 8px; font-size: var(--fs-sm); font-weight: 600; color: var(--ink-1); cursor: pointer; transition: background var(--motion-fast) var(--ease-out); }
-.theme-seg button.active { background: var(--accent); color: #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25); }
+.theme-seg button.active { background: var(--accent-bg); color: var(--on-accent); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25); }
 
 /* chats-segment (отдельный переключатель Chats/Calls над шапкой) удалён —
    "Звонки" теперь обычный чип в .chat-filters, см. правило ниже. */
@@ -879,7 +879,7 @@ html[dir="rtl"] .chevron { display: inline-block; transform: scaleX(-1); }
 .chat-peer-info-col { display: flex; flex-direction: column; min-width: 0; align-items: flex-start; }
 .chat-header-info #chat-peer-name { font-size: var(--fs-md); font-weight: 600; letter-spacing: var(--tr-tight); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .chat-header-info .muted { font-size: var(--fs-xs); color: var(--ink-1); }
-.chat-header-info .muted.typing { color: var(--success); font-style: italic; }
+.chat-header-info .muted.typing { color: var(--success-text); font-style: italic; }
 .call-icon:disabled { opacity: 0.3; }
 
 /* Транспорт-бейдж (Группа 4) — теперь SVG-иконки вместо текста P2P / S:
@@ -889,11 +889,11 @@ html[dir="rtl"] .chevron { display: inline-block; transform: scaleX(-1); }
   display: inline-flex; align-items: center; justify-content: center;
   width: 22px; height: 22px;
   border-radius: 8px;
-  color: var(--success);
+  color: var(--success-text);
   background: rgba(76, 217, 100, 0.15);
   flex-shrink: 0;
 }
-.transport-badge.via-server { color: var(--warning); background: rgba(255, 179, 64, 0.15); }
+.transport-badge.via-server { color: var(--warning-text); background: rgba(255, 179, 64, 0.15); }
 .transport-badge svg { display: block; }
 
 .search-wrap { padding: 0 0 10px; }
@@ -1213,7 +1213,7 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
 }
 /* failed — восклицательный знак в контуре круга */
 .ack-tick.ack-failed {
-  color: var(--danger);
+  color: var(--danger-text);
   cursor: pointer;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1236,7 +1236,7 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
 .contact-card-bubble { display: flex; align-items: center; gap: 10px; padding: 4px 2px; min-width: 180px; }
 .contact-card-info { display: flex; flex-direction: column; gap: 4px; }
 .contact-card-name { font-size: var(--fs-sm); font-weight: 600; overflow-wrap: anywhere; word-break: break-word; }
-.contact-card-add-btn { align-self: flex-start; border: none; background: var(--accent); color: #fff; font-size: var(--fs-xs); font-weight: 600; padding: 5px 12px; border-radius: 12px; cursor: pointer; }
+.contact-card-add-btn { align-self: flex-start; border: none; background: var(--accent-bg); color: var(--on-accent); font-size: var(--fs-xs); font-weight: 600; padding: 5px 12px; border-radius: 12px; cursor: pointer; }
 .contact-card-already { font-size: var(--fs-xs); opacity: 0.65; }
 
 /* Файлы (Группа 5): для pending-файла добавляем бегущую полоску
@@ -1293,7 +1293,7 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
 .file-media-loading { padding: 20px; text-align: center; font-size: var(--fs-xs); opacity: 0.6; }
 
 .voice-bubble { display: flex; align-items: center; gap: 8px; min-width: 180px; padding: 4px 2px; }
-.voice-play-btn { width: 32px; height: 32px; border-radius: 50%; border: none; background: var(--accent); color: #fff; font-size: var(--fs-sm); cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.voice-play-btn { width: 32px; height: 32px; border-radius: 50%; border: none; background: var(--accent-bg); color: var(--on-accent); font-size: var(--fs-sm); cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
 .voice-play-btn:disabled { opacity: 0.5; }
 .voice-progress { flex: 1; height: 4px; border-radius: 2px; background: rgba(127,127,127,0.25); overflow: hidden; }
 .voice-progress-fill { height: 100%; width: 0%; background: var(--accent); border-radius: 2px; transition: width var(--motion-instant) linear; }
@@ -1419,8 +1419,8 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
 
 .send-btn {
   width: 40px; height: 40px; border-radius: 50%; border: none;
-  background: linear-gradient(160deg, var(--accent), var(--accent-lo));
-  color: #fff;
+  background: linear-gradient(160deg, var(--accent-bg), var(--accent-lo));
+  color: var(--on-accent);
   display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.3),
@@ -1472,14 +1472,14 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
    непрочитанные; просто "вернуться вниз" (без непрочитанных) остаётся
    нейтральной кнопкой, чтобы не создавать ложное чувство срочности. */
 .scroll-bottom-btn.has-unread {
-  background: linear-gradient(160deg, var(--accent), var(--accent-lo));
+  background: linear-gradient(160deg, var(--accent-bg), var(--accent-lo));
   border-color: transparent;
-  color: #fff;
+  color: var(--on-accent);
 }
 .scroll-bottom-count {
   position: absolute; top: -6px; inset-inline-end: -6px;
-  background: linear-gradient(160deg, var(--accent), var(--accent-lo));
-  color: #fff;
+  background: linear-gradient(160deg, var(--accent-bg), var(--accent-lo));
+  color: var(--on-accent);
   font-size: 11px; font-weight: 700; line-height: 1;
   min-width: 20px; height: 20px; border-radius: 12px;
   padding: 0 5px;
@@ -1515,8 +1515,8 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
 .tab-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 10px 0; border: none; background: none; color: var(--ink-3); cursor: pointer; font-size: var(--fs-xs); font-weight: 500; min-width: 0; position: relative; transition: color var(--motion-fast) var(--ease-out); }
 .tab-badge {
   position: absolute; top: 1px; inset-inline-start: 50%; margin-inline-start: 4px;
-  background: linear-gradient(160deg, var(--accent), var(--accent-lo));
-  color: #fff; font-size: 10px; font-weight: 700; line-height: 1;
+  background: linear-gradient(160deg, var(--accent-bg), var(--accent-lo));
+  color: var(--on-accent); font-size: 10px; font-weight: 700; line-height: 1;
   min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px;
   display: flex; align-items: center; justify-content: center;
   box-shadow:
@@ -1647,7 +1647,7 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
   pointer-events: none;
 }
 .call-btn:active svg { transform: scale(0.95); }
-.call-btn.hangup svg { background: var(--danger); color: #fff; }
+.call-btn.hangup svg { background: var(--danger-bg); color: #fff; }
 .call-btn.accept svg { background: var(--success); color: #fff; }
 
 #call-mute-btn.active svg { background: rgba(255, 69, 58, 0.9); color: #fff; }
@@ -1683,7 +1683,7 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
 .sheet-actions { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
 .sheet-action { width: 100%; text-align: start; padding: 14px 16px; border: none; border-radius: var(--radius-m); background: var(--input-bg); color: var(--ink-0); font-size: var(--fs-base); font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 12px; }
 .sheet-action:active { opacity: 0.7; }
-.sheet-action.destructive { color: var(--danger); }
+.sheet-action.destructive { color: var(--danger-text); }
 .sheet-action svg { flex-shrink: 0; }
 .sheet-cancel { margin-top: 4px; }
 .rename-input { width: 100%; border: 1px solid var(--input-border); background: var(--input-bg); border-radius: var(--radius-m); padding: 12px 14px; font-size: var(--fs-base); color: var(--ink-0); outline: none; margin-bottom: 12px; }
@@ -1775,7 +1775,7 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
 .panic-shake-banner {
   position: fixed; top: calc(env(safe-area-inset-top, 0px) + 10px); left: 12px; right: 12px; z-index: 1000;
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  background: var(--danger); color: #fff; padding: 12px 14px; border-radius: 16px;
+  background: var(--danger-bg); color: #fff; padding: 12px 14px; border-radius: 16px;
   font-size: var(--fs-sm); font-weight: 600;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
@@ -1870,13 +1870,14 @@ html[data-scheme="light"] body::before {
 #mini-call-bar {
   position: fixed;
   left: 0; right: 0;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 53px); /* высота #tab-bar: 50px + 3px его нижнего паддинга */
+  /* --tabbar-h (js/skins.js: расстояние от низа окна до верха #tab-bar с учётом отступов скина и safe-area); запасное значение — обычный таб-бар */
+  bottom: var(--tabbar-h, calc(env(safe-area-inset-bottom, 0px) + 53px));
   height: 40px;
   display: flex; align-items: center; gap: 8px;
   padding: 0 14px;
   border: none; cursor: pointer;
-  background: linear-gradient(160deg, var(--accent), var(--accent-lo));
-  color: #fff;
+  background: linear-gradient(160deg, var(--accent-bg), var(--accent-lo));
+  color: var(--on-accent);
   z-index: 50;
   box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.25);
 }
@@ -2043,7 +2044,7 @@ html.fx-skin.fx-chat-open .bubble-row.mine .bubble, html.fx-skin.fx-chat-open .s
 /* Созвездие */
 .fx-view-toggle { display: flex; gap: 6px; margin-bottom: 10px; }
 .fx-view-toggle button { flex: 1; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--ink-1); border-radius: 12px; padding: 7px 10px; font-weight: 600; cursor: pointer; }
-.fx-view-toggle button.active { background: var(--accent); color: #fff; border-color: transparent; }
+.fx-view-toggle button.active { background: var(--accent-bg); color: var(--on-accent); border-color: transparent; }
 .fx-constellation { background: radial-gradient(ellipse at 50% 40%, #151a3a, #070913); border-radius: 16px; margin: 4px 0 10px; }
 .fx-constellation svg { width: 100%; height: min(62vh, 560px); display: block; }
 .fx-star { cursor: pointer; }
@@ -2102,7 +2103,7 @@ html.fx-aurora { --accent: #2fd4b8; }
    белым с белым текстом, поэтому варианты не читались). */
 select, .settings-select { color-scheme: inherit; }
 select option, select optgroup, .settings-select option { background-color: var(--select-popup-bg); color: var(--select-popup-ink); }
-select option:checked { background-color: var(--accent); color: #fff; }
+select option:checked { background-color: var(--accent-bg); color: var(--on-accent); }
 
 
 /* Голосовые «кассета» и «пластинка»: кнопка воспроизведения остаётся обычной (круг со значком play/pause) — рисунок живёт
@@ -2154,7 +2155,7 @@ html[data-voice-style="cassette"] .fx-voice-deco.cassette, html[data-voice-style
 .profile-avatar { width: 64px; height: 64px; border-radius: 50%; border: none; cursor: pointer; font-size: 22px; font-weight: 700; color: #fff; background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .profile-avatar-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .link-inline { border: none; background: transparent; color: var(--accent); font-weight: 600; font-size: var(--fs-base); padding: 2px 0; cursor: pointer; }
-.link-inline.destructive { color: var(--danger); }
+.link-inline.destructive { color: var(--danger-text); }
 
 /* Шторка руны */
 #fx-sigil-sheet { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: flex-end; }
@@ -2187,7 +2188,7 @@ html[data-voice-style="cassette"] .fx-voice-deco.cassette, html[data-voice-style
 .call-overlay-btn { width: 42px; height: 42px; background: rgba(16, 16, 32, 0.7); border: 1px solid rgba(255, 255, 255, 0.28); }
 #call-screen.remote-screen #call-remote-video { object-fit: contain; background: #000; }
 #call-screen.sharing #call-local-video { display: none; }
-#fx-stop-draw { position: absolute; top: calc(env(safe-area-inset-top) + 14px); inset-inline-end: 14px; z-index: 7; padding: 10px 16px; border-radius: 999px; border: none; background: var(--accent); color: #fff; font-weight: 700; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4); }
+#fx-stop-draw { position: absolute; top: calc(env(safe-area-inset-top) + 14px); inset-inline-end: 14px; z-index: 7; padding: 10px 16px; border-radius: 999px; border: none; background: var(--accent-bg); color: var(--on-accent); font-weight: 700; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4); }
 
 /* Голосовые: «кассета»/«пластинка» — это и есть кнопка воспроизведения: рисунок под значком play/pause, нажатие ловит вся кнопка */
 .voice-play-btn { position: relative; }
@@ -2406,7 +2407,7 @@ html.egg-disco #app-shell { animation: eggDisco 1.2s linear infinite; }
 .composer-menu-item svg { color: var(--accent); }
 
 /* ===================== Доступность ===================== */
-.skip-link { position: fixed; top: -100px; inset-inline-start: var(--sp-3); z-index: 1000; background: var(--accent); color: #fff; padding: var(--sp-2) var(--sp-4); border-radius: var(--r-md); font-weight: 600; text-decoration: none; }
+.skip-link { position: fixed; top: -100px; inset-inline-start: var(--sp-3); z-index: 1000; background: var(--accent-bg); color: var(--on-accent); padding: var(--sp-2) var(--sp-4); border-radius: var(--r-md); font-weight: 600; text-decoration: none; }
 .skip-link:focus { top: calc(env(safe-area-inset-top, 0px) + var(--sp-2)); outline: 2px solid #fff; outline-offset: 2px; }
 #content:focus { outline: none; }
 #media-viewer[role="dialog"] .media-viewer-close:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
@@ -2578,7 +2579,7 @@ html.theme-fading, html.theme-fading *, html.theme-fading *::before, html.theme-
 .room-text { flex: 1; display: flex; flex-direction: column; min-width: 0; font-size: var(--t-meta, 12px); }
 .room-text b { font-size: var(--t-body, 14px); }
 .room-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .85; }
-.room-btn { min-height: 44px; padding: 0 16px; border-radius: 999px; border: 0; background: var(--accent); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+.room-btn { min-height: 44px; padding: 0 16px; border-radius: 999px; border: 0; background: var(--accent-bg); color: var(--on-accent); font: inherit; font-weight: 600; cursor: pointer; }
 .room-btn.is-leave { background: var(--danger, #d64545); }
 
 /* Локальный ИИ */
@@ -2660,7 +2661,7 @@ html.theme-fading, html.theme-fading *, html.theme-fading *::before, html.theme-
 /* История: «моя» иконка — миниатюра последней истории с плюсом для добавления */
 .story-thumb { width: 100%; height: 100%; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 11px; font-weight: 700; line-height: 1.1; text-align: center; overflow: hidden; padding: 4px; box-sizing: border-box; overflow-wrap: anywhere; }
 .story-item { position: relative; }
-.story-add-badge { position: absolute; top: 34px; inset-inline-end: 8px; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; border: 2px solid var(--bg-0, #fff); box-sizing: border-box; }
+.story-add-badge { position: absolute; top: 34px; inset-inline-end: 8px; width: 20px; height: 20px; border-radius: 50%; background: var(--accent-bg); color: var(--on-accent); display: grid; place-items: center; border: 2px solid var(--bg-0, #fff); box-sizing: border-box; }
 .story-add-badge svg { width: 12px; height: 12px; }
 
 /* Задача (канбан) на узких экранах: пузырь занимает всю ширину ленты, три колонки делят её поровну, подписи не рвутся по буквам */
@@ -2713,7 +2714,7 @@ html.theme-fading, html.theme-fading *, html.theme-fading *::before, html.theme-
 .summary-panel { max-height: 86vh; overflow-y: auto; }
 .summary-periods { display: flex; gap: 6px; margin-block: 4px 12px; }
 .summary-period { flex: 1; min-height: 44px; border-radius: 24px; border: 1px solid var(--line-2, rgba(128,128,128,.35)); background: transparent; color: inherit; font: inherit; font-size: var(--fs-sm, 14px); cursor: pointer; }
-.summary-period.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.summary-period.on { background: var(--accent-bg); border-color: var(--accent); color: var(--on-accent); }
 .summary-body { margin-block-end: 8px; }
 .summary-count { font-weight: 600; margin: 0 0 8px; }
 .summary-sec { margin-block: 10px; }

@@ -45,6 +45,19 @@ const Skins = (() => {
     meta.setAttribute("content", scheme() === "light" ? s.bar.light : dark);
   }
 
+  // --tabbar-h: расстояние от низа окна до верха #tab-bar. Высоту таб-бара меняют скины (отступы, поля, скругления) и клавиатура,
+  // а плавающий #mini-call-bar должен стоять ровно над ним (css/styles.css).
+  let tbRO = null;
+  function syncTabbar() {
+    if (!live()) return;
+    const bar = document.getElementById("tab-bar"), root = document.documentElement;
+    if (!bar || typeof bar.getBoundingClientRect !== "function") return;
+    const r = bar.getBoundingClientRect();
+    if (!r.height || !window.innerHeight) root.style.removeProperty("--tabbar-h");
+    else root.style.setProperty("--tabbar-h", Math.max(0, Math.round(window.innerHeight - r.top)) + "px");
+    if (!tbRO && typeof ResizeObserver !== "undefined") { tbRO = new ResizeObserver(syncTabbar); tbRO.observe(bar); window.addEventListener("resize", syncTabbar); }
+  }
+
   // ---------- Звуки скина: партитура — массив нот {f|[f0,f1], t, d, v, w, lp, hp, q, n}; w: sine|square|sawtooth|triangle|noise ----------
   let lastTap = 0;
   function play(score, ctx) {
@@ -119,6 +132,7 @@ const Skins = (() => {
     const root = document.documentElement;
     if (id === "default") root.removeAttribute("data-skin"); else root.setAttribute("data-skin", id);
     syncMeta();
+    syncTabbar(); if (typeof requestAnimationFrame === "function") requestAnimationFrame(syncTabbar);
     markActive(id);
     applyIcons(id); applyDeco(id);
     return id;
