@@ -206,3 +206,4 @@ html[data-skin="cartoon"] .board-col :is(.board-add, .board-col-h, .board-col-na
 /* RTL: хвостики зеркалятся вместе с расположением пузырей */
 html[dir="rtl"][data-skin="cartoon"] .bubble-row.mine .bubble::after { transform: scaleX(-1); }
 html[dir="rtl"][data-skin="cartoon"] .bubble-row.theirs .bubble::after { transform: none; }
+html.kb-open[data-skin="cartoon"] #tab-bar.glass { margin-bottom: 8px; }

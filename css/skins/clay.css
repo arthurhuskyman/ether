@@ -211,3 +211,4 @@ html[data-calm-mode="1"][data-skin="clay"] :is(.btn-primary, .btn-secondary, .se
 html[dir="rtl"][data-skin="clay"] .bubble-row.mine .bubble, html[dir="rtl"][data-skin="clay"] #screen-chat[data-skin-shape] .bubble-row.mine .bubble { border-radius: 34px 32px 30px 8px / 28px 30px 34px 12px; }
 html[dir="rtl"][data-skin="clay"] .bubble-row.theirs .bubble, html[dir="rtl"][data-skin="clay"] #screen-chat[data-skin-shape] .bubble-row.theirs .bubble { border-radius: 30px 34px 8px 32px / 34px 28px 12px 30px; }
 html[dir="rtl"][data-skin="clay"] .bubble::after { background: radial-gradient(ellipse 16px 11px at 14% 74%, var(--clay-dent), transparent 72%), var(--clay-noise); background-size: auto, 180px 180px; }
+html.kb-open[data-skin="clay"] #tab-bar.glass { padding-bottom: 6px; }

@@ -57,7 +57,7 @@ html[data-skin="glass"] .ico-fill { stroke: none; }
 
 /* ---- плавающие панели: шапка и таб-бар — парящие стеклянные таблетки ---- */
 html[data-skin="glass"] #nav-bar.glass { margin: calc(env(safe-area-inset-top, 0px) * 0 + 8px) 10px 0; padding-top: calc(env(safe-area-inset-top, 0px) + 4px); padding-left: 14px; padding-right: 14px; border-radius: 32px; }
-html[data-skin="glass"] #tab-bar.glass { margin: 0 12px 10px; padding: 0 6px; border-radius: 36px; }
+html[data-skin="glass"] #tab-bar.glass { margin: 0 12px calc(10px + env(safe-area-inset-bottom, 0px)); padding: 0 6px; border-radius: 36px; }
 html[data-skin="glass"] :is(#nav-bar.glass, #tab-bar.glass, #chat-form.glass, .chat-input-bar.glass, .sheet-panel, .first-run-card, .edit-banner.glass) { background-image: var(--gl-hi); position: relative; }
 html[data-skin="glass"] .sheet-panel { border-radius: 36px 36px 0 0; border-bottom: none; }
 html[data-skin="glass"] .sheet-backdrop { background: rgba(10, 12, 50, 0.32); }
@@ -148,3 +148,5 @@ html[data-skin="glass"] .theme-seg button.active, html[data-skin="glass"] .theme
 html[data-skin="glass"] .chat-filter-chip { border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.6); background-image: var(--gl-hi); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6); }
 html[data-skin="glass"] #composer-menu-sheet .sheet-panel { position: absolute; background-image: none; border: none; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
 html[dir="rtl"][data-skin="glass"] .bubble::after { background: linear-gradient(270deg, transparent, rgba(255, 255, 255, 0.5)); }
+/* клавиатура закрывает нижнюю safe-area — таб-бару она не нужна (как у обычного вида) */
+html.kb-open[data-skin="glass"] #tab-bar.glass { margin-bottom: 10px; }

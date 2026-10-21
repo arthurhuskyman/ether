@@ -161,3 +161,4 @@ html[data-skin="chalk"] #composer-menu-sheet .sheet-panel { border: none; backgr
 /* RTL: хвостик-уголок зеркалится */
 html[dir="rtl"][data-skin="chalk"] .bubble-row.mine .bubble::after { transform: scaleX(-1) skewX(-35deg) rotate(8deg); }
 html[dir="rtl"][data-skin="chalk"] .bubble-row.theirs .bubble::after { transform: skewX(-35deg) rotate(8deg); }
+html.kb-open[data-skin="chalk"] #tab-bar.glass { padding-bottom: 10px; }

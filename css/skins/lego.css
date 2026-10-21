@@ -217,3 +217,4 @@ html[data-calm-mode="1"][data-skin="lego"] :is(.bubble, #toast, .toast, .compose
 @media (prefers-reduced-motion: reduce) {
   html[data-skin="lego"] :is(.bubble, #toast, .toast, .composer-menu-item, .tab-btn, .typing-dots span, #skin-deco .lego-brick) { animation: none !important; }
 }
+html.kb-open[data-skin="lego"] #tab-bar.glass { padding-bottom: 6px; }
