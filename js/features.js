@@ -397,7 +397,103 @@ function fxSigilPng(keyStr, name, fp) {
     } catch (e) { resolve(null); }
   });
 }
+// ---------- Общая руна пары: одинакова у обоих собеседников (из двух публичных ключей, отсортированных) ----------
+function fxPairKeyString(a, b) { a = String(a || ""); b = String(b || ""); return a < b ? a + "|" + b : b + "|" + a; }
+async function fxSigilPairHex(pairKey) { return fxSha256Hex("sigil-pair|" + pairKey); }
+const FX_PAIR_EMOJI = ["🌙", "☀️", "⭐", "🔥", "🌊", "🌲", "🍀", "🌸", "🍎", "🍋", "🍇", "🍒", "🥕", "🌽", "🍄", "🌵", "🐱", "🐶", "🐼", "🦊", "🐸", "🐧", "🦉", "🐝", "🦋", "🐢", "🐙", "🐬", "🦁", "🐘", "🦄", "🐞", "⚽", "🎲", "🎸", "🎺", "🎈", "🎁", "🔔", "🔑", "🔒", "💎", "🚀", "✈️", "🚲", "⛵", "🏠", "⛺", "🌈", "❄️", "⚡", "☂️", "🎩", "👑", "🧭", "⏰", "📖", "✏️", "🧲", "💡", "🧩", "🎯"];
+function fxSigilPairEmoji(hex, n) {
+  const h = String(hex || "").padEnd(64, "0"), out = [];
+  for (let i = 0; i < (n || 6); i++) out.push(FX_PAIR_EMOJI[parseInt(h.substr(40 + i * 2, 2), 16) % FX_PAIR_EMOJI.length]);
+  return out;
+}
+function fxSigilPairWords(hex, n) {
+  const list = String(T("sigil.wordlist") || "").split(",").map((w) => w.trim()).filter(Boolean);
+  if (list.length < 8) return [];
+  const h = String(hex || "").padEnd(64, "0"), out = [];
+  for (let i = 0; i < (n || 4); i++) out.push(list[parseInt(h.substr(32 + i * 2, 2), 16) % list.length]);
+  return out;
+}
+let __fxSigilCtx = null;
+function fxOpenPairSigilSheet(opts) {
+  const old = document.getElementById("fx-sigil-sheet"); if (old) old.remove();
+  const name = opts.name || "";
+  const pairKey = fxPairKeyString(opts.myKey, opts.theirKey);
+  const sh = document.createElement("div"); sh.id = "fx-sigil-sheet"; sh.className = "sheet fx-pair-sheet"; sh.setAttribute("role", "dialog");
+  sh.innerHTML = `<div class="sheet-backdrop"></div><div class="sheet-panel glass-content fx-sigil-panel"><div class="sheet-handle"></div>
+    <h3>${escapeHtml(T("sigil.pair.title", { name }))}</h3>
+    <p class="fine muted fx-sigil-how">${escapeHtml(T("sigil.pair.intro", { name }))}</p>
+    <div class="fx-sigil-big" id="fx-sigil-long"></div>
+    <div class="fx-sigil-emoji" id="fx-sigil-emoji" aria-label="${escapeHtml(T("sigil.pair.emoji"))}"></div>
+    <div class="fx-sigil-words" id="fx-sigil-words"></div>
+    <div class="fx-sigil-fp fx-sigil-long-fp" id="fx-sigil-long-fp" style="word-spacing:.4em">…</div>
+    <div class="fx-sigil-own">
+      <figure><span class="fx-sigil-mini">${sigilSvg(opts.myKey, 56)}</span><figcaption>${escapeHtml(T("sigil.pair.yours"))}</figcaption></figure>
+      <figure><span class="fx-sigil-mini">${sigilSvg(opts.theirKey, 56)}</span><figcaption>${escapeHtml(T("sigil.pair.theirs"))}</figcaption></figure>
+    </div>
+    <p class="fine muted">${escapeHtml(T("sigil.pair.ownNote"))}</p>
+    <canvas id="fx-sigil-qr" class="fx-sigil-qr" width="160" height="160" aria-label="QR"></canvas>
+    <div class="fx-sigil-result fine hidden" id="fx-sigil-result" role="status"></div>
+    <div class="fx-sigil-actions">
+      <button type="button" class="btn-secondary fx-sigil-copy">${escapeHtml(T("sigil.pair.copy"))}</button>
+      <button type="button" class="btn-secondary fx-sigil-share">${escapeHtml(T("fx.sigil.share"))}</button>
+      <button type="button" class="btn-secondary fx-sigil-scan">${escapeHtml(T("sigil.pair.scan"))}</button>
+    </div>
+    <div class="fx-sigil-actions fx-sigil-verdict">
+      <button type="button" class="btn-tertiary fx-sigil-differ">${escapeHtml(T("sigil.pair.differ"))}</button>
+      <button type="button" class="btn-primary fx-sigil-match">${escapeHtml(T("sigil.pair.match"))}</button>
+    </div>
+    <div class="row-actions"><button type="button" class="btn-tertiary fx-sigil-close">${escapeHtml(T("sys.close"))}</button></div></div>`;
+  document.body.appendChild(sh);
+  const close = () => sh.remove();
+  sh.querySelector(".sheet-backdrop").addEventListener("click", close);
+  sh.querySelector(".fx-sigil-close").addEventListener("click", close);
+  const ctx = __fxSigilCtx = { opts, pairKey, hex: "", words: [], emoji: [] };
+  const say = (msg, ok) => { const r = sh.querySelector("#fx-sigil-result"); if (!r) return; r.textContent = msg; r.classList.toggle("hidden", !msg); r.classList.toggle("is-ok", !!ok); r.classList.toggle("is-bad", ok === false); };
+  fxSigilPairHex(pairKey).then((hex) => {
+    ctx.hex = hex; ctx.emoji = fxSigilPairEmoji(hex, 6); ctx.words = fxSigilPairWords(hex, 4);
+    const lg = sh.querySelector("#fx-sigil-long"); if (lg) lg.innerHTML = sigilLongSvg(hex, 200);
+    const lf = sh.querySelector("#fx-sigil-long-fp"); if (lf) lf.textContent = fxSigilLongFingerprint(hex);
+    const em = sh.querySelector("#fx-sigil-emoji"); if (em) em.textContent = ctx.emoji.join(" ");
+    const wd = sh.querySelector("#fx-sigil-words"); if (wd) wd.textContent = ctx.words.join(" · ");
+    const cv = sh.querySelector("#fx-sigil-qr"); if (cv && typeof renderQrToCanvas === "function") { try { renderQrToCanvas(cv, "ether://sigil?p=" + hex.slice(0, 32)); } catch (e) {} }
+  }).catch(() => {});
+  const summary = () => (ctx.emoji.join(" ") + "\n" + ctx.words.join(" ") + "\n" + fxSigilLongFingerprint(ctx.hex)).trim();
+  sh.querySelector(".fx-sigil-copy").addEventListener("click", () => { if (ctx.hex) copyText(summary(), T("sigil.pair.copied")); });
+  sh.querySelector(".fx-sigil-share").addEventListener("click", async () => {
+    if (!ctx.hex) return;
+    const text = T("sigil.pair.shareText", { name }) + "\n" + summary();
+    try { if (navigator.share) { await navigator.share({ text }); return; } } catch (e) { if (e && e.name === "AbortError") return; }
+    copyText(text, T("sigil.pair.copied"));
+  });
+  sh.querySelector(".fx-sigil-scan").addEventListener("click", () => {
+    close(); qrScanSigilMode = true;
+    try { startQrScan(); } catch (e) { qrScanSigilMode = false; }
+  });
+  sh.querySelector(".fx-sigil-match").addEventListener("click", () => {
+    if (!ctx.hex) return;
+    if (opts.contactId) { try { setContactVerified(opts.contactId, true); } catch (e) {} }
+    say(T("sigil.pair.matchDone", { name }), true); toast(T("safety.match"));
+  });
+  sh.querySelector(".fx-sigil-differ").addEventListener("click", () => {
+    if (opts.contactId) { try { setContactVerified(opts.contactId, false); } catch (e) {} }
+    say(T("sigil.pair.differHelp", { name }), false);
+  });
+  return sh;
+}
+// Результат сканирования QR общей руны собеседника: совпал → «проверен», нет → предупреждение
+function fxOnSigilQrScanned(data) {
+  const ctx = __fxSigilCtx; if (!ctx || !ctx.hex) return false;
+  const theirs = String(data).slice("ether://sigil?p=".length);
+  const ok = theirs === ctx.hex.slice(0, 32);
+  const o = ctx.opts;
+  if (ok && o.contactId) { try { setContactVerified(o.contactId, true); } catch (e) {} }
+  toast(T(ok ? "safety.match" : "safety.mismatch"));
+  const sh = fxOpenPairSigilSheet(o);
+  setTimeout(() => { const r = sh.querySelector("#fx-sigil-result"); if (r) { r.textContent = ok ? T("sigil.pair.matchDone", { name: o.name || "" }) : T("sigil.pair.differHelp", { name: o.name || "" }); r.classList.remove("hidden"); r.classList.toggle("is-ok", ok); r.classList.toggle("is-bad", !ok); } }, 0);
+  return true;
+}
 function fxOpenSigilSheet(opts) {
+  if (!opts.mine && !opts.noKey && opts.myKey && opts.theirKey) return fxOpenPairSigilSheet(opts);
   const old = document.getElementById("fx-sigil-sheet"); if (old) old.remove();
   const mine = !!opts.mine, keyStr = opts.keyStr || "", name = opts.name || "";
   const sh = document.createElement("div"); sh.id = "fx-sigil-sheet"; sh.className = "sheet"; sh.setAttribute("role", "dialog");
@@ -405,6 +501,7 @@ function fxOpenSigilSheet(opts) {
     <h3>${escapeHtml(mine ? T("fx.mySigil") : T("fx.sigil.of", { name }))}</h3>
     <div class="fx-sigil-big">${sigilSvg(keyStr, 220)}</div>
     <p class="fine muted fx-sigil-quick">${escapeHtml(T("sigil.quickNote"))}</p>
+    ${mine ? `<p class="fine muted">${escapeHtml(T("sigil.mine.note"))}</p>` : ""}
     <div class="fx-sigil-fp" id="fx-sigil-fp">…</div>
     <h4 class="fx-sigil-long-title">${escapeHtml(T("sigil.long"))}</h4>
     <div class="fx-sigil-big fx-sigil-long" id="fx-sigil-long"></div>
@@ -642,9 +739,12 @@ function fxDecorateContactCard() {
   let sg = document.getElementById("fx-sigil");
   if (FX.get("sigil") && prof) {
     if (!sg) { sg = document.createElement("div"); sg.id = "fx-sigil"; sg.className = "fx-sigil"; const nameEl = document.getElementById("contact-name"); if (nameEl) nameEl.insertAdjacentElement("afterend", sg); }
-    sg.innerHTML = sigilSvg(fxKeyString(c), 44); sg.title = T("fx.sigil.hint");
+    // На карточке контакта — ОБЩАЯ руна пары (из двух ключей, порядок не важен): у вас и у собеседника она одинаковая.
+    // Раньше тут была руна ключа самого контакта: у каждого из двоих на карточке своя (чужая) руна — «они разные».
+    const pk0 = c.publicKey && Store.myPublicKeyJwk ? fxPairKeyString(fxMyKeyString(), fxKeyString(c)) : fxKeyString(c);
+    sg.innerHTML = sigilSvg(pk0, 44); sg.title = T(c.publicKey ? "sigil.pair.hint" : "fx.sigil.hint");
     sg.setAttribute("role", "button"); sg.tabIndex = 0;
-    sg.onclick = () => { const cc = state.contactCardId ? state.contacts.get(state.contactCardId) : null; if (cc) fxOpenSigilSheet({ title: cc.name || "", keyStr: fxKeyString(cc), name: cc.name || "", noKey: !cc.publicKey }); };
+    sg.onclick = () => { const cc = state.contactCardId ? state.contacts.get(state.contactCardId) : null; if (cc) fxOpenSigilSheet({ title: cc.name || "", keyStr: fxKeyString(cc), name: cc.name || "", noKey: !cc.publicKey, contactId: cc.id, myKey: fxMyKeyString(), theirKey: fxKeyString(cc) }); };
   } else if (sg) sg.remove();
   const grp = document.getElementById("contact-settings-group"); if (!grp) return;
   if (!document.getElementById("fx-birthday-row")) {

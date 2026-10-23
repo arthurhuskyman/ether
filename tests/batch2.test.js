@@ -188,7 +188,7 @@ test("громкость на iPhone: element.volume только для чте�
   a.run(`attachRemoteAudio("alice", window.__s)`);
   assert.equal(audio._volReadOnly, true);
   assert.equal(audio._relayGain, undefined, "на полной громкости Web Audio не участвует");
-  assert.equal(a.run(`DEFAULT_CALL_VOLUME`), 0.3333, "по умолчанию громкость 33%");
+  assert.equal(a.run(`DEFAULT_CALL_VOLUME`), 1, "по умолчанию громкость 100% (раньше 33% — «собеседника еле слышно»)");
   a.run(`applyCallVolume("alice", 0.4)`);
   assert.ok(audio._relayGain, "после уменьшения громкости подключён GainNode");
   assert.equal(audio._relayGain.gain.value, 0.4);

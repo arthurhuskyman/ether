@@ -971,9 +971,59 @@ class PeerLink extends EventTarget {
       if (this._closed || this.localAudioTrack) { try { stream.getTracks().forEach((t) => t.stop()); } catch (e) {} if (this._closed) throw new Error("link closed"); return; } // микрофон не должен «зависать» после закрытия линка
       this.localAudioTrack = stream.getAudioTracks()[0];
       this.localStream = stream;
+      this._micLost = false;
+      this._watchMicTrack(this.localAudioTrack);
     })();
     this._audioCapP = p;
     const clear = () => { if (this._audioCapP === p) this._audioCapP = null; };
+    p.then(clear, clear);
+    return p;
+  }
+
+  // ОС может отобрать микрофон у PWA в фоне (iOS: захват в фоне не работает вовсе; Android: при звонке/другом приложении с микрофоном):
+  // трек получает mute/ended, а собеседник слышит тишину, хотя сам всё слышит. Сообщаем об этом собеседнику и пробуем
+  // взять микрофон заново (на переднем плане — сразу, в фоне — при возврате, см. ensureMic()).
+  _watchMicTrack(track) {
+    if (!track || track.__etherMicWatched || typeof track.addEventListener !== "function") return;
+    track.__etherMicWatched = true;
+    track.addEventListener("mute", () => { if (track === this.localAudioTrack) this._setMicSuspended(true, "mute"); });
+    track.addEventListener("unmute", () => { if (track === this.localAudioTrack) this._setMicSuspended(false, "unmute"); });
+    track.addEventListener("ended", () => {
+      if (track !== this.localAudioTrack || this._closed || !this._audioAdded) return;
+      this._micLost = true;
+      this._setMicSuspended(true, "ended");
+      this.ensureMic("ended");
+    });
+  }
+  _setMicSuspended(suspended, why) {
+    suspended = !!suspended;
+    if (!!this._micSuspended === suspended) return;
+    this._micSuspended = suspended;
+    this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "микрофон " + (suspended ? "приостановлен ОС" : "снова захватывает звук") + " (" + why + ")");
+    try { this.send({ kind: "call-state", state: "mic", suspended, ts: Date.now() }); } catch (e) {}
+    this.dispatchEvent(new CustomEvent("mic-state", { detail: { suspended, why } }));
+  }
+  // Проверка и починка исходящего звука: вызывается при возврате приложения на передний план, по кнопке «проблема со звуком»
+  // и после смерти трека. force — пересоздать трек, даже если он «live» (но заглушён ОС дольше, чем нужно).
+  async ensureMic(reason, force) {
+    if (this._closed || !this._audioAdded) return false;
+    const t = this.localAudioTrack;
+    const dead = !t || t.readyState === "ended";
+    if (!dead && !force && !t.muted) {
+      t.enabled = !this._muted;
+      this._setMicSuspended(false, reason || "ok");
+      return true;
+    }
+    if (typeof document !== "undefined" && document.hidden) { this._micLost = true; return false; } // в фоне getUserMedia не даст трек — повторим при возврате
+    if (this._micRecoverP) return this._micRecoverP;
+    const p = (async () => {
+      const ok = await this.recoverAudio();
+      this._micLost = !ok;
+      this._setMicSuspended(!ok, ok ? "reacquired:" + (reason || "") : "reacquire-failed");
+      return ok;
+    })();
+    this._micRecoverP = p;
+    const clear = () => { if (this._micRecoverP === p) this._micRecoverP = null; };
     p.then(clear, clear);
     return p;
   }
@@ -1036,6 +1086,7 @@ class PeerLink extends EventTarget {
     if (this._closed) return false;
     if (this._videoAdded) {
       if (this.localVideoTrack) this.localVideoTrack.enabled = true;
+      this.send({ kind: "call-state", state: "video", on: true, ts: Date.now() });
       return true;
     }
     try {
@@ -1068,6 +1119,8 @@ class PeerLink extends EventTarget {
   }
   disableVideo() {
     if (this.localVideoTrack) this.localVideoTrack.enabled = false;
+    // enabled=false шлёт чёрные кадры без mute-события: без сигнала собеседник видел бы чёрный экран вместо фона звонка
+    this.send({ kind: "call-state", state: "video", on: false, ts: Date.now() });
   }
 
 async switchCamera() {
@@ -1458,6 +1511,9 @@ class MeshManager extends EventTarget {
     });
     link.addEventListener("remote-track", (ev) => {
       this.dispatchEvent(new CustomEvent("remote-track", { detail: { id: link.id, ...ev.detail } }));
+    });
+    link.addEventListener("mic-state", (ev) => {
+      this.dispatchEvent(new CustomEvent("mic-state", { detail: { id: link.id, ...ev.detail } }));
     });
     link.addEventListener("ice-candidate", (ev) => {
       this.dispatchEvent(new CustomEvent("ice-candidate", { detail: { id: link.id, ...ev.detail } }));

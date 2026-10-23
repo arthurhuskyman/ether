@@ -264,7 +264,7 @@ function leaveGroupCall(opts) {
 
 function gcallTick() {
   const el = document.getElementById("gcall-timer");
-  if (el) el.textContent = formatDuration(Date.now() - GC.startedAt);
+  if (el) el.textContent = formatClock(Date.now() - GC.startedAt);
 }
 
 // ---------- UI ----------

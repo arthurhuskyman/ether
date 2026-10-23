@@ -719,10 +719,16 @@ function formatDayGroup(ts) {
   } catch (e) { return ""; }
 }
 function formatDuration(ms) {
-  const s = Math.max(0, Math.floor(ms / 1000)), hh = Math.floor(s / 3600), mm = Math.floor((s % 3600) / 60), ss = s % 60;
+  const s = Math.max(0, Math.floor((Number(ms) || 0) / 1000)), hh = Math.floor(s / 3600), mm = Math.floor((s % 3600) / 60), ss = s % 60;
   if (hh === 0 && mm === 0) return T("status.seconds", { n: ss });
   if (hh === 0) return `${mm}:${String(ss).padStart(2, "0")}`;
   return `${hh}:${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+}
+// Часы звонка: «мм:сс», а от часа — «ч:мм:сс» (раньше 97 минут показывались как «97:28»).
+function formatClock(ms) {
+  const s = Math.max(0, Math.floor((Number(ms) || 0) / 1000)), hh = Math.floor(s / 3600), mm = Math.floor((s % 3600) / 60), ss = s % 60;
+  const p2 = (n) => String(n).padStart(2, "0");
+  return hh > 0 ? `${hh}:${p2(mm)}:${p2(ss)}` : `${p2(mm)}:${p2(ss)}`;
 }
 function timeAgo(ts) {
   if (!ts) return "";

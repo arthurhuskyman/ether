@@ -331,6 +331,8 @@ function openCallScreen(id, phase, opts) {
     state._callUserAccepted = false;
     state._callAcceptInFlight = false;
     state._callMuteOnAnswer = false;
+    clearCallNotices();
+    armCallBackGuard();
     speakerOn = false; // новый звонок всегда начинается с внутреннего динамика
     try { if (navigator.audioSession) navigator.audioSession.type = "play-and-record"; } catch (e) {}
   }
@@ -353,6 +355,7 @@ function openCallScreen(id, phase, opts) {
   const ci = $("#call-controls-incoming"); if (ci) ci.classList.toggle("hidden", !incoming);
   const ca = $("#call-controls-active"); if (ca) ca.classList.toggle("hidden", incoming);
   const cv = $(".call-volume"); if (cv) cv.classList.toggle("hidden", incoming);
+  const sfb0 = $("#call-sound-fix-btn"); if (sfb0) sfb0.classList.toggle("hidden", phase !== "active");
   // Уровень громкости.
   const vs = $("#call-volume-slider"); if (vs) vs.value = String(Store.callVolume);
   clearInterval(callTimerInterval);
@@ -387,7 +390,9 @@ function setCallPhaseActive() {
   const ci = $("#call-controls-incoming"); if (ci) ci.classList.add("hidden");
   const ca = $("#call-controls-active"); if (ca) ca.classList.remove("hidden");
   const cv = $(".call-volume"); if (cv) cv.classList.remove("hidden");
+  const sfb = $("#call-sound-fix-btn"); if (sfb) sfb.classList.remove("hidden");
   startCallTimer();
+  resumeCallAudio("active");
   updateCallRecordStatus("active");
   if (state.callId && pendingRemoteStreams.has(state.callId)) {
     const stream = pendingRemoteStreams.get(state.callId);
@@ -415,14 +420,18 @@ async function toggleSpeaker() {
   if (!isMobileDevice() && !navigator.audioSession) { await openAudioOutputPicker(); return; }
   const audioEl = document.getElementById("remote-audio-" + id);
   const wantSpeaker = !speakerOn;
+  const paint = () => { const btn = $("#call-speaker-btn"); if (btn) btn.classList.toggle("active", speakerOn); };
   // iOS Safari 16.4+: Audio Session API — "play-and-record" во время звонка ведёт звук в
   // наушник (ресивер), "playback" — на громкую связь. setSinkId на iPhone до iOS 26 нет вовсе.
   if (navigator.audioSession && !(audioEl && typeof audioEl.setSinkId === "function")) {
     try {
       navigator.audioSession.type = wantSpeaker ? "playback" : "play-and-record";
       speakerOn = wantSpeaker;
-      const btn = $("#call-speaker-btn"); if (btn) btn.classList.toggle("active", speakerOn);
-    } catch (e) { toast(T("toast.speakerUnsupported")); }
+      paint();
+    } catch (e) { toast(T("toast.speakerUnsupported")); return; }
+    // «playback» на части версий iOS отбирает у страницы захват микрофона (собеседник перестаёт слышать) — проверяем и откатываем.
+    if (wantSpeaker) setTimeout(() => verifySpeakerKeepsMic(), 700);
+    resumeCallAudio("speaker");
     return;
   }
   if (!audioEl || typeof audioEl.setSinkId !== "function") {
@@ -430,15 +439,28 @@ async function toggleSpeaker() {
     return;
   }
   try {
-    const deviceId = wantSpeaker
-      ? (await findAudioOutputDevice(/speaker|loud/i)) || "default"
-      : (await findAudioOutputDevice(/earpiece|receiver/i)) || "default";
-    await audioEl.setSinkId(deviceId);
+    // Раньше при отсутствии подходящего устройства подставлялся "default" и кнопка всё равно загоралась — маршрут не менялся
+    // (на Android Chrome без подписей устройств громкая связь «включалась» вхолостую). Теперь без найденного устройства честно сообщаем.
+    const found = await findAudioOutputDevice(wantSpeaker ? /speaker|loud|динамик|громк/i : /earpiece|receiver|телефон|разговорн/i);
+    if (!found && wantSpeaker) { toast(T("toast.speakerUnsupported")); return; }
+    await audioEl.setSinkId(found || "default");
     speakerOn = wantSpeaker;
-    const btn = $("#call-speaker-btn"); if (btn) btn.classList.toggle("active", speakerOn);
+    paint();
+    resumeCallAudio("speaker");
   } catch (e) {
     toast(T("toast.speakerUnsupported"));
   }
+}
+function verifySpeakerKeepsMic() {
+  const id = state.callId; if (!id || !speakerOn || !navigator.audioSession) return;
+  const link = mesh.get(id), t = link && link.localAudioTrack;
+  if (!t || (t.readyState !== "ended" && !t.muted)) return;
+  etherLog("warn", "[call] «громкая связь» (audioSession=playback) остановила захват микрофона — возвращаю play-and-record");
+  try { navigator.audioSession.type = "play-and-record"; } catch (e) {}
+  speakerOn = false;
+  const btn = $("#call-speaker-btn"); if (btn) btn.classList.remove("active");
+  toast(T("toast.speakerUnsupported"));
+  if (link && link.ensureMic) link.ensureMic("speaker-revert", true);
 }
 // Единая точка изменения громкости собеседника: GainNode (работает и на iOS) либо element.volume,
 // если звук идёт напрямую без Web Audio.
@@ -491,6 +513,13 @@ function attachRemoteAudio(id, stream) {
   // Звук собеседника играет НАПРЯМУЮ из WebRTC-потока. Раньше он шёл через Web Audio (MediaStreamSource → Gain →
   // MediaStreamDestination → <audio>): лишняя передискретизация и задержка давали «плывущий» звук с артефактами, а в
   // Chrome/Edge MediaStreamSource от удалённого потока без <audio> на нём вообще молчит — «звуковой канал не налаживается».
+  // Новый поток (пересогласование, перезахват) — старая цепочка Web Audio привязана к мёртвому потоку: её GainNode больше ничего
+  // не регулирует, и ползунок «ничего не делал» (звук оставался на старом уровне).
+  if (audioEl._relayGain || audioEl._relaySource) {
+    try { if (audioEl._relaySource) audioEl._relaySource.disconnect(); } catch (e) {}
+    try { if (audioEl._relayGain) audioEl._relayGain.disconnect(); } catch (e) {}
+    audioEl._relayGain = audioEl._relaySource = audioEl._relayDest = null;
+  }
   audioEl._relayStream = stream;
   audioEl.muted = false;
   audioEl.srcObject = stream;
@@ -504,12 +533,8 @@ function attachRemoteAudio(id, stream) {
     audioEl.volume = keep;
     if (audioEl._volReadOnly && Store.callVolume < 0.99) ensureRelayGain(audioEl, stream);
   } catch (e) {}
-  const p = audioEl.play();
-  if (p && p.catch) p.catch(() => {
-    const resume = () => { try { audioEl.play().catch(() => {}); } catch (e) {} };
-    document.addEventListener("touchstart", resume, { once: true });
-    document.addEventListener("click", resume, { once: true });
-  });
+  wireRemoteAudioEvents(audioEl);
+  playRemoteAudio(audioEl);
   const sl = $("#call-volume-slider"); if (sl) sl.value = String(Store.callVolume);
   // На iOS видеозвонки (в отличие от чисто голосовых) переключаются
   // системой на громкую связь по своей же внутренней эвристике —
@@ -524,6 +549,85 @@ function attachRemoteAudio(id, stream) {
       if (deviceId) audioEl.setSinkId(deviceId).catch(() => {});
     }).catch(() => {});
   }
+}
+// Запуск звука собеседника с повтором. Раньше отказ play() (автоплей-политика, прерывание звонком/Siri) терпел один тап
+// по экрану — и тишина оставалась навсегда; теперь есть видимая подсказка и повтор на каждом жесте, возврате и «pause».
+function playRemoteAudio(audioEl) {
+  if (!audioEl) return;
+  let p; try { p = audioEl.play(); } catch (e) { p = null; }
+  if (p && p.then) p.then(() => setCallNotice("audio", null), () => {
+    setCallNotice("audio", T("call.soundBlocked"));
+    if (audioEl._retryOnGesture) return;
+    audioEl._retryOnGesture = true;
+    const resume = () => {
+      audioEl._retryOnGesture = false;
+      ["touchstart", "pointerdown", "click", "keydown"].forEach((ev) => document.removeEventListener(ev, resume, true));
+      resumeCallAudio("gesture");
+    };
+    ["touchstart", "pointerdown", "click", "keydown"].forEach((ev) => document.addEventListener(ev, resume, true));
+  });
+  else setCallNotice("audio", null);
+}
+function wireRemoteAudioEvents(audioEl) {
+  if (audioEl._etherWired) return;
+  audioEl._etherWired = true;
+  // Системное прерывание (входящий обычный звонок, Siri, смена маршрута) ставит <audio> на паузу — тихо возобновляем.
+  audioEl.addEventListener("pause", () => { setTimeout(() => { if (state.callId && audioEl.isConnected && audioEl.paused && audioEl.srcObject) playRemoteAudio(audioEl); }, 150); });
+  audioEl.addEventListener("playing", () => setCallNotice("audio", null));
+}
+// Короткие системные плашки на экране звонка (микрофон приостановлен ОС, звук заблокирован…): ключ → текст; тап = «починить звук».
+const __callNotices = new Map();
+function setCallNotice(key, text) {
+  if (text) __callNotices.set(key, text); else __callNotices.delete(key);
+  const el = $("#call-notice"); if (!el) return;
+  const first = Array.from(__callNotices.values())[0] || "";
+  el.textContent = first;
+  el.classList.toggle("hidden", !first);
+}
+function clearCallNotices() { __callNotices.clear(); setCallNotice("x", null); }
+// Всё, что можно сделать с аудио звонка без участия пользователя: контекст Web Audio, <audio>, маршрут iOS, микрофон.
+// Вызывается при возврате в приложение, по жесту после отказа autoplay, после смены маршрута и по кнопке «проблема со звуком».
+function resumeCallAudio(reason) {
+  const id = state.callId; if (!id) return;
+  try { if (navigator.audioSession && !speakerOn && navigator.audioSession.type !== "play-and-record") navigator.audioSession.type = "play-and-record"; } catch (e) {}
+  try { const c = ensureGlobalAudioCtx(); if (c && c.state !== "running") c.resume().catch(() => {}); } catch (e) {}
+  const el = document.getElementById("remote-audio-" + id);
+  if (el) {
+    try { el.muted = false; } catch (e) {}
+    if (el._relayStream && !el.srcObject) el.srcObject = el._relayStream;
+    if (el.paused || el.ended) playRemoteAudio(el);
+  }
+  const link = mesh.get(id);
+  if (link && link.ensureMic && !document.hidden) {
+    // после возврата из фона трек обычно сам снимает mute за ~секунду; если нет — берём микрофон заново
+    setTimeout(() => { if (state.callId === id) link.ensureMic(reason); }, reason === "foreground" ? 1200 : 0);
+  }
+}
+async function fixCallSound() {
+  const id = state.callId; if (!id) return;
+  const link = mesh.get(id);
+  resumeCallAudio("fix");
+  let ok = true;
+  if (link && link.ensureMic) { try { ok = await link.ensureMic("fix", true); } catch (e) { ok = false; } }
+  if (link && link.reInvite && link.pc && link.pc.iceConnectionState && link.pc.iceConnectionState !== "connected" && link.pc.iceConnectionState !== "completed") { try { link.reInvite(); } catch (e) {} }
+  toast(T(ok ? "call.soundReset" : "call.micFailed"));
+}
+function onLocalMicState(d) {
+  if (!d || !state.callId) return;
+  setCallNotice("mic", d.suspended ? T("call.micSuspended") : null);
+}
+function wireCallAudioResilience() {
+  if (wireCallAudioResilience._done) return; wireCallAudioResilience._done = true;
+  const back = () => { if (!document.hidden) resumeCallAudio("foreground"); };
+  document.addEventListener("visibilitychange", back);
+  window.addEventListener("pageshow", back);
+  window.addEventListener("focus", back);
+  const fixBtn = $("#call-sound-fix-btn"); if (fixBtn) fixBtn.addEventListener("click", () => fixCallSound());
+  const notice = $("#call-notice"); if (notice) notice.addEventListener("click", () => fixCallSound());
+  try {
+    const ctx = ensureGlobalAudioCtx();
+    if (ctx && ctx.addEventListener) ctx.addEventListener("statechange", () => { if (state.callId && ctx.state !== "running") ctx.resume().catch(() => {}); });
+  } catch (e) {}
 }
 // Доступность Picture-in-Picture: requestPictureInPicture (Chrome/Edge,
 // большинство Android-браузеров) ИЛИ webkitSetPresentationMode (старый
@@ -586,6 +690,18 @@ function pipSupported() {
   if (typeof v.webkitSetPresentationMode === "function") return true;
   return false;
 }
+// Единая точка правды для фона экрана звонка. «video-active» (чёрный фон, без аватара) — ТОЛЬКО пока на экране реально
+// есть видео собеседника; своё превью — маленькая плашка в углу и фон аудиозвонка не отменяет. Раньше класс ставился при
+// включении любого видео и не снимался при выключении своей камеры — экран оставался чёрным без аватара.
+function syncCallVideoState() {
+  const cs = $("#call-screen"); if (!cs) return;
+  const rv = $("#call-remote-video"), lv = $("#call-local-video");
+  const remoteOn = !!(rv && rv.srcObject && !rv.classList.contains("hidden") && !state._remoteVideoOff);
+  const localOn = !!(lv && lv.srcObject && !lv.classList.contains("hidden"));
+  if (rv && state._remoteVideoOff && !rv.classList.contains("hidden")) rv.classList.add("hidden");
+  cs.classList.toggle("video-active", remoteOn);
+  cs.classList.toggle("local-video-on", localOn);
+}
 function attachRemoteVideo(id, stream) {
   if (state.callId !== id) return;
   const videoTracks = stream.getVideoTracks ? stream.getVideoTracks() : [];
@@ -599,7 +715,8 @@ function attachRemoteVideo(id, stream) {
   v.muted = true; v.defaultMuted = true; v.volume = 0;
   v.srcObject = stream;
   v.classList.remove("hidden");
-  const cs = $("#call-screen"); if (cs) cs.classList.add("video-active");
+  state._remoteVideoOff = false;
+  syncCallVideoState();
   // Собеседник убрал видео (остановил показ экрана без камеры, выключил камеру с удалением трека) —
   // трек получает mute/ended, и без реакции на это остался бы замороженный последний кадр.
   for (const t of videoTracks) {
@@ -608,10 +725,8 @@ function attachRemoteVideo(id, stream) {
     const setVisible = (visible) => {
       if (state.callId !== id) return;
       const rv = $("#call-remote-video"); if (!rv || rv.srcObject !== stream) return;
-      rv.classList.toggle("hidden", !visible);
-      const c2 = $("#call-screen");
-      const localOn = !!$("#call-local-video") && !$("#call-local-video").classList.contains("hidden");
-      if (c2) c2.classList.toggle("video-active", visible || localOn);
+      rv.classList.toggle("hidden", !visible || !!state._remoteVideoOff);
+      syncCallVideoState();
     };
     t.addEventListener("mute", () => setVisible(false));
     t.addEventListener("unmute", () => setVisible(true));
@@ -634,7 +749,7 @@ function showLocalVideoPreview(link) {
   if (!v || !link || !link.localStream) return;
   v.srcObject = link.localStream;
   v.classList.remove("hidden");
-  const cs = $("#call-screen"); if (cs) cs.classList.add("video-active");
+  syncCallVideoState();
   const p = v.play(); if (p && p.catch) p.catch(() => {});
   // Раньше тут были отдельные #call-switch-camera-btn (в основном ряду) и
   // #call-flip-overlay-btn (сам по себе поверх видео) плюс #call-pip-btn
@@ -662,7 +777,8 @@ function hideCallVideo() {
   if (document.pictureInPictureElement) { try { document.exitPictureInPicture(); } catch (e) {} }
   const rv = $("#call-remote-video"); if (rv) { rv.classList.add("hidden"); rv.srcObject = null; }
   const lv = $("#call-local-video"); if (lv) { lv.classList.add("hidden"); lv.srcObject = null; }
-  const cs = $("#call-screen"); if (cs) cs.classList.remove("video-active", "remote-screen", "sharing");
+  state._remoteVideoOff = false;
+  const cs = $("#call-screen"); if (cs) cs.classList.remove("video-active", "local-video-on", "remote-screen", "sharing");
   const overlays = $("#call-video-overlays"); if (overlays) overlays.classList.add("hidden");
   const videoBtn = $("#call-video-btn"); if (videoBtn) videoBtn.classList.remove("active");
 }
@@ -670,8 +786,7 @@ function hideCallVideo() {
 // и в мини-плашке отставал до секунды; сама логика «мёртвой связи» ниже по-прежнему считает целые секунды.
 let callTimerDisplayInterval = null;
 function paintCallTimer(started) {
-  const secs = Math.max(0, Math.floor((Date.now() - started) / 1000));
-  const txt = String(Math.floor(secs / 60)).padStart(2, "0") + ":" + String(secs % 60).padStart(2, "0");
+  const txt = formatClock(Date.now() - started);
   const cp = $("#call-phase"); if (cp && state.callPhase === "active") cp.textContent = txt;
   const mct = $("#mini-call-timer"); if (mct) mct.textContent = txt;
 }
@@ -684,11 +799,9 @@ function startCallTimer() {
   state._callDeadSeconds = 0;
   let qualityTick = 0;
   callTimerInterval = setInterval(() => {
-    const secs = Math.floor((Date.now() - started) / 1000);
-    const mm = String(Math.floor(secs / 60)).padStart(2, "0");
-    const ss = String(secs % 60).padStart(2, "0");
-    const cp = $("#call-phase"); if (cp) cp.textContent = `${mm}:${ss}`;
-    const mct = $("#mini-call-timer"); if (mct) mct.textContent = `${mm}:${ss}`;
+    const clock = formatClock(Date.now() - started);
+    const cp = $("#call-phase"); if (cp && state.callPhase === "active") cp.textContent = clock;
+    const mct = $("#mini-call-timer"); if (mct) mct.textContent = clock;
     const cid = state.callId;
     if (!cid) { state._callDeadSeconds = 0; return; }
     const link = mesh.get(cid);
@@ -838,6 +951,8 @@ function closeCallScreen(reason, opts) {
   stopRingtone();
   stopCallSounds();
   hideCallVideo();
+  clearCallNotices();
+  { const sfb = $("#call-sound-fix-btn"); if (sfb) sfb.classList.add("hidden"); }
   endCallRecord(reason);
   const cs = $("#call-screen"); if (cs) cs.classList.add("hidden");
   const contentEl = $("#content"); if (contentEl) contentEl.classList.remove("hidden");
@@ -898,6 +1013,40 @@ function closeCallScreen(reason, opts) {
     }
   }
 }
+// Жесты экрана звонка. Звонок НИКОГДА не завершается жестом: свайп вправо/«назад» (в браузере/PWA это навигация «назад» с выгрузкой
+// страницы, а pagehide/beforeunload завершают звонок) гасится историей-«якорем» и только сворачивает звонок; свайп вверх — сворачивает.
+function armCallBackGuard() { try { history.pushState({ etherCallGuard: 1 }, "", location.href); } catch (e) {} }
+function wireCallGestures() {
+  const cs = $("#call-screen");
+  if (cs && !cs.dataset.gestures) {
+    cs.dataset.gestures = "1";
+    let x0 = 0, y0 = 0, track = false;
+    cs.addEventListener("touchstart", (e) => {
+      track = false;
+      if (!e.touches || e.touches.length !== 1) return;
+      const t = e.target;
+      if (t && t.closest && t.closest("button, input, a, canvas, .call-more-menu")) return;
+      x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; track = true;
+    }, { passive: true });
+    cs.addEventListener("touchend", (e) => {
+      if (!track) return; track = false;
+      const t = e.changedTouches && e.changedTouches[0]; if (!t) return;
+      const dx = t.clientX - x0, dy = t.clientY - y0;
+      if (dy < -80 && Math.abs(dx) < Math.abs(dy) * 0.7 && state.callId && state.callPhase !== "ringing") { try { haptic("light"); } catch (er) {} minimizeCallScreen(); }
+    }, { passive: true });
+  }
+  if (!wireCallGestures._pop) {
+    wireCallGestures._pop = true;
+    window.addEventListener("popstate", () => {
+      if (!state.callId) return;
+      armCallBackGuard(); // «назад» израсходовал якорь — ставим новый, звонок не трогаем
+      const c = $("#call-screen");
+      if (c && !c.classList.contains("hidden")) { if (state.callPhase !== "ringing") minimizeCallScreen(); }
+      else if (state.chatId) { try { closeChatSafely(); } catch (e) {} }
+      else if (state.contactCardId) { try { closeContactCardSafely(); } catch (e) {} }
+    });
+  }
+}
 // Меню «ещё» в звонке: кнопка «⋯» видна, только когда в меню есть хотя бы один видимый пункт (показ экрана, рисование на видео).
 function wireCallMoreMenu() {
   const btn = $("#call-more-btn"), menu = $("#call-more-menu");
@@ -918,6 +1067,8 @@ function wireCallMoreMenu() {
 }
 function wireCallScreen() {
   wireCallMoreMenu();
+  wireCallAudioResilience();
+  wireCallGestures();
   const minimizeBtn = $("#call-minimize-btn");
   if (minimizeBtn) minimizeBtn.addEventListener("click", () => minimizeCallScreen());
   const miniBar = $("#mini-call-bar");
@@ -972,6 +1123,7 @@ function wireCallScreen() {
       }
       const lv = $("#call-local-video"); if (lv) { lv.classList.add("hidden"); lv.srcObject = null; }
       videoBtn.classList.remove("active");
+      syncCallVideoState(); // без видео собеседника возвращается обычный фон звонка с аватаром, а не чёрный экран
       // Оверлей (flip+PiP) прячем только если и удалённого видео тоже
       // нет — пользователь мог выключить СВОЮ камеру, но продолжать
       // смотреть видео собеседника (PiP по-прежнему осмысленен, flip

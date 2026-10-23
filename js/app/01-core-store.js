@@ -131,8 +131,10 @@ const ACK_DEDUP_WINDOW_MS = 5000;
 const CALL_DEAD_LINK_TIMEOUT_MS = 10000;
 const INCOMING_CALL_TIMEOUT_MS = PENDING_CALL_TIMEOUT_MS - 2000;
 const INCOMING_PUSH_CALL_TIMEOUT_MS = CALL_PUSH_TIMEOUT_MS - 5000; // экран «входящий», открытый по нажатию на push // должен истекать НЕ ПОЗЖЕ, чем звонящий сдастся — иначе у принимающего экран "входящий" висит, когда звонящий уже положил трубку
-// Громкость удалённого потока по умолчанию — 33,33%.
-const DEFAULT_CALL_VOLUME = 0.3333;
+// Громкость удалённого потока по умолчанию — 100% (общую громкость задаёт системная кнопка). Раньше было 33,33%: собеседник слышал
+// звонок «еле-еле», а у тех, кто двигал ползунок, — громко: «у одного громко, у другого тихо».
+const DEFAULT_CALL_VOLUME = 1;
+const LEGACY_CALL_VOLUME = 0.3333; // прежний умолчательный (не выбранный пользователем) уровень — считаем «не выбирал»
 
 function effectiveSignalingUrl() {
   return (Store.signalingUrl || DEFAULT_SIGNALING_URL).trim();
@@ -469,7 +471,7 @@ const Store = {
   set theme(v) { localStorage.setItem("ether.theme", v); scheduleIDBBackup(); },
   get callVolume() {
     const raw = parseFloat(localStorage.getItem("ether.callVolume") || String(DEFAULT_CALL_VOLUME));
-    if (!Number.isFinite(raw)) return DEFAULT_CALL_VOLUME;
+    if (!Number.isFinite(raw) || Math.abs(raw - LEGACY_CALL_VOLUME) < 0.0005) return DEFAULT_CALL_VOLUME;
     return Math.min(1, Math.max(0, raw));
   },
   set callVolume(v) {

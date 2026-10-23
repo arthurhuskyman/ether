@@ -39,7 +39,7 @@ function parseQrAddPayload(text) {
     return { id, name: qs.get("name") || "" };
   } catch (e) { return null; }
 }
-let qrScanStream = null, qrScanRafId = null, qrScanCanvas = null, qrScanVerifyMode = false, qrScanToken = 0;
+let qrScanStream = null, qrScanRafId = null, qrScanCanvas = null, qrScanVerifyMode = false, qrScanSigilMode = false, qrScanToken = 0;
 async function startQrScan() {
   const myToken = ++qrScanToken; // stopQrScan() инвалидирует токен: камера, полученная после закрытия шторки, не должна остаться включённой
   const sheet = $("#scan-qr-sheet"); if (sheet) sheet.classList.remove("hidden");
@@ -87,6 +87,11 @@ async function startQrScan() {
             onSafetyQrScanned(result.data);
             return;
           }
+          if (qrScanSigilMode && String(result.data).indexOf("ether://sigil?p=") === 0) { // сверка общей руны пары (js/features.js)
+            stopQrScan(); if (sheet) sheet.classList.add("hidden");
+            if (typeof fxOnSigilQrScanned === "function") fxOnSigilQrScanned(String(result.data));
+            return;
+          }
           if (typeof DeviceLinkUI !== "undefined" && String(result.data).indexOf("ether://link?") === 0) { // QR переноса на новое устройство (js/devicelink.js)
             stopQrScan(); if (sheet) sheet.classList.add("hidden"); DeviceLinkUI.receiveFromCode(String(result.data)); return;
           }
@@ -113,7 +118,7 @@ async function startQrScan() {
   qrScanRafId = requestAnimationFrame(tick);
 }
 function stopQrScan() {
-  qrScanVerifyMode = false;
+  qrScanVerifyMode = false; qrScanSigilMode = false;
   qrScanToken++;
   if (qrScanRafId) { cancelAnimationFrame(qrScanRafId); qrScanRafId = null; }
   if (qrScanStream) { qrScanStream.getTracks().forEach((t) => t.stop()); qrScanStream = null; }

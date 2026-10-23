@@ -14,7 +14,7 @@ const opt = (n, d) => { const i = args.indexOf("--" + n); return i < 0 ? d : arg
 const DEV = { se: { viewport: { width: 320, height: 568 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, userAgent: devices["iPhone 14"].userAgent }, desktop: { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 } };
 const devNames = opt("devices", "se,iPhone 15,Pixel 7,Galaxy S24,iPad Pro 11,desktop").split(",");
 const skins = opt("skins", "default").split(","), schemes = opt("schemes", "light,dark").split(","), langs = opt("langs", "ru").split(",");
-const shots = args.includes("--shots");
+const shots = args.includes("--shots"), callMode = args.includes("--call"), wantKb = args.includes("--kb");
 const SCREENS = ["chats", "chat", "menu", "settings", "appearance"];
 fs.mkdirSync(out, { recursive: true });
 
@@ -30,6 +30,19 @@ async function audit(page) {
       const s = getComputedStyle(e);
       if (e.children.length === 0 && e.textContent.trim() && /hidden|clip/.test(s.overflowX) && e.scrollWidth > e.clientWidth + 2 && s.textOverflow !== "ellipsis" && res.clipped.length < 15) res.clipped.push(id(e) + " " + e.textContent.trim().slice(0, 24));
       if (/^(BUTTON|A|INPUT|SELECT)$/.test(e.tagName) || e.getAttribute("role") === "button") { if ((r.width < 32 || r.height < 32) && res.small.length < 15 && e.type !== "hidden" && e.type !== "checkbox" && e.type !== "radio") res.small.push(id(e) + " " + Math.round(r.width) + "x" + Math.round(r.height)); }
+    }
+    // Наложения: пары видимых интерактивных элементов, чьи рамки (или рамки их текста) пересекаются, хотя ни один не вложен в другой.
+    // Ловит «вкладки налезают друг на друга» (длинные подписи без ellipsis) и перекрытие композера плавающими панелями.
+    res.overlap = [];
+    const inter = Array.from(document.querySelectorAll("button, a[href], input, textarea, select, [role=button], [role=tab], .chat-filter-chip, .tab-btn")).filter((e) => vis(e) && !e.closest("svg,#fx-root,.egg,[class*=deco]") && getComputedStyle(e).position !== "fixed" || (vis(e) && e.id === "mini-call-bar"));
+    // рамка текста обрезается рамкой самого элемента: текст с ellipsis/overflow:hidden за пределы своей кнопки не выходит
+    const textRect = (e) => { try { const rg = document.createRange(); rg.selectNodeContents(e); const r = rg.getBoundingClientRect(); if (!r.width) return null; const b = e.getBoundingClientRect(); return { left: Math.max(r.left, b.left), right: Math.min(r.right, b.right), top: Math.max(r.top, b.top), bottom: Math.min(r.bottom, b.bottom) }; } catch (x) { return null; } };
+    const bar = (e) => e.closest("#tab-bar,#nav-bar"), inScreen = (e) => e.closest(".screen,#content");
+    const hit = (a, b) => a && b && Math.min(a.right, b.right) - Math.max(a.left, b.left) > 2 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 2;
+    for (let i = 0; i < inter.length; i++) for (let j = i + 1; j < inter.length; j++) {
+      const a = inter[i], b = inter[j]; if (a.contains(b) || b.contains(a) || res.overlap.length >= 15) continue;
+      if (a.closest(".sheet") || b.closest(".sheet") || (bar(a) && inScreen(b) && !b.closest("#call-screen")) || (bar(b) && inScreen(a) && !a.closest("#call-screen"))) continue; // шторки и прокручиваемый контент под шапкой/таб-баром — не наложение
+      if (hit(a.getBoundingClientRect(), b.getBoundingClientRect()) || hit(textRect(a), b.getBoundingClientRect()) || hit(a.getBoundingClientRect(), textRect(b)) || hit(textRect(a), textRect(b))) res.overlap.push(id(a) + " × " + id(b));
     }
     return res;
   });
@@ -77,13 +90,27 @@ async function audit(page) {
     await step("chats", async () => { await page.keyboard.press("Escape").catch(() => {}); await page.evaluate(() => { try { closeChat(); } catch (e) {} }); });
     await step("settings", async () => { await page.click('.tab-btn[data-tab="settings"]'); });
     await step("appearance", async () => { await page.evaluate(() => { try { openSettingsCategory("appearance"); } catch (e) {} }); });
+    if (callMode) {
+      // Звонок: полный экран, свёрнутая полоска над списком/чатом/клавиатурой. Полоска не должна перекрывать композер, «+» и таб-бар.
+      const fakeCall = () => page.evaluate(() => { const id = DEMO_CHAT_ID; state.callId = null; openCallScreen(id, "active"); setCallPhaseActive(); });
+      await step("call-screen", async () => { await fakeCall(); });
+      await step("call-mini-list", async () => { await page.evaluate(() => { minimizeCallScreen(); state.chatId = null; renderTab(); }); });
+      await step("call-mini-chat", async () => { await page.evaluate(() => { state.tab = "chats"; state.chatId = DEMO_CHAT_ID; renderTab(); }); });
+      if (wantKb) await step("call-mini-chat-kb", async () => { await page.evaluate(() => { document.documentElement.classList.add("kb-open"); }); await page.focus("#chat-input").catch(() => {}); });
+      await page.evaluate(() => { document.documentElement.classList.remove("kb-open"); });
+      const geo = await page.evaluate(() => { const r = (q) => { const e = document.querySelector(q); if (!e) return null; const b = e.getBoundingClientRect(); return { t: Math.round(b.top), b: Math.round(b.bottom), h: Math.round(b.height) }; }; return { mini: r("#mini-call-bar"), header: r("#nav-bar"), input: r("#chat-input"), plus: r("#chat-plus-btn"), tab: r("#tab-bar"), vh: innerHeight }; });
+      const g = geo; const bad2 = [];
+      if (g.mini && g.header && g.mini.t < g.header.b - 1) bad2.push("mini выше низа шапки");
+      for (const k of ["input", "plus", "tab"]) if (g.mini && g[k] && g.mini.b > g[k].t + 1 && g.mini.t < g[k].b - 1) bad2.push("mini перекрывает " + k);
+      report.push({ tag, screen: "call-geometry", geo, errors: bad2 });
+    }
     if (errors.length) report.push({ tag, screen: "errors", errors });
     await ctx.close();
   }
   await b.close(); srv.close();
-  const bad = report.filter((r) => r.error || r.overflowDoc || (r.offscreen && r.offscreen.length) || (r.clipped && r.clipped.length) || (r.small && r.small.length) || (r.errors && r.errors.length));
+  const bad = report.filter((r) => r.error || (r.overlap && r.overlap.length) || r.overflowDoc || (r.offscreen && r.offscreen.length) || (r.clipped && r.clipped.length) || (r.small && r.small.length) || (r.errors && r.errors.length));
   fs.writeFileSync(path.join(out, "report.json"), JSON.stringify(report, null, 1));
   console.log(`экранов: ${report.length}, с замечаниями: ${bad.length}`);
-  for (const r of bad) console.log(r.tag, r.screen, JSON.stringify({ doc: r.overflowDoc || undefined, off: r.offscreen && r.offscreen.length ? r.offscreen.slice(0, 4) : undefined, clip: r.clipped && r.clipped.length ? r.clipped.slice(0, 3) : undefined, small: r.small && r.small.length ? r.small.slice(0, 4) : undefined, err: r.errors || r.error }));
+  for (const r of bad) console.log(r.tag, r.screen, JSON.stringify({ doc: r.overflowDoc || undefined, off: r.offscreen && r.offscreen.length ? r.offscreen.slice(0, 4) : undefined, clip: r.clipped && r.clipped.length ? r.clipped.slice(0, 3) : undefined, small: r.small && r.small.length ? r.small.slice(0, 4) : undefined, overlap: r.overlap && r.overlap.length ? r.overlap.slice(0, 5) : undefined, err: r.errors || r.error }));
   process.exit(bad.length ? 1 : 0);
 })();

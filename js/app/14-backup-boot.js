@@ -439,6 +439,15 @@ if (payload && payload.kind === "call-state") {
     playRingtone();
   }
   if (payload.state === "ringing" && !isStale && callGlareYields(id)) yieldCallGlare(id, !!payload.video);
+  if (payload.state === "video" && state.callId === id && !isStale) {
+    state._remoteVideoOff = payload.on === false;
+    const rv1 = $("#call-remote-video"); if (rv1 && rv1.srcObject) rv1.classList.toggle("hidden", state._remoteVideoOff);
+    try { syncCallVideoState(); } catch (e) {}
+  }
+  if (payload.state === "mic" && state.callId === id && !isStale) {
+    const pc0 = state.contacts.get(id);
+    try { setCallNotice("peerMic", payload.suspended ? T("call.peerMicSuspended", { name: (pc0 && pc0.name) || T("sys.someone") }) : null); } catch (e) {}
+  }
   if (payload.state === "screen" && state.callId === id && !isStale) {
     const cs1 = $("#call-screen"); if (cs1) cs1.classList.toggle("remote-screen", !!payload.on);
   }
@@ -468,6 +477,9 @@ if (payload && payload.kind === "call-state") {
     } catch (e) {
       etherLog("error", "[message] handler failed:", String(e && e.stack || e));
     }
+  });
+  mesh.addEventListener("mic-state", (ev) => {
+    try { if (ev.detail && ev.detail.id === state.callId) onLocalMicState(ev.detail); } catch (e) { etherLog("error", "[mic-state] handler failed:", String(e)); }
   });
   mesh.addEventListener("remote-track", (ev) => {
     try {
