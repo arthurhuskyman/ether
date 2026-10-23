@@ -59,6 +59,7 @@ html[data-skin="wood"] :is(.search-input, #chat-input, .settings-select, .rich-i
 html[data-skin="wood"] :is(.search-input, #chat-input, .settings-select, .rich-input):focus { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 html[data-skin="wood"] :is(#chat-input, .search-input)::placeholder { color: var(--ink-3); }
 html[data-skin="wood"] :is(.chip, .chat-filter-chip, .theme-seg, .theme-seg button) { border-radius: 999px; }
+html[data-skin="wood"] .theme-seg button { white-space: normal; }
 html[data-skin="wood"] .theme-seg button.active { background: var(--sk-btn-bg); color: var(--sk-btn-ink); }
 html[data-skin="wood"] :is(.unread-badge, .tab-badge) { background: var(--accent-bg); color: var(--on-accent); text-shadow: none; }
 html[data-skin="wood"] .voice-play-btn { background: var(--accent-bg); color: var(--on-accent); }

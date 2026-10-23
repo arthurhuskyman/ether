@@ -12,8 +12,8 @@ html[data-skin="comic"][data-scheme="light"] {
   --bg-0: #fff7d6; --bg-1: #fff0b0; --bg-2: #ffffff; --bg-3: #ffe98a;
   --line-1: rgba(20,20,43,0.2); --line-2: rgba(20,20,43,0.4);
   --ink-0: #14142b; --ink-1: rgba(20,20,43,0.94); --ink-2: rgba(20,20,43,0.78); --ink-3: rgba(20,20,43,0.7);
-  --accent: #d11f3a; --accent-hi: #ef4560; --accent-lo: #a81429; --accent-ghost: rgba(209,31,58,.14); --text-link: #b81830;
-  --accent-bg: #d11f3a; --on-accent: #ffffff;
+  --accent: #c01830; --accent-hi: #ef4560; --accent-lo: #a81429; --accent-ghost: rgba(192,24,48,.14); --text-link: #b81830;
+  --accent-bg: #c01830; --on-accent: #ffffff;
   --bubble-mine-bg: #ffd60a; --bubble-mine-ink: #14142b;
   --bubble-theirs-bg: #ffffff; --bubble-theirs-ink: #14142b;
   --card-bg: none; --card-base: #ffffff; --card-border: rgba(20,20,43,0.2); --card-shadow: 3px 3px 0 #14142b;
@@ -21,7 +21,7 @@ html[data-skin="comic"][data-scheme="light"] {
   --sk-line: #14142b; --sk-line-mine: #14142b; --sk-line-theirs: #14142b;
   --sk-panel: #ffffff; --sk-field: #ffffff;
   --sk-shadow: 3px 3px 0 #14142b; --sk-bubble-shadow: 2px 2px 0 #14142b; --sk-shadow-press: 1px 1px 0 #14142b;
-  --sk-btn-bg: #d11f3a; --sk-btn-ink: #ffffff; --sk-panel-press: #ffe98a;
+  --sk-btn-bg: #c01830; --sk-btn-ink: #ffffff; --sk-panel-press: #ffe98a;
   --sk-bg: radial-gradient(rgba(20,20,43,.08) 1.3px, transparent 1.8px) 0 0 / 14px 14px, #fff7d6;
 }
 html[data-skin="comic"][data-scheme="dark"] {
@@ -59,6 +59,7 @@ html[data-skin="comic"] :is(.search-input, #chat-input, .settings-select, .rich-
 html[data-skin="comic"] :is(.search-input, #chat-input, .settings-select, .rich-input):focus { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 html[data-skin="comic"] :is(#chat-input, .search-input)::placeholder { color: var(--ink-3); }
 html[data-skin="comic"] :is(.chip, .chat-filter-chip, .theme-seg, .theme-seg button) { border-radius: 999px; }
+html[data-skin="comic"] .theme-seg button { white-space: normal; }
 html[data-skin="comic"] .theme-seg button.active { background: var(--sk-btn-bg); color: var(--sk-btn-ink); }
 html[data-skin="comic"] :is(.unread-badge, .tab-badge) { background: var(--accent-bg); color: var(--on-accent); text-shadow: none; }
 html[data-skin="comic"] .voice-play-btn { background: var(--accent-bg); color: var(--on-accent); }

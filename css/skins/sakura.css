@@ -92,3 +92,4 @@ html[data-skin="sakura"][data-scheme="dark"] .sk-petal.big { opacity: .18; }
 @keyframes skPetalC { from { transform: translate(0, 0) rotate(-20deg); } 50% { transform: translate(60px, 55vh) rotate(150deg); } to { transform: translate(-30px, 112vh) rotate(330deg); } }
 html[data-calm-mode="1"] #skin-deco .sk-petal { animation: none; }
 @media (prefers-reduced-motion: reduce) { #skin-deco .sk-petal { animation: none !important; display: none; } }
+html[data-skin="sakura"] .theme-seg button { white-space: normal; }

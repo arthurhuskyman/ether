@@ -59,6 +59,7 @@ html[data-skin="newyear"] :is(.search-input, #chat-input, .settings-select, .ric
 html[data-skin="newyear"] :is(.search-input, #chat-input, .settings-select, .rich-input):focus { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 html[data-skin="newyear"] :is(#chat-input, .search-input)::placeholder { color: var(--ink-3); }
 html[data-skin="newyear"] :is(.chip, .chat-filter-chip, .theme-seg, .theme-seg button) { border-radius: 999px; }
+html[data-skin="newyear"] .theme-seg button { white-space: normal; }
 html[data-skin="newyear"] .theme-seg button.active { background: var(--sk-btn-bg); color: var(--sk-btn-ink); }
 html[data-skin="newyear"] :is(.unread-badge, .tab-badge) { background: var(--accent-bg); color: var(--on-accent); text-shadow: none; }
 html[data-skin="newyear"] .voice-play-btn { background: var(--accent-bg); color: var(--on-accent); }

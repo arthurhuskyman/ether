@@ -154,3 +154,10 @@ html[dir="rtl"][data-skin="glass"] .bubble::after { background: linear-gradient(
 html.kb-open[data-skin="glass"] #tab-bar.glass { margin-bottom: 10px; }
 /* Контраст: активный сегмент темы — белый на синем градиенте светлой схемы (тёмный #0b0f33 давал 3.0:1; тёмный текст нужен только на пастельной кнопке тёмной схемы) */
 html[data-skin="glass"][data-scheme="light"] .theme-seg button.active, html[data-skin="glass"][data-scheme="light"] .theme-seg button[aria-checked="true"], html[data-skin="glass"][data-scheme="light"] .theme-seg button[aria-pressed="true"] { color: #fff; }
+/* Контраст на цветном фоне: тёмные плашки шапки/таб-бара и меню «+» плотнее, вторичный текст ярче */
+html[data-skin="glass"][data-scheme="dark"] { --ink-3: rgba(255, 255, 255, 0.78); }
+html[data-skin="glass"][data-scheme="dark"] :is(#nav-bar.glass, #tab-bar.glass) { background-color: rgba(16, 20, 64, 0.66); }
+html[data-skin="glass"][data-scheme="dark"] #composer-menu-sheet .composer-menu-item { --sk-menu: rgba(24, 28, 88, 0.94); }
+html[data-skin="glass"][data-scheme="dark"] { --gl-hi: linear-gradient(180deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.05) 38%, rgba(255, 255, 255, 0) 100%); }
+html[data-skin="glass"][data-scheme="dark"] #tab-bar .tab-btn::before { background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(255, 255, 255, 0.16), transparent 70%), rgba(255, 255, 255, 0.08); }
+html[data-skin="glass"][data-scheme="dark"] #composer-menu-sheet .composer-menu-item { background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(255, 255, 255, 0.12), transparent 70%), var(--sk-menu); }

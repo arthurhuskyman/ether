@@ -11,8 +11,8 @@ html[data-skin="cartoon"][data-scheme="light"] {
   --bg-0: #fff3d6; --bg-1: #ffe9b8; --bg-2: #ffffff; --bg-3: #ffe1a0;
   --line-1: rgba(38,33,74,0.12); --line-2: rgba(38,33,74,0.22);
   --ink-0: #26214a; --ink-1: rgba(38,33,74,0.94); --ink-2: rgba(38,33,74,0.78); --ink-3: rgba(38,33,74,0.7);
-  --accent: #1b5fc4; --accent-hi: #3d82e8; --accent-lo: #144a9c; --accent-ghost: rgba(27,95,196,.14); --text-link: #1650b0;
-  --accent-bg: #1b5fc4; --on-accent: #ffffff;
+  --accent: #1757b8; --accent-hi: #3d82e8; --accent-lo: #144a9c; --accent-ghost: rgba(23,87,184,.14); --text-link: #1650b0;
+  --accent-bg: #1757b8; --on-accent: #ffffff;
   --bubble-mine-bg: #5aa9ff; --bubble-mine-ink: #07173a;
   --bubble-theirs-bg: #ffffff; --bubble-theirs-ink: #26214a;
   --card-bg: none; --card-base: #ffffff; --card-border: rgba(38,33,74,0.12); --card-shadow: 0 3px 0 rgba(38,33,74,.14);
@@ -59,6 +59,7 @@ html[data-skin="cartoon"] :is(.search-input, #chat-input, .settings-select, .ric
 html[data-skin="cartoon"] :is(.search-input, #chat-input, .settings-select, .rich-input):focus { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 html[data-skin="cartoon"] :is(#chat-input, .search-input)::placeholder { color: var(--ink-3); }
 html[data-skin="cartoon"] :is(.chip, .chat-filter-chip, .theme-seg, .theme-seg button) { border-radius: 999px; }
+html[data-skin="cartoon"] .theme-seg button { white-space: normal; }
 html[data-skin="cartoon"] .theme-seg button.active { background: var(--sk-btn-bg); color: var(--sk-btn-ink); }
 html[data-skin="cartoon"] :is(.unread-badge, .tab-badge) { background: var(--accent-bg); color: var(--on-accent); text-shadow: none; }
 html[data-skin="cartoon"] .voice-play-btn { background: var(--accent-bg); color: var(--on-accent); }

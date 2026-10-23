@@ -9,18 +9,18 @@ html[data-skin="neon"] {
 }
 html[data-skin="neon"][data-scheme="light"] {
   --bg-0: #eaf4ff; --bg-1: #e0eefc; --bg-2: #ffffff; --bg-3: #d3e5f7;
-  --line-1: rgba(0,104,160,0.14); --line-2: rgba(0,104,160,0.26);
+  --line-1: rgba(0,95,148,0.14); --line-2: rgba(0,95,148,0.26);
   --ink-0: #101a33; --ink-1: rgba(16,26,51,0.94); --ink-2: rgba(16,26,51,0.78); --ink-3: rgba(16,26,51,0.7);
-  --accent: #0068a0; --accent-hi: #1a8ac8; --accent-lo: #004f7c; --accent-ghost: rgba(0,104,160,.14); --text-link: #005a8c;
-  --accent-bg: #0068a0; --on-accent: #ffffff;
+  --accent: #005f94; --accent-hi: #1a8ac8; --accent-lo: #004f7c; --accent-ghost: rgba(0,95,148,.14); --text-link: #005a8c;
+  --accent-bg: #005f94; --on-accent: #ffffff;
   --bubble-mine-bg: #bfe8ff; --bubble-mine-ink: #06233a;
   --bubble-theirs-bg: #ffffff; --bubble-theirs-ink: #101a33;
-  --card-bg: none; --card-base: #ffffff; --card-border: rgba(0,104,160,0.14); --card-shadow: 0 6px 20px rgba(0,80,130,.12);
-  --select-popup-bg: #ffffff; --select-popup-ink: #101a33; --input-bg: #ffffff; --input-border: #5f84a6; --glass-border: rgba(0,104,160,0.14);
+  --card-bg: none; --card-base: #ffffff; --card-border: rgba(0,95,148,0.14); --card-shadow: 0 6px 20px rgba(0,80,130,.12);
+  --select-popup-bg: #ffffff; --select-popup-ink: #101a33; --input-bg: #ffffff; --input-border: #5f84a6; --glass-border: rgba(0,95,148,0.14);
   --sk-line: rgba(0,104,160,.3); --sk-line-mine: rgba(0,104,160,.3); --sk-line-theirs: rgba(0,104,160,.22);
   --sk-panel: rgba(255,255,255,.88); --sk-field: #ffffff;
   --sk-shadow: 0 6px 20px rgba(0,80,130,.12); --sk-bubble-shadow: 0 1px 6px rgba(0,80,130,.12); --sk-shadow-press: none;
-  --sk-btn-bg: #0068a0; --sk-btn-ink: #ffffff; --sk-panel-press: #d3e5f7;
+  --sk-btn-bg: #005f94; --sk-btn-ink: #ffffff; --sk-panel-press: #d3e5f7;
   --sk-bg: radial-gradient(ellipse 70% 40% at 90% 0%, rgba(255,120,220,.18), transparent 70%), radial-gradient(ellipse 70% 40% at 0% 100%, rgba(0,200,255,.2), transparent 70%), #eaf4ff;
 }
 html[data-skin="neon"][data-scheme="dark"] {
@@ -59,6 +59,7 @@ html[data-skin="neon"] :is(.search-input, #chat-input, .settings-select, .rich-i
 html[data-skin="neon"] :is(.search-input, #chat-input, .settings-select, .rich-input):focus { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 html[data-skin="neon"] :is(#chat-input, .search-input)::placeholder { color: var(--ink-3); }
 html[data-skin="neon"] :is(.chip, .chat-filter-chip, .theme-seg, .theme-seg button) { border-radius: 999px; }
+html[data-skin="neon"] .theme-seg button { white-space: normal; }
 html[data-skin="neon"] .theme-seg button.active { background: var(--sk-btn-bg); color: var(--sk-btn-ink); }
 html[data-skin="neon"] :is(.unread-badge, .tab-badge) { background: var(--accent-bg); color: var(--on-accent); text-shadow: none; }
 html[data-skin="neon"] .voice-play-btn { background: var(--accent-bg); color: var(--on-accent); }

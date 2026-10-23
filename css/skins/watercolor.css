@@ -59,6 +59,7 @@ html[data-skin="watercolor"] :is(.search-input, #chat-input, .settings-select, .
 html[data-skin="watercolor"] :is(.search-input, #chat-input, .settings-select, .rich-input):focus { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 html[data-skin="watercolor"] :is(#chat-input, .search-input)::placeholder { color: var(--ink-3); }
 html[data-skin="watercolor"] :is(.chip, .chat-filter-chip, .theme-seg, .theme-seg button) { border-radius: 999px; }
+html[data-skin="watercolor"] .theme-seg button { white-space: normal; }
 html[data-skin="watercolor"] .theme-seg button.active { background: var(--sk-btn-bg); color: var(--sk-btn-ink); }
 html[data-skin="watercolor"] :is(.unread-badge, .tab-badge) { background: var(--accent-bg); color: var(--on-accent); text-shadow: none; }
 html[data-skin="watercolor"] .voice-play-btn { background: var(--accent-bg); color: var(--on-accent); }

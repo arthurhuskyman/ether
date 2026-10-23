@@ -298,7 +298,7 @@ window.__LANG_DICTS["ru"] = {
     "skin.day": "День",
     "skin.night": "Ночь",
     "skin.name.default": "Классика",
-    "skin.name.cartoon": "Мультяшный",
+    "skin.name.cartoon": "Мульт",
     "skin.name.comic": "Поп-арт",
     "skin.name.watercolor": "Акварель",
     "skin.name.neon": "Неон",

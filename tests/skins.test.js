@@ -21,7 +21,7 @@ function blocks() {
   const out = {};
   for (const m of css.matchAll(/html\[data-skin="(\w+)"\]\[data-scheme="(light|dark)"\]\s*\{([^}]*)\}/g)) {
     const d = {}; for (const x of m[3].matchAll(/(--[\w-]+):\s*([^;]+);/g)) d[x[1]] = x[2].trim();
-    (out[m[1]] ||= {})[m[2]] = d;
+    const o = (out[m[1]] ||= {}); o[m[2]] = Object.assign(o[m[2]] || {}, d); // допускаются дополнительные блоки той же схемы (правки контраста)
   }
   return out;
 }
