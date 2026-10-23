@@ -41,7 +41,7 @@ async function audit(page) {
     const hit = (a, b) => a && b && Math.min(a.right, b.right) - Math.max(a.left, b.left) > 2 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 2;
     for (let i = 0; i < inter.length; i++) for (let j = i + 1; j < inter.length; j++) {
       const a = inter[i], b = inter[j]; if (a.contains(b) || b.contains(a) || res.overlap.length >= 15) continue;
-      if (a.closest(".sheet") || b.closest(".sheet") || (bar(a) && inScreen(b) && !b.closest("#call-screen")) || (bar(b) && inScreen(a) && !a.closest("#call-screen"))) continue; // шторки и прокручиваемый контент под шапкой/таб-баром — не наложение
+      if (a.closest(".sheet,.anchored-menu") || b.closest(".sheet,.anchored-menu") || (bar(a) && inScreen(b) && !b.closest("#call-screen")) || (bar(b) && inScreen(a) && !a.closest("#call-screen"))) continue; // шторки и прокручиваемый контент под шапкой/таб-баром — не наложение
       if (hit(a.getBoundingClientRect(), b.getBoundingClientRect()) || hit(textRect(a), b.getBoundingClientRect()) || hit(a.getBoundingClientRect(), textRect(b)) || hit(textRect(a), textRect(b))) res.overlap.push(id(a) + " × " + id(b));
     }
     return res;

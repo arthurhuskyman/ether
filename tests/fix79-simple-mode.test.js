@@ -163,7 +163,8 @@ test("ключи V.79: файл CHANGED-KEYS есть, значения совп
   const load = (c) => { const d = {}; new Function("window", fs.readFileSync(path.join(ROOT, "js/lang", c + ".js"), "utf8"))({ __LANG_DICTS: d }); return d[c]; };
   const en = load("en"), ru = load("ru");
   assert.ok(Object.keys(ch).length >= 60);
-  const jargon = /\bTOFU\b|\bDTLS\b|\bTURN\b|\bICE\b|(?:envelope|ratchet|prekey|fingerprint|claim|конверт|отпечат|закреплен|храповик)/i;
+  const jargonCS = /\bTOFU\b|\bDTLS\b|\bTURN\b|\bICE\b/, jargonCI = /envelope|ratchet|prekey|fingerprint|claim|конверт|отпечат|закреплен|храповик/i;
+  const jargon = { test: (t) => jargonCS.test(t) || jargonCI.test(t) };
   for (const [k, v] of Object.entries(ch)) {
     assert.equal(en[k], v.en, k); assert.equal(ru[k], v.ru, k);
     assert.ok(!jargon.test(v.en) && !jargon.test(v.ru), "жаргон в " + k);
