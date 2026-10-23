@@ -2,5 +2,6 @@
 
 - **Всегда и везде экономить токены.** Читать только нужные фрагменты файлов, не перечитывать уже известное, не дублировать работу агентов, запускать только нужные тесты (полный набор — перед релизом), отчёты короткие и по делу. Экономия не отменяет полноты: все задачи выполняются целиком.
 - Перед релизом: полный набор тестов (`cd tests && node --test --test-concurrency=2 --test-timeout=180000 *.test.js`, серверные `cd signaling-server && npm test`), `node tools/build-bundles.js --check` (после правки js/*.js — `node tools/build-bundles.js`), `node tools/csp-hash.js --check`, `node tools/validate-languages.js`.
+- Покрытие: `node tools/coverage.js client` / `server` (пороги 90% строк, 80% ветвлений); CI — .github/workflows/coverage.yml (раз в неделю и вручную).
 - Деплой в `main` только по команде владельца «мержь и деплой».
 - Не делать `git checkout <коммит> -- .` и `git stash` при работающих параллельно агентах: это затирает чужие правки.
