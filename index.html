@@ -900,6 +900,14 @@
 <div id="quick-reaction-flyout" class="quick-reaction-flyout hidden" role="toolbar"></div>
 
 <!-- Меню «+» композера: эмодзи, камера, файл. Кнопки сохраняют прежние id — на них повешены обработчики пикера, камеры и выбора файла. -->
+<div id="skin-sheet" class="sheet hidden" role="dialog" aria-modal="true" aria-labelledby="skin-sheet-title">
+  <div class="sheet-backdrop"></div>
+  <div class="sheet-panel glass-content">
+    <div class="sheet-handle"></div>
+    <h2 id="skin-sheet-title" data-i18n="skin.all">All skins</h2>
+    <div id="skin-sheet-grid" class="skin-grid" role="radiogroup" aria-label="Skin"></div>
+  </div>
+</div>
 <div id="composer-menu-sheet" class="sheet hidden">
   <div class="sheet-backdrop"></div>
   <div class="sheet-panel glass-content">
@@ -1620,6 +1628,7 @@
 <script src="js/skins/glass.js"></script>
 <script src="js/skins/chalk.js"></script>
 <script src="js/skins/newyear.js"></script>
+<script src="js/skins/sakura.js"></script>
 <script src="js/features.js"></script>
 <script src="js/features2.js"></script>
 <script src="js/easter.js"></script>

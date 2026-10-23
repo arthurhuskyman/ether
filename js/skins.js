@@ -9,19 +9,22 @@ const Skins = (() => {
   // Значения = --bg-0 / --bg-2 / --accent из css/skins/<id>.css (при смене палитры скина обновлять и здесь; сверяет тест skins).
   const LIST = [
     { id: "default", emoji: "✨", light: ["#fafafc", "#ffffff", "#6446c9"], dark: ["#08080a", "#17171c", "#8a6dff"], bar: { light: "#fafafc", dark: "#08080a" } },
+    { id: "glass", emoji: "🪟", light: ["#dfe9ff", "#f7f9ff", "#2953d4"], dark: ["#0d0f2b", "#1b1f4c", "#a9c8ff"], bar: { light: "#dfe9ff", dark: "#0d0f2b" } },
+    { id: "neon", emoji: "🌃", light: ["#eaf4ff", "#ffffff", "#0068a0"], dark: ["#07060f", "#130f28", "#00f0ff"], bar: { light: "#eaf4ff", dark: "#07060f" } },
+    { id: "clay", emoji: "🧸", light: ["#f6e4d1", "#fff6ec", "#a93a1b"], dark: ["#2a2233", "#40354e", "#ff9f80"], bar: { light: "#f6e4d1", dark: "#2a2233" } },
+    { id: "sakura", emoji: "🌸", light: ["#fff4f7", "#ffffff", "#b02a5e"], dark: ["#1b1218", "#2a1b24", "#ff9fc0"], bar: { light: "#fff4f7", dark: "#1b1218" } },
     { id: "cartoon", emoji: "🎈", light: ["#fff1cf", "#ffffff", "#1366c0"], dark: ["#1d1a3d", "#312d63", "#ffd23f"], bar: { light: "#fff1cf", dark: "#1d1a3d" } },
     { id: "comic", emoji: "💥", light: ["#fff4d1", "#ffffff", "#c72535"], dark: ["#1a1a38", "#26264d", "#ffd60a"], bar: { light: "#fff4d1", dark: "#1a1a38" } },
     { id: "watercolor", emoji: "🎨", light: ["#fbf6fb", "#fdf8fc", "#5b3fc4"], dark: ["#171427", "#262142", "#b79cff"], bar: { light: "#fbf6fb", dark: "#171427" } },
-    { id: "neon", emoji: "🌃", light: ["#eaf4ff", "#ffffff", "#0068a0"], dark: ["#07060f", "#130f28", "#00f0ff"], bar: { light: "#eaf4ff", dark: "#07060f" } },
     { id: "steampunk", emoji: "⚙️", light: ["#e8d6a9", "#f7edd2", "#864d11"], dark: ["#1a110a", "#33241a", "#e2a94d"], bar: { light: "#e8d6a9", dark: "#1a110a" } },
     { id: "gothic", emoji: "🦇", light: ["#d9d2cb", "#f0eae4", "#9b111e"], dark: ["#09060a", "#180e16", "#ee4a58"], bar: { light: "#d9d2cb", dark: "#09060a" } },
-    { id: "clay", emoji: "🧸", light: ["#f6e4d1", "#fff6ec", "#a93a1b"], dark: ["#2a2233", "#40354e", "#ff9f80"], bar: { light: "#f6e4d1", dark: "#2a2233" } },
     { id: "lego", emoji: "🧱", light: ["#a8d8a0", "#f4f6f9", "#ac0c0c"], dark: ["#0f1d2e", "#1d3a5f", "#ffd01f"], bar: { light: "#a8d8a0", dark: "#0f1d2e" } },
     { id: "wood", emoji: "🌳", light: ["#e6d1a8", "#f6ead0", "#285b1a"], dark: ["#241810", "#3b2a1c", "#a5d97b"], bar: { light: "#e6d1a8", dark: "#241810" } },
-    { id: "glass", emoji: "🪟", light: ["#dfe9ff", "#f7f9ff", "#2953d4"], dark: ["#0d0f2b", "#1b1f4c", "#a9c8ff"], bar: { light: "#dfe9ff", dark: "#0d0f2b" } },
     { id: "chalk", emoji: "🖍️", light: ["#fbf7ea", "#fffdf4", "#b5322a"], dark: ["#1b2e26", "#274236", "#ffd86b"], bar: { light: "#fbf7ea", dark: "#1b2e26" } },
     { id: "newyear", emoji: "🎄", light: ["#eaf4ff", "#ffffff", "#c8102e"], dark: ["#0a1636", "#17325e", "#ff8c97"], bar: { light: "#eaf4ff", dark: "#0a1636" } },
   ];
+  // Пять скинов главного списка (сетка 3×2: пять карточек + ячейка «…» со всеми скинами)
+  const MAIN = ["default", "glass", "neon", "clay", "sakura"];
   const IDS = LIST.map((s) => s.id);
   // Реестр «характера» скина: js/skins/<id>.js вызывает Skins.register(id, spec). spec:
   //   icons: { имя: "<path…/>" } — своя графика иконок (ключи из Icons.names()), остальные остаются обычными;
@@ -156,29 +159,54 @@ const Skins = (() => {
     id = valid(id) ? id : "default";
     try { localStorage.setItem(KEY, id); } catch (e) {}
     try { if (typeof scheduleIDBBackup === "function") scheduleIDBBackup(); } catch (e) {}
-    return apply(id);
+    const r = apply(id); renderMainIfNeeded(); return r;
   }
+  const gridsOf = () => ["skin-grid", "skin-sheet-grid"].map((i) => document.getElementById(i)).filter(Boolean);
   function markActive(id) {
     if (!live()) return;
-    const grid = document.getElementById("skin-grid"); if (!grid) return;
-    grid.querySelectorAll(".skin-card").forEach((b) => { const on = b.dataset.skin === id; b.classList.toggle("active", on); b.setAttribute("aria-checked", on ? "true" : "false"); });
+    gridsOf().forEach((grid) => grid.querySelectorAll(".skin-card[data-skin]").forEach((b) => { const on = b.dataset.skin === id; b.classList.toggle("active", on); b.setAttribute("aria-checked", on ? "true" : "false"); }));
   }
   function name(id) { const k = "skin.name." + id; const v = typeof T === "function" ? T(k) : k; return v === k ? id : v; }
+  // Какие пять скинов показать в главной сетке: выбранный вне пятёрки занимает последнее место
+  function mainFive(cur) { const m = MAIN.slice(); if (!m.includes(cur) && valid(cur)) m[m.length - 1] = cur; return m; }
+  function card(s, onPick) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "skin-card"; b.dataset.skin = s.id; b.setAttribute("role", "radio");
+    const dots = (arr) => arr.map((c) => `<i style="background:${c}"></i>`).join("");
+    b.innerHTML = `<span class="skin-emoji" aria-hidden="true">${s.emoji}</span><span class="skin-name"></span><span class="skin-sw"><span class="skin-sw-day" title="${T("skin.day")}">${dots(s.light)}</span><span class="skin-sw-night" title="${T("skin.night")}">${dots(s.dark)}</span></span>`;
+    b.querySelector(".skin-name").textContent = name(s.id);
+    b.addEventListener("click", () => onPick(s.id));
+    return b;
+  }
+  function sheetEl() { return document.getElementById("skin-sheet"); }
+  function openSheet() { const sh = sheetEl(); if (sh) { renderSheet(); sh.classList.remove("hidden"); } }
+  function closeSheet() { const sh = sheetEl(); if (sh) sh.classList.add("hidden"); }
+  function renderSheet() {
+    const grid = document.getElementById("skin-sheet-grid"); if (!grid) return;
+    grid.innerHTML = "";
+    for (const s of LIST) grid.appendChild(card(s, (id) => { set(id); closeSheet(); }));
+    markActive(get());
+  }
+  function renderMainIfNeeded() {
+    if (!live()) return;
+    const grid = document.getElementById("skin-grid"); if (!grid) return;
+    const want = mainFive(get()).join(), have = Array.from(grid.querySelectorAll(".skin-card[data-skin]")).map((b) => b.dataset.skin).join();
+    if (want !== have) render();
+  }
   function render() {
     if (!live()) return;
     const grid = document.getElementById("skin-grid"); if (!grid) return;
     const cur = get();
     grid.innerHTML = "";
-    for (const s of LIST) {
-      const b = document.createElement("button");
-      b.type = "button"; b.className = "skin-card"; b.dataset.skin = s.id; b.setAttribute("role", "radio");
-      const dots = (arr) => arr.map((c) => `<i style="background:${c}"></i>`).join("");
-      b.innerHTML = `<span class="skin-emoji" aria-hidden="true">${s.emoji}</span><span class="skin-name"></span><span class="skin-sw"><span class="skin-sw-day" title="${T("skin.day")}">${dots(s.light)}</span><span class="skin-sw-night" title="${T("skin.night")}">${dots(s.dark)}</span></span>`;
-      b.querySelector(".skin-name").textContent = name(s.id);
-      b.addEventListener("click", () => set(s.id));
-      grid.appendChild(b);
-    }
+    for (const id of mainFive(cur)) grid.appendChild(card(LIST.find((x) => x.id === id), (sid) => set(sid)));
+    const more = document.createElement("button");
+    more.type = "button"; more.className = "skin-card skin-more"; more.id = "skin-more-btn"; more.setAttribute("aria-haspopup", "dialog"); more.setAttribute("aria-label", T("skin.all"));
+    more.innerHTML = `<span class="skin-emoji" aria-hidden="true">…</span><span class="skin-name"></span><span class="skin-sw" aria-hidden="true"></span>`;
+    more.querySelector(".skin-name").textContent = T("skin.more");
+    more.addEventListener("click", openSheet);
+    grid.appendChild(more);
     markActive(cur);
+    renderSheet();
   }
   let tapWired = false;
   function wire() {
@@ -188,5 +216,5 @@ const Skins = (() => {
     if (live() && typeof MutationObserver !== "undefined" && !wire.mo) { wire.mo = new MutationObserver(() => { if (get() !== "default") applyDeco(get()); }); wire.mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-scheme"] }); }
     apply(get());
   }
-  return { LIST, IDS, KEY, valid, get, apply, set, render, wire, syncMeta, name, register, sfx, play, spec };
+  return { LIST, IDS, KEY, valid, get, apply, set, render, wire, syncMeta, name, register, sfx, play, spec, MAIN, mainFive, openSheet, closeSheet };
 })();

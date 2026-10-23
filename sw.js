@@ -40,6 +40,7 @@ const SHELL_FILES = [
   "./js/skins/glass.js",
   "./js/skins/chalk.js",
   "./js/skins/newyear.js",
+  "./js/skins/sakura.js",
   "./js/features.js",
   "./js/features2.js",
   "./js/easter.js",

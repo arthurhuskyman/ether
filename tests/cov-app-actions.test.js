@@ -144,7 +144,7 @@ test("ручное приглашение: создать, ответ, заве�
   const offerCode = await a.run(`SignalingCodec.encode({ t: "offer", n: "Offerer", d: { type: "offer", sdp: "v=0\\r\\n" }, r: "" })`);
   a.document.querySelector("#paste-code-in").value = offerCode; a.document.querySelector("#reply-btn").click(); await sleep(80);
   assert.ok(!a.document.querySelector("#incoming-banner").classList.contains("hidden")); assert.ok(a.document.querySelector("#answer-out-code").textContent.length > 10); a.document.querySelector("#answer-copy-btn").click();
-  a.run(`handleIncomingCode("garbage"); `); await sleep(20); await a.run(`handleIncomingCode(${JSON.stringify(await a.run(`SignalingCodec.encode({ t: "answer", n: "X", d: {}, r: "" })`))})`);
+  a.run(`Promise.resolve(handleIncomingCode("garbage")).catch(() => {}); `); await sleep(20); await a.run(`Promise.resolve(handleIncomingCode(${JSON.stringify(await a.run(`SignalingCodec.encode({ t: "answer", n: "X", d: {}, r: "" })`))})).catch(() => {})`); // D7: мусор и не-offer теперь бросают (вызывающие показывают toast)
   a.document.querySelector("#paste-code-in").value = ""; a.document.querySelector("#reply-btn").click(); a.document.querySelector("#paste-code-in").value = "garbage"; a.document.querySelector("#reply-btn").click(); await sleep(40);
   a.document.querySelector("#new-invite-again").click(); assert.ok(!a.document.querySelector("#invite-idle").classList.contains("hidden"));
   // createInvite: offer не создан

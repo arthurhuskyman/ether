@@ -41,6 +41,8 @@ test("A: store.save, бросающий исключение, тоже счит�
 
 test("A: decrypt при сбое записи возвращает плейнтекст, но блокирует encrypt до успешной записи", async () => {
   const { a, b } = await pair();
+  const e0 = await a.R.encrypt(ctx(a, b), { t: 0 });
+  assert.deepEqual(await b.R.decrypt(ctx(b, a), e0), { t: 0 }); // начальный конверт: C4 требует успешной записи до выдачи plaintext
   const e1 = await a.R.encrypt(ctx(a, b), { t: 1 });
   b.mem.fail = true;
   assert.deepEqual(await b.R.decrypt(ctx(b, a), e1), { t: 1 });

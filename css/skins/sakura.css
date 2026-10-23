@@ -1,0 +1,94 @@
+/* ============================ САКУРА (sakura) — вишнёвый цвет, мягкий минимализм ============================
+   Нежно-розовые поверхности, тонкие линии, крупные скругления, едва заметные лепестки на фоне. Шрифт — Inter (как у обычного вида). */
+html[data-skin="sakura"] {
+  --sk-font: "Inter", -apple-system, "SF Pro Text", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif; --sk-tracking: 0;
+  --sk-bw: 1px; --sk-radius: 20px; --sk-bubble-r: 20px; --sk-tail: 6px; --sk-btn-r: 14px; --sk-field-r: 22px;
+  --sk-blur: blur(18px) saturate(150%); --sk-blur-px: 18px; --sk-press-scale: .97;
+  --r-sm: 10px; --r-md: 14px; --r-lg: 20px; --r-xl: 26px;
+}
+html[data-skin="sakura"][data-scheme="light"] {
+  --bg-0: #fff4f7; --bg-1: #ffeaf0; --bg-2: #ffffff; --bg-3: #fbdce6;
+  --line-1: rgba(176, 42, 94, 0.12); --line-2: rgba(176, 42, 94, 0.22);
+  --ink-0: #3a1f2b; --ink-1: rgba(58, 31, 43, 0.94); --ink-2: rgba(58, 31, 43, 0.78); --ink-3: rgba(58, 31, 43, 0.7);
+  --accent: #b02a5e; --accent-hi: #d0457a; --accent-lo: #8f1f4a; --accent-ghost: rgba(176, 42, 94, 0.1); --text-link: #a0235a;
+  --accent-bg: #c2306a; --on-accent: #ffffff;
+  --bubble-mine-bg: linear-gradient(160deg, #ffc2d6, #ffa9c5); --bubble-mine-ink: #3a1020;
+  --bubble-theirs-bg: #ffffff; --bubble-theirs-ink: #3a1f2b;
+  --card-bg: none; --card-base: #ffffff; --card-border: rgba(176, 42, 94, 0.14); --card-shadow: 0 6px 22px rgba(176, 42, 94, 0.1);
+  --select-popup-bg: #ffffff; --select-popup-ink: #3a1f2b; --input-bg: #fff9fb; --input-border: #b9738f; --glass-border: rgba(176, 42, 94, 0.14);
+  --sk-line: rgba(176, 42, 94, 0.16); --sk-line-mine: rgba(176, 42, 94, 0.1); --sk-line-theirs: rgba(176, 42, 94, 0.14);
+  --sk-panel: rgba(255, 255, 255, 0.82); --sk-field: #fff9fb;
+  --sk-shadow: 0 6px 22px rgba(176, 42, 94, 0.1); --sk-bubble-shadow: 0 2px 8px rgba(176, 42, 94, 0.1);
+  --sk-shadow-press: 0 1px 3px rgba(176, 42, 94, 0.14);
+  --sk-btn-bg: #c2306a; --sk-btn-ink: #ffffff; --sk-panel-press: #ffeaf0;
+  --sk-bg: radial-gradient(ellipse 80% 45% at 10% 0%, rgba(255, 190, 212, 0.65), transparent 70%), radial-gradient(ellipse 70% 40% at 100% 100%, rgba(255, 214, 228, 0.8), transparent 70%), #fff4f7;
+}
+html[data-skin="sakura"][data-scheme="dark"] {
+  --bg-0: #1b1218; --bg-1: #231820; --bg-2: #2a1b24; --bg-3: #36242f;
+  --line-1: rgba(255, 159, 192, 0.12); --line-2: rgba(255, 159, 192, 0.24);
+  --ink-0: #fdeef3; --ink-1: rgba(253, 238, 243, 0.94); --ink-2: rgba(253, 238, 243, 0.8); --ink-3: rgba(253, 238, 243, 0.68);
+  --accent: #ff9fc0; --accent-hi: #ffbad2; --accent-lo: #f27aa4; --accent-ghost: rgba(255, 159, 192, 0.16); --text-link: #ffb4cf;
+  --accent-bg: #ff9fc0; --on-accent: #2b0f1c;
+  --bubble-mine-bg: linear-gradient(160deg, #ffb4cf, #f58bb0); --bubble-mine-ink: #2b0f1c;
+  --bubble-theirs-bg: #36242f; --bubble-theirs-ink: #fdeef3;
+  --card-bg: none; --card-base: #2a1b24; --card-border: rgba(255, 159, 192, 0.16); --card-shadow: 0 8px 26px rgba(0, 0, 0, 0.4);
+  --select-popup-bg: #2a1b24; --select-popup-ink: #fdeef3; --input-bg: #231820; --input-border: #a8708a; --glass-border: rgba(255, 159, 192, 0.18);
+  --sk-line: rgba(255, 159, 192, 0.2); --sk-line-mine: rgba(255, 159, 192, 0.0); --sk-line-theirs: rgba(255, 159, 192, 0.18);
+  --sk-panel: rgba(42, 27, 36, 0.86); --sk-field: #231820;
+  --sk-shadow: 0 8px 26px rgba(0, 0, 0, 0.38); --sk-bubble-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --sk-shadow-press: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --sk-btn-bg: #ff9fc0; --sk-btn-ink: #2b0f1c; --sk-panel-press: #36242f;
+  --sk-bg: radial-gradient(ellipse 80% 45% at 10% 0%, rgba(255, 130, 175, 0.2), transparent 70%), radial-gradient(ellipse 70% 40% at 100% 100%, rgba(255, 159, 192, 0.12), transparent 70%), #1b1218;
+}
+
+html[data-skin="sakura"] :is(h1, h2, h3, #nav-title, .chat-row-name, #chat-peer-name, .settings-category-header-title, .btn-primary, .btn-secondary, .sheet-panel h2) { font-weight: 650; }
+html[data-skin="sakura"] #nav-title { letter-spacing: -.015em; }
+html[data-skin="sakura"] .ico { stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+html[data-skin="sakura"] .ico-fill { stroke: none; }
+
+/* плавающие панели: шапка и таб-бар — мягкие матовые плашки */
+html[data-skin="sakura"] #nav-bar.glass { margin: 8px 10px 0; padding-top: calc(env(safe-area-inset-top, 0px) + 2px); border-radius: 22px; }
+html[data-skin="sakura"] #tab-bar.glass { margin: 0 12px calc(10px + env(safe-area-inset-bottom, 0px)); padding: 0 6px; border-radius: 26px; }
+html.kb-open[data-skin="sakura"] #tab-bar.glass { margin-bottom: 10px; }
+html[data-skin="sakura"] #tab-bar .tab-btn { border-radius: 18px; transition: color .2s, background .2s; }
+html[data-skin="sakura"] #tab-bar .tab-btn.active { background: var(--accent-ghost); }
+html[data-skin="sakura"] .sheet-panel { border-bottom: 0; }
+html[data-skin="sakura"] .sheet-backdrop { background: rgba(58, 31, 43, 0.35); }
+html[data-skin="sakura"][data-scheme="dark"] .sheet-backdrop { background: rgba(0, 0, 0, 0.55); }
+
+/* списки и пузыри: плоские карточки с тонкой линией */
+html[data-skin="sakura"] :is(.chat-row, .settings-row, .settings-category-row, .sheet-action, .forward-row, .board-col, .contact-gallery-item) { -webkit-backdrop-filter: none; backdrop-filter: none; }
+html[data-skin="sakura"] .chat-row { margin: 3px 0; box-shadow: none; }
+html[data-skin="sakura"] .bubble { -webkit-backdrop-filter: none; backdrop-filter: none; padding: 9px 14px 7px; }
+html[data-skin="sakura"] .bubble-row.mine .bubble { border-color: transparent; }
+html[data-skin="sakura"] :is(.avatar, .avatar-xl) { border-radius: 50%; border-color: var(--accent-ghost); }
+html[data-skin="sakura"] .btn-primary, html[data-skin="sakura"] .send-btn { box-shadow: 0 4px 14px color-mix(in srgb, var(--accent-bg) 35%, transparent); border-color: transparent; }
+html[data-skin="sakura"] .send-btn { border-radius: 50%; }
+html[data-skin="sakura"] .btn-secondary { background: transparent; }
+html[data-skin="sakura"] :is(.search-input, #chat-input, .settings-select, .rich-input) { border-color: var(--input-border); box-shadow: none; }
+html[data-skin="sakura"] :is(.search-input, #chat-input, .settings-select, .rich-input):focus { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+html[data-skin="sakura"] #chat-input::placeholder, html[data-skin="sakura"] .search-input::placeholder { color: var(--ink-3); }
+html[data-skin="sakura"] #chat-form.glass { margin: 0 10px 8px; border-radius: 26px; }
+html[data-skin="sakura"] #composer-menu-sheet .composer-menu-item { background: var(--sk-panel); border-radius: 999px; font-weight: 600; }
+html[data-skin="sakura"] .chip, html[data-skin="sakura"] .chat-filter-chip { border-radius: 999px; }
+html[data-skin="sakura"] .theme-seg { border-radius: 999px; }
+html[data-skin="sakura"] .theme-seg button { border-radius: 999px; }
+html[data-skin="sakura"] .theme-seg button.active { background: var(--sk-btn-bg); color: var(--sk-btn-ink); }
+html[data-skin="sakura"] .unread-badge, html[data-skin="sakura"] .tab-badge { background: var(--accent-bg); color: var(--on-accent); text-shadow: none; }
+html[data-skin="sakura"] .voice-play-btn { background: var(--accent-bg); color: var(--on-accent); }
+html[data-skin="sakura"] .bubble-row.mine .voice-play-btn { background: #fff; color: #b02a5e; }
+html[data-skin="sakura"][data-scheme="dark"] .bubble-row.mine .voice-play-btn { background: #2b0f1c; color: #ffb4cf; }
+html[data-skin="sakura"] .bubble-row.mine .bubble-time { color: color-mix(in srgb, var(--bubble-mine-ink) 78%, transparent); }
+
+/* декор: лепестки (слой #skin-deco) */
+.sk-petal { position: absolute; top: -24px; width: 10px; height: 13px; border-radius: 80% 0 80% 0; background: linear-gradient(135deg, #ffd3e2, #ff9fc0); opacity: .55; animation: skPetal 22s linear infinite; will-change: transform; }
+.sk-petal.mid { width: 13px; height: 17px; opacity: .45; animation-name: skPetalB; }
+.sk-petal.big { width: 17px; height: 22px; opacity: .3; animation-name: skPetalC; }
+html[data-skin="sakura"][data-scheme="dark"] .sk-petal { background: linear-gradient(135deg, #ffb4cf, #e0709a); opacity: .3; }
+html[data-skin="sakura"][data-scheme="dark"] .sk-petal.mid { opacity: .26; }
+html[data-skin="sakura"][data-scheme="dark"] .sk-petal.big { opacity: .18; }
+@keyframes skPetal { from { transform: translate(0, 0) rotate(0); } 50% { transform: translate(40px, 55vh) rotate(180deg); } to { transform: translate(-10px, 112vh) rotate(360deg); } }
+@keyframes skPetalB { from { transform: translate(0, 0) rotate(40deg); } 50% { transform: translate(-50px, 55vh) rotate(-140deg); } to { transform: translate(20px, 112vh) rotate(-320deg); } }
+@keyframes skPetalC { from { transform: translate(0, 0) rotate(-20deg); } 50% { transform: translate(60px, 55vh) rotate(150deg); } to { transform: translate(-30px, 112vh) rotate(330deg); } }
+html[data-calm-mode="1"] #skin-deco .sk-petal { animation: none; }
+@media (prefers-reduced-motion: reduce) { #skin-deco .sk-petal { animation: none !important; display: none; } }
