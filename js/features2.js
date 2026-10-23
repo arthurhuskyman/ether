@@ -511,7 +511,7 @@ spawnReactionBurst = function (el, emoji) {
   if (fxBigReaction) { fxBigReaction = false; for (let i = 1; i < 5; i++) setTimeout(() => { try { _fx2OrigBurst(el, emoji); } catch (e) {} }, i * 90); const b = el && el.querySelector && el.querySelector(".reaction-burst"); if (b) b.classList.add("big"); }
 };
 function fxWireBigReaction() {
-  const fl = document.getElementById("quick-reaction-flyout"); if (!fl || fl.__fxBig) return;
+  const fl = document.getElementById("reaction-bar"); if (!fl || fl.__fxBig) return; // V.79: ряд реакций теперь только в шторке сообщения
   fl.__fxBig = true;
   let t = null;
   fl.addEventListener("pointerdown", (e) => { const b = e.target.closest && e.target.closest(".reaction-emoji"); if (!b) return; fxBigReaction = false; clearTimeout(t); t = setTimeout(() => { fxBigReaction = true; }, 450); });

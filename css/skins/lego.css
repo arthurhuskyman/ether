@@ -1,223 +1,69 @@
-/* ============================ ЛЕГО (lego) ============================
-   Всё собрано из кирпичиков: шипы (studs) на пузырях/кнопках/плашках, жёсткая «ступенька» толщины,
-   пластиковый глянец, базовая пластина-фон с шипами, прямые углы. Анимации — «защёлкивание» (snap).
-   Шрифты: Russo One (заголовки, имена, кнопки) + Play (текст). */
-@font-face { font-family: "Russo One"; font-weight: 400; font-style: normal; font-display: swap; src: url("../../fonts/skins/russo-one-400.woff2") format("woff2"); }
+/* ============================ КИРПИЧИКИ (lego) — плоские «кирпичики»: яркие основные цвета, ровная нижняя грань, едва заметные шпильки на фоне ============================ */
 @font-face { font-family: "Play"; font-weight: 400; font-style: normal; font-display: swap; src: url("../../fonts/skins/play-400.woff2") format("woff2"); }
 @font-face { font-family: "Play"; font-weight: 700; font-style: normal; font-display: swap; src: url("../../fonts/skins/play-700.woff2") format("woff2"); }
-
 html[data-skin="lego"] {
-  --sk-font: "Play", "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
-  --lg-head: "Russo One", "Arial Black", "Impact", "Segoe UI", system-ui, sans-serif;
-  --sk-bw: 0px; --sk-radius: 5px; --sk-bubble-r: 4px; --sk-tail: 4px; --sk-btn-r: 4px; --sk-field-r: 4px;
-  --sk-press-scale: 1; --sk-press-y: 4px;
-  --r-sm: 3px; --r-md: 4px; --r-lg: 5px; --r-xl: 6px;
-  --lg-red: #c91a09; --lg-blue: #0055bf; --lg-yellow: #f5cd2a; --lg-green: #237841; --lg-gray: #9ba19d;
-  /* шип (вид сбоку): маска для ::before с background: var(--brick) */
-  --lg-stud-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='7'%3E%3Cpath d='M4 7V3.2Q4 1 6.2 1h13.6Q22 1 22 3.2V7z' fill='%23000'/%3E%3C/svg%3E");
-  /* шипы базовой пластины (вид сверху) */
-  --lg-plate: radial-gradient(circle at 42% 38%, rgba(255, 255, 255, .5) 0 3px, transparent 4.5px), radial-gradient(circle at 50% 50%, var(--lg-stud-hi) 0 8px, var(--lg-stud-lo) 8.5px 10.5px, transparent 11px);
-  --lg-snap: cubic-bezier(.2, .75, .3, 1);
+  --sk-font: "Play", "Trebuchet MS", "Segoe UI", system-ui, sans-serif; --sk-head: "Play", "Trebuchet MS", "Segoe UI", system-ui, sans-serif; --sk-tracking: 0;
+  --sk-bw: 1px; --sk-bs: solid; --sk-radius: 10px; --sk-bubble-r: 10px; --sk-tail: 3px; --sk-btn-r: 10px; --sk-field-r: 10px;
+  --sk-blur: none; --sk-blur-px: 0px; --sk-press-scale: .96;
+  --r-sm: 6px; --r-md: 10px; --r-lg: 10px; --r-xl: 16px;
 }
 html[data-skin="lego"][data-scheme="light"] {
-  --bg-0: #a8d8a0; --bg-1: #c9e8c3; --bg-2: #f4f6f9; --bg-3: #d3dce6;
-  --line-1: rgba(16, 36, 14, 0.2); --line-2: rgba(16, 36, 14, 0.36);
-  --ink-0: #10240f; --ink-1: rgba(16, 36, 14, 0.94); --ink-2: rgba(16, 36, 14, 0.82); --ink-3: rgba(16, 36, 14, 0.72);
-  --accent: #ac0c0c; --accent-hi: #d01012; --accent-lo: #8c0808; --accent-ghost: rgba(201, 26, 9, 0.14); --text-link: #0a47a8;
-  --bubble-mine-bg: #0055bf; --bubble-mine-ink: #ffffff; --bubble-theirs-bg: #f5cd2a; --bubble-theirs-ink: #1a1a1a;
-  --card-bg: none; --card-base: #f4f6f9; --card-border: transparent; --card-shadow: 0 4px 0 #9ba5b3;
-  --select-popup-bg: #f4f6f9; --select-popup-ink: #10240f; --input-bg: #e2e8ef; --input-border: transparent; --glass-border: transparent;
-  --sk-line: transparent; --sk-panel: #f4f6f9;
-  --sk-shadow: 0 5px 0 #8e99a8, 0 6px 0 rgba(0, 0, 0, 0.3), inset 0 2px 0 rgba(255, 255, 255, 0.9), inset 0 -2px 0 rgba(0, 0, 0, 0.08);
-  --sk-bubble-shadow: 0 5px 0 color-mix(in srgb, var(--brick, #444) 58%, #000), 0 6px 0 rgba(0, 0, 0, 0.28), inset 0 2px 0 rgba(255, 255, 255, 0.4), inset 0 -2px 0 rgba(0, 0, 0, 0.12);
-  --sk-shadow-press: 0 1px 0 #8e99a8, inset 0 2px 0 rgba(255, 255, 255, 0.6);
-  --sk-field: #ffffff;
-  --sk-btn-bg: #c91a09; --sk-btn-ink: #ffffff; --sk-panel-press: #e2e8ef;
-  --lg-compose: #cfd9e5; --lg-nav: #c91a09; --lg-nav-ink: #ffffff; --lg-tab: #1f2a38; --lg-stud-hi: rgba(255, 255, 255, .38); --lg-stud-lo: rgba(10, 60, 10, .22);
-  --sk-bg: radial-gradient(ellipse 90% 60% at 50% 0%, rgba(255, 255, 255, .35), transparent 70%), #a8d8a0;
+  --bg-0: #eef1f5; --bg-1: #e6ebf1; --bg-2: #ffffff; --bg-3: #dfe5ec;
+  --line-1: rgba(26,34,51,0.12); --line-2: rgba(26,34,51,0.22);
+  --ink-0: #1a2233; --ink-1: rgba(26,34,51,0.94); --ink-2: rgba(26,34,51,0.78); --ink-3: rgba(26,34,51,0.7);
+  --accent: #c4161c; --accent-hi: #e53a40; --accent-lo: #9c1015; --accent-ghost: rgba(196,22,28,.14); --text-link: #b01319;
+  --accent-bg: #c4161c; --on-accent: #ffffff;
+  --bubble-mine-bg: #ffd01f; --bubble-mine-ink: #1a2233;
+  --bubble-theirs-bg: #ffffff; --bubble-theirs-ink: #1a2233;
+  --card-bg: none; --card-base: #ffffff; --card-border: rgba(26,34,51,0.12); --card-shadow: 0 3px 0 rgba(26,34,51,.16);
+  --select-popup-bg: #ffffff; --select-popup-ink: #1a2233; --input-bg: #ffffff; --input-border: #7a8699; --glass-border: rgba(26,34,51,0.12);
+  --sk-line: rgba(26,34,51,.16); --sk-line-mine: rgba(26,34,51,.12); --sk-line-theirs: rgba(26,34,51,.16);
+  --sk-panel: #ffffff; --sk-field: #ffffff;
+  --sk-shadow: 0 3px 0 rgba(26,34,51,.16); --sk-bubble-shadow: 0 3px 0 rgba(26,34,51,.18); --sk-shadow-press: 0 0 0 transparent;
+  --sk-btn-bg: #c4161c; --sk-btn-ink: #ffffff; --sk-panel-press: #dfe5ec;
+  --sk-bg: radial-gradient(circle at 14px 14px, rgba(26,34,51,.06) 0 5px, transparent 6px) 0 0 / 28px 28px, #eef1f5;
 }
 html[data-skin="lego"][data-scheme="dark"] {
-  --bg-0: #0f1d2e; --bg-1: #16293f; --bg-2: #1d3a5f; --bg-3: #274b78;
-  --line-1: rgba(255, 255, 255, 0.16); --line-2: rgba(255, 255, 255, 0.3);
-  --ink-0: #ffffff; --ink-1: rgba(255, 255, 255, 0.95); --ink-2: rgba(255, 255, 255, 0.82); --ink-3: rgba(255, 255, 255, 0.7);
-  --accent: #ffd01f; --accent-hi: #ffe066; --accent-lo: #e0b000; --accent-ghost: rgba(255, 208, 31, 0.18); --text-link: #8cc4ff;
-  --bubble-mine-bg: #c91a09; --bubble-mine-ink: #ffffff; --bubble-theirs-bg: #4a5b70; --bubble-theirs-ink: #ffffff;
-  --card-bg: none; --card-base: #1d3a5f; --card-border: transparent; --card-shadow: 0 4px 0 #0a1828;
-  --select-popup-bg: #1d3a5f; --select-popup-ink: #ffffff; --input-bg: #14304f; --input-border: transparent; --glass-border: transparent;
-  --sk-line: transparent; --sk-panel: #1d3a5f;
-  --sk-shadow: 0 5px 0 #0a1b30, 0 6px 0 rgba(0, 0, 0, 0.5), inset 0 2px 0 rgba(255, 255, 255, 0.22), inset 0 -2px 0 rgba(0, 0, 0, 0.2);
-  --sk-bubble-shadow: 0 5px 0 color-mix(in srgb, var(--brick, #444) 55%, #000), 0 6px 0 rgba(0, 0, 0, 0.5), inset 0 2px 0 rgba(255, 255, 255, 0.3), inset 0 -2px 0 rgba(0, 0, 0, 0.18);
-  --sk-shadow-press: 0 1px 0 #0a1b30, inset 0 2px 0 rgba(255, 255, 255, 0.15);
-  --sk-field: #0f2540;
-  --sk-btn-bg: #ffd01f; --sk-btn-ink: #1a1a1a; --sk-panel-press: #274b78;
-  --lg-compose: #16304f; --lg-nav: #0055bf; --lg-nav-ink: #ffffff; --lg-tab: #0a1626; --lg-stud-hi: rgba(255, 255, 255, .14); --lg-stud-lo: rgba(0, 0, 0, .42);
-  --sk-bg: radial-gradient(ellipse 90% 60% at 50% 0%, rgba(40, 90, 160, .5), transparent 70%), #0f1d2e;
+  --bg-0: #101a2b; --bg-1: #16233a; --bg-2: #1b2b45; --bg-3: #26385a;
+  --line-1: rgba(143,176,232,0.16); --line-2: rgba(143,176,232,0.28);
+  --ink-0: #f4f7fb; --ink-1: rgba(244,247,251,0.94); --ink-2: rgba(244,247,251,0.8); --ink-3: rgba(244,247,251,0.68);
+  --accent: #ffd01f; --accent-hi: #ffe066; --accent-lo: #e0b400; --accent-ghost: rgba(255,208,31,.14); --text-link: #ffd01f;
+  --accent-bg: #ffd01f; --on-accent: #1a2233;
+  --bubble-mine-bg: #ffd01f; --bubble-mine-ink: #1a2233;
+  --bubble-theirs-bg: #26385a; --bubble-theirs-ink: #f4f7fb;
+  --card-bg: none; --card-base: #1b2b45; --card-border: rgba(143,176,232,0.16); --card-shadow: 0 3px 0 rgba(0,0,0,.4);
+  --select-popup-bg: #1b2b45; --select-popup-ink: #f4f7fb; --input-bg: #16233a; --input-border: #7d95bd; --glass-border: rgba(143,176,232,0.16);
+  --sk-line: rgba(143,176,232,.28); --sk-line-mine: rgba(0,0,0,.2); --sk-line-theirs: rgba(143,176,232,.24);
+  --sk-panel: #1b2b45; --sk-field: #16233a;
+  --sk-shadow: 0 3px 0 rgba(0,0,0,.4); --sk-bubble-shadow: 0 3px 0 rgba(0,0,0,.4); --sk-shadow-press: none;
+  --sk-btn-bg: #ffd01f; --sk-btn-ink: #1a2233; --sk-panel-press: #26385a;
+  --sk-bg: radial-gradient(circle at 14px 14px, rgba(255,255,255,.05) 0 5px, transparent 6px) 0 0 / 28px 28px, #101a2b;
 }
-
-/* ---------- типографика ---------- */
-html[data-skin="lego"] :is(#nav-title, .nav-contact-title, #chat-peer-name, .settings-group-title, .settings-category-label, .chat-row-name, .sheet-panel h2, .sheet-title, .empty-state h2, .btn-primary, .btn-secondary, .btn-tertiary, .tab-btn, .chat-filter-chip, .bubble-sender, .unread-badge, .tab-badge, .avatar, #toast, .toast, .sheet-action, .first-run-card h2, .poll-q, .board-title, .unread-divider span) { font-family: var(--lg-head); font-weight: 400; letter-spacing: .03em; }
-html[data-skin="lego"] :is(.settings-group-title, .btn-primary, .btn-secondary, .tab-btn, .chat-filter-chip, .nav-conn-indicator) { text-transform: uppercase; }
-html[data-skin="lego"] #nav-title { font-size: 24px; text-transform: uppercase; text-shadow: 0 3px 0 rgba(0, 0, 0, .28); }
-html[data-skin="lego"] .chat-row-name { font-size: 15px; }
-html[data-skin="lego"] .tab-btn { font-size: 10.5px; letter-spacing: .06em; }
-
-/* ---------- фон: базовая пластина с шипами ---------- */
-html[data-skin="lego"] body::before { background: var(--lg-plate), var(--sk-bg); background-size: 34px 34px, 34px 34px, auto, auto; background-position: 0 0; }
-html[data-skin="lego"] #skin-deco .lego-brick { position: absolute; width: var(--w, 72px); height: var(--h, 34px); background: var(--c); border-radius: 3px; opacity: .55; box-shadow: 0 4px 0 color-mix(in srgb, var(--c) 58%, #000), inset 0 2px 0 rgba(255, 255, 255, .45); will-change: transform; animation: lego-bob var(--dur, 7s) ease-in-out var(--dl, 0s) infinite alternate; }
-html[data-skin="lego"] #skin-deco .lego-brick::before { content: ""; position: absolute; left: 6px; right: 6px; top: -5px; height: 6px; background: var(--c); -webkit-mask: var(--lg-stud-mask) 0 0 / 22px 6px repeat-x; mask: var(--lg-stud-mask) 0 0 / 22px 6px repeat-x; filter: brightness(1.12); }
-html[data-skin="lego"][data-scheme="dark"] #skin-deco .lego-brick { opacity: .4; }
-@keyframes lego-bob { from { transform: translateY(-9px) rotate(var(--r, 0deg)); } to { transform: translateY(9px) rotate(var(--r, 0deg)); } }
-
-/* ---------- панели: белые/серые пластины с ступенькой тени ---------- */
-html[data-skin="lego"] :is(.glass, .glass-regular, .glass-content, .flat-content, .settings-group, .sheet-panel, .first-run-card, .forward-row, .contact-gallery-item, .board-col) { border-radius: 5px; background-color: var(--sk-panel); background-image: linear-gradient(125deg, rgba(255, 255, 255, .22), rgba(255, 255, 255, 0) 38%); }
-html[data-skin="lego"] .settings-group { padding: 4px 16px 6px; margin-bottom: 18px; }
-html[data-skin="lego"] .settings-group .settings-row { background: none; box-shadow: none; border-radius: 0; border: 0; border-bottom: 2px dashed var(--line-2); }
-html[data-skin="lego"] .settings-group .settings-row:last-child { border-bottom: 0; }
-html[data-skin="lego"] .settings-group-title { font-size: 12.5px; color: var(--ink-1); }
-
-/* верхняя планка: яркая кирпичная, с разноцветной «сборной» полосой */
-html[data-skin="lego"] #nav-bar.glass { --ink-0: var(--lg-nav-ink); --ink-1: var(--lg-nav-ink); --ink-2: rgba(255, 255, 255, .88); --ink-3: rgba(255, 255, 255, .8); --accent: #ffd01f; --text-link: #fff;
-  background-color: var(--lg-nav); color: var(--lg-nav-ink); border-radius: 0 0 6px 6px; margin: 0 0 8px; overflow: visible;
-  box-shadow: 0 4px 0 color-mix(in srgb, var(--lg-nav) 55%, #000), inset 0 2px 0 rgba(255, 255, 255, .45); position: relative; }
-html[data-skin="lego"] #nav-bar.glass::after { content: ""; position: absolute; left: 0; right: 0; bottom: -10px; height: 6px; background: linear-gradient(90deg, var(--lg-yellow) 0 25%, var(--lg-green) 25% 50%, var(--lg-red) 50% 75%, var(--lg-blue) 75%); box-shadow: 0 2px 0 rgba(0, 0, 0, .3); }
-html[data-skin="lego"] #nav-bar .nav-conn-indicator { color: #fff; background: rgba(0, 0, 0, .28); border-radius: 3px; padding: 3px 6px; font-size: 11px; }
-html[data-skin="lego"] #nav-bar .icon-btn { color: #ffd01f; }
-
-/* нижняя панель: тёмная пластина с шипами, вкладки — кирпичики */
-html[data-skin="lego"] #tab-bar.glass { --ink-0: #fff; --ink-1: #fff; --ink-3: #c9d4e2; --accent: #ffd01f;
-  background-color: var(--lg-tab); background-image: radial-gradient(ellipse 9px 4px at 50% 50%, rgba(255, 255, 255, .3), transparent 90%); background-size: 22px 8px; background-repeat: repeat-x; background-position: 0 3px;
-  border-radius: 6px 6px 0 0; margin: 10px 0 0; padding: 16px 8px calc(6px + env(safe-area-inset-bottom, 0px)); gap: 6px; box-shadow: 0 -4px 0 rgba(0, 0, 0, .3), inset 0 2px 0 rgba(255, 255, 255, .15); }
-html[data-skin="lego"] .tab-btn { border-radius: 4px; padding: 7px 0 5px; color: #c9d4e2; background: rgba(255, 255, 255, .08); box-shadow: 0 3px 0 rgba(0, 0, 0, .45), inset 0 2px 0 rgba(255, 255, 255, .18); transition: transform .12s var(--lg-snap), box-shadow .12s; position: relative; margin-bottom: 3px; }
-html[data-skin="lego"] #tab-bar .tab-btn.active { color: #1a1a1a !important; background-color: #ffd01f; box-shadow: 0 3px 0 #a67f00, inset 0 2px 0 rgba(255, 255, 255, .55); animation: lego-tab-snap .32s var(--lg-snap); }
-html[data-skin="lego"] .tab-btn.active::before { content: ""; position: absolute; left: 24%; right: 24%; top: -5px; height: 5px; background: #ffd01f; -webkit-mask: var(--lg-stud-mask) center / 100% 5px no-repeat; mask: var(--lg-stud-mask) center / 100% 5px no-repeat; }
-html[data-skin="lego"] .tab-btn:active { transform: translateY(3px); box-shadow: 0 0 0 rgba(0, 0, 0, 0), inset 0 2px 0 rgba(255, 255, 255, .3); }
-@keyframes lego-tab-snap { 0% { transform: translateY(-9px); } 55% { transform: translateY(2px); } 100% { transform: none; } }
-html[data-skin="lego"] .tab-btn .ico { stroke-width: 2.4; }
-html[data-skin="lego"] .tab-badge { border-radius: 3px; background: #c91a09; color: #fff; box-shadow: 0 2px 0 #6e0d04, 0 0 0 2px var(--lg-tab); }
-
-/* ---------- список чатов: стопка разноцветных кирпичей ---------- */
-html[data-skin="lego"] .chat-row-wrapper { overflow: visible; margin-top: 11px; border-radius: 5px; position: relative; --brick: var(--lg-red); --bi: #fff; }
-html[data-skin="lego"] .chat-row-wrapper:nth-child(4n+2) { --brick: var(--lg-blue); }
-html[data-skin="lego"] .chat-row-wrapper:nth-child(4n+3) { --brick: var(--lg-yellow); --bi: #1a1a1a; }
-html[data-skin="lego"] .chat-row-wrapper:nth-child(4n+4) { --brick: var(--lg-green); }
-html[data-skin="lego"] .chat-row-wrapper::before { content: ""; position: absolute; z-index: 2; left: 10px; right: 10px; top: -6px; height: 7px; background: linear-gradient(180deg, rgba(255, 255, 255, .45), rgba(255, 255, 255, 0) 70%), var(--brick); -webkit-mask: var(--lg-stud-mask) 0 0 / 26px 7px repeat-x; mask: var(--lg-stud-mask) 0 0 / 26px 7px repeat-x; pointer-events: none; }
-html[data-skin="lego"] .chat-row { background-color: var(--brick); background-image: linear-gradient(120deg, rgba(255, 255, 255, .26), rgba(255, 255, 255, 0) 34%); color: var(--bi); border-radius: 4px; box-shadow: 0 5px 0 color-mix(in srgb, var(--brick) 55%, #000), 0 6px 0 rgba(0, 0, 0, .25), inset 0 2px 0 rgba(255, 255, 255, .4); padding: 12px 14px; transition: transform .12s var(--lg-snap), box-shadow .12s; --ink-0: var(--bi); --ink-1: var(--bi); --ink-2: var(--bi); --ink-3: var(--bi); --accent: var(--bi); --success: var(--bi); --danger: var(--bi); }
-html[data-skin="lego"] .chat-row:active { transform: translateY(4px); box-shadow: 0 1px 0 color-mix(in srgb, var(--brick) 55%, #000), inset 0 2px 0 rgba(255, 255, 255, .3); background-color: var(--brick); }
-html[data-skin="lego"] .chat-row-sub, html[data-skin="lego"] .chat-row-time { opacity: .92; }
-html[data-skin="lego"] .chat-row-draft { text-decoration: underline; }
-html[data-skin="lego"] .chat-row-actions { border-radius: 5px; }
-html[data-skin="lego"] .unread-badge { border-radius: 3px; background: #fff; color: #111; padding: 4px 7px; box-shadow: 0 3px 0 rgba(0, 0, 0, .35); }
-html[data-skin="lego"] .tab-badge, html[data-skin="lego"] .unread-badge { font-family: var(--lg-head); }
-html[data-skin="lego"] :is(.avatar, .avatar-sm, .avatar-lg, .avatar-xl) { border-radius: 5px; box-shadow: 0 3px 0 rgba(0, 0, 0, .4), inset 0 2px 0 rgba(255, 255, 255, .5), inset 0 0 0 3px rgba(255, 255, 255, .22); }
-html[data-skin="lego"] .avatar-status-dot { border-radius: 2px; }
-
-/* настройки: те же кирпичи */
-html[data-skin="lego"] .settings-category-row { --brick: var(--lg-red); --bi: #fff; background-color: var(--brick); background-image: linear-gradient(120deg, rgba(255, 255, 255, .26), rgba(255, 255, 255, 0) 34%); color: var(--bi); margin-top: 8px; position: relative; font-family: var(--lg-head); letter-spacing: .03em; border-radius: 4px; box-shadow: 0 5px 0 color-mix(in srgb, var(--brick) 55%, #000), 0 6px 0 rgba(0, 0, 0, .25), inset 0 2px 0 rgba(255, 255, 255, .4); transition: transform .12s var(--lg-snap), box-shadow .12s; }
-html[data-skin="lego"] .settings-category-row:nth-child(4n+2) { --brick: var(--lg-blue); }
-html[data-skin="lego"] .settings-category-row:nth-child(4n+3) { --brick: var(--lg-yellow); --bi: #1a1a1a; }
-html[data-skin="lego"] .settings-category-row:nth-child(4n+4) { --brick: var(--lg-green); }
-html[data-skin="lego"] .settings-category-row::before { content: ""; position: absolute; left: 12px; right: 12px; top: -6px; height: 7px; background: linear-gradient(180deg, rgba(255, 255, 255, .45), rgba(255, 255, 255, 0) 70%), var(--brick); -webkit-mask: var(--lg-stud-mask) 0 0 / 26px 7px repeat-x; mask: var(--lg-stud-mask) 0 0 / 26px 7px repeat-x; pointer-events: none; }
-html[data-skin="lego"] .settings-category-row .chevron, html[data-skin="lego"] .settings-category-icon { color: var(--bi); }
-html[data-skin="lego"] .settings-category-row:active { transform: translateY(4px); box-shadow: 0 1px 0 color-mix(in srgb, var(--brick) 55%, #000); }
-html[data-skin="lego"] .settings-category-icon { background: rgba(255, 255, 255, .2); border-radius: 4px; box-shadow: inset 0 2px 0 rgba(255, 255, 255, .3); }
-html[data-skin="lego"] .settings-category-label { font-size: 15px; }
-
-/* чипы-фильтры — маленькие плитки */
-html[data-skin="lego"] .chat-filter-chip { border-radius: 3px; padding: 7px 6px; font-size: 11px; background: #e2e8ef; color: #1a2330; box-shadow: 0 3px 0 #8e99a8, inset 0 2px 0 rgba(255, 255, 255, .8); margin-bottom: 3px; transition: transform .12s var(--lg-snap), box-shadow .12s; }
-html[data-skin="lego"] .chat-filter-chip.active { background: var(--lg-yellow); color: #1a1a1a; box-shadow: 0 3px 0 #a67f00, inset 0 2px 0 rgba(255, 255, 255, .55); }
-html[data-skin="lego"] .chat-filter-chip:active { transform: translateY(3px); box-shadow: none; }
-html[data-skin="lego"] .chat-filter-chip-add { border: 0; background: #e2e8ef; }
-
-/* ---------- пузыри: кирпичики 2×N с шипами ---------- */
-html[data-skin="lego"] .bubble-row .bubble { margin-top: 8px; padding: 11px 14px 8px; }
-html[data-skin="lego"] .bubble-row.mine .bubble, html[data-skin="lego"] .bubble-row.theirs .bubble { border-radius: 4px; background-image: linear-gradient(118deg, rgba(255, 255, 255, .3), rgba(255, 255, 255, 0) 32%); background-color: var(--brick); box-shadow: 0 5px 0 color-mix(in srgb, var(--brick) 56%, #000), 0 6px 0 rgba(0, 0, 0, .3), inset 0 2px 0 rgba(255, 255, 255, .4), inset 0 -2px 0 rgba(0, 0, 0, .12); }
-html[data-skin="lego"] .bubble-row.mine .bubble { --brick: var(--bubble-mine-bg); border-radius: 4px; }
-html[data-skin="lego"] .bubble-row.theirs .bubble { --brick: var(--bubble-theirs-bg); border-radius: 4px; }
-html[data-skin="lego"] .bubble-row .bubble::before { content: ""; position: absolute; left: 9px; right: 9px; top: -6px; height: 7px; background: linear-gradient(180deg, rgba(255, 255, 255, .42), rgba(255, 255, 255, 0) 70%), var(--brick); -webkit-mask: var(--lg-stud-mask) 0 0 / 26px 7px repeat-x; mask: var(--lg-stud-mask) 0 0 / 26px 7px repeat-x; pointer-events: none; }
-html[data-skin="lego"] .bubble-row.mine .bubble::before { left: auto; right: 9px; width: calc(100% - 18px); -webkit-mask-position: 100% 0; mask-position: 100% 0; }
-html[data-skin="lego"] .bubble-row .bubble:active { opacity: 1; transform: translateY(3px); }
-html[data-skin="lego"] .bubble-row.theirs .bubble-time { color: inherit; opacity: .8; }
-html[data-skin="lego"] .bubble-row.theirs .bubble-sender { color: #7a0f06; font-size: 12px; text-transform: uppercase; }
-html[data-skin="lego"] .bubble-time { font-family: var(--lg-head); letter-spacing: .05em; font-size: 10px; }
-html[data-skin="lego"] .bubble-reaction-chip { border-radius: 3px; background: rgba(255, 255, 255, .92); color: #111; box-shadow: 0 2px 0 rgba(0, 0, 0, .35); }
-html[data-skin="lego"] .bubble-row.theirs .bubble-reaction-chip { background: rgba(255, 255, 255, .92); }
-html[data-skin="lego"] .bubble-reply { border-radius: 2px; border-inline-start-width: 5px; background: rgba(0, 0, 0, .14); }
-html[data-skin="lego"] .bubble code { border-radius: 2px; }
-html[data-skin="lego"] .poll-opt, html[data-skin="lego"] .board-card { border-radius: 3px; background: rgba(255, 255, 255, .88); color: #14233a; border: 0; box-shadow: 0 3px 0 rgba(0, 0, 0, .3), inset 0 2px 0 #fff; }
-html[data-skin="lego"] .poll-opt-bar { background: color-mix(in srgb, #0055bf 30%, transparent); border-radius: 3px; }
-html[data-skin="lego"] .poll-opt-mark, html[data-skin="lego"] .poll-opt-count { color: #14233a; }
-html[data-skin="lego"] .board-card-acts button, html[data-skin="lego"] .board-add { color: inherit; }
-html[data-skin="lego"] .board-col { color: inherit; box-shadow: none; background-image: none; background-color: rgba(0, 0, 0, .18); border-radius: 3px; }
-html[data-skin="lego"] .voice-play-btn { border-radius: 4px; box-shadow: 0 3px 0 rgba(0, 0, 0, .35), inset 0 2px 0 rgba(255, 255, 255, .4); background: #fff; color: #111; }
-html[data-skin="lego"] .bubble-row.mine .voice-play-btn { color: var(--lg-blue); }
-html[data-skin="lego"] .voice-progress { border-radius: 2px; height: 8px; background-image: repeating-linear-gradient(90deg, rgba(255, 255, 255, .3) 0 6px, transparent 6px 8px); }
-html[data-skin="lego"] .voice-progress-fill { border-radius: 0; }
-
-/* появление: кирпичик падает сверху и защёлкивается */
-html[data-skin="lego"] .bubble-row.just-received .bubble { animation: lego-snap .55s var(--lg-snap) both; }
-html[data-skin="lego"] .bubble-row.just-sent .bubble { animation: lego-snap-s .38s var(--lg-snap) both; }
-@keyframes lego-snap { 0% { transform: translateY(-46px); opacity: 0; } 42% { transform: translateY(0); opacity: 1; } 58% { transform: translateY(-6px); } 74% { transform: translateY(0); } 86% { transform: translateY(-2px); } 100% { transform: none; opacity: 1; } }
-@keyframes lego-snap-s { 0% { transform: translateY(-26px) scale(1.02); opacity: 0; } 55% { transform: translateY(0); opacity: 1; } 75% { transform: translateY(-3px); } 100% { transform: none; opacity: 1; } }
-
-/* ---------- кнопки: кирпичи 2×1 с шипами; нажатие — «защёлкивание» вниз ---------- */
-html[data-skin="lego"] .btn-primary, html[data-skin="lego"] .btn-secondary { --brick: var(--sk-btn-bg); position: relative; margin-top: 9px; border-radius: 4px; padding: 13px 18px; font-size: 15px; letter-spacing: .06em;
-  background-color: var(--sk-btn-bg); color: var(--sk-btn-ink); background-image: linear-gradient(118deg, rgba(255, 255, 255, .32), rgba(255, 255, 255, 0) 34%);
-  box-shadow: 0 5px 0 color-mix(in srgb, var(--sk-btn-bg) 52%, #000), 0 6px 0 rgba(0, 0, 0, .3), inset 0 2px 0 rgba(255, 255, 255, .45); transition: transform .1s var(--lg-snap), box-shadow .1s; }
-html[data-skin="lego"] .btn-secondary { --brick: #e2e8ef; background-color: #e2e8ef; color: #1a2330; box-shadow: 0 5px 0 #8e99a8, 0 6px 0 rgba(0, 0, 0, .3), inset 0 2px 0 #fff; }
-html[data-skin="lego"] .btn-primary::before, html[data-skin="lego"] .btn-secondary::before { content: ""; position: absolute; left: 12px; right: 12px; top: -6px; height: 7px; background: linear-gradient(180deg, rgba(255, 255, 255, .42), rgba(255, 255, 255, 0) 70%), var(--brick); -webkit-mask: var(--lg-stud-mask) 0 0 / 26px 7px repeat-x; mask: var(--lg-stud-mask) 0 0 / 26px 7px repeat-x; pointer-events: none; }
-html[data-skin="lego"] .btn-primary:active, html[data-skin="lego"] .btn-secondary:active { transform: translateY(5px); opacity: 1; box-shadow: 0 0 0 transparent, inset 0 2px 0 rgba(255, 255, 255, .3); }
-html[data-skin="lego"] .btn-primary.destructive { --brick: var(--danger); background-color: var(--danger); color: #fff; }
-html[data-skin="lego"] .btn-tertiary { border-radius: 4px; text-transform: uppercase; }
-html[data-skin="lego"] .notif-banner-btn { margin-top: 9px; }
-html[data-skin="lego"] .send-btn { --brick: var(--sk-btn-bg); position: relative; width: 44px; height: 44px; border-radius: 4px; background-color: var(--sk-btn-bg); background-image: linear-gradient(118deg, rgba(255, 255, 255, .32), rgba(255, 255, 255, 0) 34%); box-shadow: 0 5px 0 color-mix(in srgb, var(--sk-btn-bg) 52%, #000), 0 6px 0 rgba(0, 0, 0, .3), inset 0 2px 0 rgba(255, 255, 255, .45); transition: transform .1s var(--lg-snap), box-shadow .1s; }
-html[data-skin="lego"] .send-btn::before { content: ""; position: absolute; left: 12px; right: 12px; top: -6px; height: 7px; background: var(--brick); border-radius: 3px 3px 0 0; }
-html[data-skin="lego"] .send-btn:active { transform: translateY(5px); box-shadow: 0 0 0 transparent, inset 0 2px 0 rgba(255, 255, 255, .3); }
-html[data-skin="lego"] .icon-btn { border-radius: 4px; }
-html[data-skin="lego"] .icon-btn:active { transform: translateY(2px); }
-html[data-skin="lego"] .icon-btn .ico { stroke-width: 2.4; }
-
-/* поля */
-html[data-skin="lego"] :is(.search-input, #chat-input, .settings-select, .rich-input) { background: var(--sk-field); color: var(--ink-0); border: 0; border-radius: 4px; box-shadow: inset 0 3px 0 rgba(0, 0, 0, .22), 0 2px 0 rgba(255, 255, 255, .3); }
-html[data-skin="lego"] #chat-input { border-radius: 4px; background: var(--sk-field); border: 0; font-family: var(--sk-font); }
-html[data-skin="lego"] .chat-input-bar.glass { border-radius: 5px 5px 0 0; margin: 0; padding: 14px 10px 8px; background-color: var(--lg-compose); background-image: radial-gradient(ellipse 9px 4px at 50% 50%, rgba(255, 255, 255, .28), transparent 90%); background-size: 22px 8px; background-repeat: repeat-x; background-position: 0 3px; }
-html[data-skin="lego"] .settings-row input[type="text"] { font-family: var(--lg-head); }
-html[data-skin="lego"] .settings-row input[type="range"]::-webkit-slider-runnable-track { height: 10px; border-radius: 2px; background: var(--sk-field); box-shadow: inset 0 2px 0 rgba(0, 0, 0, .3); }
-html[data-skin="lego"] .settings-row input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 26px; margin-top: -8px; border-radius: 3px; background: var(--lg-yellow); box-shadow: 0 3px 0 #a67f00, inset 0 2px 0 rgba(255, 255, 255, .5); }
-
-/* шторки, меню «+», тосты */
-html[data-skin="lego"] .sheet-backdrop { background: rgba(5, 15, 30, .55); }
-html[data-skin="lego"] .sheet-panel { border-radius: 6px 6px 0 0; padding-top: 24px; background-color: var(--sk-panel); background-image: radial-gradient(ellipse 9px 4px at 50% 50%, rgba(0, 0, 0, .18), transparent 90%); background-size: 22px 10px; background-repeat: repeat-x; background-position: 0 6px; }
-html[data-skin="lego"] .sheet-handle { width: 52px; height: 8px; border-radius: 2px; background: var(--lg-red); box-shadow: 0 3px 0 #6e0d04; margin: 0 auto 16px; }
-html[data-skin="lego"] .sheet-action { border-radius: 4px; background-color: #e2e8ef; color: #1a2330; font-size: 14px; box-shadow: 0 4px 0 #8e99a8, inset 0 2px 0 #fff; transition: transform .1s var(--lg-snap), box-shadow .1s; margin-bottom: 4px; --ink-0: #1a2330; --accent: #b30d0d; }
-html[data-skin="lego"] .sheet-action:active { transform: translateY(4px); opacity: 1; box-shadow: none; }
-html[data-skin="lego"] .sheet-action.destructive { color: #a40f0f; }
-html[data-skin="lego"] #composer-menu-sheet .composer-menu-item { border-radius: 4px; background-color: var(--lg-yellow); color: #1a1a1a; box-shadow: 0 4px 0 #a67f00, 0 5px 0 rgba(0, 0, 0, .3), inset 0 2px 0 rgba(255, 255, 255, .5); animation: lego-snap .45s var(--lg-snap) both; --accent: #1a1a1a; }
-html[data-skin="lego"] #composer-menu-sheet .composer-menu-item:nth-child(even) { background-color: #fff; box-shadow: 0 4px 0 #8e99a8, 0 5px 0 rgba(0, 0, 0, .3), inset 0 2px 0 #fff; }
-html[data-skin="lego"] :is(#toast, .toast) { border-radius: 4px; background: #1a1a1a; color: #ffd01f; box-shadow: 0 5px 0 #000, 0 0 0 3px #ffd01f; padding: 12px 18px; }
-html[data-skin="lego"] #toast.show { animation: lego-snap .45s var(--lg-snap) both; }
-html[data-skin="lego"] .reaction-emoji { border-radius: 4px; box-shadow: 0 3px 0 rgba(0, 0, 0, .3), inset 0 2px 0 rgba(255, 255, 255, .6); }
-html[data-skin="lego"] .skin-card { border-radius: 4px; border: 0; box-shadow: 0 4px 0 rgba(0, 0, 0, .3), inset 0 2px 0 rgba(255, 255, 255, .4); }
-html[data-skin="lego"] .skin-card.active { box-shadow: 0 0 0 3px var(--accent), 0 4px 0 rgba(0, 0, 0, .3); }
-html[data-skin="lego"] .unread-divider::before, html[data-skin="lego"] .unread-divider::after { height: 4px; opacity: 1; background: repeating-linear-gradient(90deg, var(--lg-red) 0 12px, var(--lg-yellow) 12px 24px, var(--lg-blue) 24px 36px); }
-html[data-skin="lego"] .unread-divider span { background: var(--lg-yellow); color: #1a1a1a; padding: 3px 8px; border-radius: 3px; }
-
-/* загрузка из блоков: «печатает…» — три кубика разных цветов */
-html[data-skin="lego"] .typing-dots span { width: 7px; height: 7px; border-radius: 1px; background: var(--lg-red); animation-name: lego-blocks; }
-html[data-skin="lego"] .typing-dots span:nth-child(2) { background: var(--lg-yellow); }
-html[data-skin="lego"] .typing-dots span:nth-child(3) { background: var(--lg-blue); }
-@keyframes lego-blocks { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-6px); } }
-html[data-skin="lego"] .ptr-spinner { border-radius: 2px; }
-html[data-skin="lego"] .file-spinner { border-radius: 2px; }
-
-/* иконки: угловатые, «из кубиков» */
-html[data-skin="lego"] .ico:not(.ico-fill) { stroke-width: 2.3; stroke-linecap: square; stroke-linejoin: miter; fill: none; }
-
-/* спокойный режим и reduce-motion */
-html[data-calm-mode="1"][data-skin="lego"] :is(.bubble, #toast, .toast, .composer-menu-item, .tab-btn, .typing-dots span, #skin-deco .lego-brick) { animation: none !important; }
-@media (prefers-reduced-motion: reduce) {
-  html[data-skin="lego"] :is(.bubble, #toast, .toast, .composer-menu-item, .tab-btn, .typing-dots span, #skin-deco .lego-brick) { animation: none !important; }
-}
-html.kb-open[data-skin="lego"] #tab-bar.glass { padding-bottom: 6px; }
-/* Контраст: имя отправителя на тёмно-синем кирпиче (7a0f06 на 4a5b70 = 1.59:1) и «Удалить» на светлой плашке (в тёмной схеме общий розовый давал 1.78:1) */
-html[data-skin="lego"][data-scheme="dark"] .bubble-row.theirs .bubble-sender { color: #ffe27a; }
-html[data-skin="lego"][data-scheme] button.sheet-action.destructive, html[data-skin="lego"][data-scheme] #contact-clear-btn, html[data-skin="lego"][data-scheme] #contact-delete-btn { color: #a3150b; }
+html[data-skin="lego"] #nav-bar.glass { margin: 0; border-radius: 0; border-width: 0; border-block-end-width: 1px; box-shadow: none; }
+html[data-skin="lego"] #tab-bar.glass { margin: 0; border-radius: 0; border-width: 0; border-block-start-width: 1px; box-shadow: none; }
+html[data-skin="lego"] #chat-form.glass { margin: 0; border-radius: 0; border-width: 0; border-block-start-width: 1px; box-shadow: none; }
+html[data-skin="lego"] :is(h1, h2, h3, #nav-title, #chat-peer-name, .settings-category-header-title, .sheet-panel h2, .btn-primary, .btn-secondary, .tab-btn) { font-family: var(--sk-head); font-weight: 700; }
+html[data-skin="lego"] .ico { stroke-linecap: round; stroke-linejoin: round; }
+html[data-skin="lego"] .ico-fill { stroke: none; }
+html[data-skin="lego"] #tab-bar .tab-btn { border-radius: 10px; transition: color .2s, background .2s; }
+html[data-skin="lego"] #tab-bar .tab-btn.active { background: var(--accent-ghost); }
+html[data-skin="lego"] .sheet-panel { border-bottom: 0; }
+html[data-skin="lego"] .sheet-backdrop { background: rgba(0,0,0, .42); }
+html[data-skin="lego"] :is(.chat-row, .settings-row, .settings-category-row, .sheet-action, .forward-row, .board-col, .contact-gallery-item, .bubble) { -webkit-backdrop-filter: none; backdrop-filter: none; }
+html[data-skin="lego"] .chat-row { margin: 3px 0; }
+html[data-skin="lego"] .bubble { padding: 9px 14px 7px; }
+html[data-skin="lego"] :is(.avatar, .avatar-xl) { border-radius: 50%; }
+html[data-skin="lego"] .send-btn { border-radius: 50%; }
+html[data-skin="lego"] :is(.search-input, #chat-input, .settings-select, .rich-input) { border-color: var(--input-border); }
+html[data-skin="lego"] :is(.search-input, #chat-input, .settings-select, .rich-input):focus { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+html[data-skin="lego"] :is(#chat-input, .search-input)::placeholder { color: var(--ink-3); }
+html[data-skin="lego"] :is(.chip, .chat-filter-chip, .theme-seg, .theme-seg button) { border-radius: 999px; }
+html[data-skin="lego"] .theme-seg button.active { background: var(--sk-btn-bg); color: var(--sk-btn-ink); }
+html[data-skin="lego"] :is(.unread-badge, .tab-badge) { background: var(--accent-bg); color: var(--on-accent); text-shadow: none; }
+html[data-skin="lego"] .voice-play-btn { background: var(--accent-bg); color: var(--on-accent); }
+html[data-skin="lego"][data-scheme="light"] .bubble-row.mine .voice-play-btn { background: var(--bubble-mine-ink); color: #ffd01f; }
+html[data-skin="lego"][data-scheme="dark"] .bubble-row.mine .voice-play-btn { background: var(--bubble-mine-ink); color: #ffd01f; }
+html[data-skin="lego"] #composer-menu-sheet .composer-menu-item { background: var(--sk-panel); font-weight: 600; }
+html[data-skin="lego"] :is(.btn-primary, .send-btn) { border-color: transparent; box-shadow: 0 3px 0 rgba(0, 0, 0, .25); }
+html[data-skin="lego"] :is(.btn-primary, .send-btn):active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0, 0, 0, .25); }
+html[data-skin="lego"] .bubble-row.mine .bubble { border-color: transparent; }

@@ -1,4 +1,4 @@
-// Скин «newyear»: леденцовые иконки, колокольчики и «Jingle Bells», гирлянда, снег, северное сияние, ёлка.
+// Скин «newyear» (современная зима): леденцовые иконки, колокольчики и «Jingle Bells», мягкий снег. Регистрируется в Skins (js/skins.js).
 (function () {
   const F = ' fill="currentColor" fill-opacity=".3"'; // «леденцовая» заливка замкнутых форм
   const icons = {
@@ -68,20 +68,14 @@
     react: [...bell(2637, 0, 0.3, 0.07), ...bell(3951, 0.07, 0.3, 0.05)],
     error: [...bell(698.5, 0, 0.3, 0.08), ...bell(554.4, 0.14, 0.4, 0.08)],
   };
+  // мягкий снег: небольшие круглые хлопья, при спокойном режиме — неподвижные
   function deco(layer, o) {
-    const calm = !!(o && o.calm), light = o && o.scheme === "light";
-    const el = (cls, css, html) => { const e = document.createElement("div"); e.className = cls; if (css) e.style.cssText = css; if (html) e.innerHTML = html; layer.appendChild(e); return e; };
-    if (!light) el("ny-aurora");
-    // гирлянда: провис + две чередующиеся группы лампочек
-    el("ny-wire-box", "position:absolute;left:0;top:0;right:0;height:30px", '<svg class="ny-wire" viewBox="0 0 400 26" preserveAspectRatio="none"><path d="M0 4Q50 22 100 6T200 6T300 6T400 5"/></svg>');
-    el("ny-bulbs a"); el("ny-bulbs b");
-    // снег
-    const n = calm ? 0 : 15;
-    for (let i = 0; i < n; i++) { const s = 3 + (i * 5) % 6; el("ny-flake", `--x:${(i * 6.8 + 3) % 98}%;--s:${s}px;--d:${9 + (i * 7) % 9}s;--dl:${-((i * 3.3) % 12)}s`); }
-    if (calm) for (let i = 0; i < 8; i++) { const s = 3 + (i * 5) % 6; el("ny-flake", `--x:${(i * 13 + 7) % 96}%;top:${(i * 29 + 11) % 88}%;--s:${s}px;animation:none`); }
-    // ёлка с мигающими огнями
-    const L = (x, y, c) => `<circle class="l" cx="${x}" cy="${y}" r="3" fill="${c}"/>`;
-    el("ny-tree", "", '<svg viewBox="0 0 84 110"><path d="M42 4 62 36H50l20 28H54l22 30H8l22-30H14l20-28H22z" fill="#14804e" stroke="#0b5a35" stroke-width="2" stroke-linejoin="round"/><rect x="37" y="94" width="10" height="14" fill="#7a4a24"/><path d="m42 0 2 5 5 .5-4 3.500 1.200 5L42 11l-4.200 3 1.200-5-4-3.500 5-.5z" fill="#ffd23f"/>' + L(36, 34, "#ff3b4e") + L(50, 48, "#ffd23f") + L(30, 62, "#4aa8ff") + L(56, 76, "#ff3b4e") + L(26, 86, "#ffd23f") + L(44, 70, "#4aa8ff") + "</svg>");
+    const calm = !!(o && o.calm), n = calm ? 8 : 16;
+    for (let i = 0; i < n; i++) {
+      const e = document.createElement("i"); e.className = "ny-flake"; const s = 3 + (i * 5) % 6;
+      e.style.cssText = `inset-inline-start:${(i * 6.1 + 4) % 98}%;width:${s}px;height:${s}px;opacity:${0.35 + (s % 4) * 0.12};animation-duration:${14 + (i * 7) % 12}s;animation-delay:${-((i * 3.7) % 18)}s;` + (calm ? `top:${(i * 29 + 11) % 88}%;` : "");
+      layer.appendChild(e);
+    }
     return () => { layer.innerHTML = ""; };
   }
   Skins.register("newyear", { icons, sound, haptic: { tap: [5] }, deco });

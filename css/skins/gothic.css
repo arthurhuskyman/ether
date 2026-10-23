@@ -1,223 +1,67 @@
-/* ============================ 6. ГОТИКА / ХОРРОР (gothic) ============================
-   Стрельчатые пузыри и шторки (clip-path), двойные рамки с уголками, фрактура + Ruslan Display, Philosopher,
-   витражная вкладка, паутина, кровь с шапки, огонёк свечи, кладбище, туман и летучие мыши. */
-@font-face { font-family: "SkFraktur"; font-weight: 700; font-display: swap; src: url("../../fonts/skins/unifrakturcook-700.woff2") format("woff2"); }
-@font-face { font-family: "SkRuslan"; font-weight: 400; font-display: swap; src: url("../../fonts/skins/ruslan-display-400.woff2") format("woff2"); }
-@font-face { font-family: "SkPhilo"; font-weight: 400; font-display: swap; src: url("../../fonts/skins/philosopher-400.woff2") format("woff2"); }
-@font-face { font-family: "SkPhilo"; font-weight: 700; font-display: swap; src: url("../../fonts/skins/philosopher-700.woff2") format("woff2"); }
+/* ============================ НУАР (gothic) — бархатный нуар: глубокий чёрный, винный акцент, строгие линии, заголовки с засечками ============================ */
+@font-face { font-family: "SkYeseva"; font-weight: 400; font-style: normal; font-display: swap; src: url("../../fonts/skins/yeseva-one-400.woff2") format("woff2"); }
 html[data-skin="gothic"] {
-  --sk-font: "SkPhilo", "Palatino Linotype", Garamond, Georgia, serif; --sk-tracking: 0.015em;
-  --gt-head: "SkFraktur", "SkRuslan", "Old English Text MT", Georgia, serif;
-  --sk-bw: 1px; --sk-radius: 2px; --sk-bubble-r: 0px; --sk-tail: 0px; --sk-btn-r: 0px; --sk-field-r: 0px;
-  --sk-press-y: 2px; --sk-press-scale: .98;
-  --r-sm: 1px; --r-md: 2px; --r-lg: 3px; --r-xl: 4px;
-  --gt-corners:
-    linear-gradient(var(--gt-cr), var(--gt-cr)) 5px 5px / 12px 1.5px no-repeat, linear-gradient(var(--gt-cr), var(--gt-cr)) 5px 5px / 1.5px 12px no-repeat,
-    linear-gradient(var(--gt-cr), var(--gt-cr)) right 5px top 5px / 12px 1.5px no-repeat, linear-gradient(var(--gt-cr), var(--gt-cr)) right 5px top 5px / 1.5px 12px no-repeat,
-    linear-gradient(var(--gt-cr), var(--gt-cr)) left 5px bottom 5px / 12px 1.5px no-repeat, linear-gradient(var(--gt-cr), var(--gt-cr)) left 5px bottom 5px / 1.5px 12px no-repeat,
-    linear-gradient(var(--gt-cr), var(--gt-cr)) right 5px bottom 5px / 12px 1.5px no-repeat, linear-gradient(var(--gt-cr), var(--gt-cr)) right 5px bottom 5px / 1.5px 12px no-repeat;
-  --gt-lancet: polygon(0 18px, 50% 0, 100% 18px, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%);
-  --gt-lancet-r: polygon(0 18px, 50% 0, 100% 18px, 100% 100%, 9px 100%, 0 calc(100% - 9px));
-  --gt-ogive: polygon(16px 0, calc(100% - 16px) 0, 100% 50%, calc(100% - 16px) 100%, 16px 100%, 0 50%);
-  --gt-shield: polygon(0 0, 100% 0, 100% 56%, 50% 100%, 0 56%);
-  --gt-arch: polygon(0 40px, 5% 26px, 15% 14px, 30% 5px, 50% 0, 70% 5px, 85% 14px, 95% 26px, 100% 40px, 100% 100%, 0 100%);
-  --gt-web: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' fill='none' stroke='%23d8d0c8' stroke-width='1.1' stroke-linecap='round'%3E%3Cpath d='M0 0H100M0 0L92 40M0 0L70 70M0 0L40 92M0 0V100M30 0Q22 22 0 30M55 0Q38 38 0 55M80 0Q54 54 0 80M100 0Q70 30 0 100'/%3E%3C/svg%3E");
-  --gt-webr: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' fill='none' stroke='%23d8d0c8' stroke-width='1.1' stroke-linecap='round'%3E%3Cg transform='translate(100 0) scale(-1 1)'%3E%3Cpath d='M0 0H100M0 0L92 40M0 0L70 70M0 0L40 92M0 0V100M30 0Q22 22 0 30M55 0Q38 38 0 55M80 0Q54 54 0 80M100 0Q70 30 0 100'/%3E%3C/g%3E%3C/svg%3E");
-  --gt-drip: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='24' viewBox='0 0 120 24'%3E%3Cpath fill='%23b3121f' d='M0 0H120V4H96Q93 4 93 8V17a3 3 0 0 1-6 0V8Q87 4 84 4H62Q59 4 59 7V11a2.5 2.5 0 0 1-5 0V7Q54 4 51 4H26Q23 4 23 8V14a3 3 0 0 1-6 0V8Q17 4 14 4H0Z'/%3E%3C/svg%3E");
-}
-html[data-skin="gothic"][data-scheme="dark"] {
-  --bg-0: #09060a; --bg-1: #110a10; --bg-2: #180e16; --bg-3: #22141f;
-  --line-1: rgba(193, 18, 31, 0.24); --line-2: rgba(193, 18, 31, 0.4);
-  --ink-0: #e9dec9; --ink-1: rgba(233, 222, 201, 0.94); --ink-2: rgba(233, 222, 201, 0.78); --ink-3: rgba(233, 222, 201, 0.66);
-  --accent: #ee4a58; --accent-hi: #ff6b78; --accent-lo: #d11a2a; --accent-ghost: rgba(209, 26, 42, 0.16); --text-link: #ff6b78;
-  --bubble-mine-bg: #5a0a14; --bubble-mine-ink: #fdeceb; --bubble-theirs-bg: #1b1119; --bubble-theirs-ink: #e9dec9;
-  --card-bg: none; --card-base: #150c13; --card-border: #55101a; --card-shadow: 0 0 14px rgba(209, 26, 42, 0.18);
-  --select-popup-bg: #110a10; --select-popup-ink: #e9dec9; --input-bg: #0d070c; --input-border: #55101a; --glass-border: #55101a;
-  --sk-line: #6e1420; --sk-line-mine: #d11a2a; --sk-line-theirs: #4a4048; --sk-panel: #150c13; --sk-field: #0d070c;
-  --sk-shadow: inset 0 0 0 3px #150c13, inset 0 0 0 4px #5e1019, 0 0 18px rgba(150, 12, 24, 0.22); --sk-bubble-shadow: none; --sk-shadow-press: inset 0 0 0 3px #150c13, inset 0 0 0 4px #d11a2a;
-  --sk-btn-bg: #8f0f1c; --sk-btn-ink: #ffffff; --sk-panel-press: #22141f;
-  --gt-cr: #b3121f; --gt-frame-m: #c1121f; --gt-frame-t: #6a6068; --gt-bone: #e9dec9; --gt-fog: rgba(120, 100, 140, 0.16); --gt-web-op: .38; --gt-sil: #040205;
-  --sk-bg: radial-gradient(ellipse 90% 50% at 50% 112%, rgba(150, 12, 24, 0.42), transparent 70%), radial-gradient(ellipse 70% 38% at 50% -8%, rgba(96, 84, 120, 0.3), transparent 70%), #09060a;
+  --sk-font: "Inter", -apple-system, "SF Pro Text", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif; --sk-head: "SkYeseva", Georgia, "Times New Roman", serif; --sk-tracking: 0;
+  --sk-bw: 1px; --sk-bs: solid; --sk-radius: 12px; --sk-bubble-r: 14px; --sk-tail: 4px; --sk-btn-r: 10px; --sk-field-r: 10px;
+  --sk-blur: none; --sk-blur-px: 0px; --sk-press-scale: .97;
+  --r-sm: 6px; --r-md: 10px; --r-lg: 12px; --r-xl: 18px;
 }
 html[data-skin="gothic"][data-scheme="light"] {
-  --bg-0: #d9d2cb; --bg-1: #e6dfd8; --bg-2: #f0eae4; --bg-3: #ddd4cb;
-  --line-1: rgba(90, 26, 34, 0.22); --line-2: rgba(90, 26, 34, 0.38);
-  --ink-0: #1b0f12; --ink-1: rgba(27, 15, 18, 0.94); --ink-2: rgba(27, 15, 18, 0.8); --ink-3: rgba(27, 15, 18, 0.68);
-  --accent: #9b111e; --accent-hi: #b8212f; --accent-lo: #740a15; --accent-ghost: rgba(155, 17, 30, 0.12); --text-link: #8a0f1b;
-  --bubble-mine-bg: #7a0c17; --bubble-mine-ink: #ffffff; --bubble-theirs-bg: #f6f0ea; --bubble-theirs-ink: #1b0f12;
-  --card-bg: none; --card-base: #f0eae4; --card-border: #5a1a22; --card-shadow: 0 2px 8px rgba(27, 15, 18, 0.22);
-  --select-popup-bg: #f0eae4; --select-popup-ink: #1b0f12; --input-bg: #f7f2ee; --input-border: #5a1a22; --glass-border: #5a1a22;
-  --sk-line: #5a1a22; --sk-line-mine: #5a1a22; --sk-line-theirs: #5a1a22; --sk-panel: #f0eae4; --sk-field: #f8f4ef;
-  --sk-shadow: inset 0 0 0 3px #f0eae4, inset 0 0 0 4px #5a1a22, 0 3px 8px rgba(27, 15, 18, 0.25); --sk-bubble-shadow: none; --sk-shadow-press: inset 0 0 0 3px #f0eae4, inset 0 0 0 4px #9b111e;
-  --sk-btn-bg: #1b0f12; --sk-btn-ink: #f3e9e2; --sk-panel-press: #ddd4cb;
-  --gt-cr: #7a0c17; --gt-frame-m: #3a0509; --gt-frame-t: #5a1a22; --gt-bone: #1b0f12; --gt-fog: rgba(255, 255, 255, 0.5); --gt-web-op: .32; --gt-sil: #8f8286;
-  --sk-bg: radial-gradient(ellipse 90% 50% at 50% 112%, rgba(155, 17, 30, 0.22), transparent 70%), radial-gradient(ellipse 90% 60% at 50% -10%, rgba(255, 255, 255, 0.6), transparent 70%), #d9d2cb;
+  --bg-0: #ece8e6; --bg-1: #e4dfdc; --bg-2: #f7f4f2; --bg-3: #d8d1cd;
+  --line-1: rgba(28,20,24,0.12); --line-2: rgba(28,20,24,0.22);
+  --ink-0: #1c1418; --ink-1: rgba(28,20,24,0.94); --ink-2: rgba(28,20,24,0.78); --ink-3: rgba(28,20,24,0.7);
+  --accent: #8e1530; --accent-hi: #b02444; --accent-lo: #6f0f26; --accent-ghost: rgba(142,21,48,.14); --text-link: #7d1129;
+  --accent-bg: #8e1530; --on-accent: #ffffff;
+  --bubble-mine-bg: linear-gradient(160deg,#8e1530,#6f0f26); --bubble-mine-ink: #ffffff;
+  --bubble-theirs-bg: #f7f4f2; --bubble-theirs-ink: #1c1418;
+  --card-bg: none; --card-base: #f7f4f2; --card-border: rgba(28,20,24,0.12); --card-shadow: 0 6px 20px rgba(28,20,24,.1);
+  --select-popup-bg: #f7f4f2; --select-popup-ink: #1c1418; --input-bg: #fbf9f8; --input-border: #7d6f77; --glass-border: rgba(28,20,24,0.12);
+  --sk-line: rgba(28,20,24,.18); --sk-line-mine: transparent; --sk-line-theirs: rgba(28,20,24,.16);
+  --sk-panel: #f7f4f2; --sk-field: #fbf9f8;
+  --sk-shadow: 0 6px 20px rgba(28,20,24,.1); --sk-bubble-shadow: 0 1px 4px rgba(28,20,24,.14); --sk-shadow-press: none;
+  --sk-btn-bg: #8e1530; --sk-btn-ink: #ffffff; --sk-panel-press: #d8d1cd;
+  --sk-bg: radial-gradient(ellipse 90% 40% at 50% 0%, rgba(142,21,48,.1), transparent 70%), #ece8e6;
 }
-
-/* ---------- типографика ---------- */
-html[data-skin="gothic"] :is(h1, h2, h3, #nav-title, #chat-peer-name, .chat-row-name, .sheet-title, .settings-category-header-title, .contact-card-name, .bubble-sender, .settings-category-label) { font-family: var(--gt-head); font-weight: 700; font-style: normal; letter-spacing: .02em; }
-html[data-skin="gothic"] :is(h1, #nav-title) { font-size: 1.55em; color: var(--ink-0); text-shadow: 0 0 10px rgba(209, 26, 42, .55), 0 2px 0 #000; }
-html[data-skin="gothic"][data-scheme="light"] :is(h1, #nav-title) { text-shadow: 0 1px 0 rgba(255, 255, 255, .8), 0 0 8px rgba(155, 17, 30, .25); }
-html[data-skin="gothic"] :is(.chat-row-name, #chat-peer-name, .contact-card-name) { font-size: 1.12em; }
-html[data-skin="gothic"] .settings-category-label { font-size: .95em; letter-spacing: .03em; }
-html[data-skin="gothic"] .settings-group-title { font-family: var(--gt-head); font-size: 15px; text-transform: none; color: var(--accent); letter-spacing: .06em; }
-html[data-skin="gothic"] .tab-btn { font-family: var(--sk-font); font-style: italic; letter-spacing: .06em; font-size: 12px; }
-html[data-skin="gothic"] :is(.bubble-time, .chat-row-time) { font-style: italic; }
-html[data-skin="gothic"] #nav-title::after { content: ""; display: inline-block; width: 8px; height: 15px; margin-left: 8px; vertical-align: .05em; background: radial-gradient(ellipse 50% 60% at 50% 72%, #fff6c0 0, #ffb13d 50%, rgba(255, 90, 0, 0) 78%); border-radius: 50% 50% 50% 50% / 75% 75% 25% 25%; filter: drop-shadow(0 0 5px #ff9a2a); transform-origin: 50% 100%; animation: gt-flame 1.4s ease-in-out infinite; }
-@keyframes gt-flame { 0%, 100% { transform: scale(1, 1) skewX(0); opacity: 1; } 25% { transform: scale(.9, 1.12) skewX(5deg); opacity: .85; } 50% { transform: scale(1.05, .92) skewX(-4deg); opacity: 1; } 75% { transform: scale(.92, 1.08) skewX(3deg); opacity: .8; } }
-
-/* ---------- иконки ---------- */
-html[data-skin="gothic"] .ico { stroke-width: 1.6; stroke-linecap: butt; stroke-linejoin: miter; }
-html[data-skin="gothic"][data-scheme="dark"] :is(.tab-btn.active, .composer-plus-btn) .ico { filter: drop-shadow(0 0 4px rgba(238, 74, 88, .7)); }
-
-/* ---------- панели: двойная рамка с уголками ---------- */
-html[data-skin="gothic"] :is(.chat-row, .settings-row, .first-run-card, .settings-category-row, .sheet-action, .forward-row, .board-col, .contact-gallery-item, .glass-content, .flat-content) {
-  border: 1px solid var(--gt-edge, var(--sk-line)); border-radius: 2px;
-  background: var(--gt-corners), var(--sk-panel);
-  box-shadow: var(--sk-shadow);
+html[data-skin="gothic"][data-scheme="dark"] {
+  --bg-0: #0b080c; --bg-1: #120d13; --bg-2: #1a1219; --bg-3: #261a25;
+  --line-1: rgba(232,96,122,0.14); --line-2: rgba(232,96,122,0.26);
+  --ink-0: #f1e7ec; --ink-1: rgba(241,231,236,0.94); --ink-2: rgba(241,231,236,0.8); --ink-3: rgba(241,231,236,0.68);
+  --accent: #e8607a; --accent-hi: #f58098; --accent-lo: #c8405c; --accent-ghost: rgba(232,96,122,.14); --text-link: #f58098;
+  --accent-bg: #c42a4d; --on-accent: #ffffff;
+  --bubble-mine-bg: linear-gradient(160deg,#8e1530,#6f0f26); --bubble-mine-ink: #ffffff;
+  --bubble-theirs-bg: #261a25; --bubble-theirs-ink: #f1e7ec;
+  --card-bg: none; --card-base: #1a1219; --card-border: rgba(232,96,122,0.14); --card-shadow: 0 10px 34px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.05);
+  --select-popup-bg: #1a1219; --select-popup-ink: #f1e7ec; --input-bg: #120d13; --input-border: #8d6b79; --glass-border: rgba(232,96,122,0.14);
+  --sk-line: rgba(232,96,122,.22); --sk-line-mine: rgba(232,96,122,.3); --sk-line-theirs: rgba(232,96,122,.16);
+  --sk-panel: #1a1219; --sk-field: #120d13;
+  --sk-shadow: 0 10px 34px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.05); --sk-bubble-shadow: 0 2px 8px rgba(0,0,0,.5); --sk-shadow-press: none;
+  --sk-btn-bg: #e8607a; --sk-btn-ink: #1a0509; --sk-panel-press: #261a25;
+  --sk-bg: radial-gradient(ellipse 90% 45% at 50% 0%, rgba(142,21,48,.38), transparent 70%), radial-gradient(ellipse 80% 40% at 50% 110%, rgba(90,10,40,.3), transparent 70%), #0b080c;
 }
-html[data-skin="gothic"] .chat-row { padding: 13px 20px; margin-block: 3px; }
-html[data-skin="gothic"] .settings-row { border-width: 0 0 1px; border-radius: 0; background: none; box-shadow: none; border-image: linear-gradient(90deg, transparent, var(--accent-lo), transparent) 1; padding-inline: 14px; }
-html[data-skin="gothic"] .chat-row:active, html[data-skin="gothic"] .settings-category-row:active { background-color: var(--sk-panel-press); transform: translateY(1px); }
-html[data-skin="gothic"] .chat-row-wrapper { border-radius: 2px; }
-
-/* шапка: кровь с края; таб-бар: витраж */
-html[data-skin="gothic"] :is(#nav-bar.glass, #tab-bar.glass) { border: 0; border-radius: 0; background: linear-gradient(180deg, var(--bg-1), var(--sk-panel)); }
-html[data-skin="gothic"] #nav-bar.glass { box-shadow: 0 1px 0 #6e1420, 0 3px 0 var(--bg-0), 0 4px 0 #6e1420; position: relative; overflow: visible; z-index: 25; }
-html[data-skin="gothic"] #nav-bar.glass::after { content: ""; position: absolute; left: 0; right: 0; top: calc(100% + 4px); height: 15px; background: var(--gt-drip) 0 0 / 80px 16px repeat-x; opacity: .92; transform-origin: 50% 0; pointer-events: none; animation: gt-drip 11s ease-in-out infinite; }
-@keyframes gt-drip { 0%, 100% { transform: scaleY(1); } 55% { transform: scaleY(1.28); } 80% { transform: scaleY(1.1); } }
-html[data-skin="gothic"] #tab-bar.glass { box-shadow: 0 -1px 0 #6e1420, 0 -3px 0 var(--bg-0), 0 -4px 0 #6e1420; }
-html[data-skin="gothic"] .tab-btn { position: relative; }
-html[data-skin="gothic"] .tab-btn::before { content: ""; position: absolute; left: 50%; top: 4px; width: 30px; height: 34px; margin-left: -15px; clip-path: polygon(0 100%, 0 38%, 50% 0, 100% 38%, 100% 100%); opacity: 0; transform: scaleY(.3); transform-origin: 50% 100%; transition: opacity .3s, transform .3s cubic-bezier(.2, 1.4, .4, 1);
-  background: linear-gradient(135deg, #c1121f 0 25%, #e0a21b 25% 50%, #2a52be 50% 75%, #1a8a4a 75%); }
-html[data-skin="gothic"] .tab-btn.active::before { opacity: .2; transform: none; }
-html[data-skin="gothic"] .tab-btn.active { color: var(--accent); text-shadow: 0 0 8px rgba(209, 26, 42, .5); }
-html[data-skin="gothic"][data-scheme="light"] .tab-btn.active::before { opacity: .3; }
-html[data-skin="gothic"] .tab-btn.active > svg { animation: gt-flap .5s ease-out; }
-@keyframes gt-flap { 0% { transform: scaleX(.4) translateY(4px); } 30% { transform: scaleX(1.25) translateY(-3px); } 55% { transform: scaleX(.85); } 100% { transform: none; } }
-html[data-skin="gothic"] .tab-badge { border-radius: 50% 50% 50% 0; background: #a3121f; color: #fff; box-shadow: none; }
-
-/* ---------- пузыри: стрельчатые окна с двойным контуром ---------- */
-html[data-skin="gothic"] .bubble-row .bubble { border: 0; border-radius: 0; padding: 22px 20px 9px; isolation: isolate; box-shadow: none; font-family: var(--sk-font); }
-html[data-skin="gothic"] .bubble-row .bubble::before { content: ""; position: absolute; inset: 2px; z-index: -1; pointer-events: none; }
-html[data-skin="gothic"] .bubble-row.mine .bubble { clip-path: var(--gt-lancet); background: var(--gt-frame-m); color: var(--bubble-mine-ink); }
-html[data-skin="gothic"] .bubble-row.mine .bubble::before { clip-path: var(--gt-lancet); background: radial-gradient(ellipse 80% 40% at 50% 0, rgba(255, 90, 90, .22), transparent 80%), var(--bubble-mine-bg); }
-html[data-skin="gothic"] .bubble-row.theirs .bubble { clip-path: var(--gt-lancet-r); background: var(--gt-frame-t); color: var(--bubble-theirs-ink); }
-html[data-skin="gothic"] .bubble-row.theirs .bubble::before { clip-path: var(--gt-lancet-r); background: radial-gradient(ellipse 80% 40% at 50% 0, rgba(200, 190, 160, .1), transparent 80%), var(--bubble-theirs-bg); }
-html[data-skin="gothic"] .bubble-row.mine .bubble.bubble-long { background: var(--gt-frame-m); }
-html[data-skin="gothic"] .bubble-row.theirs .bubble-sender { color: var(--accent); }
-html[data-skin="gothic"] .bubble-row.mine .bubble-time { color: inherit; }
-html[data-skin="gothic"] .bubble-reaction-chip { border: 1px solid var(--gt-frame-m); border-radius: 50% 50% 4px 4px / 60% 60% 4px 4px; background: var(--sk-panel); color: var(--ink-0); }
-html[data-skin="gothic"] .bubble-row.mine .bubble-reaction-chip { background: #1b0a0e; color: #fdeceb; }
-html[data-skin="gothic"] .bubble-reply { border-radius: 0; background: rgba(0, 0, 0, 0.22); border-inline-start: 2px solid var(--accent); }
-html[data-skin="gothic"] .bubble-row.multiselect-selected .bubble { outline: none; filter: drop-shadow(0 0 5px var(--accent)); }
-
-/* появление: призрачное мерцание свечи / «печать» */
-@keyframes gt-appear { 0% { opacity: 0; transform: translateY(16px) scaleY(.88); } 20% { opacity: .75; } 32% { opacity: .15; } 48% { opacity: .9; transform: translateY(-2px) scaleY(1.02); } 60% { opacity: .5; } 100% { opacity: 1; transform: none; } }
-@keyframes gt-seal { 0% { opacity: 0; transform: translateY(-22px) scale(1.08); } 55% { opacity: 1; transform: translateY(2px) scale(.98); } 75% { transform: translateY(-1px); } 100% { opacity: 1; transform: none; } }
-html[data-skin="gothic"] .bubble-row.just-received .bubble { animation: gt-appear .7s ease-out both; }
-html[data-skin="gothic"] .bubble-row.just-sent .bubble { animation: gt-seal .42s cubic-bezier(.3, .9, .4, 1) both; }
-
-/* ---------- кнопки: стрельчатые пластины, щит ---------- */
-html[data-skin="gothic"] .btn-primary, html[data-skin="gothic"] .btn-secondary {
-  position: relative; isolation: isolate; border: 0; border-radius: 0; clip-path: var(--gt-ogive); min-height: 46px; padding-inline: 26px;
-  background: var(--gt-bone); color: #fff; font-family: var(--gt-head); font-weight: 700; letter-spacing: .06em; font-size: 1.1em; box-shadow: none; text-shadow: 0 1px 0 rgba(0, 0, 0, .6);
-  transition: transform .12s;
-}
-html[data-skin="gothic"][data-scheme="dark"] :is(.btn-primary, .btn-secondary) { background: #b3121f; }
-html[data-skin="gothic"][data-scheme="light"] :is(.btn-primary, .btn-secondary) { background: #1b0f12; }
-html[data-skin="gothic"] :is(.btn-primary, .btn-secondary)::before { content: ""; position: absolute; inset: 2px; z-index: -1; clip-path: var(--gt-ogive); background: linear-gradient(180deg, #b3121f, var(--sk-btn-bg) 55%, #4a060d); }
-html[data-skin="gothic"][data-scheme="light"] :is(.btn-primary)::before { background: linear-gradient(180deg, #2b1a1e, var(--sk-btn-bg)); }
-html[data-skin="gothic"] .btn-secondary { color: var(--accent); text-shadow: none; }
-html[data-skin="gothic"] .btn-secondary::before { background: var(--sk-panel); }
-html[data-skin="gothic"] .btn-primary.destructive::before { background: linear-gradient(180deg, #d9342a, #7a0c17); }
-html[data-skin="gothic"] .btn-primary:active, html[data-skin="gothic"] .btn-secondary:active { transform: translateY(2px) scale(.985); }
-html[data-skin="gothic"] .btn-primary:active::before { background: #3a050b; }
-html[data-skin="gothic"] .send-btn { position: relative; isolation: isolate; width: 46px; height: 50px; border: 0; border-radius: 0; clip-path: var(--gt-shield); background: var(--gt-bone); color: #fff; box-shadow: none; padding-bottom: 6px; transition: transform .15s; }
-html[data-skin="gothic"][data-scheme="dark"] .send-btn { background: #c1121f; }
-html[data-skin="gothic"][data-scheme="light"] .send-btn { background: #1b0f12; }
-html[data-skin="gothic"] .send-btn::before { content: ""; position: absolute; inset: 2px; z-index: -1; clip-path: var(--gt-shield); background: linear-gradient(180deg, #a3121f, #5a0a14); }
-html[data-skin="gothic"][data-scheme="light"] .send-btn::before { background: linear-gradient(180deg, #2b1a1e, #1b0f12); }
-html[data-skin="gothic"] .send-btn:active { transform: translateY(2px) scale(.94); }
-html[data-skin="gothic"] .send-btn .ico { stroke-width: 1.8; }
-html[data-skin="gothic"] .icon-btn:active { transform: scale(.9); }
-html[data-skin="gothic"] .composer-plus-btn { color: var(--accent); }
-
-/* ---------- поля ---------- */
-html[data-skin="gothic"] :is(.search-input, #chat-input, .settings-select, .rich-input, .poll-opt-input) {
-  background: var(--sk-field); color: var(--ink-0); border: 1px solid var(--gt-edge, var(--sk-line)); border-bottom: 2px solid var(--accent); border-radius: 0; font-family: var(--sk-font); font-style: italic;
-  box-shadow: inset 0 0 0 2px var(--sk-field), inset 0 0 0 3px rgba(150, 40, 50, .35);
-}
-html[data-skin="gothic"] :is(.search-input, #chat-input, .rich-input):focus { outline: none; box-shadow: inset 0 0 0 2px var(--sk-field), inset 0 0 0 3px var(--accent), 0 0 12px rgba(209, 26, 42, .35); }
-html[data-skin="gothic"] #chat-input { caret-color: var(--accent); padding-inline: 18px; }
-html[data-skin="gothic"] #chat-form, html[data-skin="gothic"] #voice-recording-bar { border: 0; border-radius: 0; background: linear-gradient(180deg, var(--sk-panel), var(--bg-1)); box-shadow: 0 -1px 0 #6e1420; }
-
-/* ---------- аватары-надгробия, бейджи, шторки, тосты, прочее ---------- */
-html[data-skin="gothic"] :is(.avatar, .avatar-xl, .avatar-sm, .contact-avatar, .chat-peer-avatar .avatar, .bubble-row-avatar .avatar) {
-  border: 0; border-radius: 50% 50% 4px 4px / 46% 46% 4px 4px; box-shadow: 0 0 0 2px var(--sk-panel), 0 0 0 3px var(--gt-frame-m);
-}
-html[data-skin="gothic"] .unread-badge { border-radius: 50% 50% 50% 0; background: #a3121f; color: #fff; box-shadow: 0 0 8px rgba(209, 26, 42, .6); min-width: 22px; text-align: center; padding: 3px 6px; }
-html[data-skin="gothic"] .sheet-panel { border: 0; border-radius: 0; clip-path: var(--gt-arch); padding-top: 52px;
-  background: radial-gradient(ellipse 50% 60px at 50% 0, rgba(209, 26, 42, .35), transparent 80%), linear-gradient(180deg, var(--bg-2), var(--sk-panel)); box-shadow: none; }
-html[data-skin="gothic"] .sheet-handle { display: none; }
-html[data-skin="gothic"] .sheet-title { text-align: center; font-size: 1.5em; }
-html[data-skin="gothic"] .sheet:not(.hidden) .sheet-panel { animation: gt-rise .5s cubic-bezier(.2, .8, .3, 1) both; }
-@keyframes gt-rise { 0% { transform: translateY(40px); opacity: 0; } 100% { transform: none; opacity: 1; } }
-html[data-skin="gothic"] #composer-menu-sheet .composer-menu-item {
-  border: 0; border-radius: 0; clip-path: var(--gt-ogive); background: var(--gt-frame-m); color: var(--ink-0); font-family: var(--gt-head); font-weight: 700; letter-spacing: .04em; font-size: 15px; padding-inline: 24px 26px; isolation: isolate; position: relative; backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: none;
-}
-html[data-skin="gothic"] #composer-menu-sheet .composer-menu-item::before { content: ""; position: absolute; inset: 2px; z-index: -1; clip-path: var(--gt-ogive); background: var(--sk-panel); }
-html[data-skin="gothic"] #composer-menu-sheet .composer-menu-item svg { color: var(--accent); }
-html[data-skin="gothic"] :is(#toast, .toast) { background: var(--gt-corners), var(--sk-panel); color: var(--ink-0); border: 1px solid var(--sk-line); border-radius: 0; font-style: italic; padding-inline: 24px; box-shadow: var(--sk-shadow); }
-html[data-skin="gothic"] :is(.board-card, .poll-opt, .voice-bubble) { border: 1px solid var(--sk-line); border-radius: 0; background: var(--sk-field); box-shadow: inset 0 0 0 2px var(--sk-field), inset 0 0 0 3px rgba(150, 40, 50, .3); }
-html[data-skin="gothic"] .poll-opt-bar { background: rgba(179, 18, 31, .4); border-radius: 0; }
-html[data-skin="gothic"] .voice-play-btn { border-radius: 50% 50% 4px 4px / 46% 46% 4px 4px; background: #8f0f1c; color: #fff; }
-html[data-skin="gothic"] .voice-progress, html[data-skin="gothic"] .voice-progress-fill { border-radius: 0; }
-html[data-skin="gothic"] .voice-progress-fill { background: #c1121f; box-shadow: 0 0 6px #c1121f; }
-html[data-skin="gothic"] .chat-filter-chip { border: 1px solid var(--sk-line); border-radius: 50% 50% 0 0 / 40% 40% 0 0; background: var(--sk-panel); color: var(--ink-1); font-family: var(--sk-font); font-style: italic; padding: 9px 10px 7px; box-shadow: inset 0 0 0 2px var(--sk-panel), inset 0 0 0 3px rgba(150, 40, 50, .3); }
-html[data-skin="gothic"] .chat-filter-chip.active { background: #8f0f1c; color: #fff; border-color: #c1121f; }
-html[data-skin="gothic"] :is(.roster-add-btn, .fx-view-toggle button, .contact-card-add-btn, .unread-summary-btn, .load-earlier-btn, .settings-btn-full, .poll-close-btn, .voice-speed-btn, .voice-tr-btn, .contacts-index-btn, .note-edit-btn, .room-btn, .contact-action-btn) {
-  border: 1px solid #6e1420; border-radius: 0; background: var(--sk-panel); color: var(--accent); font-family: var(--gt-head); font-weight: 700; letter-spacing: .04em; box-shadow: inset 0 0 0 2px var(--sk-panel), inset 0 0 0 3px rgba(150, 40, 50, .4);
-}
-html[data-skin="gothic"] .fx-view-toggle button.active { background: #8f0f1c; color: #fff; }
-html[data-skin="gothic"] :is(.connect-card, .fx-card, .link-preview-card, .contact-card-bubble, .notif-banner, .banner, .edit-banner, .pinned-msg-banner, .contact-profile, .contact-accordion) { border: 1px solid var(--sk-line); border-radius: 2px; background: var(--gt-corners), var(--sk-panel); box-shadow: var(--sk-shadow); }
-html[data-skin="gothic"] .contact-profile { clip-path: polygon(0 36px, 8% 20px, 22% 8px, 50% 0, 78% 8px, 92% 20px, 100% 36px, 100% 100%, 0 100%); padding-top: 38px; border: 0; }
-html[data-skin="gothic"] .date-sep { font-family: var(--gt-head); font-size: 1.15em; color: var(--accent); letter-spacing: .05em; }
-html[data-skin="gothic"] .date-sep::before, html[data-skin="gothic"] .date-sep::after { background: linear-gradient(90deg, transparent, #6e1420, transparent); height: 1px; }
-
-/* паутина в углах — поверх интерфейса */
-html[data-skin="gothic"] body::after { content: ""; position: fixed; inset: 0; z-index: 9990; pointer-events: none; opacity: var(--gt-web-op); background: var(--gt-web) top left / 70px 70px no-repeat, var(--gt-webr) top right / 70px 70px no-repeat; }
-html[data-skin="gothic"] body::after { mix-blend-mode: normal; }
-html[data-skin="gothic"][data-scheme="light"] body::after { filter: invert(1); }
-
-/* ---------- декор: туман, луна, кладбище, летучие мыши ---------- */
-.gt-fog { position: absolute; left: -30%; width: 160%; height: 40%; background: radial-gradient(ellipse 40% 50% at 30% 50%, var(--gt-fog), transparent 70%), radial-gradient(ellipse 35% 45% at 75% 55%, var(--gt-fog), transparent 70%); animation: gt-fog 38s ease-in-out infinite alternate; }
-.gt-fog.b { animation-duration: 55s; animation-direction: alternate-reverse; }
-@keyframes gt-fog { from { transform: translateX(-12%); } to { transform: translateX(12%); } }
-.gt-moon { position: absolute; width: 84px; height: 84px; border-radius: 50%; right: 28px; top: 54%; background: radial-gradient(circle at 36% 34%, #f6f0e0 0, #d8d0bd 55%, #a39b8a 100%); box-shadow: 0 0 40px 10px rgba(230, 220, 190, .25); opacity: .5; }
-html[data-skin="gothic"][data-scheme="light"] .gt-moon { opacity: .3; box-shadow: none; }
-.gt-yard { position: absolute; left: 0; right: 0; bottom: 70px; width: 100%; height: 150px; color: var(--gt-sil); opacity: .95; }
-.gt-bat { position: absolute; left: -60px; top: 22%; width: 44px; height: 22px; color: #0a0509; opacity: 0; }
-.gt-bat.fly { animation: gt-fly 9s linear forwards; }
-.gt-bat svg { display: block; width: 100%; height: 100%; animation: gt-wing .22s ease-in-out infinite alternate; transform-origin: 50% 60%; }
-html[data-skin="gothic"][data-scheme="light"] .gt-bat { color: #2b1a1e; }
-@keyframes gt-fly { 0% { transform: translate(0, 0); opacity: 0; } 6% { opacity: 1; } 25% { transform: translate(120px, -40px); } 50% { transform: translate(260px, 20px); } 75% { transform: translate(400px, -30px); opacity: 1; } 100% { transform: translate(520px, 10px); opacity: 0; } }
-@keyframes gt-wing { from { transform: scaleY(1); } to { transform: scaleY(.35); } }
-html[data-calm-mode="1"] :is(.gt-fog, .gt-bat, .gt-bat svg) { animation: none !important; }
-html[data-calm-mode="1"] .gt-bat { display: none; }
-html[data-calm-mode="1"][data-skin="gothic"] #nav-title::after,
-html[data-calm-mode="1"][data-skin="gothic"] #nav-bar.glass::after,
-html[data-calm-mode="1"][data-skin="gothic"] .tab-btn.active > svg,
-html[data-calm-mode="1"][data-skin="gothic"] .bubble-row .bubble,
-html[data-calm-mode="1"][data-skin="gothic"] .sheet-panel { animation: none !important; }
-@media (prefers-reduced-motion: reduce) {
-  html[data-skin="gothic"] #nav-title::after,
-  html[data-skin="gothic"] #nav-bar.glass::after,
-  html[data-skin="gothic"] .tab-btn.active > svg,
-  html[data-skin="gothic"] .bubble-row .bubble,
-  html[data-skin="gothic"] .sheet-panel { animation: none !important; }
-}
-html[data-skin="gothic"] #composer-menu-sheet .composer-recent.composer-menu-item { min-height: 76px; padding: 14px 40px; }
-/* RTL: стрельчатые пузыри зеркалятся вместе с расположением (свои слева, чужие справа) */
-html[dir="rtl"][data-skin="gothic"] .bubble-row.mine .bubble, html[dir="rtl"][data-skin="gothic"] .bubble-row.mine .bubble::before { clip-path: var(--gt-lancet-r); }
-html[dir="rtl"][data-skin="gothic"] .bubble-row.theirs .bubble, html[dir="rtl"][data-skin="gothic"] .bubble-row.theirs .bubble::before { clip-path: var(--gt-lancet); }
+html[data-skin="gothic"] #nav-bar.glass { margin: 0; border-radius: 0; border-width: 0; border-block-end-width: 1px; box-shadow: none; }
+html[data-skin="gothic"] #tab-bar.glass { margin: 0; border-radius: 0; border-width: 0; border-block-start-width: 1px; box-shadow: none; }
+html[data-skin="gothic"] #chat-form.glass { margin: 0; border-radius: 0; border-width: 0; border-block-start-width: 1px; box-shadow: none; }
+html[data-skin="gothic"] :is(h1, h2, h3, #nav-title, #chat-peer-name, .settings-category-header-title, .sheet-panel h2, .btn-primary, .btn-secondary, .tab-btn) { font-family: var(--sk-head); font-weight: 400; }
+html[data-skin="gothic"] .ico { stroke-linecap: round; stroke-linejoin: round; }
+html[data-skin="gothic"] .ico-fill { stroke: none; }
+html[data-skin="gothic"] #tab-bar .tab-btn { border-radius: 10px; transition: color .2s, background .2s; }
+html[data-skin="gothic"] #tab-bar .tab-btn.active { background: var(--accent-ghost); }
+html[data-skin="gothic"] .sheet-panel { border-bottom: 0; }
+html[data-skin="gothic"] .sheet-backdrop { background: rgba(0,0,0, .42); }
+html[data-skin="gothic"] :is(.chat-row, .settings-row, .settings-category-row, .sheet-action, .forward-row, .board-col, .contact-gallery-item, .bubble) { -webkit-backdrop-filter: none; backdrop-filter: none; }
+html[data-skin="gothic"] .chat-row { margin: 3px 0; }
+html[data-skin="gothic"] .bubble { padding: 9px 14px 7px; }
+html[data-skin="gothic"] :is(.avatar, .avatar-xl) { border-radius: 50%; }
+html[data-skin="gothic"] .send-btn { border-radius: 50%; }
+html[data-skin="gothic"] :is(.search-input, #chat-input, .settings-select, .rich-input) { border-color: var(--input-border); }
+html[data-skin="gothic"] :is(.search-input, #chat-input, .settings-select, .rich-input):focus { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+html[data-skin="gothic"] :is(#chat-input, .search-input)::placeholder { color: var(--ink-3); }
+html[data-skin="gothic"] :is(.chip, .chat-filter-chip, .theme-seg, .theme-seg button) { border-radius: 999px; }
+html[data-skin="gothic"] .theme-seg button.active { background: var(--sk-btn-bg); color: var(--sk-btn-ink); }
+html[data-skin="gothic"] :is(.unread-badge, .tab-badge) { background: var(--accent-bg); color: var(--on-accent); text-shadow: none; }
+html[data-skin="gothic"] .voice-play-btn { background: var(--accent-bg); color: var(--on-accent); }
+html[data-skin="gothic"][data-scheme="light"] .bubble-row.mine .voice-play-btn { background: var(--bubble-mine-ink); color: #8e1530; }
+html[data-skin="gothic"][data-scheme="dark"] .bubble-row.mine .voice-play-btn { background: var(--bubble-mine-ink); color: #8e1530; }
+html[data-skin="gothic"] #composer-menu-sheet .composer-menu-item { background: var(--sk-panel); font-weight: 600; }
+html[data-skin="gothic"] #nav-title { letter-spacing: .02em; }
+html[data-skin="gothic"] .btn-primary, html[data-skin="gothic"] .send-btn { border-color: transparent; }

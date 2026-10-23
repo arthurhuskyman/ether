@@ -19,7 +19,7 @@ test("онбординг: слайды, сетка языков, проверк�
   // слайды вперёд/назад
   q(".onboarding-next").click(); assert.equal(a.run(`__onboardingSlide`), 1);
   q(".onboarding-back").click(); assert.equal(a.run(`__onboardingSlide`), 0);
-  a.run(`goToOnboardingSlide(-5)`); assert.equal(a.run(`__onboardingSlide`), 0); a.run(`goToOnboardingSlide(99)`); assert.equal(a.run(`__onboardingSlide`), 3); a.run(`goToOnboardingSlide(0)`);
+  a.run(`goToOnboardingSlide(-5)`); assert.equal(a.run(`__onboardingSlide`), 0); a.run(`goToOnboardingSlide(99)`); assert.equal(a.run(`__onboardingSlide`), 2); a.run(`goToOnboardingSlide(0)`);
   // смена языка кнопкой сетки (словарь подгружен заранее) и селектором
   loadLang(a, "de");
   a.document.querySelector('.onboarding-lang-btn[data-lang="de"]') && a.document.querySelector('.onboarding-lang-btn[data-lang="de"]').click();
@@ -38,7 +38,7 @@ test("онбординг: слайды, сетка языков, проверк�
   q("#onboarding-name").value = "Zed"; idf.value = "bad"; await submit(); assert.equal(a.run(`Store.name`), ""); assert.ok(idf.classList.contains("input-invalid"));
   idf.value = ""; await submit();
   assert.equal(a.run(`Store.name`), "Zed"); assert.ok(a.run(`Store.myId`).length > 20); assert.equal(a.run(`Store.myIdentityRaw`), ""); assert.equal(a.run(`localStorage.getItem("ether.discoverable")`), "0");
-  assert.equal(a.run(`__onboardingSlide`), 3, "переход на последний слайд");
+  assert.equal(a.run(`__onboardingSlide`), 2, "переход на последний (третий) шаг");
   assert.equal(q("#onboarding-ready-name").textContent, "Zed"); assert.ok(q("#onboarding-avatar").textContent.length > 0);
   // повторный запуск с телефоном
   idf.value = "+7 900 123-45-67"; await submit(); assert.equal(a.run(`Store.myIdentityRaw`), "+79001234567"); assert.equal(a.run(`Store.myId`).length, 64);

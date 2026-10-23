@@ -9,6 +9,7 @@ html[data-skin="glass"] {
   --gl-hi: linear-gradient(180deg, rgba(255, 255, 255, 0.34) 0%, rgba(255, 255, 255, 0.08) 38%, rgba(255, 255, 255, 0) 100%);
 }
 html[data-skin="glass"][data-scheme="dark"] {
+  --accent-bg: #a9c8ff; --on-accent: #0b0f33;
   --bg-0: #0d0f2b; --bg-1: #14173a; --bg-2: #1b1f4c; --bg-3: #252a5e;
   --line-1: rgba(255, 255, 255, 0.14); --line-2: rgba(255, 255, 255, 0.26);
   --ink-0: #ffffff; --ink-1: rgba(255, 255, 255, 0.95); --ink-2: rgba(255, 255, 255, 0.8); --ink-3: rgba(255, 255, 255, 0.7);
@@ -26,6 +27,7 @@ html[data-skin="glass"][data-scheme="dark"] {
   --sk-bg: radial-gradient(ellipse 70% 50% at 12% 8%, rgba(255, 70, 190, 0.55), transparent 65%), radial-gradient(ellipse 60% 45% at 92% 18%, rgba(50, 190, 255, 0.5), transparent 65%), radial-gradient(ellipse 70% 50% at 75% 95%, rgba(140, 80, 255, 0.6), transparent 65%), radial-gradient(ellipse 60% 40% at 5% 80%, rgba(40, 230, 180, 0.4), transparent 65%), #0d0f2b;
 }
 html[data-skin="glass"][data-scheme="light"] {
+  --accent-bg: #2953d4; --on-accent: #ffffff;
   --bg-0: #dfe9ff; --bg-1: #eef3ff; --bg-2: #f7f9ff; --bg-3: #cfdcfb;
   --line-1: rgba(20, 32, 58, 0.1); --line-2: rgba(20, 32, 58, 0.18);
   --ink-0: #14203a; --ink-1: rgba(20, 32, 58, 0.95); --ink-2: rgba(20, 32, 58, 0.8); --ink-3: rgba(20, 32, 58, 0.7);

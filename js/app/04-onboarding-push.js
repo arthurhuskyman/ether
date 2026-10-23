@@ -1,6 +1,37 @@
 "use strict";
 // Часть 4 из 14 бывшего js/app.js: Онбординг и запуск, Web Push. Глобальная область общая; порядок <script> важен.
 
+// V.79: режим интерфейса «Простой»/«Полный». html[data-ui="simple"|"full"], хранится в ether.uiMode.
+// Новый пользователь (нет ни имени, ни id, ни контактов, ни сохранённого режима) получает «простой»,
+// существующий — молча «полный». Определение выполняется при загрузке скрипта, ДО первой записи загрузчика.
+const UiMode = (() => {
+  const KEY = "ether.uiMode";
+  let mode = "full";
+  function read() { try { const v = localStorage.getItem(KEY); return v === "simple" || v === "full" ? v : null; } catch (e) { return null; } }
+  function apply(v) { mode = v === "simple" ? "simple" : "full"; try { document.documentElement.setAttribute("data-ui", mode); } catch (e) {} }
+  function init() {
+    let v = read();
+    if (!v) {
+      let fresh = false;
+      try { fresh = !localStorage.getItem("ether.name") && !localStorage.getItem("ether.myId") && !localStorage.getItem("ether.contacts") && !localStorage.getItem("ether.sec.on"); } catch (e) {}
+      v = fresh ? "simple" : "full";
+      try { localStorage.setItem(KEY, v); } catch (e) {}
+    }
+    apply(v);
+    return mode;
+  }
+  function set(v) {
+    v = v === "simple" ? "simple" : "full";
+    try { localStorage.setItem(KEY, v); } catch (e) {}
+    apply(v);
+    try { if (typeof applySettingsAdv === "function") { applySettingsAdv(); updateSettingsCategoryView(); refreshSettingsQuick(); } } catch (e) {}
+    return mode;
+  }
+  return { init, set, get: () => mode, isSimple: () => mode === "simple", toggle: () => set(mode === "simple" ? "full" : "simple") };
+})();
+UiMode.init();
+function isSimpleUi() { return UiMode.isSimple(); }
+
 // Онбординг и запуск
 // =====================================================================
 function bootAfterUnlock() {
@@ -66,7 +97,7 @@ function wireImportBackupInput() {
 // Next/Back (не свайп): для разового 4-шагового флоу это надёжнее, чем
 // вводить ещё один жест, который пришлось бы отличать от уже существующих
 // в приложении (свайп табов V.38.0.0, свайп строки чата и т.п.).
-const ONBOARDING_SLIDE_COUNT = 4;
+const ONBOARDING_SLIDE_COUNT = 3; // V.79: приветствие+язык / имя / «Пригласить друга»
 let __onboardingSlide = 0;
 let __onboardingKeyPairPromise = null;
 // 8 "популярных" языков для сетки на слайде 1 — не претендуют на
@@ -82,7 +113,7 @@ function goToOnboardingSlide(idx) {
   $$(".onboarding-dot").forEach((el) => {
     el.classList.toggle("active", Number(el.dataset.dot) === __onboardingSlide);
   });
-  if (__onboardingSlide === 3) renderOnboardingReadySlide();
+  if (__onboardingSlide === ONBOARDING_SLIDE_COUNT - 1) renderOnboardingReadySlide();
 }
 function renderOnboardingLangGrid() {
   const grid = $("#onboarding-lang-grid"); if (!grid) return;
@@ -222,8 +253,10 @@ function wireOnboardingOnce() {
     // Новый профиль не виден незнакомцам в списке «онлайн» по умолчанию (включить можно в настройках) — меньше следов, чем у «видимого всем»
     try { if (localStorage.getItem("ether.discoverable") === null) Store.discoverable = false; } catch (e) {}
     __onboardingKeyPairPromise = ensureKeyPair({ fresh: true }).catch(() => {});
-    goToOnboardingSlide(3);
+    goToOnboardingSlide(2);
   });
+  const invBtn = $("#onboarding-invite-btn"); if (invBtn) invBtn.addEventListener("click", () => { shareMyInviteLink(); });
+  const copyBtn = $("#onboarding-copy-link-btn"); if (copyBtn) copyBtn.addEventListener("click", () => { copyText(myAddLink(), T("toast.linkCopied")); });
   const startBtn = $("#onboarding-start-btn");
   if (startBtn) startBtn.addEventListener("click", async () => {
     startBtn.disabled = true;

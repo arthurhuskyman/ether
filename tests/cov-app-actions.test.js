@@ -110,18 +110,15 @@ test("эмодзи: панель, вкладки, поиск, тон кожи, �
   // длинное нажатие на рукопожатие в сетке
   a.run(`{ const s = document.getElementById("emoji-search-input"); s.value = "handshake"; s.dispatchEvent(new Event("input")); const b = [...document.querySelectorAll("#emoji-grid .emoji-grid-btn")].find((x) => x.textContent.startsWith("🤝")); if (b) { const ev = (type, x, y) => { const e2 = new Event(type, { bubbles: true }); e2.clientX = x; e2.clientY = y; b.dispatchEvent(e2); }; ev("pointerdown", 1, 1); ev("pointermove", 50, 50); ev("pointerup", 1, 1); ev("pointerdown", 1, 1); window.__hb = b; } }`); t.tick(700);
   a.run(`{ const b = window.__hb; if (b) { b.click(); } }`);
-  // быстрые реакции
-  const q = J(a.run(`(() => { const o = {}; state.chatId = "alice"; renderTab(); const el = document.querySelector('#chat-messages .bubble[data-msg-id="t5"]');
+  // быстрые реакции: V.79 — единый ряд #reaction-bar в шторке сообщения (плавающая панель удалена)
+  const q = J(a.run(`(() => { const o = {}; state.chatId = "alice"; renderTab();
     window.__react = []; window.toggleReaction = (...x) => { window.__react.push(x); }; window.openEmojiPicker = (opts) => { window.__ep = opts; }; window.handleMessageAction = (...x) => { window.__ha = x; };
-    openQuickReactionFlyout(el, "t5", "alice"); o.btns = document.querySelectorAll("#quick-reaction-flyout .reaction-emoji").length; o.acts = document.querySelectorAll("#quick-reaction-flyout .qrf-act").length;
-    document.querySelector("#quick-reaction-flyout .reaction-emoji").click(); o.reacted = window.__react.length;
-    openQuickReactionFlyout(el, "t5", "alice"); document.querySelector("#quick-reaction-flyout .reaction-expand").click(); window.__ep.onPick("🔥"); o.picker = !!window.__ep;
-    openQuickReactionFlyout(el, "t5", "alice"); const acts = document.querySelectorAll("#quick-reaction-flyout .qrf-act"); acts[0].click(); openQuickReactionFlyout(el, "t5", "alice"); document.querySelectorAll("#quick-reaction-flyout .qrf-act")[1].click(); openQuickReactionFlyout(el, "t5", "alice"); document.querySelectorAll("#quick-reaction-flyout .qrf-act")[2].click();
-    openQuickReactionFlyout(el, "t5", "alice"); closeQuickReactionFlyout(); closeQuickReactionFlyout(); openQuickReactionFlyout(null, "x", "alice"); openQuickReactionFlyout(el, "nope", "alice"); openQuickReactionFlyout(el, "t5", "nope");
-    openQuickReactionFlyout(el, "t5", "g1"); closeQuickReactionFlyout(); return o; })()`));
-  assert.ok(q.btns >= 7); assert.ok(q.acts >= 2); assert.equal(q.reacted, 1);
+    openMessageSheet("t5", "alice"); o.btns = document.querySelectorAll("#reaction-bar .reaction-emoji").length;
+    document.querySelector("#reaction-bar .reaction-emoji").click(); o.reacted = window.__react.length;
+    openMessageSheet("t5", "alice"); document.querySelector("#reaction-bar .reaction-expand").click(); window.__ep.onPick("🔥"); o.picker = !!window.__ep;
+    openMessageSheet("t5", "nope"); openMessageSheet("nope", "alice"); return o; })()`));
+  assert.ok(q.btns >= 7); assert.equal(q.reacted, 1);
   t.tick(10);
-  a.run(`openQuickReactionFlyout(document.querySelector('#chat-messages .bubble[data-msg-id="t5"]'), "t5", "alice");`); t.tick(10); a.run(`document.dispatchEvent(new Event("pointerdown", { bubbles: true }));`);
   a.close();
 });
 

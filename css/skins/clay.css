@@ -1,6 +1,5 @@
-/* ============================ ПЛАСТИЛИН (clay) ============================
-   Всё «слеплено» руками: пухлые неидеальные формы, мягкий объём (блик сверху-слева, тень снизу-справа),
-   отпечатки пальцев (feTurbulence), «squish» при нажатии, желейное появление, покачивание. Шрифт — Nunito. */
+/* ============================ МЯГКАЯ (clay) ============================
+   Мягкие формы и объём (блик сверху-слева, тень снизу-справа), без зернистых текстур, «squish» при нажатии, желейное появление, покачивание. Шрифт — Nunito. */
 @font-face { font-family: "Nunito"; font-weight: 400; font-style: normal; font-display: swap; src: url("../../fonts/skins/nunito-400.woff2") format("woff2"); }
 @font-face { font-family: "Nunito"; font-weight: 800; font-style: normal; font-display: swap; src: url("../../fonts/skins/nunito-800.woff2") format("woff2"); }
 
@@ -9,11 +8,12 @@ html[data-skin="clay"] {
   --sk-bw: 0px; --sk-radius: 32px; --sk-bubble-r: 30px; --sk-tail: 10px; --sk-btn-r: 999px; --sk-field-r: 30px;
   --sk-press-scale: .92;
   --r-sm: 18px; --r-md: 24px; --r-lg: 30px; --r-xl: 36px;
-  --clay-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .42  0 0 0 0 .26  0 0 0 0 .14  0 0 0 1.1 -.42'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  --clay-lump: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Cfilter id='l' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.035' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1.4 -.55'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23l)'/%3E%3C/svg%3E");
+  --clay-noise: none;
+  --clay-lump: none;
   --clay-spring: cubic-bezier(.34, 1.9, .5, 1);
 }
 html[data-skin="clay"][data-scheme="light"] {
+  --accent-bg: #a93a1b; --on-accent: #ffffff;
   --bg-0: #f6e4d1; --bg-1: #fbefe1; --bg-2: #fff6ec; --bg-3: #f1d9c0;
   --line-1: rgba(120, 76, 36, 0.14); --line-2: rgba(120, 76, 36, 0.24);
   --ink-0: #43261a; --ink-1: rgba(67, 38, 26, 0.94); --ink-2: rgba(67, 38, 26, 0.78); --ink-3: rgba(67, 38, 26, 0.71);
@@ -32,6 +32,7 @@ html[data-skin="clay"][data-scheme="light"] {
   --sk-bg: radial-gradient(ellipse 70% 50% at 20% 10%, rgba(255, 214, 170, 0.8), transparent 70%), radial-gradient(ellipse 60% 50% at 90% 90%, rgba(190, 235, 225, 0.7), transparent 70%), #f6e4d1;
 }
 html[data-skin="clay"][data-scheme="dark"] {
+  --accent-bg: #ff9f80; --on-accent: #2a1008;
   --bg-0: #2a2233; --bg-1: #342b40; --bg-2: #40354e; --bg-3: #4d405d;
   --line-1: rgba(255, 255, 255, 0.1); --line-2: rgba(255, 255, 255, 0.18);
   --ink-0: #fff0e4; --ink-1: rgba(255, 240, 228, 0.94); --ink-2: rgba(255, 240, 228, 0.8); --ink-3: rgba(255, 240, 228, 0.68);
@@ -50,7 +51,7 @@ html[data-skin="clay"][data-scheme="dark"] {
   --sk-bg: radial-gradient(ellipse 70% 50% at 20% 10%, rgba(120, 90, 160, 0.5), transparent 70%), radial-gradient(ellipse 60% 50% at 90% 90%, rgba(70, 140, 130, 0.35), transparent 70%), #2a2233;
 }
 
-html[data-scheme="dark"][data-skin="clay"] { --clay-lump: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Cfilter id='l' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.035' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.8 -.3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23l)'/%3E%3C/svg%3E"); }
+html[data-scheme="dark"][data-skin="clay"] { --clay-lump: none; }
 
 /* ---------- типографика ---------- */
 html[data-skin="clay"] :is(#nav-title, .nav-contact-title, .settings-group-title, .settings-category-label, .chat-row-name, .sheet-panel h2, .sheet-title, .empty-state h2, #chat-peer-name, .btn-primary, .btn-secondary, .tab-btn, .chat-filter-chip, .bubble-sender, .unread-badge, .tab-badge, .avatar) { font-weight: 800; }
@@ -194,8 +195,6 @@ html[data-skin="clay"] #composer-menu-sheet .composer-menu-item { animation: cla
 html[data-skin="clay"] :is(#toast, .toast) { border-radius: 999px; padding: 12px 22px; font-weight: 800; }
 html[data-skin="clay"] #toast.show { animation: clay-jelly-in .6s var(--clay-spring) both; }
 html[data-skin="clay"] .reaction-emoji { box-shadow: 0 5px 8px var(--clay-dent), inset 0 4px 5px rgba(255, 255, 255, .7); }
-html[data-skin="clay"] .skin-card { border-radius: 28px; border: 0; box-shadow: 0 6px 10px var(--clay-dent), inset 0 4px 6px rgba(255, 255, 255, .6); }
-html[data-skin="clay"] .skin-card.active { box-shadow: var(--sk-shadow-press); }
 html[data-skin="clay"] .empty-state h2 { font-size: 24px; }
 
 /* иконки: толстые комковатые контуры с мягкой заливкой */

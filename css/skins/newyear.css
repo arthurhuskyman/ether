@@ -1,167 +1,72 @@
-/* ============================ 12. НОВОГОДНИЙ (newyear) — ёлочные игрушки, подарки, гирлянда, снег ============================ */
-@font-face { font-family: "Lobster NY"; font-weight: 400; font-style: normal; font-display: swap; src: url("../../fonts/skins/lobster-400.woff2") format("woff2"); }
+/* ============================ ЗИМА (newyear) — современная зима: ледяной синий, клюквенный и еловый акценты, мягкий снег без мишуры ============================ */
 @font-face { font-family: "Montserrat Alt NY"; font-weight: 400; font-style: normal; font-display: swap; src: url("../../fonts/skins/montserrat-alternates-400.woff2") format("woff2"); }
 @font-face { font-family: "Montserrat Alt NY"; font-weight: 700; font-style: normal; font-display: swap; src: url("../../fonts/skins/montserrat-alternates-700.woff2") format("woff2"); }
 html[data-skin="newyear"] {
-  --sk-font: "Montserrat Alt NY", "Montserrat Alternates", "Trebuchet MS", ui-rounded, "Segoe UI", system-ui, sans-serif; --sk-display: "Lobster NY", "Lobster", "Brush Script MT", cursive;
-  --sk-bw: 2px; --sk-radius: 18px; --sk-bubble-r: 14px; --sk-tail: 14px; --sk-btn-r: 999px; --sk-field-r: 999px;
-  --sk-press-scale: .93;
-  --r-sm: 10px; --r-md: 14px; --r-lg: 18px; --r-xl: 24px;
-  --ny-candy: repeating-linear-gradient(45deg, #e0293f 0 7px, #ffffff 7px 14px);
-  --ny-hat: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 26'%3E%3Cpath d='M3 21C4.500 9 13 3 24 5.500c-3.500 3-4.500 7-3.500 11.500z' fill='%23d9283f'/%3E%3Crect x='1' y='17' width='24' height='7' rx='3.500' fill='%23ffffff'/%3E%3Ccircle cx='25' cy='6' r='3.600' fill='%23ffffff'/%3E%3C/svg%3E");
-  --ny-bow-gold: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 22'%3E%3Cpath d='M16 12C10 1 1.500 2 2 8s8.500 6 14 4zM16 12c6-11 14.500-10 14-4s-8.500 6-14 4z' fill='%23ffd23f' stroke='%23a8740a' stroke-width='1.200'/%3E%3Cpath d='M15 13 10 21M17 13l5 8' stroke='%23a8740a' stroke-width='2.200' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='12' r='3' fill='%23f0b92a' stroke='%23a8740a'/%3E%3C/svg%3E");
-  --ny-bow-silver: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 22'%3E%3Cpath d='M16 12C10 1 1.500 2 2 8s8.500 6 14 4zM16 12c6-11 14.500-10 14-4s-8.500 6-14 4z' fill='%23eef3f9' stroke='%237a8799' stroke-width='1.200'/%3E%3Cpath d='M15 13 10 21M17 13l5 8' stroke='%237a8799' stroke-width='2.200' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='12' r='3' fill='%23cfd8e3' stroke='%237a8799'/%3E%3C/svg%3E");
-  --ny-snow-edge: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='20' viewBox='0 0 120 20' preserveAspectRatio='none'%3E%3Cpath d='M0 20V12C10 2 22 2 32 10s22 6 34-2 24-8 34 0 14 4 20 2v10z' fill='black'/%3E%3C/svg%3E");
-}
-html[data-skin="newyear"][data-scheme="dark"] {
-  --bg-0: #0a1636; --bg-1: #112448; --bg-2: #17325e; --bg-3: #1f4075;
-  --line-1: rgba(255, 255, 255, 0.16); --line-2: rgba(255, 255, 255, 0.26);
-  --ink-0: #f4f9ff; --ink-1: rgba(244, 249, 255, 0.96); --ink-2: rgba(244, 249, 255, 0.82); --ink-3: rgba(244, 249, 255, 0.7);
-  --accent: #ff8c97; --accent-hi: #ff9ba4; --accent-lo: #e03447; --accent-ghost: rgba(255, 90, 106, 0.18); --text-link: #ffd86b;
-  --bubble-mine-bg: linear-gradient(160deg, #d9283f, #a3162a); --bubble-mine-ink: #ffffff; --bubble-theirs-bg: linear-gradient(160deg, #17855a, #0e6040); --bubble-theirs-ink: #ffffff;
-  --card-bg: none; --card-base: #15305a; --card-border: #f4c430; --card-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
-  --select-popup-bg: #112448; --select-popup-ink: #f4f9ff; --input-bg: #112448; --input-border: #f4c430; --glass-border: #f4c430;
-  --sk-line: rgba(244, 196, 48, 0.85); --sk-line-mine: #ffd86b; --sk-line-theirs: #d7e2ee; --sk-panel: #15305a; --sk-shadow: 0 6px 16px rgba(0, 0, 0, 0.4); --sk-bubble-shadow: 0 4px 12px rgba(0, 0, 0, 0.4); --sk-shadow-press: 0 1px 3px rgba(0, 0, 0, 0.4);
-  --sk-btn-bg: #137a43; --sk-btn-ink: #ffffff; --sk-panel-press: #1f4075;
-  --ny-ink-gold: #ffd86b;
-  --sk-bg: radial-gradient(ellipse 120% 40% at 20% -4%, rgba(60, 230, 160, 0.34), transparent 70%), radial-gradient(ellipse 90% 36% at 85% 4%, rgba(150, 100, 255, 0.28), transparent 70%), radial-gradient(circle, rgba(255, 255, 255, 0.85) 0.8px, transparent 1.400px) 0 0 / 70px 70px, radial-gradient(circle, rgba(255, 245, 200, 0.6) 0.7px, transparent 1.200px) 23px 31px / 47px 47px, linear-gradient(180deg, #081230, #0d2150 60%, #153268);
+  --sk-font: "Montserrat Alt NY", "Montserrat Alternates", "Segoe UI", system-ui, sans-serif; --sk-head: "Montserrat Alt NY", "Montserrat Alternates", "Segoe UI", system-ui, sans-serif; --sk-tracking: 0;
+  --sk-bw: 1px; --sk-bs: solid; --sk-radius: 20px; --sk-bubble-r: 20px; --sk-tail: 6px; --sk-btn-r: 14px; --sk-field-r: 20px;
+  --sk-blur: none; --sk-blur-px: 0px; --sk-press-scale: .97;
+  --r-sm: 8px; --r-md: 14px; --r-lg: 20px; --r-xl: 26px;
 }
 html[data-skin="newyear"][data-scheme="light"] {
-  --bg-0: #eaf4ff; --bg-1: #f4f9ff; --bg-2: #ffffff; --bg-3: #d6e7fb;
-  --line-1: rgba(15, 42, 74, 0.14); --line-2: rgba(15, 42, 74, 0.24);
-  --ink-0: #0f2a4a; --ink-1: rgba(15, 42, 74, 0.96); --ink-2: rgba(15, 42, 74, 0.82); --ink-3: rgba(15, 42, 74, 0.72);
-  --accent: #c8102e; --accent-hi: #e03049; --accent-lo: #9c0b22; --accent-ghost: rgba(200, 16, 46, 0.12); --text-link: #0b6b3a;
-  --bubble-mine-bg: linear-gradient(160deg, #d9283f, #b20f25); --bubble-mine-ink: #ffffff; --bubble-theirs-bg: linear-gradient(160deg, #147a4b, #0c5c38); --bubble-theirs-ink: #ffffff;
-  --card-bg: none; --card-base: #ffffff; --card-border: #1b9e5a; --card-shadow: 0 6px 16px rgba(15, 42, 74, 0.14);
-  --select-popup-bg: #ffffff; --select-popup-ink: #0f2a4a; --input-bg: #ffffff; --input-border: #1b9e5a; --glass-border: #1b9e5a;
-  --sk-line: #1b9e5a; --sk-line-mine: #b8860b; --sk-line-theirs: #9fb0c4; --sk-panel: #ffffff; --sk-shadow: 0 6px 16px rgba(15, 42, 74, 0.14); --sk-bubble-shadow: 0 4px 12px rgba(15, 42, 74, 0.2); --sk-shadow-press: 0 1px 3px rgba(15, 42, 74, 0.2);
-  --sk-btn-bg: #137a43; --sk-btn-ink: #ffffff; --sk-panel-press: #d6e7fb;
-  --ny-ink-gold: #b8860b;
-  --sk-bg: radial-gradient(circle, rgba(130, 170, 220, 0.5) 1.600px, transparent 2.400px) 0 0 / 90px 90px, radial-gradient(circle, rgba(130, 170, 220, 0.4) 1.200px, transparent 2px) 30px 40px / 60px 60px, radial-gradient(ellipse 100% 40% at 50% 0%, rgba(255, 255, 255, 1), transparent 70%), linear-gradient(180deg, #e4f0ff, #d3e6fb 70%, #c4ddf8);
+  --bg-0: #eef5fc; --bg-1: #e4eef8; --bg-2: #ffffff; --bg-3: #d6e4f2;
+  --line-1: rgba(15,35,64,0.1); --line-2: rgba(15,35,64,0.2);
+  --ink-0: #0f2340; --ink-1: rgba(15,35,64,0.94); --ink-2: rgba(15,35,64,0.78); --ink-3: rgba(15,35,64,0.7);
+  --accent: #b3122b; --accent-hi: #d13148; --accent-lo: #8e0d21; --accent-ghost: rgba(179,18,43,.14); --text-link: #a10f26;
+  --accent-bg: #b3122b; --on-accent: #ffffff;
+  --bubble-mine-bg: linear-gradient(160deg,#b3122b,#8e0d21); --bubble-mine-ink: #ffffff;
+  --bubble-theirs-bg: #ffffff; --bubble-theirs-ink: #0f2340;
+  --card-bg: none; --card-base: #ffffff; --card-border: rgba(15,35,64,0.1); --card-shadow: 0 6px 20px rgba(15,35,64,.1);
+  --select-popup-bg: #ffffff; --select-popup-ink: #0f2340; --input-bg: #ffffff; --input-border: #6f87a6; --glass-border: rgba(15,35,64,0.1);
+  --sk-line: rgba(15,35,64,.16); --sk-line-mine: transparent; --sk-line-theirs: rgba(15,35,64,.14);
+  --sk-panel: rgba(255,255,255,.86); --sk-field: #ffffff;
+  --sk-shadow: 0 6px 20px rgba(15,35,64,.1); --sk-bubble-shadow: 0 2px 8px rgba(15,35,64,.12); --sk-shadow-press: none;
+  --sk-btn-bg: #0f6b4a; --sk-btn-ink: #ffffff; --sk-panel-press: #d6e4f2;
+  --sk-bg: radial-gradient(ellipse 80% 40% at 50% 0%, rgba(255,255,255,.9), transparent 70%), linear-gradient(180deg, #e2eefa, #eef5fc 60%);
 }
-
-/* ---- типографика ---- */
-html[data-skin="newyear"] :is(h1, h2, h3, #nav-title, .chat-row-name, #chat-peer-name, .settings-category-header-title, .sheet-panel h2, .btn-primary, .btn-secondary, .board-title, .poll-q) { font-family: var(--sk-display); font-weight: 400; letter-spacing: .01em; }
-html[data-skin="newyear"] #nav-title { font-size: 34px; color: var(--ny-ink-gold); text-shadow: 0 2px 0 rgba(0, 0, 0, 0.25), 0 0 14px color-mix(in srgb, var(--ny-ink-gold) 40%, transparent); }
-html[data-skin="newyear"][data-scheme="light"] #nav-title { color: #c8102e; text-shadow: 0 2px 0 rgba(255, 255, 255, 0.8); }
-html[data-skin="newyear"] .chat-row-name, html[data-skin="newyear"] #chat-peer-name { font-size: 1.28em; }
-html[data-skin="newyear"] body { font-size: 15px; }
-html[data-skin="newyear"] .tab-btn { font-size: 11px; font-weight: 700; letter-spacing: .02em; }
-html[data-skin="newyear"] .ico { stroke-width: 2; }
-html[data-skin="newyear"] .ico-fill { stroke: currentColor; stroke-width: 1.500; stroke-linejoin: round; }
-
-/* ---- шапка: гирлянда сверху, заголовок Lobster ---- */
-html[data-skin="newyear"] #nav-bar.glass { background: transparent; border: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: 0; padding-top: calc(env(safe-area-inset-top, 0px) + 26px); }
-html[data-skin="newyear"] #nav-bar.glass::after { content: ""; position: absolute; left: 14px; right: 14px; bottom: 0; height: 3px; border-radius: 3px; background: var(--ny-candy); background-size: 20px 20px; opacity: .85; }
-html[data-skin="newyear"] #nav-bar.glass { position: relative; }
-
-/* ---- таб-бар: хвойная лента с сугробом, на ней шары-вкладки на ниточках ---- */
-html[data-skin="newyear"] #tab-bar.glass { background: linear-gradient(180deg, #0f6b45, #0a4f33); border: none; border-top: 2px solid #ffd86b; border-radius: 0; box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.3); -webkit-backdrop-filter: none; backdrop-filter: none; position: relative; margin-top: 14px; padding-inline: 10px; }
-html[data-skin="newyear"][data-scheme="light"] #tab-bar.glass { background: linear-gradient(180deg, #147a4b, #0c5c38); border-top-color: #b8860b; }
-html[data-skin="newyear"] #tab-bar.glass::before { content: ""; position: absolute; left: 0; right: 0; top: -16px; height: 17px; background: #ffffff; -webkit-mask: var(--ny-snow-edge) repeat-x left bottom / 120px 17px; mask: var(--ny-snow-edge) repeat-x left bottom / 120px 17px; filter: drop-shadow(0 -2px 2px rgba(120, 170, 230, 0.5)); pointer-events: none; }
-html[data-skin="newyear"] #tab-bar .tab-btn { color: #eafff3; padding: 14px 0 6px; }
-html[data-skin="newyear"] #tab-bar .tab-btn::before { content: ""; position: absolute; top: 0; left: 50%; width: 2px; height: 14px; margin-left: -1px; background: #ffd86b; }
-html[data-skin="newyear"] #tab-bar .tab-btn > svg { width: 34px; height: 34px; padding: 7px; box-sizing: border-box; border-radius: 50%; color: #fff; background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.85) 0 9%, transparent 30%), radial-gradient(circle at 50% 55%, var(--ny-ball, #d9283f), color-mix(in srgb, var(--ny-ball, #d9283f) 55%, #000)); box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4), inset 0 -3px 5px rgba(0, 0, 0, 0.25); stroke-width: 2; transform-origin: 50% -9px; animation: nySway 3.600s ease-in-out infinite alternate; }
-html[data-skin="newyear"] #tab-bar .tab-btn:nth-child(1) > svg { --ny-ball: #e0293f; }
-html[data-skin="newyear"] #tab-bar .tab-btn:nth-child(2) > svg { --ny-ball: #e8a91c; animation-delay: -1.200s; }
-html[data-skin="newyear"] #tab-bar .tab-btn:nth-child(3) > svg { --ny-ball: #2a7fe0; animation-delay: -2.400s; }
-html[data-skin="newyear"] #tab-bar .tab-btn.active > svg { width: 38px; height: 38px; padding: 8px; box-shadow: 0 0 14px 2px rgba(255, 220, 110, 0.75), 0 3px 6px rgba(0, 0, 0, 0.4), inset 0 -3px 5px rgba(0, 0, 0, 0.25); animation-duration: 2.200s; }
-html[data-skin="newyear"] #tab-bar .tab-btn.active { color: #ffe27a; }
-html[data-skin="newyear"] #tab-bar .tab-btn:active > svg { animation: nyPop .4s ease-out; }
-@keyframes nySway { from { transform: rotate(-5deg); } to { transform: rotate(5deg); } }
-@keyframes nyPop { 0% { transform: scale(1); } 40% { transform: scale(1.25) rotate(-12deg); } 100% { transform: scale(1); } }
-html[data-skin="newyear"] .tab-badge, html[data-skin="newyear"] .unread-badge { background: radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.8), transparent 40%), #e0293f; color: #fff; border: 2px solid #ffd86b; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35); font-weight: 700; }
-html[data-skin="newyear"] .unread-badge.is-muted { background: #5a6f8c; border-color: #cfd8e3; }
-
-/* ---- списки: бирки-ярлыки с леденцовой полосой слева ---- */
-html[data-skin="newyear"] :is(.chat-row, .settings-row, .settings-category-row, .forward-row, .sheet-action) { border-radius: 14px; border: 2px solid var(--sk-line); position: relative; overflow: hidden; background-image: radial-gradient(circle at 12% 0%, rgba(255, 255, 255, 0.14), transparent 40%); }
-html[data-skin="newyear"] :is(.chat-row, .settings-category-row)::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 7px; background: var(--ny-candy); background-size: 14px 14px; pointer-events: none; }
-html[data-skin="newyear"] .chat-row { margin: 3px 0; padding-left: 20px; }
-html[data-skin="newyear"] .chat-row:nth-child(even) { border-color: color-mix(in srgb, var(--sk-line) 100%, transparent); }
-html[data-skin="newyear"] .settings-category-row { padding-left: 20px; }
-html[data-skin="newyear"] .chat-row:active, html[data-skin="newyear"] .settings-category-row:active { transform: scale(.985) rotate(-.4deg); }
-html[data-skin="newyear"] :is(.glass-content, .first-run-card, .board-col, .contact-gallery-item) { border-radius: 18px; border: 2px solid var(--sk-line); box-shadow: var(--sk-shadow), inset 0 0 0 4px var(--sk-panel), inset 0 0 0 5.500px color-mix(in srgb, var(--sk-line) 55%, transparent); }
-html[data-skin="newyear"] :is(.avatar, .avatar-xl) { border-radius: 50%; border: 2px solid #ffd86b; overflow: visible; box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35); }
-html[data-skin="newyear"] :is(.avatar, .avatar-xl)::before { content: ""; position: absolute; width: 62%; aspect-ratio: 30 / 26; right: -22%; top: -28%; background: var(--ny-hat) center / contain no-repeat; transform: rotate(16deg); pointer-events: none; z-index: 2; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35)); }
-html[data-skin="newyear"] .bubble-row-avatar .avatar::before { width: 70%; right: -26%; top: -32%; }
-
-/* ---- пузыри: подарочные коробки с лентой и бантом ---- */
-html[data-skin="newyear"] .bubble { border: 2px solid var(--sk-line-theirs); border-radius: 12px; padding: 20px 14px 7px; background: radial-gradient(circle at 78% 62%, rgba(255, 255, 255, 0.5) 0 1.100px, transparent 2px) 0 0 / 100% 100%, radial-gradient(circle at 24% 80%, rgba(255, 255, 255, 0.4) 0 1px, transparent 1.800px) 0 0 / 100% 100%, linear-gradient(90deg, transparent 0 calc(100% - 20px), rgba(255, 255, 255, 0.5) calc(100% - 20px) calc(100% - 17px), transparent calc(100% - 17px)) 0 0 / 100% 100%, linear-gradient(180deg, #f3f7fc, #c3cfdd) 0 0 / 100% 11px no-repeat, var(--bubble-theirs-bg); position: relative; box-shadow: var(--sk-bubble-shadow); transform-origin: 50% 100%; }
-html[data-skin="newyear"] .bubble-row.mine .bubble { border-color: var(--sk-line-mine); background: radial-gradient(circle at 80% 62%, rgba(255, 255, 255, 0.5) 0 1.100px, transparent 2px) 0 0 / 100% 100%, radial-gradient(circle at 22% 80%, rgba(255, 255, 255, 0.4) 0 1px, transparent 1.800px) 0 0 / 100% 100%, linear-gradient(180deg, #ffe07a, #e8aa1c) 0 0 / 100% 11px no-repeat, var(--bubble-mine-bg); }
-html[data-skin="newyear"] .bubble-row.mine .bubble.bubble-long { background: radial-gradient(circle at 80% 62%, rgba(255, 255, 255, 0.5) 0 1.100px, transparent 2px) 0 0 / 100% 100%, linear-gradient(180deg, #ffe07a, #e8aa1c) 0 0 / 100% 11px no-repeat, var(--bubble-mine-bg); }
-html[data-skin="newyear"] .bubble::after { content: ""; position: absolute; top: -13px; width: 34px; height: 23px; background: var(--ny-bow-silver) center / contain no-repeat; pointer-events: none; filter: drop-shadow(0 2px 1px rgba(0, 0, 0, 0.3)); }
-html[data-skin="newyear"] .bubble-row.mine .bubble::after { right: 16px; background-image: var(--ny-bow-gold); }
-html[data-skin="newyear"] .bubble-row.theirs .bubble::after { left: 16px; }
-html[data-skin="newyear"] .bubble-row.mine .bubble { border-end-end-radius: 12px; }
-html[data-skin="newyear"] .bubble-row.theirs .bubble { border-end-start-radius: 12px; }
-html[data-skin="newyear"] .bubble-row.mine .bubble-time, html[data-skin="newyear"] .bubble-row.theirs .bubble-time { color: #fff; }
-html[data-skin="newyear"] .bubble-row .bubble a { color: #ffe27a; }
-html[data-skin="newyear"] .bubble-row.theirs .bubble :is(.board-title, .poll-q) { color: #fff; }
-html[data-skin="newyear"] .bubble-row.just-received .bubble { animation: nyOpen .85s cubic-bezier(.2, .9, .3, 1) both; }
-html[data-skin="newyear"] .bubble-row.just-sent .bubble { animation: nyOpen .6s cubic-bezier(.2, .9, .3, 1) both; }
-html[data-skin="newyear"] .bubble-row.just-received .bubble::after { animation: nyBow .9s ease-out both; }
-@keyframes nyOpen { 0% { transform: scale(.15) rotate(-16deg); opacity: 0; } 45% { transform: scale(1.14) rotate(5deg); opacity: 1; } 70% { transform: scale(.96) rotate(-2deg); } 100% { transform: none; opacity: 1; } }
-@keyframes nyBow { 0%, 35% { transform: scale(0) rotate(-40deg); } 70% { transform: scale(1.3) rotate(10deg); } 100% { transform: none; } }
-html[data-skin="newyear"] .bubble-reaction-chip { background: rgba(255, 255, 255, 0.95); color: #0f2a4a; border: 1.500px solid #ffd86b; border-radius: 999px; }
-html[data-skin="newyear"] .bubble-row.mine .bubble-reaction-chip, html[data-skin="newyear"] .bubble-row.theirs .bubble-reaction-chip { background: rgba(255, 255, 255, 0.95); color: #0f2a4a; border: 1.500px solid #ffd86b; }
-
-/* ---- кнопки: леденцы ---- */
-html[data-skin="newyear"] .btn-primary { border: 4px solid transparent; background: linear-gradient(var(--sk-btn-bg), var(--sk-btn-bg)) padding-box, repeating-linear-gradient(45deg, #e0293f 0 7px, #ffffff 7px 14px) border-box; color: var(--sk-btn-ink); border-radius: 999px; font-size: 1.2em; box-shadow: 0 5px 0 #0c5a33, 0 8px 12px rgba(0, 0, 0, 0.3); text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35); transition: transform .15s cubic-bezier(.3, 1.6, .5, 1), box-shadow .15s; }
-html[data-skin="newyear"] .btn-primary:active { transform: translateY(4px) rotate(-2deg) scale(.97); box-shadow: 0 1px 0 #0c5a33, 0 2px 4px rgba(0, 0, 0, 0.3); }
-html[data-skin="newyear"] .btn-primary.destructive { background: linear-gradient(#c8102e, #c8102e) padding-box, repeating-linear-gradient(45deg, #ffffff 0 7px, #9aa7b8 7px 14px) border-box; box-shadow: 0 5px 0 #7d0a1e, 0 8px 12px rgba(0, 0, 0, 0.3); }
-html[data-skin="newyear"] .btn-secondary { border: 3px solid transparent; background: linear-gradient(var(--sk-panel), var(--sk-panel)) padding-box, var(--ny-candy) border-box; background-size: auto, 14px 14px; border-radius: 999px; box-shadow: none; font-size: 1.1em; }
-html[data-skin="newyear"] .send-btn { width: 46px; height: 46px; padding: 0; border-radius: 50%; border: 2px solid #ffd86b; background: radial-gradient(circle at 32% 26%, rgba(255, 255, 255, 0.9) 0 9%, transparent 32%), radial-gradient(circle at 50% 55%, #e8344b, #a3162a); color: #fff; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4), inset 0 -4px 6px rgba(0, 0, 0, 0.25); position: relative; transition: transform .2s cubic-bezier(.3, 1.8, .5, 1); }
-html[data-skin="newyear"] .send-btn::before { content: ""; position: absolute; top: -6px; left: 50%; width: 12px; height: 7px; margin-left: -6px; border-radius: 2px 2px 0 0; background: linear-gradient(90deg, #b8860b, #ffe07a, #b8860b); }
-html[data-skin="newyear"] .send-btn:active { transform: rotate(-14deg) scale(.88); }
-html[data-skin="newyear"] .icon-btn:active { transform: rotate(-10deg) scale(.9); }
-html[data-skin="newyear"] .composer-plus-btn { background: var(--ny-candy); background-size: 14px 14px; border-radius: 50%; color: #fff; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3); }
-html[data-skin="newyear"] .composer-plus-btn .ico { filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6)); stroke-width: 3; }
-html[data-skin="newyear"] :is(.chip, .chat-filter-chip) { border-radius: 999px; border: 2px solid var(--sk-line); background: var(--sk-panel); color: var(--ink-0); }
-html[data-skin="newyear"] :is(.chip.active, .chip.selected, .chat-filter-chip.active) { border: 3px solid transparent; background: linear-gradient(#c8102e, #c8102e) padding-box, var(--ny-candy) border-box; color: #fff; font-weight: 700; }
-
-/* ---- поля, композер, листы, тосты ---- */
-html[data-skin="newyear"] :is(.search-input, #chat-input, .settings-select, .rich-input) { border: 2px solid var(--sk-line); border-radius: 22px; box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.18); }
-html[data-skin="newyear"] #chat-form.glass { background: color-mix(in srgb, var(--sk-panel) 92%, transparent); border: 2px solid var(--sk-line); border-radius: 30px; margin: 0 8px 4px; box-shadow: var(--sk-shadow); -webkit-backdrop-filter: none; backdrop-filter: none; }
-html[data-skin="newyear"] .sheet-panel { border-radius: 24px 24px 0 0; border: 2px solid var(--sk-line); border-bottom: none; background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.1), transparent 30%); }
-html[data-skin="newyear"] .sheet-panel::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 6px; background: var(--ny-candy); background-size: 14px 14px; border-radius: 22px 22px 0 0; }
-html[data-skin="newyear"] .sheet-backdrop { background: rgba(6, 16, 46, 0.55); }
-html[data-skin="newyear"][data-scheme="light"] .sheet-backdrop { background: rgba(20, 50, 90, 0.35); }
-html[data-skin="newyear"] #composer-menu-sheet .composer-menu-item { background: var(--sk-panel); border: 2px solid var(--sk-line); border-radius: 999px; }
-html[data-skin="newyear"] #toast { background: linear-gradient(180deg, #e0293f, #a3162a); color: #fff; border: 2px solid #ffd86b; border-radius: 6px 16px 6px 16px; font-family: var(--sk-display); font-size: 17px; font-weight: 400; -webkit-backdrop-filter: none; backdrop-filter: none; }
-html[data-skin="newyear"] #toast::before { content: "★"; color: #ffd86b; margin-inline-end: 6px; }
-html[data-skin="newyear"] .board-card { background: var(--sk-panel); border: 2px solid var(--sk-line); border-radius: 12px; }
-html[data-skin="newyear"] .theme-seg { border-radius: 999px; border: 2px solid var(--sk-line); }
-html[data-skin="newyear"] .voice-play-btn { background: #ffd86b; color: #a3162a; border: 2px solid #fff; }
-html[data-skin="newyear"] .bubble-row.mine .voice-play-btn { background: #ffd86b; color: #a3162a; }
-
-/* ---- декор: гирлянда, снег, северное сияние, ёлка ---- */
-.ny-wire { position: absolute; left: 0; top: 0; width: 100%; height: 26px; }
-.ny-wire path { fill: none; stroke: #1c2b1c; stroke-width: 2; }
-.ny-bulbs { position: absolute; left: 0; right: 0; top: 4px; height: 30px; background-size: 160px 30px; background-repeat: repeat-x; filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.55)); animation: nyTw 1.500s ease-in-out infinite alternate; }
-.ny-bulbs.a { background-image: radial-gradient(circle at 20px 15px, #ff3b4e 0 5.500px, transparent 6.500px), radial-gradient(circle at 100px 15px, #3ddc84 0 5.500px, transparent 6.500px); }
-.ny-bulbs.b { background-image: radial-gradient(circle at 60px 16px, #ffd23f 0 5.500px, transparent 6.500px), radial-gradient(circle at 140px 16px, #4aa8ff 0 5.500px, transparent 6.500px); animation-delay: -.75s; }
-@keyframes nyTw { from { opacity: .35; } to { opacity: 1; } }
-.ny-flake { position: absolute; top: -12px; left: var(--x); width: var(--s); height: var(--s); border-radius: 50%; background: #fff; opacity: .85; box-shadow: 0 0 6px rgba(255, 255, 255, 0.7); animation: nyFall var(--d) linear infinite; animation-delay: var(--dl); }
-html[data-scheme="light"] .ny-flake { background: #ffffff; box-shadow: 0 0 0 1px rgba(120, 160, 215, 0.55), 0 0 6px rgba(120, 160, 215, 0.4); }
-@keyframes nyFall { 0% { transform: translate(0, 0); } 50% { transform: translate(18px, 52vh); } 100% { transform: translate(-8px, 108vh); } }
-.ny-aurora { position: absolute; left: -20%; width: 140%; height: 220px; top: 10px; background: radial-gradient(ellipse 50% 50% at 30% 50%, rgba(60, 240, 170, 0.28), transparent 70%), radial-gradient(ellipse 40% 45% at 70% 40%, rgba(160, 110, 255, 0.24), transparent 70%); animation: nyAur 18s ease-in-out infinite alternate; }
-@keyframes nyAur { from { transform: translateX(-6%) skewX(-6deg); opacity: .8; } to { transform: translateX(8%) skewX(8deg); opacity: 1; } }
-.ny-tree { position: absolute; right: 6px; bottom: 74px; width: 84px; height: 110px; opacity: .5; }
-.ny-tree .l { animation: nyTw 1.200s ease-in-out infinite alternate; }
-.ny-tree .l:nth-child(even) { animation-delay: -.6s; }
-html[data-calm-mode="1"] #skin-deco :is(.ny-flake, .ny-aurora, .ny-bulbs, .ny-tree .l) { animation: none; }
-html[data-calm-mode="1"][data-skin="newyear"] #tab-bar .tab-btn > svg { animation: none; }
-html[data-calm-mode="1"][data-skin="newyear"] .bubble-row .bubble, html[data-calm-mode="1"][data-skin="newyear"] .bubble-row .bubble::after { animation: none; }
-@media (prefers-reduced-motion: reduce) { html[data-skin="newyear"] #tab-bar .tab-btn > svg, html[data-skin="newyear"] .bubble-row .bubble, html[data-skin="newyear"] .bubble-row .bubble::after { animation: none !important; } }
-
-/* вложенные панели (колонки и карточки задачи) красятся «панельным» фоном — текст на них берём из палитры, а не из пузыря */
-html[data-skin] .bubble :is(.board-col, .board-card, .board-col-h, .board-col-name, .board-add, .board-card-t) { color: var(--ink-0); }
-html[data-skin] .bubble .board-title { color: inherit; }
-html[data-skin="newyear"] #composer-menu-sheet .sheet-panel { border: none; background: none; box-shadow: none; }
-html[data-skin="newyear"] #composer-menu-sheet .sheet-panel::before { content: none; }
-
-/* 4 сегмента темы в узкой колонке: display-шрифт шире обычного */
-html[data-skin="newyear"] .theme-seg button { font-size: min(12px, 3vw); }
-
-/* Переключатель темы: подписи не выходят за кнопку (мелкий шрифт, перенос по словам) */
-html[data-skin="newyear"] .theme-seg button { min-width: 0; white-space: normal; overflow-wrap: anywhere; word-break: normal; line-height: 1.15; font-size: min(11.5px, 3vw); padding: 6px 3px; letter-spacing: 0; text-transform: none; display: flex; align-items: center; justify-content: center; text-align: center; }
+html[data-skin="newyear"][data-scheme="dark"] {
+  --bg-0: #0b1530; --bg-1: #101d3d; --bg-2: #16264d; --bg-3: #1f3366;
+  --line-1: rgba(169,196,255,0.14); --line-2: rgba(169,196,255,0.26);
+  --ink-0: #eef5ff; --ink-1: rgba(238,245,255,0.94); --ink-2: rgba(238,245,255,0.8); --ink-3: rgba(238,245,255,0.68);
+  --accent: #ff9aa8; --accent-hi: #ffb8c2; --accent-lo: #e87385; --accent-ghost: rgba(255,154,168,.14); --text-link: #ffb0bb;
+  --accent-bg: #ff9aa8; --on-accent: #2a0a10;
+  --bubble-mine-bg: linear-gradient(160deg,#c8243f,#a51a32); --bubble-mine-ink: #ffffff;
+  --bubble-theirs-bg: #1f3366; --bubble-theirs-ink: #eef5ff;
+  --card-bg: none; --card-base: #16264d; --card-border: rgba(169,196,255,0.14); --card-shadow: 0 8px 26px rgba(0,0,10,.45);
+  --select-popup-bg: #16264d; --select-popup-ink: #eef5ff; --input-bg: #101d3d; --input-border: #7c93c0; --glass-border: rgba(169,196,255,0.14);
+  --sk-line: rgba(169,196,255,.22); --sk-line-mine: transparent; --sk-line-theirs: rgba(169,196,255,.2);
+  --sk-panel: rgba(22,38,77,.88); --sk-field: #101d3d;
+  --sk-shadow: 0 8px 26px rgba(0,0,10,.45); --sk-bubble-shadow: 0 2px 8px rgba(0,0,10,.4); --sk-shadow-press: none;
+  --sk-btn-bg: #ff9aa8; --sk-btn-ink: #2a0a10; --sk-panel-press: #1f3366;
+  --sk-bg: radial-gradient(ellipse 80% 40% at 50% 0%, rgba(120,160,255,.16), transparent 70%), linear-gradient(180deg, #0f1c40, #0b1530 60%);
+}
+html[data-skin="newyear"] #nav-bar.glass { margin: 8px 10px 0; padding-top: calc(env(safe-area-inset-top, 0px) + 2px); border-radius: 22px; }
+html[data-skin="newyear"] #tab-bar.glass { margin: 0 12px calc(10px + env(safe-area-inset-bottom, 0px)); padding: 0 6px; border-radius: 26px; }
+html.kb-open[data-skin="newyear"] #tab-bar.glass { margin-bottom: 10px; }
+html[data-skin="newyear"] #chat-form.glass { margin: 0 10px 8px; border-radius: 26px; }
+html[data-skin="newyear"] :is(h1, h2, h3, #nav-title, #chat-peer-name, .settings-category-header-title, .sheet-panel h2, .btn-primary, .btn-secondary, .tab-btn) { font-family: var(--sk-head); font-weight: 700; }
+html[data-skin="newyear"] .ico { stroke-linecap: round; stroke-linejoin: round; }
+html[data-skin="newyear"] .ico-fill { stroke: none; }
+html[data-skin="newyear"] #tab-bar .tab-btn { border-radius: 14px; transition: color .2s, background .2s; }
+html[data-skin="newyear"] #tab-bar .tab-btn.active { background: var(--accent-ghost); }
+html[data-skin="newyear"] .sheet-panel { border-bottom: 0; }
+html[data-skin="newyear"] .sheet-backdrop { background: rgba(0,0,0, .42); }
+html[data-skin="newyear"] :is(.chat-row, .settings-row, .settings-category-row, .sheet-action, .forward-row, .board-col, .contact-gallery-item, .bubble) { -webkit-backdrop-filter: none; backdrop-filter: none; }
+html[data-skin="newyear"] .chat-row { margin: 3px 0; }
+html[data-skin="newyear"] .bubble { padding: 9px 14px 7px; }
+html[data-skin="newyear"] :is(.avatar, .avatar-xl) { border-radius: 50%; }
+html[data-skin="newyear"] .send-btn { border-radius: 50%; }
+html[data-skin="newyear"] :is(.search-input, #chat-input, .settings-select, .rich-input) { border-color: var(--input-border); }
+html[data-skin="newyear"] :is(.search-input, #chat-input, .settings-select, .rich-input):focus { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+html[data-skin="newyear"] :is(#chat-input, .search-input)::placeholder { color: var(--ink-3); }
+html[data-skin="newyear"] :is(.chip, .chat-filter-chip, .theme-seg, .theme-seg button) { border-radius: 999px; }
+html[data-skin="newyear"] .theme-seg button.active { background: var(--sk-btn-bg); color: var(--sk-btn-ink); }
+html[data-skin="newyear"] :is(.unread-badge, .tab-badge) { background: var(--accent-bg); color: var(--on-accent); text-shadow: none; }
+html[data-skin="newyear"] .voice-play-btn { background: var(--accent-bg); color: var(--on-accent); }
+html[data-skin="newyear"][data-scheme="light"] .bubble-row.mine .voice-play-btn { background: var(--bubble-mine-ink); color: #b3122b; }
+html[data-skin="newyear"][data-scheme="dark"] .bubble-row.mine .voice-play-btn { background: var(--bubble-mine-ink); color: #c8243f; }
+html[data-skin="newyear"] #composer-menu-sheet .composer-menu-item { background: var(--sk-panel); font-weight: 600; }
+html[data-skin="newyear"] .ny-flake { position: absolute; top: -12px; border-radius: 50%; background: #fff; opacity: .8; animation: nyFall linear infinite; }
+html[data-skin="newyear"][data-scheme="light"] .ny-flake { background: #fff; box-shadow: 0 0 0 1px rgba(110,150,200,.25); }
+@keyframes nyFall { from { transform: translate(0, 0); } 50% { transform: translate(18px, 55vh); } to { transform: translate(-10px, 112vh); } }
+html[data-calm-mode="1"] #skin-deco .ny-flake { animation: none; }
+@media (prefers-reduced-motion: reduce) { #skin-deco .ny-flake { animation: none !important; display: none; } }

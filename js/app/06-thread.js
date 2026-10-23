@@ -73,7 +73,7 @@ function renderChatThreadInner() {
     // Тот же баг, что и в closeChatSafely — переключение МЕЖДУ чатами
     // не останавливало играющее голосовое из предыдущего чата.
     pauseAllVoicePlayback();
-    closeQuickReactionFlyout(); // иначе плывущая панель реакций осталась бы висеть над уже другим чатом под ней
+    try { closeAnchoredMenu("chat"); } catch (e) {} // меню «⋯»/строки не должно висеть над другим чатом
     try { if (state.threadRoot && state.threadRoot.cid !== state.chatId) closeThreadSheet(); } catch (e) {} // панель треда принадлежит прежнему чату
 
     // Свежий вход в чат — сбрасываем набор отрендеренных ранее id,
@@ -429,11 +429,8 @@ if (m.replyTo) {
         if (!longPressMoved && !state.multiSelect) {
           longPressFired = true;
           try { if (navigator.vibrate) navigator.vibrate(15); } catch (e) {}
-          // Группы не поддерживают реакции (см. комментарий в
-          // openMessageSheet) — там долгое нажатие ведёт прямо в старую
-          // полную шторку действий, без промежуточной плывущей панели,
-          // которой для этого чата всё равно было бы нечего показывать.
-          openQuickReactionFlyout(inner, m.id, c.id);
+          // Долгое нажатие открывает шторку сообщения (в ней ряд реакций для личных чатов и все действия).
+          openMessageSheet(m.id, c.id);
         }
         inner.classList.remove("bubble-pressing");
       }, 500);
@@ -793,21 +790,22 @@ function openChatFolderPicker(c) {
     return { label: (inIt ? "✓ " : "") + f.name, icon: "archive", fn: () => { f.contactIds = inIt ? f.contactIds.filter((x) => x !== c.id) : f.contactIds.concat(c.id); persistChatFolders(); renderChatsList(); } };
   }));
 }
-function openChatRowMenu(c) {
+function openChatRowMenu(c, anchorEl) {
   const refresh = () => { try { renderChatsList(); } catch (e) {} };
-  openActionSheet(c.name || T("sys.someone"), [
+  // V.79: единое якорное меню (openAnchoredMenu); редкие пункты (rare) в простом режиме спрятаны под «Ещё»
+  openAnchoredMenu({ title: c.name || T("sys.someone"), anchor: anchorEl || null, point: anchorEl ? null : { x: (window.innerWidth || 360) / 2, y: (window.innerHeight || 640) / 3 }, align: "center", items: [
     { label: c.pinned ? T("chats.unpin") : T("chats.pin"), icon: "pin", fn: () => { c.pinned = !c.pinned; c.pinOrder = c.pinned ? nextPinOrder() : null; persistContacts(); refresh(); } },
     { label: isContactMuted(c) ? T("chats.action.unmute") : T("chats.action.mute"), icon: "bell", fn: () => toggleChatMute(c, refresh) },
-    { label: T("chats.action.folder"), icon: "archive", fn: () => openChatFolderPicker(c) },
-    { label: c.markedUnread ? T("chats.action.markRead") : T("chats.action.markUnread"), icon: "chat", fn: () => { c.markedUnread = !c.markedUnread; persistContacts(); refresh(); } },
+    { label: T("chats.action.folder"), icon: "archive", rare: true, fn: () => openChatFolderPicker(c) },
+    { label: c.markedUnread ? T("chats.action.markRead") : T("chats.action.markUnread"), icon: "chat", rare: true, fn: () => { c.markedUnread = !c.markedUnread; persistContacts(); refresh(); } },
     { label: c.archived ? T("chats.action.unarchive") : T("chats.action.archive"), icon: "archive", fn: () => { c.archived = !c.archived; persistContacts(); refresh(); } },
-  ]);
+  ] });
 }
 function attachChatRowContext(row, c) {
-  row.addEventListener("contextmenu", (e) => { e.preventDefault(); row.__longPressed = true; openChatRowMenu(c); });
+  row.addEventListener("contextmenu", (e) => { e.preventDefault(); row.__longPressed = true; openChatRowMenu(c, row); });
   let t = null, x = 0, y = 0;
   const cancel = () => { clearTimeout(t); t = null; };
-  row.addEventListener("pointerdown", (e) => { if (e.pointerType === "mouse") return; x = e.clientX; y = e.clientY; cancel(); t = setTimeout(() => { t = null; if (row.__longPressed) return; row.__longPressed = true; haptic("light"); openChatRowMenu(c); }, 600); });
+  row.addEventListener("pointerdown", (e) => { if (e.pointerType === "mouse") return; x = e.clientX; y = e.clientY; cancel(); t = setTimeout(() => { t = null; if (row.__longPressed) return; row.__longPressed = true; haptic("light"); openChatRowMenu(c, row); }, 600); });
   row.addEventListener("pointermove", (e) => { if (t && (Math.abs(e.clientX - x) > 8 || Math.abs(e.clientY - y) > 8)) cancel(); });
   for (const ev of ["pointerup", "pointercancel", "pointerleave"]) row.addEventListener(ev, cancel);
 }
@@ -816,18 +814,18 @@ function openChatHeaderMenu() {
   const items = [
     { label: T("chat.search"), icon: "search", fn: () => { const b = $("#chat-search-btn"); if (b) b.click(); } },
     { label: T("chat.contact.gallery"), icon: "image", fn: () => openContactCard(id) },
-    { label: T("chat.pinned"), icon: "pin", fn: () => { if (!c.pinnedMessageId) { toast(T("chat.pinned.none")); return; } const j = $("#pinned-msg-jump"); if (j) j.click(); } },
+    { label: T("chat.pinned"), icon: "pin", rare: true, fn: () => { if (!c.pinnedMessageId) { toast(T("chat.pinned.none")); return; } const j = $("#pinned-msg-jump"); if (j) j.click(); } },
     { label: isContactMuted(c) ? T("chats.action.unmute") : T("chat.contact.mute"), icon: "bell", fn: () => toggleChatMute(c, () => { try { renderChatThreadInner(); } catch (e) {} }) },
-    { label: T("chat.disappearing"), icon: "clock", fn: () => openActionSheet(T("chat.disappearing"), [["chat.disappearing.off", 0], ["chat.disappearing.1h", 3600000], ["chat.disappearing.1d", 86400000], ["chat.disappearing.1w", 604800000]].map(([k, ms]) => ({ label: ((c.disappearingTimer || 0) === ms ? "✓ " : "") + T(k), icon: "clock", fn: () => setDisappearingTimer(id, ms) }))) },
-    { label: T("summary.menu"), icon: "sparkle", fn: () => { if (typeof openChatSummary === "function") openChatSummary(id); } },
-    { label: T("chat.contact.export"), icon: "download", fn: () => exportChat(id) },
+    { label: T("chat.disappearing"), icon: "clock", rare: true, fn: () => openActionSheet(T("chat.disappearing"), [["chat.disappearing.off", 0], ["chat.disappearing.1h", 3600000], ["chat.disappearing.1d", 86400000], ["chat.disappearing.1w", 604800000]].map(([k, ms]) => ({ label: ((c.disappearingTimer || 0) === ms ? "✓ " : "") + T(k), icon: "clock", fn: () => setDisappearingTimer(id, ms) }))) },
+    { label: T("summary.menu"), icon: "sparkle", rare: true, fn: () => { if (typeof openChatSummary === "function") openChatSummary(id); } },
+    { label: T("chat.contact.export"), icon: "download", rare: true, fn: () => exportChat(id) },
     { label: T("chat.contact.clear"), icon: "trash", danger: true, fn: async () => {
       if (!await confirmSheet(T("toast.confirmDeleteChat", { name: c.name }), { destructive: true })) return;
       cleanupExpiredFileBlobs(c.messages); c.messages = []; c.lastActivity = Date.now(); persistContacts();
       try { renderChatThreadInner(); } catch (e) {} toast(T("toast.historyCleared"));
     } },
   ];
-  openActionSheet(c.name || "", items);
+  openAnchoredMenu({ title: c.name || "", anchor: $("#chat-more-btn"), align: "end", items });
 }
 function wireChatHeaderMenu() {
   const b = $("#chat-more-btn"); if (b) b.addEventListener("click", openChatHeaderMenu);

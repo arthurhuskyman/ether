@@ -72,19 +72,16 @@ test("композер: «+» открывает меню-шторку вмес�
   a.close();
 });
 
-test("меню сообщения: панель на долгое нажатие с реакциями и быстрыми действиями; шторка без дубля реакций, уровни и подписи удаления", async () => {
+test("меню сообщения: одна шторка с рядом реакций (без плавающей панели-дубля), уровни и подписи удаления", async () => {
   const a = await booted();
   a.run(`const c = ensureContactEntry("alice", "Alice"); c.managed = true;
     c.messages.push({ id: "m1", from: "them", text: "hello", ts: Date.now() }, { id: "m2", from: "me", text: "mine", ts: Date.now(), ack: "failed" });
     state.chatId = "alice"; renderTab();`);
-  const flyout = a.document.querySelector("#quick-reaction-flyout");
-  const anchor = a.document.querySelector(".bubble");
-  a.run(`openQuickReactionFlyout(document.querySelector(".bubble"), "m1", "alice")`);
-  assert.ok(flyout.querySelectorAll(".qrf-reactions .reaction-emoji").length >= 7, "6 реакций и «+»");
-  const acts = Array.from(flyout.querySelectorAll(".qrf-act")).map((b) => b.textContent);
-  assert.deepEqual(acts, ["Reply", "Copy", "More"]);
-  flyout.querySelector(".qrf-act:last-child").click();
-  assert.equal(a.document.querySelector("#message-sheet").classList.contains("hidden"), false, "«More» открывает шторку");
+  // V.79: плавающая панель реакций удалена — ряд реакций остался только в шторке сообщения
+  assert.equal(a.document.querySelector("#quick-reaction-flyout"), null, "панели-дубля нет в разметке");
+  assert.equal(a.run(`typeof openQuickReactionFlyout`), "undefined");
+  a.run(`openMessageSheet("m1", "alice")`);
+  assert.equal(a.document.querySelector("#message-sheet").classList.contains("hidden"), false, "шторка открыта");
   const rb = a.document.querySelector("#reaction-bar");
   assert.equal(rb.children.length, 7, "в шторке — ряд из 6 реакций и «+» (тот же обработчик, что в панели)");
   assert.ok(rb.querySelector(".reaction-expand").getAttribute("aria-label"));
@@ -100,12 +97,9 @@ test("меню сообщения: панель на долгое нажатие
   a.run(`openMessageSheet("m2", "alice")`);
   const del = Array.from(a.document.querySelectorAll("#message-sheet-body .destructive")).map((b) => b.textContent);
   assert.deepEqual(del, ["Delete for me only", "Delete for everyone"]);
-  // группа: реакций нет ни в панели, ни в шторке
+  // группа: реакций в шторке нет
   a.run(`state.contacts.set("g0", { id: "g0", name: "G0", managed: true, isGroup: true, createdBy: "me-test-id", members: [{ id: "me-test-id", name: "T", role: "admin" }], messages: [{ id: "gz", from: "them", fromId: "x", text: "yo", ts: Date.now() }], lastActivity: Date.now() }); openMessageSheet("gz", "g0")`);
   assert.equal(a.document.querySelector("#reaction-bar").children.length, 0);
-  a.run(`state.contacts.set("g1", { id: "g1", name: "G", managed: true, isGroup: true, createdBy: "me-test-id", members: [{ id: "me-test-id", name: "T", role: "admin" }], messages: [{ id: "gm", from: "them", fromId: "x", text: "yo", ts: Date.now() }], lastActivity: Date.now() }); openQuickReactionFlyout(document.querySelector(".bubble"), "gm", "g1")`);
-  assert.equal(a.document.querySelectorAll("#quick-reaction-flyout .qrf-reactions").length, 0);
-  assert.ok(a.document.querySelector("#quick-reaction-flyout .qrf-actions"));
   a.close();
 });
 

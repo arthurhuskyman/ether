@@ -15,7 +15,7 @@ const css = fs.readFileSync(path.join(__dirname, "..", "css", "styles.css"), "ut
 
 test("меню «+»: порядок плашек, сетка 2 колонки, «Недавнее» скрыто без файлов и показано с файлом", async () => {
   const a = await booted();
-  const ids = Array.from(a.document.querySelectorAll("#composer-menu-sheet .composer-menu-item:not(.composer-recent)")).map((b) => b.id);
+  const ids = Array.from(a.document.querySelectorAll("#composer-menu-sheet .composer-menu-item:not(.composer-recent):not(#composer-menu-more)")).map((b) => b.id);
   assert.deepEqual(ids, ["chat-emoji-btn", "chat-camera-btn", "chat-attach-btn", "chat-poll-btn", "chat-board-btn", "chat-note-btn", "chat-summary-btn", "chat-sticker-btn"]);
   assert.match(css, /composer-menu-actions \{ display: grid; grid-template-columns: repeat\(2/);
   a.run(`{ const c = ensureContactEntry("alice", "Alice"); c.managed = true; state.chatId = "alice"; renderTab(); setComposerFan(true); }`);
@@ -47,11 +47,11 @@ test("меню шапки чата и контекстное меню строк
   a.run(`{ const c = ensureContactEntry("alice", "Alice"); c.managed = true; c.messages.push({ id: "m1", from: "me", text: "x", ts: Date.now() }); state.chatId = "alice"; renderTab(); }`);
   assert.ok(a.document.querySelector("#chat-more-btn").getAttribute("aria-label") || a.document.querySelector("#chat-more-btn").dataset.i18nAria);
   a.document.querySelector("#chat-more-btn").click();
-  const items = Array.from(a.document.querySelectorAll("#action-sheet-body .sheet-action"));
-  assert.equal(items.length, 8);
+  const items = Array.from(a.document.querySelectorAll("#anchored-menu .amenu-item")); // V.79: единое якорное меню
+  assert.equal(items.length, 8, "в полном режиме все 8 пунктов сразу, без «Ещё»");
   assert.ok(items[items.length - 1].classList.contains("destructive"), "очистка внизу красным");
-  a.run(`document.querySelector("#action-sheet").classList.add("hidden"); state.chatId = null; state.tab = "chats"; renderTab(); renderChatsList(); openChatRowMenu(state.contacts.get("alice"));`);
-  assert.equal(a.document.querySelectorAll("#action-sheet-body .sheet-action").length, 5);
+  a.run(`closeAnchoredMenu(); state.chatId = null; state.tab = "chats"; renderTab(); renderChatsList(); openChatRowMenu(state.contacts.get("alice"));`);
+  assert.equal(a.document.querySelectorAll("#anchored-menu .amenu-item").length, 5);
   a.run(`state.contacts.get("alice").markedUnread = true;`);
   assert.equal(a.run(`unreadCount(state.contacts.get("alice"))`), 1);
   a.close();

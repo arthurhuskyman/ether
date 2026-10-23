@@ -10,18 +10,18 @@ const Skins = (() => {
   const LIST = [
     { id: "default", emoji: "✨", light: ["#fafafc", "#ffffff", "#6446c9"], dark: ["#08080a", "#17171c", "#8a6dff"], bar: { light: "#fafafc", dark: "#08080a" } },
     { id: "glass", emoji: "🪟", light: ["#dfe9ff", "#f7f9ff", "#2953d4"], dark: ["#0d0f2b", "#1b1f4c", "#a9c8ff"], bar: { light: "#dfe9ff", dark: "#0d0f2b" } },
-    { id: "neon", emoji: "🌃", light: ["#eaf4ff", "#ffffff", "#0068a0"], dark: ["#07060f", "#130f28", "#00f0ff"], bar: { light: "#eaf4ff", dark: "#07060f" } },
+    { id: "neon", emoji: "🌃", light: ["#eaf4ff", "#ffffff", "#0068a0"], dark: ["#07060f", "#130f28", "#00e5f5"], bar: { light: "#eaf4ff", dark: "#07060f" } },
     { id: "clay", emoji: "🧸", light: ["#f6e4d1", "#fff6ec", "#a93a1b"], dark: ["#2a2233", "#40354e", "#ff9f80"], bar: { light: "#f6e4d1", dark: "#2a2233" } },
     { id: "sakura", emoji: "🌸", light: ["#fff4f7", "#ffffff", "#b02a5e"], dark: ["#1b1218", "#2a1b24", "#ff9fc0"], bar: { light: "#fff4f7", dark: "#1b1218" } },
-    { id: "cartoon", emoji: "🎈", light: ["#fff1cf", "#ffffff", "#1366c0"], dark: ["#1d1a3d", "#312d63", "#ffd23f"], bar: { light: "#fff1cf", dark: "#1d1a3d" } },
-    { id: "comic", emoji: "💥", light: ["#fff4d1", "#ffffff", "#c72535"], dark: ["#1a1a38", "#26264d", "#ffd60a"], bar: { light: "#fff4d1", dark: "#1a1a38" } },
-    { id: "watercolor", emoji: "🎨", light: ["#fbf6fb", "#fdf8fc", "#5b3fc4"], dark: ["#171427", "#262142", "#b79cff"], bar: { light: "#fbf6fb", dark: "#171427" } },
-    { id: "steampunk", emoji: "⚙️", light: ["#e8d6a9", "#f7edd2", "#864d11"], dark: ["#1a110a", "#33241a", "#e2a94d"], bar: { light: "#e8d6a9", dark: "#1a110a" } },
-    { id: "gothic", emoji: "🦇", light: ["#d9d2cb", "#f0eae4", "#9b111e"], dark: ["#09060a", "#180e16", "#ee4a58"], bar: { light: "#d9d2cb", dark: "#09060a" } },
-    { id: "lego", emoji: "🧱", light: ["#a8d8a0", "#f4f6f9", "#ac0c0c"], dark: ["#0f1d2e", "#1d3a5f", "#ffd01f"], bar: { light: "#a8d8a0", dark: "#0f1d2e" } },
-    { id: "wood", emoji: "🌳", light: ["#e6d1a8", "#f6ead0", "#285b1a"], dark: ["#241810", "#3b2a1c", "#a5d97b"], bar: { light: "#e6d1a8", dark: "#241810" } },
-    { id: "chalk", emoji: "🖍️", light: ["#fbf7ea", "#fffdf4", "#b5322a"], dark: ["#1b2e26", "#274236", "#ffd86b"], bar: { light: "#fbf7ea", dark: "#1b2e26" } },
-    { id: "newyear", emoji: "🎄", light: ["#eaf4ff", "#ffffff", "#c8102e"], dark: ["#0a1636", "#17325e", "#ff8c97"], bar: { light: "#eaf4ff", dark: "#0a1636" } },
+    { id: "cartoon", emoji: "🎈", light: ["#fff3d6", "#ffffff", "#1b5fc4"], dark: ["#1c1a3a", "#2d2a5c", "#ffd23f"], bar: { light: "#fff3d6", dark: "#1c1a3a" } },
+    { id: "comic", emoji: "💥", light: ["#fff7d6", "#ffffff", "#d11f3a"], dark: ["#14142b", "#20204a", "#ffd60a"], bar: { light: "#fff7d6", dark: "#14142b" } },
+    { id: "watercolor", emoji: "🎨", light: ["#f8f3fb", "#fffaff", "#5b3fc4"], dark: ["#151226", "#231e3d", "#b79cff"], bar: { light: "#f8f3fb", dark: "#151226" } },
+    { id: "steampunk", emoji: "⚙️", light: ["#f5efe6", "#fbf7f0", "#8a4513"], dark: ["#17120f", "#271e19", "#e0a066"], bar: { light: "#f5efe6", dark: "#17120f" } },
+    { id: "gothic", emoji: "🖤", light: ["#ece8e6", "#f7f4f2", "#8e1530"], dark: ["#0b080c", "#1a1219", "#e8607a"], bar: { light: "#ece8e6", dark: "#0b080c" } },
+    { id: "lego", emoji: "🧱", light: ["#eef1f5", "#ffffff", "#c4161c"], dark: ["#101a2b", "#1b2b45", "#ffd01f"], bar: { light: "#eef1f5", dark: "#101a2b" } },
+    { id: "wood", emoji: "🌳", light: ["#f4ecdd", "#fcf8f0", "#2d6a3e"], dark: ["#1d1711", "#2a2219", "#a5d97b"], bar: { light: "#f4ecdd", dark: "#1d1711" } },
+    { id: "chalk", emoji: "🖍️", light: ["#f7f5ee", "#ffffff", "#b5322a"], dark: ["#1c2622", "#2a3631", "#ffd86b"], bar: { light: "#f7f5ee", dark: "#1c2622" } },
+    { id: "newyear", emoji: "🎄", light: ["#eef5fc", "#ffffff", "#b3122b"], dark: ["#0b1530", "#16264d", "#ff9aa8"], bar: { light: "#eef5fc", dark: "#0b1530" } },
   ];
   // Пять скинов главного списка (сетка 3×2: пять карточек + ячейка «…» со всеми скинами)
   const MAIN = ["default", "glass", "neon", "clay", "sakura"];

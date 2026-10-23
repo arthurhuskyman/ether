@@ -1700,27 +1700,8 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
 .reaction-emoji { border: none; background: var(--input-bg); width: 44px; height: 44px; border-radius: 50%; font-size: 22px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .reaction-emoji.reaction-expand { font-size: 20px; font-weight: 700; color: var(--ink-1); }
 .reaction-emoji:active { transform: scale(0.92); }
-/* Плывущая панель быстрых реакций на долгое нажатие (см. комментарий у
-   #quick-reaction-flyout в index.html) — позиционируется инлайн-стилем
-   (top/left) из js/app.js прямо над/под нажатым пузырём, поэтому здесь
-   только внешний вид и переходный класс .quick-reaction-flyout-show
-   (анимация появления из точки нажатия, а не статичное появление). */
-.quick-reaction-flyout {
-  position: fixed; z-index: var(--z-popover); display: flex; gap: 6px; align-items: center;
-  padding: 7px 8px; border-radius: 24px;
-  background: var(--sheet-bg, var(--bg-1)); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), 0 0 0 1px var(--line-1);
-  opacity: 0; transform: scale(0.85); transition: opacity var(--motion-fast) var(--ease-out), transform var(--motion-fast) var(--ease-out);
-}
-.quick-reaction-flyout.quick-reaction-flyout-show { opacity: 1; transform: scale(1); }
-.quick-reaction-flyout { flex-direction: column; align-items: stretch; gap: 4px; border-radius: var(--r-xl); }
-.quick-reaction-flyout .qrf-row { display: flex; gap: 6px; align-items: center; justify-content: center; }
-.quick-reaction-flyout .qrf-actions { border-top: 1px solid var(--line-1); padding-top: 4px; gap: 2px; }
-.quick-reaction-flyout .qrf-act { flex: 1 1 auto; border: none; background: transparent; color: var(--ink-0); font-size: var(--fs-sm); font-weight: 600; padding: 8px 10px; border-radius: var(--r-md); cursor: pointer; }
-.quick-reaction-flyout .qrf-act:active { background: var(--input-bg); }
+/* V.79: плавающая панель реакций удалена (дублировала ряд #reaction-bar в шторке сообщения). */
 .sheet-divider { height: 1px; margin: 4px 4px; background: var(--line-2); flex-shrink: 0; }
-.quick-reaction-flyout .reaction-emoji { width: 38px; height: 38px; font-size: 19px; }
-.quick-reaction-flyout .reaction-emoji.reaction-more { font-size: 18px; }
-@media (prefers-reduced-motion: reduce) { .quick-reaction-flyout { transition: none; } }
 
 .forward-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; max-height: 60vh; overflow-y: auto; }
 .forward-row { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: var(--radius-m); background: var(--input-bg); border: none; cursor: pointer; width: 100%; text-align: start; }
@@ -2440,13 +2421,13 @@ html[data-readable="1"] .chat-row-preview-text, html[data-readable="1"] .setting
 /* Пониженная прозрачность (системная настройка): без блюра, плотные подложки — для тех, кому размытие мешает читать */
 @media (prefers-reduced-transparency: reduce) {
   :root { --glass-alpha: 0.96; --glass-blur: 0px; }
-  .glass, .glass-content, .glass-regular, .sheet-panel, #tab-bar, .quick-reaction-flyout { -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .glass, .glass-content, .glass-regular, .sheet-panel, #tab-bar { -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
 /* Повышенная контрастность: границы и разделители заметнее, тени и свечения убраны на всех поверхностях */
 @media (prefers-contrast: more) {
   :root { --line-1: rgba(255, 255, 255, 0.28); --line-2: rgba(255, 255, 255, 0.42); --glass-border: rgba(255, 255, 255, 0.4); --ink-3: rgba(255, 255, 255, 0.72); --ink-2: rgba(255, 255, 255, 0.82); }
   html[data-scheme="light"] { --line-1: rgba(0, 0, 0, 0.32); --line-2: rgba(0, 0, 0, 0.5); --glass-border: rgba(0, 0, 0, 0.45); --ink-3: rgba(10, 10, 15, 0.78); --ink-2: rgba(10, 10, 15, 0.86); }
-  .bubble, .glass, .glass-content, .flat-content, .quick-reaction-flyout, .unread-badge { box-shadow: none !important; border: 1px solid var(--line-2) !important; }
+  .bubble, .glass, .glass-content, .flat-content, .unread-badge { box-shadow: none !important; border: 1px solid var(--line-2) !important; }
   /* контейнер меню «+» — прозрачная колонка: рамка нужна только самим плашкам (иначе при «Повышенной контрастности» вокруг меню рисуется прямоугольник) */
   #composer-menu-sheet .sheet-panel, #composer-menu-sheet .composer-menu-actions { border: 0 !important; box-shadow: none !important; outline: 0 !important; background: none !important; }
 }
@@ -2865,3 +2846,35 @@ html[data-calm-mode="1"] .settings-adv-toggle .chevron { transition: none; }
   #call-screen { padding: 48px 8px 12px; }
   .call-controls { gap: 2px; }
 }
+
+/* V.79 simple mode */
+/* Единое якорное меню (openAnchoredMenu): ⋯ в шапке чата, контекстное меню строки чата. Слой — токен --z-popover. */
+.anchored-menu { position: fixed; z-index: var(--z-popover); box-sizing: border-box; display: flex; flex-direction: column; gap: 2px; min-width: 200px; max-width: min(320px, calc(100vw - 16px)); overflow-y: auto; overscroll-behavior: contain; padding: 6px; border-radius: var(--r-xl); background: var(--sheet-bg, var(--bg-1)); border: 1px solid var(--line-1); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3); animation: amenu-in var(--motion-fast, 0.15s) ease-out; }
+.anchored-menu[data-side="up"] { transform-origin: bottom center; }
+.anchored-menu[data-side="down"] { transform-origin: top center; }
+.anchored-menu .hidden { display: none !important; }
+.anchored-menu .amenu-title { padding: 8px 12px 4px; font-size: var(--fs-xs, 12px); font-weight: 700; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.anchored-menu .amenu-item { background: transparent; min-height: 44px; padding: 10px 12px; }
+.anchored-menu .amenu-item:hover, .anchored-menu .amenu-item:focus-visible { background: var(--input-bg); }
+.anchored-menu .amenu-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.anchored-menu .amenu-more { color: var(--ink-1); }
+@keyframes amenu-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .anchored-menu { animation: none; } }
+html[data-calm-mode="1"] .anchored-menu { animation: none; }
+/* «+» композера: в простом режиме редкие плашки (доска, заметка, сводка) прячутся за «Ещё» */
+#composer-menu-more { display: none; }
+html[data-ui="simple"] #composer-menu-sheet:not(.menu-expanded) [data-menu-more] { display: none; }
+html[data-ui="simple"] #composer-menu-sheet:not(.menu-expanded) #composer-menu-more { display: flex; }
+/* Настройки: плитка переключения режима на всю ширину */
+.settings-quick-tile[data-quick="uimode"] { grid-column: 1 / -1; flex-direction: row; justify-content: flex-start; gap: 12px; min-height: 56px; padding-inline: 16px; text-align: start; }
+.settings-quick-tile[data-quick="uimode"] .settings-quick-label { flex: 1 1 auto; }
+/* Пустой список чатов: одно главное действие, остальные способы — по кнопке «Другие способы» */
+.first-run-more { display: none; }
+html[data-ui="simple"] #first-run-card:not(.show-all) .first-step:not([data-first="invite"]),
+html[data-ui="simple"] #first-run-card:not(.show-all) [data-first="find"],
+html[data-ui="simple"] #first-run-card:not(.show-all) .first-run-note { display: none; }
+html[data-ui="simple"] #first-run-card:not(.show-all) .first-run-more { display: inline-flex; }
+html[data-ui="simple"] #first-run-card .fs-n { display: none; }
+/* Онбординг: шаг «Пригласить друга» */
+.onboarding-invite-actions { display: flex; flex-direction: column; gap: 8px; width: 100%; margin: 8px 0; }
+.onboarding-next-hint { margin: 6px 0 12px; text-align: center; }

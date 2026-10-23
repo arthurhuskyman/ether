@@ -9,6 +9,8 @@ function wireSearchHandlers() {
   if (gs) gs.addEventListener("input", (e) => { state.searchQuery = e.target.value.trim(); renderChatsList(); });
   const ta = $("#toggle-archived");
   if (ta) ta.addEventListener("click", () => { state.showArchived = !state.showArchived; renderChatsList(); });
+  const ei = $("#chats-empty-invite-btn"); // V.79: единственное главное действие пустого списка чатов
+  if (ei) ei.addEventListener("click", () => { shareMyInviteLink(); });
   $$("#chat-filters .chat-filter-chip[data-filter]").forEach((chip) => { // кнопка «+» (папки) без data-filter — не фильтр
     chip.addEventListener("click", () => {
       const f = chip.dataset.filter || "all";
@@ -78,6 +80,7 @@ const SETTINGS_QUICK = [
   { id: "notifications", icon: "bell", labelKey: "settings.quick.notifications", kind: "toggle", input: "#settings-notifications" },
   { id: "pin", icon: "shield", labelKey: "settings.quick.pin", kind: "toggle", input: "#settings-pinlock" },
   { id: "backup", icon: "database", labelKey: "settings.quick.backup", kind: "go", cat: "data", target: "#settings-export-backup-btn" },
+  { id: "uimode", icon: "sliders", labelKey: "ui.simple.title", kind: "uimode" }, // V.79: переключатель простого/полного режима
 ];
 function settingsQuickHtml() {
   return `<div class="settings-quick" role="group" aria-label="${escapeHtml(T("settings.quick.title"))}"><h3 class="settings-quick-title">${escapeHtml(T("settings.quick.title"))}</h3><div class="settings-quick-grid">` +
@@ -91,6 +94,10 @@ function refreshSettingsQuick() {
       const on = q.id === "sounds" ? Store.soundsEnabled : q.id === "notifications" ? Store.notificationsEnabled : Store.pinEnabled;
       b.setAttribute("aria-pressed", on ? "true" : "false"); b.classList.toggle("on", !!on);
       if (st) st.textContent = T(on ? "settings.quick.on" : "settings.quick.off");
+    } else if (q.kind === "uimode") {
+      const on = isSimpleUi();
+      b.setAttribute("aria-pressed", on ? "true" : "false"); b.classList.toggle("on", on);
+      if (st) st.textContent = T(on ? "ui.simple.on" : "ui.simple.off");
     } else if (q.kind === "cycle") {
       const th = Store.theme; b.classList.remove("on");
       if (st) st.textContent = T("settings.theme." + (["light", "dark", "oled", "auto"].includes(th) ? th : "auto"));
@@ -110,6 +117,7 @@ function resetChatTransientState(nextId) {
 }
 function onSettingsQuick(id) {
   const q = SETTINGS_QUICK.find((x) => x.id === id); if (!q) return;
+  if (q.kind === "uimode") { UiMode.toggle(); toast(T(isSimpleUi() ? "ui.simple.on" : "ui.simple.off") + ": " + T("ui.simple.title")); return; }
   if (q.kind === "toggle") { const cb = $(q.input); if (cb) cb.click(); setTimeout(() => { try { refreshSettingsQuick(); } catch (e) {} }, 350); }
   else if (q.kind === "cycle") {
     const order = ["light", "dark", "oled", "auto"], cur = Store.theme, next = order[(order.indexOf(cur) + 1) % order.length];
@@ -127,18 +135,23 @@ function setSettingsAdv(cat, open) { const v = loadSettingsAdv(); if (open) v[ca
 function settingsAdvCat(el) { const g = el.closest("[data-settings-category]"); return g ? g.dataset.settingsCategory : ""; }
 function applySettingsAdv() {
   const open = loadSettingsAdv(), screen = $("#screen-settings"); if (!screen) return;
-  const present = new Set();
-  screen.querySelectorAll("[data-settings-adv]").forEach((el) => { const cat = settingsAdvCat(el); present.add(cat); el.classList.toggle("adv-collapsed", !open[cat]); });
+  const present = new Set(), simple = isSimpleUi();
+  // data-settings-adv — редкие строки всегда; data-settings-full — строки, уходящие под «Дополнительно» только в простом режиме (V.79)
+  screen.querySelectorAll("[data-settings-adv],[data-settings-full]").forEach((el) => {
+    if (!el.hasAttribute("data-settings-adv") && !simple) { el.classList.remove("adv-collapsed"); return; }
+    const cat = settingsAdvCat(el); present.add(cat); el.classList.toggle("adv-collapsed", !open[cat]);
+  });
   let box = $("#settings-adv-toggles");
   if (!box) { box = document.createElement("div"); box.id = "settings-adv-toggles"; screen.appendChild(box); }
   if (!box.dataset.built) {
     box.dataset.built = "1";
-    box.innerHTML = SETTINGS_CATEGORIES.filter((c) => present.has(c.id)).map((c) => `<button type="button" class="settings-adv-toggle category-hidden" data-adv-cat="${c.id}" aria-expanded="false"><span class="settings-adv-label">${escapeHtml(T("settings.advanced"))}</span><span class="chevron">${Icons.html("chevron-down", 16)}</span></button>`).join("");
+    box.innerHTML = SETTINGS_CATEGORIES.map((c) => `<button type="button" class="settings-adv-toggle category-hidden" data-adv-cat="${c.id}" aria-expanded="false"><span class="settings-adv-label">${escapeHtml(T("settings.advanced"))}</span><span class="chevron">${Icons.html("chevron-down", 16)}</span></button>`).join("");
     box.addEventListener("click", (e) => {
       const b = e.target.closest(".settings-adv-toggle"); if (!b) return;
       setSettingsAdv(b.dataset.advCat, !loadSettingsAdv()[b.dataset.advCat]); applySettingsAdv(); updateSettingsCategoryView();
     });
   }
+  box.__present = present;
   box.querySelectorAll(".settings-adv-toggle").forEach((b) => { const o = !!open[b.dataset.advCat]; b.setAttribute("aria-expanded", o ? "true" : "false"); b.classList.toggle("open", o); });
 }
 function renderSettingsCategories() {
@@ -180,7 +193,8 @@ function updateSettingsCategoryView() {
   const groups = $$("#screen-settings .settings-group");
   const scr = $("#screen-settings"); if (scr) scr.classList.toggle("settings-searching", searching);
   try { applySettingsAdv(); refreshSettingsQuick(); } catch (e) {}
-  $$("#settings-adv-toggles .settings-adv-toggle").forEach((b) => b.classList.toggle("category-hidden", searching || b.dataset.advCat !== state.settingsCategory));
+  const advBox = $("#settings-adv-toggles");
+  $$("#settings-adv-toggles .settings-adv-toggle").forEach((b) => b.classList.toggle("category-hidden", searching || b.dataset.advCat !== state.settingsCategory || !(advBox && advBox.__present && advBox.__present.has(b.dataset.advCat))));
   if (searching) {
     if (list) list.classList.add("hidden");
     if (header) header.classList.add("hidden");
@@ -856,8 +870,6 @@ function wireGlobalSearch() {
 function wireEscCloseAnySheet() {
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
-    const flyout = $("#quick-reaction-flyout");
-    if (flyout && !flyout.classList.contains("hidden")) { closeQuickReactionFlyout(); return; }
     const openSheets = $$(".sheet:not(.hidden)");
     if (openSheets.length === 0) return;
     openSheets[openSheets.length - 1].classList.add("hidden");

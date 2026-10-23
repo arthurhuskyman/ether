@@ -600,18 +600,8 @@ function wireSheetBackdrops() {
     });
   });
 }
-let __quickReactionOutsideHandler = null;
-function closeQuickReactionFlyout() {
-  const el = $("#quick-reaction-flyout"); if (!el) return;
-  el.classList.remove("quick-reaction-flyout-show");
-  el.classList.add("hidden");
-  el.innerHTML = "";
-  if (__quickReactionOutsideHandler) { document.removeEventListener("pointerdown", __quickReactionOutsideHandler, true); __quickReactionOutsideHandler = null; }
-}
-// Лёгкая плывущая панель реакций над пузырём — см. комментарий у
-// #quick-reaction-flyout в index.html. Открывается ТОЛЬКО из long-press
-// в 1-к-1 чатах (группы по-прежнему идут прямо в openMessageSheet).
-// Ряд быстрых реакций (6 частых + «ещё») — общий для плавающей панели и шторки сообщения; обработчик один.
+// V.79: отдельная плавающая панель реакций удалена — дублировала ряд реакций в шторке сообщения; долгое нажатие открывает шторку.
+// Ряд быстрых реакций (6 частых + «ещё») в шторке сообщения (#reaction-bar).
 function fillReactionRow(row, msgId, contactId, anchorEl, done) {
   const DEFAULT_QUICK_REACTIONS = ["❤️", "👍", "👎", "😂", "😮", "😢"];
   const recent = Store.recentReactions;
@@ -636,54 +626,12 @@ function fillReactionRow(row, msgId, contactId, anchorEl, done) {
   });
   row.appendChild(plus);
 }
-function openQuickReactionFlyout(anchorEl, msgId, contactId) {
-  const el = $("#quick-reaction-flyout"); if (!el || !anchorEl) return;
-  closeQuickReactionFlyout();
-  const c = state.contacts.get(contactId); if (!c) return;
-  const m = c.messages.find((x) => x.id === msgId); if (!m) return;
-  // Одна панель на долгое нажатие: ряд реакций (только в личных чатах) и ряд быстрых действий. Остальное — в «Ещё».
-  if (!isGroup(c)) {
-    const row = document.createElement("div"); row.className = "qrf-row qrf-reactions";
-    fillReactionRow(row, msgId, contactId, anchorEl, closeQuickReactionFlyout);
-    el.appendChild(row);
-  }
-  const acts = document.createElement("div"); acts.className = "qrf-row qrf-actions";
-  const addAct = (label, fn) => { const b = document.createElement("button"); b.type = "button"; b.className = "qrf-act"; b.textContent = label; b.addEventListener("click", () => { closeQuickReactionFlyout(); fn(); }); acts.appendChild(b); };
-  addAct(T("chat.reply"), () => handleMessageAction("reply", msgId, contactId));
-  if (m.text) addAct(T("chat.copyShort"), () => handleMessageAction("copy", msgId, contactId));
-  addAct(T("chat.moreShort"), () => openMessageSheet(msgId, contactId));
-  el.appendChild(acts);
-
-  // Позиционирование: по умолчанию прямо над пузырём, по центру; если
-  // сверху не хватает места (сообщение у самого верха экрана) — под
-  // пузырём. Горизонтально зажато в границы #app-shell — на десктопной
-  // раскладке (см. @media min-width:640px выше) это не весь экран, а
-  // центрированная «рамка телефона».
-  el.classList.remove("hidden");
-  const shell = $("#app-shell");
-  const shellRect = shell ? shell.getBoundingClientRect() : { left: 0, right: window.innerWidth, top: 0, bottom: window.innerHeight };
-  const anchorRect = anchorEl.getBoundingClientRect();
-  const flyoutRect = el.getBoundingClientRect();
-  let top = anchorRect.top - flyoutRect.height - 10;
-  if (top < shellRect.top + 8) top = anchorRect.bottom + 10;
-  let left = anchorRect.left + anchorRect.width / 2 - flyoutRect.width / 2;
-  left = Math.max(shellRect.left + 8, Math.min(left, shellRect.right - flyoutRect.width - 8));
-  el.style.top = top + "px";
-  el.style.left = left + "px";
-  requestAnimationFrame(() => el.classList.add("quick-reaction-flyout-show"));
-
-  // capture + отдельный тик: иначе тот самый pointerdown, которым
-  // закончилось долгое нажатие, немедленно закрыл бы панель, которую он
-  // только что открыл.
-  __quickReactionOutsideHandler = (e) => { if (!el.contains(e.target)) closeQuickReactionFlyout(); };
-  setTimeout(() => { document.addEventListener("pointerdown", __quickReactionOutsideHandler, true); }, 0);
-}
 function openMessageSheet(msgId, contactId) {
   state.activeMessageContext = { msgId, contactId };
   const c = state.contacts.get(contactId); if (!c) return;
   const m = c.messages.find((x) => x.id === msgId); if (!m) return;
   const groupCtx = isGroup(c);
-  // Ряд быстрых реакций над действиями (только личные чаты); тап по сообщению открывает шторку, долгое нажатие — плавающую панель с тем же рядом.
+  // Ряд быстрых реакций над действиями (только личные чаты); и тап, и долгое нажатие по сообщению открывают эту шторку.
   const bar = $("#reaction-bar");
   if (bar) {
     bar.innerHTML = ""; bar.classList.toggle("hidden", groupCtx);
@@ -759,6 +707,113 @@ function openActionSheet(title, items) {
     body.appendChild(b);
   }
   sheet.classList.remove("hidden");
+}
+// ===== V.79: единый якорное всплывающее меню. Один помощник на все меню у кнопки/строки: позиционирование (RTL, safe-area, клавиатура через
+// visualViewport), закрытие по клику снаружи / Esc / «назад» (popstate) / прокрутке, ловушка фокуса, слой --z-popover.
+// openAnchoredMenu({ anchor | point:{x,y}, items:[{label, icon, danger, rare, fn}], title, align:"start"|"end"|"center", side:"auto"|"up"|"down", onClose })
+// items с rare:true в простом режиме прячутся под пунктом «Ещё» (в полном — показаны сразу). Возвращает { el, close }.
+// positionAnchored(panel, anchor, opts) и bindMenuDismiss(panel, opts) — те же части отдельно: ими пользуется «+» композера (его панель — статичная шторка).
+let __anchoredMenu = null;
+function __safeAreaInsets() {
+  const out = { top: 0, bottom: 0 };
+  try {
+    let p = document.getElementById("safe-area-probe");
+    if (!p) { p = document.createElement("div"); p.id = "safe-area-probe"; p.setAttribute("aria-hidden", "true"); p.style.cssText = "position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)"; document.body.appendChild(p); }
+    const cs = getComputedStyle(p); out.top = parseFloat(cs.paddingTop) || 0; out.bottom = parseFloat(cs.paddingBottom) || 0;
+  } catch (e) {}
+  return out;
+}
+function positionAnchored(panel, anchor, opts) {
+  opts = opts || {};
+  const rtl = (document.documentElement.dir || "ltr") === "rtl", pad = opts.pad == null ? 8 : opts.pad, gap = opts.gap == null ? 8 : opts.gap;
+  const vv = window.visualViewport, vw = window.innerWidth || 360, vTop = vv ? vv.offsetTop : 0, vh = vv ? vv.height + vv.offsetTop : (window.innerHeight || 640);
+  const sa = __safeAreaInsets();
+  const a = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: opts.x || 0, right: opts.x || 0, top: opts.y || 0, bottom: opts.y || 0, width: 0, height: 0 };
+  const minTop = vTop + sa.top + pad, maxBottom = vh - sa.bottom - pad;
+  panel.style.maxHeight = Math.max(120, Math.round(maxBottom - minTop)) + "px";
+  const pw = Math.min(panel.offsetWidth || 0, vw - 2 * pad), ph = Math.min(panel.offsetHeight || 0, maxBottom - minTop);
+  const align = opts.align || "start";
+  let left = align === "center" ? a.left + a.width / 2 - pw / 2 : (align === "end") !== rtl ? a.right - pw : a.left;
+  left = Math.max(pad, Math.min(left, vw - pw - pad));
+  const spaceBelow = maxBottom - (a.bottom + gap), spaceAbove = (a.top - gap) - minTop;
+  const down = opts.side === "down" ? true : opts.side === "up" ? false : (spaceBelow >= ph || spaceBelow >= spaceAbove);
+  let top = down ? a.bottom + gap : a.top - gap - ph;
+  top = Math.max(minTop, Math.min(top, maxBottom - ph));
+  const org = opts.origin ? { l: opts.origin.left, t: opts.origin.top } : { l: 0, t: 0 }; // origin — рамка, относительно которой абсолютно позиционируется панель (шторка внутри #app-shell)
+  panel.style.left = Math.round(left - org.l) + "px"; panel.style.top = Math.round(top - org.t) + "px";
+  panel.dataset.side = down ? "down" : "up";
+  return { left, top, down };
+}
+// Закрытие снаружи / Esc / назад / прокрутка + ловушка фокуса (Tab циклит внутри, стрелки двигают фокус). Возвращает функцию снятия слушателей.
+function bindMenuDismiss(panel, opts) {
+  opts = opts || {};
+  const close = opts.close, owns = (t) => panel.contains(t) || (opts.anchor && opts.anchor.contains && opts.anchor.contains(t));
+  const focusables = () => Array.from(panel.querySelectorAll(opts.itemSel || "button:not([disabled]), [href], input, select, textarea")).filter((el) => !el.closest(".hidden") && !el.disabled);
+  const onDown = (e) => { if (!owns(e.target)) close("outside"); };
+  const onKey = (e) => {
+    if (e.key === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); close("escape"); return; }
+    const list = focusables(); if (!list.length) return;
+    const i = list.indexOf(document.activeElement);
+    if (e.key === "Tab") { e.preventDefault(); const n = e.shiftKey ? (i <= 0 ? list.length - 1 : i - 1) : (i === list.length - 1 ? 0 : i + 1); list[n].focus(); }
+    else if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); const n = e.key === "ArrowDown" ? (i + 1) % list.length : (i <= 0 ? list.length - 1 : i - 1); list[n].focus(); }
+    else if (e.key === "Home") { e.preventDefault(); list[0].focus(); }
+    else if (e.key === "End") { e.preventDefault(); list[list.length - 1].focus(); }
+  };
+  const onBack = () => close("back");
+  const onScroll = (e) => { if (!panel.contains(e.target)) close("scroll"); }; // колесо/свайп вне меню: список под ним уезжает — меню закрывается
+  const t = setTimeout(() => { document.addEventListener("pointerdown", onDown, true); }, 0); // pointerdown, открывший меню, не должен его сразу закрыть
+  document.addEventListener("keydown", onKey, true);
+  window.addEventListener("popstate", onBack); window.addEventListener("hashchange", onBack); window.addEventListener("resize", onBack); window.addEventListener("orientationchange", onBack);
+  window.addEventListener("wheel", onScroll, { capture: true, passive: true }); window.addEventListener("touchmove", onScroll, { capture: true, passive: true });
+  return () => {
+    clearTimeout(t);
+    document.removeEventListener("pointerdown", onDown, true); document.removeEventListener("keydown", onKey, true);
+    window.removeEventListener("popstate", onBack); window.removeEventListener("hashchange", onBack); window.removeEventListener("resize", onBack); window.removeEventListener("orientationchange", onBack);
+    window.removeEventListener("wheel", onScroll, true); window.removeEventListener("touchmove", onScroll, true);
+  };
+}
+function closeAnchoredMenu(reason) {
+  const m = __anchoredMenu; if (!m) return;
+  __anchoredMenu = null;
+  try { m.unbind(); } catch (e) {}
+  try { m.el.remove(); } catch (e) {}
+  if (m.anchor && m.anchor.setAttribute && m.anchor.hasAttribute && m.anchor.hasAttribute("aria-expanded")) m.anchor.setAttribute("aria-expanded", "false");
+  if (reason !== "action" && m.anchor && m.anchor.focus && reason !== "outside" && reason !== "scroll") { try { m.anchor.focus({ preventScroll: true }); } catch (e) {} }
+  try { if (m.onClose) m.onClose(reason || "close"); } catch (e) {}
+}
+function openAnchoredMenu(o) {
+  o = o || {};
+  closeAnchoredMenu("replace");
+  const el = document.createElement("div");
+  el.id = "anchored-menu"; el.className = "anchored-menu glass-content"; el.setAttribute("role", "menu");
+  if (o.title) el.setAttribute("aria-label", o.title);
+  const items = (o.items || []).filter(Boolean);
+  const hasRare = isSimpleUi() && items.some((it) => it.rare);
+  let html = o.title ? `<div class="amenu-title">${escapeHtml(o.title)}</div>` : "";
+  items.forEach((it, i) => {
+    html += `<button type="button" role="menuitem" class="sheet-action amenu-item${it.danger ? " destructive" : ""}${it.rare && hasRare ? " amenu-rare hidden" : ""}" data-i="${i}">${it.icon ? Icons.html(it.icon, 20) : ""}<span>${escapeHtml(it.label)}</span></button>`;
+  });
+  if (hasRare) html += `<button type="button" role="menuitem" class="sheet-action amenu-item amenu-more" aria-expanded="false">${Icons.html("chevron-down", 20)}<span>${escapeHtml(T("menu.more"))}</span></button>`;
+  el.innerHTML = html;
+  document.body.appendChild(el);
+  const anchor = o.anchor || null;
+  if (anchor && anchor.setAttribute) { anchor.setAttribute("aria-expanded", "true"); if (!anchor.hasAttribute("aria-haspopup")) anchor.setAttribute("aria-haspopup", "menu"); }
+  const place = () => positionAnchored(el, anchor, { x: o.point && o.point.x, y: o.point && o.point.y, align: o.align || "end", side: o.side || "auto" });
+  place();
+  const handle = { el, close: (r) => closeAnchoredMenu(r || "close") };
+  const unbindDismiss = bindMenuDismiss(el, { anchor, close: (r) => closeAnchoredMenu(r) });
+  __anchoredMenu = { el, anchor, onClose: o.onClose, unbind: unbindDismiss };
+  el.addEventListener("click", (e) => {
+    const b = e.target.closest(".amenu-item"); if (!b || !el.contains(b)) return;
+    if (b.classList.contains("amenu-more")) {
+      el.querySelectorAll(".amenu-rare").forEach((x) => x.classList.remove("hidden")); b.remove(); place();
+      const f = el.querySelector(".amenu-rare"); if (f) { try { f.focus({ preventScroll: true }); } catch (err) {} }
+      return;
+    }
+    const it = items[Number(b.dataset.i)]; closeAnchoredMenu("action"); if (it && it.fn) it.fn();
+  });
+  const first = el.querySelector(".amenu-item"); if (first) { try { first.focus({ preventScroll: true }); } catch (e) {} }
+  return handle;
 }
 // «Создать задачу из сообщения»: карточка в колонке «К выполнению» первой доски чата (доски нет — создаётся).
 async function createTaskFromMessage(contactId, msgId) {
@@ -1441,19 +1496,23 @@ function wireEmojiPicker() {
 function setComposerFan(open) {
   const sheet = $("#composer-menu-sheet"); if (sheet) sheet.classList.toggle("hidden", !open);
   const plus = $("#chat-plus-btn"); if (plus) plus.setAttribute("aria-expanded", open ? "true" : "false");
-  // меню привязано к кнопке «+»: над ней, не выходя за экран и не заходя под клавиатуру (visualViewport)
+  if (plus && plus.__menuUnbind) { try { plus.__menuUnbind(); } catch (e) {} plus.__menuUnbind = null; }
+  if (sheet && !open) { sheet.classList.remove("menu-expanded"); const mb = $("#composer-menu-more"); if (mb) mb.setAttribute("aria-expanded", "false"); }
+  // V.79: общие positionAnchored/bindMenuDismiss — над кнопкой «+», не выходя за экран, под клавиатуру (visualViewport) и в safe-area; RTL учитывается
   if (open && sheet && plus) {
     renderComposerRecent();
-    const r = plus.getBoundingClientRect(), panel = sheet.querySelector(".sheet-panel");
-    if (panel && r.width) {
-      const vv = window.visualViewport, vh = vv ? vv.height + vv.offsetTop : window.innerHeight, vw = window.innerWidth;
-      const pw = Math.min(320, vw - 24);
-      let left = Math.round(r.left);
-      if (left + pw > vw - 8) left = vw - 8 - pw;
-      panel.style.setProperty("--menu-bottom", Math.max(8, Math.round(window.innerHeight - Math.min(r.top, vh) + 10)) + "px");
-      panel.style.setProperty("--menu-left", Math.max(8, left) + "px");
-    }
-    const first = sheet.querySelector(".composer-menu-item"); if (first) { try { first.focus({ preventScroll: true }); } catch (e) {} }
+    const panel = sheet.querySelector(".sheet-panel");
+    const place = () => {
+      if (!panel || !plus.getBoundingClientRect().width) return;
+      const so = sheet.getBoundingClientRect(), pw = Math.min(320, (window.innerWidth || 360) - 24);
+      panel.style.width = pw + "px"; panel.style.bottom = "auto"; panel.style.right = "auto";
+      const pos = positionAnchored(panel, plus, { align: "start", side: "up", gap: 10, origin: so });
+      panel.style.setProperty("--menu-left", Math.round(pos.left - so.left) + "px");
+    };
+    place();
+    plus.__menuReplace = place;
+    plus.__menuUnbind = bindMenuDismiss(sheet, { anchor: plus, itemSel: ".composer-menu-item", close: () => setComposerFan(false) });
+    const first = sheet.querySelector(".composer-menu-item:not(.hidden)"); if (first) { try { first.focus({ preventScroll: true }); } catch (e) {} }
   }
 }
 // «Недавнее»: последнее фото/файл этого чата; тап прокручивает к нему. Нет файлов — ряд скрыт.
@@ -1494,6 +1553,14 @@ function wireComposerPlusMode() {
   });
   for (const ev of ["pointerup", "pointerleave", "pointercancel"]) plusBtn.addEventListener(ev, plusLPCancel);
   plusBtn.addEventListener("contextmenu", (e) => { if (plusBtn.__lpFired) e.preventDefault(); });
+  // V.79: в простом режиме редкие плашки (data-menu-more) скрыты, «Ещё» раскрывает их на месте
+  const moreBtn = $("#composer-menu-more");
+  if (moreBtn) moreBtn.addEventListener("click", () => {
+    const sh = $("#composer-menu-sheet"); if (!sh) return;
+    sh.classList.add("menu-expanded"); moreBtn.setAttribute("aria-expanded", "true");
+    try { if (plusBtn.__menuReplace) plusBtn.__menuReplace(); } catch (e) {}
+    const f = sh.querySelector("[data-menu-more]"); if (f) { try { f.focus({ preventScroll: true }); } catch (e) {} }
+  });
   const recent = $("#composer-recent");
   if (recent) recent.addEventListener("click", () => {
     const id = recent.dataset.msgId; collapseComposerPlus();
@@ -1508,7 +1575,11 @@ function wireComposerPlusMode() {
   // aria-expanded у «+» следует за видимостью шторки, даже если её закрыли по фону или жестом
   const sheet = $("#composer-menu-sheet");
   if (sheet && typeof MutationObserver !== "undefined") {
-    new MutationObserver(() => plusBtn.setAttribute("aria-expanded", sheet.classList.contains("hidden") ? "false" : "true")).observe(sheet, { attributes: true, attributeFilter: ["class"] });
+    new MutationObserver(() => {
+      const hid = sheet.classList.contains("hidden");
+      plusBtn.setAttribute("aria-expanded", hid ? "false" : "true");
+      if (hid && plusBtn.__menuUnbind) { try { plusBtn.__menuUnbind(); } catch (e) {} plusBtn.__menuUnbind = null; sheet.classList.remove("menu-expanded"); }
+    }).observe(sheet, { attributes: true, attributeFilter: ["class"] });
   }
   const form = $("#chat-form");
   if (form) form.addEventListener("submit", collapseComposerPlus);

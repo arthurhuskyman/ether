@@ -96,10 +96,10 @@
       <span class="onboarding-dot active" data-dot="0"></span>
       <span class="onboarding-dot" data-dot="1"></span>
       <span class="onboarding-dot" data-dot="2"></span>
-      <span class="onboarding-dot" data-dot="3"></span>
     </div>
 
-    <!-- Слайд 0 — Welcome -->
+    <!-- V.79: три шага. Шаг 1 — приветствие и язык (сетка популярных + полный список обычным select), шаг 2 — имя,
+         шаг 3 — «Пригласить друга» (ссылка / QR) и подсказка, что делать дальше. -->
     <div class="onboarding-slide" data-slide="0">
       <div class="app-glyph">
         <div class="glyph-bubble b1"></div>
@@ -107,66 +107,48 @@
       </div>
       <h1 data-i18n="app.name">Messenger</h1>
       <p class="onboarding-sub" data-i18n="app.tagline">Messages and calls directly between devices.</p>
+      <div id="onboarding-lang-grid" class="onboarding-lang-grid"></div>
+      <select id="onboarding-lang-select" class="settings-select" aria-label="Language" data-i18n-aria="onboarding.welcome.lang"></select>
       <button type="button" class="btn-primary onboarding-next" data-i18n="onboarding.next">Next</button>
-      <p class="onboarding-fine" data-i18n="onboarding.hint">Registered on this phone/email before? Entering the same info restores your identity, but not your contacts, groups or message history — those live only on the device that had them, unless you import a backup below.</p>
       <button type="button" id="onboarding-import-backup-btn" class="btn-tertiary" data-i18n="onboarding.importBackup">Restore from a backup file</button>
       <button type="button" id="onboarding-link-device-btn" class="btn-tertiary" data-i18n="devlink.onboarding">Move from my old phone</button>
     </div>
 
-    <!-- Слайд 1 — Язык: сетка популярных + полный пикер (обычный select,
-         тот же паттерн, что в Settings — надёжный нативный пикер ОС, а
-         не велосипед с кастомным списком на 72 языка). -->
     <div class="onboarding-slide hidden" data-slide="1">
-      <h2 data-i18n="onboarding.lang.title">Choose your language</h2>
-      <div id="onboarding-lang-grid" class="onboarding-lang-grid"></div>
-      <p class="onboarding-fine" data-i18n="onboarding.lang.more">More languages</p>
-      <select id="onboarding-lang-select" class="settings-select"></select>
-      <div class="onboarding-nav">
-        <button type="button" class="btn-tertiary onboarding-back" data-i18n="sys.back">Back</button>
-        <button type="button" class="btn-primary onboarding-next" data-i18n="onboarding.next">Next</button>
-      </div>
-    </div>
-
-    <!-- Слайд 2 — Имя/ID: те же поля, что были на единственном экране
-         раньше, просто на своём слайде + живая ✓-индикация (вместо
-         исключительно красной обводки при ошибке, как раньше). -->
-    <div class="onboarding-slide hidden" data-slide="2">
-      <h2 data-i18n="onboarding.profile.title">Your profile</h2>
+      <h2 data-i18n="onboarding.profile.title">What's your name?</h2>
       <form id="onboarding-form">
         <input id="onboarding-name" type="text" placeholder="Your name" data-i18n-ph="onboarding.name.placeholder" autocomplete="name" maxlength="40" required />
         <div class="onboarding-id-wrap">
           <input id="onboarding-identity" type="text" placeholder="Phone or email (optional)" data-i18n-ph="onboarding.id.placeholder" autocomplete="tel" maxlength="80" />
           <svg id="onboarding-id-check" class="onboarding-id-check hidden" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>
         </div>
-        <p class="fine muted" data-i18n="onboarding.id.hint">Optional. Leave it blank for an anonymous profile — people can still add you by invite code or QR, just not by searching your number or email.</p>
+        <p class="fine muted" data-i18n="onboarding.id.hint">Optional. Leave it blank to stay anonymous — friends can still add you by link or QR.</p>
+        <p class="onboarding-fine" data-i18n="onboarding.hint">Used Messenger before? Enter the same phone/email to get your account back (chats come only from a backup file).</p>
       </form>
-      <!-- form="onboarding-form" — кнопка физически вне <form> (внутри
-           .onboarding-nav, рядом с "Back"), но HTML5-атрибут form привязывает
-           её как submit-кнопку ТОЙ формы, так что Enter в полях формы
-           по-прежнему работает, как и раньше на едином экране. -->
+      <!-- form="onboarding-form" — кнопка физически вне <form> (внутри .onboarding-nav), но атрибут form привязывает её как submit-кнопку формы, Enter в полях работает. -->
       <div class="onboarding-nav">
         <button type="button" class="btn-tertiary onboarding-back" data-i18n="sys.back">Back</button>
         <button type="submit" form="onboarding-form" class="btn-primary" data-i18n="onboarding.next">Next</button>
       </div>
     </div>
 
-    <!-- Слайд 3 — Аватар+QR+инвайт-код: первый "wow"-момент, пользователь
-         видит свой уникальный avatarGradient (та же функция, что рисует
-         аватары контактов везде в приложении) и свой QR (та же
-         qrcode-библиотека/формат payload, что в шторке "My QR code" —
-         см. renderQrToCanvas() в js/app.js, вынесена из renderMyQrCode()
-         именно для повторного использования здесь). -->
-    <div class="onboarding-slide hidden" data-slide="3">
-      <h2 data-i18n="onboarding.ready.title">You're all set</h2>
+    <!-- Шаг 3 — аватар, QR и действие «Пригласить друга» (та же qrcode-библиотека, что в шторке «Мой QR»). -->
+    <div class="onboarding-slide hidden" data-slide="2">
+      <h2 data-i18n="onboarding.ready.title">Invite a friend</h2>
       <div id="onboarding-avatar" class="avatar avatar-xl"></div>
       <p class="onboarding-sub" id="onboarding-ready-name"></p>
+      <div class="onboarding-invite-actions">
+        <button type="button" id="onboarding-invite-btn" class="btn-primary" data-i18n="onboarding.invite.share">Invite a friend</button>
+        <button type="button" id="onboarding-copy-link-btn" class="btn-secondary" data-i18n="onboarding.invite.copy">Copy link</button>
+      </div>
       <div class="qr-canvas-wrap"><canvas id="onboarding-qr-canvas" width="200" height="200"></canvas></div>
-      <p class="fine muted" data-i18n="onboarding.ready.inviteHint">Your invite code — share it so others can add you without a QR code</p>
+      <p class="fine muted" data-i18n="onboarding.ready.inviteHint">Send the link or show the QR code — your chat appears as soon as they open it.</p>
       <p class="onboarding-invite-code" id="onboarding-invite-code"></p>
-      <button type="button" id="onboarding-find-btn" class="btn-secondary" data-i18n="discovery.findBtn">Find by phone/email</button>
+      <p id="onboarding-next-hint" class="fine muted onboarding-next-hint" data-i18n="onboarding.invite.next">Next: send the link — the chat will appear when your friend opens it. You can also do this later from the Chats tab.</p>
+      <button type="button" id="onboarding-find-btn" class="btn-tertiary" data-i18n="discovery.findBtn">Find by phone/email</button>
       <div class="onboarding-nav">
         <button type="button" class="btn-tertiary onboarding-back" data-i18n="sys.back">Back</button>
-        <button type="button" id="onboarding-start-btn" class="btn-primary" data-i18n="onboarding.start">Start</button>
+        <button type="button" id="onboarding-start-btn" class="btn-primary" data-i18n="onboarding.start">Continue to Messenger</button>
       </div>
     </div>
   </div>
@@ -273,8 +255,9 @@
             <circle cx="34" cy="20" r="1.3" fill="var(--bg-0)"/>
           </svg>
         </div>
-        <h2 data-i18n="chats.empty.title">No one is online yet</h2>
-        <p data-i18n="chats.empty.sub">Open the Contacts tab to add your first peer.</p>
+        <h2 data-i18n="chats.empty.title">No chats yet</h2>
+        <p data-i18n="chats.empty.sub">Invite a friend to start chatting.</p>
+        <button type="button" id="chats-empty-invite-btn" class="btn-primary" data-i18n="chats.empty.invite">Invite a friend</button>
       </div>
       <div id="stories-row" class="stories-row hidden" role="list"></div>
       <div id="chats-list" class="chats-list"></div>
@@ -435,17 +418,17 @@
         <label class="settings-row"><span data-i18n="settings.privacy.receipts">Show that I've read messages</span><input id="settings-receipts" type="checkbox" class="switch" /></label>
         <label class="settings-row"><span data-i18n="settings.privacy.lastSeen">Show my last seen time</span><input id="settings-last-seen" type="checkbox" class="switch" /></label>
         <p class="fine muted settings-hint" data-i18n="settings.privacy.lastSeen.hint">Contacts see when you were last online. Turn off to hide it (you also won't see theirs).</p>
-        <label class="settings-row"><span data-i18n="settings.privacy.presence">Show that I'm online</span><input id="settings-presence" type="checkbox" class="switch" /></label>
-        <p class="fine muted settings-hint" data-i18n="settings.privacy.presence.hint">Contacts see a green dot when the app is open.</p>
-        <div id="settings-discovery-block" class="hidden">
+        <label data-settings-full class="settings-row"><span data-i18n="settings.privacy.presence">Show that I'm online</span><input id="settings-presence" type="checkbox" class="switch" /></label>
+        <p data-settings-full class="fine muted settings-hint" data-i18n="settings.privacy.presence.hint">Contacts see a green dot when the app is open.</p>
+        <div id="settings-discovery-block" data-settings-full class="hidden">
           <label class="settings-row"><span data-i18n="discovery.setting">Let people find me by my phone/email</span><input id="settings-discovery" type="checkbox" class="switch" /></label>
           <label class="settings-row"><span data-i18n="discovery.shareName">Show my name to people who find me</span><input id="settings-discovery-name" type="checkbox" class="switch" /></label>
           <p class="fine muted settings-hint" data-i18n="discovery.setting.hint">Off by default. When on, the server stores only a salted hash of your number/email, your id and public key. Tap the switch to read the details.</p>
         </div>
-        <div class="settings-row column"><span class="fine muted" data-i18n="settings.privacy.note">These are symmetric: if you turn one off, you also stop seeing that information from your contacts.</span></div>
+        <div data-settings-full class="settings-row column"><span class="fine muted" data-i18n="settings.privacy.note">These are symmetric: if you turn one off, you also stop seeing that information from your contacts.</span></div>
       </div>
       <div class="settings-group flat-content" data-settings-category="notifications">
-        <button type="button" id="settings-blocked-btn" class="settings-row link-row"><span data-i18n="settings.blocked">Blocked contacts</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
+        <button data-settings-full type="button" id="settings-blocked-btn" class="settings-row link-row"><span data-i18n="settings.blocked">Blocked contacts</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
         <label class="settings-row"><span data-i18n="settings.notifications">Notifications for messages and calls</span><input id="settings-notifications" type="checkbox" class="switch" /></label>
         <label data-settings-adv class="settings-row"><span data-i18n="settings.requireVerified">Calls only with verified contacts</span><input id="settings-require-verified" type="checkbox" class="switch" /></label>
         <p data-settings-adv class="fine muted settings-hint" data-i18n="settings.requireVerified.hint">Before calling (or answering) a contact you have not verified with a safety number or QR, the app will ask you to verify first. A changed key always blocks calls until confirmed.</p>
@@ -478,7 +461,7 @@
         <button type="button" id="change-pin-btn" class="settings-row link-row hidden"><span data-i18n="settings.pin.change">Change PIN</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
       </div>
       <div class="settings-group flat-content" data-settings-category="data">
-        <button type="button" id="settings-favorites-btn" class="settings-row link-row"><span data-i18n="settings.favorites">Favorite messages</span><span id="settings-favorites-count" class="chevron"></span></button>
+        <button data-settings-full type="button" id="settings-favorites-btn" class="settings-row link-row"><span data-i18n="settings.favorites">Favorite messages</span><span id="settings-favorites-count" class="chevron"></span></button>
       </div>
       <div data-settings-adv class="settings-group flat-content" data-settings-category="data">
         <div class="settings-row column"><span class="settings-group-title" data-i18n="settings.localAi.title">Local AI</span></div>
@@ -493,8 +476,8 @@
         <p class="fine muted" style="margin:0 0 10px;" data-i18n="settings.backup.explain">Messenger has no server backup — everything lives only on this device. If you lose or replace this device, contacts, groups and messages are gone unless you save a backup file yourself.</p>
         <button type="button" id="settings-export-backup-btn" class="settings-row link-row"><span data-i18n="debug.exportData">Export all data</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
         <button type="button" id="settings-import-backup-btn" class="settings-row link-row"><span data-i18n="debug.importData">Import data from file</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
-        <button type="button" id="settings-link-device-btn" class="settings-row link-row"><span data-i18n="devlink.settings">Move to a new device</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
-        <button type="button" id="settings-devices-btn" class="settings-row link-row"><span data-i18n="devices.settings">My devices</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
+        <button data-settings-full type="button" id="settings-link-device-btn" class="settings-row link-row"><span data-i18n="devlink.settings">Move to a new device</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
+        <button data-settings-full type="button" id="settings-devices-btn" class="settings-row link-row"><span data-i18n="devices.settings">My devices</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
       </div>
       <div data-settings-adv class="settings-group flat-content" data-settings-category="data">
         <div class="settings-row column"><span class="settings-group-title" data-i18n="settings.dangerZone.title">Danger zone</span></div>
@@ -523,12 +506,12 @@
           <div id="skin-grid" class="skin-grid" role="radiogroup" aria-label="Skin"></div>
           <p class="fine muted settings-hint" data-i18n="skin.hint">A skin changes shapes, outlines, fonts and background. Day or night version follows the Appearance setting above.</p>
         </div>
-        <label class="settings-row"><span data-i18n="settings.readable">Easy-reading mode</span><input id="settings-readable-mode" type="checkbox" class="switch" /></label>
-        <p class="fine muted settings-hint" data-i18n="settings.readable.hint">Larger text, stronger contrast, no decorative effects.</p>
-        <p class="fine muted" style="margin:0 0 10px;" data-i18n="settings.readable.explain">Wider letter and word spacing, taller lines, left-aligned text — easier for dyslexia and tired eyes.</p>
-        <label class="settings-row"><span data-i18n="settings.calmMode">Calm mode</span><input id="settings-calm-mode" type="checkbox" class="switch" /></label>
-        <p class="fine muted settings-hint" data-i18n="settings.calmMode.hint">Stops background animation and reduces blur — easier on the eyes and battery.</p>
-        <p class="fine muted" style="margin:0 0 10px;" data-i18n="settings.calmMode.explain">Turns off the animated background and lowers blur — for a quieter, more focused interface.</p>
+        <label data-settings-full class="settings-row"><span data-i18n="settings.readable">Easy-reading mode</span><input id="settings-readable-mode" type="checkbox" class="switch" /></label>
+        <p data-settings-full class="fine muted settings-hint" data-i18n="settings.readable.hint">Larger text, stronger contrast, no decorative effects.</p>
+        <p data-settings-full class="fine muted" style="margin:0 0 10px;" data-i18n="settings.readable.explain">Wider letter and word spacing, taller lines, left-aligned text — easier for dyslexia and tired eyes.</p>
+        <label data-settings-full class="settings-row"><span data-i18n="settings.calmMode">Calm mode</span><input id="settings-calm-mode" type="checkbox" class="switch" /></label>
+        <p data-settings-full class="fine muted settings-hint" data-i18n="settings.calmMode.hint">Stops background animation and reduces blur — easier on the eyes and battery.</p>
+        <p data-settings-full class="fine muted" style="margin:0 0 10px;" data-i18n="settings.calmMode.explain">Turns off the animated background and lowers blur — for a quieter, more focused interface.</p>
         <label data-settings-adv class="settings-row"><span data-i18n="settings.bubbleSize">Message bubble size</span>
           <select id="settings-bubble-size" class="settings-select">
             <option value="compact" data-i18n="settings.bubbleSize.compact">Compact</option>
@@ -886,19 +869,6 @@
   </div>
 </div>
 
-<!-- Раздел 14/"Сознательно отложено" — "Reaction-bar на long-press
-     (редизайн openMessageSheet)". Раньше долгое нажатие сразу открывало
-     ПОЛНУЮ шторку действий (см. #message-sheet ниже) — реакция была
-     внутри неё, на 2-3 действия дальше. Теперь долгое нажатие (в 1-к-1
-     чатах, не в группах — реакции там и раньше не предлагались) сначала
-     показывает именно эту лёгкую плывущую панель прямо над пузырём, как
-     в большинстве мессенджеров; кнопка "..." в ней открывает старую
-     полную шторку для остальных действий (ответить/переслать/удалить и
-     т.д.) — та шторка никуда не делась, просто не единственный путь к
-     реакции. Не .sheet — не модальная, не затемняет экран, позиционируется
-     инлайн-стилем из js/app.js (openQuickReactionFlyout). -->
-<div id="quick-reaction-flyout" class="quick-reaction-flyout hidden" role="toolbar"></div>
-
 <!-- Меню «+» композера: эмодзи, камера, файл. Кнопки сохраняют прежние id — на них повешены обработчики пикера, камеры и выбора файла. -->
 <div id="skin-sheet" class="sheet hidden" role="dialog" aria-modal="true" aria-labelledby="skin-sheet-title">
   <div class="sheet-backdrop"></div>
@@ -918,10 +888,11 @@
       <button type="button" id="chat-camera-btn" class="sheet-action composer-menu-item"><svg data-icon="camera" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg><span data-i18n="chat.camera">Camera</span></button>
       <button type="button" id="chat-attach-btn" class="sheet-action composer-menu-item"><svg data-icon="paperclip" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg><span data-i18n="chat.menu.file">File</span></button>
       <button type="button" id="chat-poll-btn" class="sheet-action composer-menu-item"><svg data-icon="poll" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg><span data-i18n="chat.menu.poll">Poll</span></button>
-      <button type="button" id="chat-board-btn" class="sheet-action composer-menu-item"><svg data-icon="board" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg><span data-i18n="chat.menu.board">Board</span></button>
-      <button type="button" id="chat-note-btn" class="sheet-action composer-menu-item"><svg data-icon="edit" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg><span data-i18n="chat.menu.note">Shared note</span></button>
-      <button type="button" id="chat-summary-btn" class="sheet-action composer-menu-item"><svg data-icon="sparkle" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg><span data-i18n="summary.menu">Chat summary</span></button>
+      <button type="button" id="chat-board-btn" data-menu-more class="sheet-action composer-menu-item"><svg data-icon="board" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg><span data-i18n="chat.menu.board">Board</span></button>
+      <button type="button" id="chat-note-btn" data-menu-more class="sheet-action composer-menu-item"><svg data-icon="edit" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg><span data-i18n="chat.menu.note">Shared note</span></button>
+      <button type="button" id="chat-summary-btn" data-menu-more class="sheet-action composer-menu-item"><svg data-icon="sparkle" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg><span data-i18n="summary.menu">Chat summary</span></button>
       <button type="button" id="chat-sticker-btn" class="sheet-action composer-menu-item"><svg data-icon="image" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg><span data-i18n="sticker.menu">Stickers</span></button>
+      <button type="button" id="composer-menu-more" class="sheet-action composer-menu-item composer-menu-more" aria-expanded="false"><svg data-icon="chevron-down" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg><span data-i18n="menu.more">More</span></button>
     </div>
     <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="composer-menu-sheet" data-i18n="sys.cancel">Cancel</button>
   </div>

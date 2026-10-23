@@ -1,5 +1,5 @@
 // Эмуляция устройств + автоматическая проверка вёрстки.
-// node tools/device-check.js <outdir> [--devices a,b] [--skins x,y] [--schemes light,dark] [--langs ru,ar] [--shots]
+// node tools/device-check.js <outdir> [--devices a,b] [--skins x,y] [--schemes light,dark] [--langs ru,ar] [--ui simple|full] [--shots]
 // Устройства — из playwright.devices (UA, вьюпорт, DPR, touch) + свои (se: 320x568, desktop: 1280x800).
 // Движок только Chromium (WebKit в песочнице недоступен): iOS-специфику (safe-area, vibrate, Now Playing) это не проверяет.
 // На каждый экран: горизонтальный overflow документа, элементы за правым/левым краем, обрезанный текст,
@@ -61,14 +61,13 @@ async function audit(page) {
   for (const dn of devNames) for (const skin of skins) for (const scheme of schemes) for (const lang of langs) {
     const d = DEV[dn] || devices[dn]; if (!d) { console.log("нет устройства", dn); continue; }
     const ctx = await b.newContext({ ...d, serviceWorkers: "block", locale: lang === "ru" ? "ru-RU" : lang });
-    await ctx.addInitScript(([skin, scheme, lang]) => { try { if (!localStorage.getItem("__init")) { localStorage.setItem("__init", "1"); localStorage.setItem("ether.skin", skin); localStorage.setItem("ether.theme", scheme); localStorage.setItem("ether.lang", lang); } } catch (e) {} }, [skin, scheme, lang]);
+    await ctx.addInitScript(([skin, scheme, lang, uiMode]) => { try { if (!localStorage.getItem("__init")) { localStorage.setItem("__init", "1"); localStorage.setItem("ether.skin", skin); localStorage.setItem("ether.theme", scheme); localStorage.setItem("ether.lang", lang); if (uiMode === "simple" || uiMode === "full") localStorage.setItem("ether.uiMode", uiMode); } } catch (e) {} }, [skin, scheme, lang, opt("ui", "")]);
     const page = await ctx.newPage(); const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await page.goto(url, { waitUntil: "load" }); await page.waitForTimeout(1200);
     try {
       await page.click('[data-slide="0"] .onboarding-next'); await page.waitForTimeout(250);
-      await page.click('[data-slide="1"] .onboarding-next'); await page.waitForTimeout(250);
-      await page.fill("#onboarding-name", "Аня"); await page.click('[data-slide="2"] button[type=submit]'); await page.waitForTimeout(1200);
+      await page.fill("#onboarding-name", "Аня"); await page.click('[data-slide="1"] button[type=submit]'); await page.waitForTimeout(1200);
       await page.click("#onboarding-start-btn").catch(() => {}); await page.waitForTimeout(900);
       await page.evaluate(() => {
         createDemoChat(); const c = state.contacts.get(DEMO_CHAT_ID); const now = Date.now();
@@ -87,7 +86,8 @@ async function audit(page) {
     };
     await step("chat", async () => {});
     await step("menu", async () => { await page.click("#chat-plus-btn").catch(() => {}); });
-    await step("chats", async () => { await page.keyboard.press("Escape").catch(() => {}); await page.evaluate(() => { try { closeChat(); } catch (e) {} }); });
+    await step("chat-more", async () => { await page.keyboard.press("Escape").catch(() => {}); await page.click("#chat-more-btn").catch(() => {}); }); // V.79: меню «⋯» (якорное)
+    await step("chats", async () => { await page.keyboard.press("Escape").catch(() => {}); await page.keyboard.press("Escape").catch(() => {}); await page.evaluate(() => { try { closeChat(); } catch (e) {} }); });
     await step("settings", async () => { await page.click('.tab-btn[data-tab="settings"]'); });
     await step("appearance", async () => { await page.evaluate(() => { try { openSettingsCategory("appearance"); } catch (e) {} }); });
     if (callMode) {

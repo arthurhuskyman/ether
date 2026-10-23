@@ -679,6 +679,7 @@ function buildFirstRunCard() {
       <li><button type="button" class="btn-secondary first-step" data-first="scan"><span class="fs-n">2</span><span class="fs-t">${escapeHtml(T("firstRun.step2"))}</span></button></li>
       <li><button type="button" class="btn-secondary first-step" data-first="demo"><span class="fs-n">3</span><span class="fs-t">${escapeHtml(T("firstRun.step3"))}</span></button></li>
     </ol>
+    <button type="button" class="btn-tertiary first-run-more" data-first="more">${escapeHtml(T("chats.empty.more"))}</button>
     <button type="button" class="btn-tertiary" data-first="find">${escapeHtml(T("firstRun.find"))}</button>
     <p class="fine muted first-run-note">${escapeHtml(T("firstRun.note"))}</p>`;
   try { renderQrToCanvas(card.querySelector("canvas")); } catch (e) {}
@@ -687,6 +688,7 @@ function buildFirstRunCard() {
   card.querySelector('[data-first="find"]').addEventListener("click", () => goConnect(() => { const i = $("#contacts-search") || $("#connect-search"); if (i) i.focus(); }));
   card.querySelector('[data-first="invite"]').addEventListener("click", () => shareMyInviteLink());
   card.querySelector('[data-first="demo"]').addEventListener("click", () => createDemoChat());
+  card.querySelector('[data-first="more"]').addEventListener("click", () => { card.classList.add("show-all"); const f = card.querySelector('[data-first="scan"]'); if (f) { try { f.focus(); } catch (e) {} } });
   return card;
 }
 // ===== Демо-чат: локальный «гид», ничего не уходит в сеть. Это обычный self-контакт (isSelf) с флагом isDemo, поэтому

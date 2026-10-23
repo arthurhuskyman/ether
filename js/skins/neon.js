@@ -1,4 +1,4 @@
-// Скин «neon»: угловатые «проволочные» иконки, синтвейв-звуки, декор (закат, сетка-пол, скан-луч). Регистрируется в Skins (js/skins.js).
+// Скин «neon» (киберпанк-минимализм): угловатые «проволочные» иконки и синтвейв-звуки. Регистрируется в Skins (js/skins.js).
 Skins.register("neon", {
   icons: {
     chat: '<path d="M3 4h18v12H11l-5 4v-4H3z"/><path d="M7 9h10M7 12h6"/>',
@@ -75,13 +75,4 @@ Skins.register("neon", {
     error: [{ f: [300, 90], t: 0, d: 0.22, v: 0.1, w: "sawtooth", lp: 1200 }, { f: 120, t: 0.04, d: 0.2, v: 0.06, w: "square", lp: 600 }]
   },
   haptic: { tap: [6] },
-  deco(layer, opts) {
-    const calm = !!(opts && opts.calm);
-    const mk = (cls, inner) => { const d = document.createElement("div"); d.className = cls; if (inner) d.innerHTML = inner; layer.appendChild(d); return d; };
-    mk("nx-sun");
-    mk("nx-floor", "<i></i>");
-    mk("nx-hz");
-    if (!calm) mk("nx-beam");
-    return () => { layer.innerHTML = ""; };
-  }
 });

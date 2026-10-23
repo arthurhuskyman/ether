@@ -1,0 +1,314 @@
+{
+ "fx.sigil.hint": {
+  "en": "A symbol made from your encryption key — a quick sign only. To be sure, compare the full sigil in person.",
+  "ru": "Символ, созданный из вашего ключа шифрования, — лишь быстрый знак. Чтобы убедиться, лично сверьте полную руну."
+ },
+ "fx.verify.ok": {
+  "en": "Signature and message chain are consistent. Signer code: {fp}. It comes from the file itself, so check it with the sender before trusting who exported it.",
+  "ru": "Подпись и цепочка сообщений согласованы. Код подписавшего: {fp}. Он взят из самого файла — сверьте его с отправителем, прежде чем доверять авторству."
+ },
+ "toast.idClaimed": {
+  "en": "This ID is already used on another device. Restore your backup on this device, or wait about 14 days until the other device stays offline.",
+  "ru": "Этот ID уже используется на другом устройстве. Восстановите резервную копию на этом устройстве или подождите около 14 суток, пока то устройство не пропадёт из сети."
+ },
+ "claim.dialog": {
+  "en": "This ID is already used on another device, and its backup is not here. You can wait: it frees up {days} days after that device was last online. Or create a new ID right now.",
+  "ru": "Этот ID уже используется на другом устройстве, а его резервной копии здесь нет. Можно подождать: он освободится через {days} сут. после последнего появления того устройства в сети. Или создать новый ID прямо сейчас."
+ },
+ "sigil.quickNote": {
+  "en": "A quick sign: short and easy to recognise, but not enough to verify by itself. To be sure, compare the full sigil below.",
+  "ru": "Быстрый знак: короткий и легко узнаваемый, но сам по себе для проверки недостаточен. Чтобы убедиться, сверьте полную руну ниже."
+ },
+ "fx.sigil.verifyHow": {
+  "en": "Compare the full sigil and the check code with those on the other person’s phone. If they match, nobody is intercepting your chat.",
+  "ru": "Сравните полную руну и код проверки с теми, что у собеседника на телефоне. Если они совпадают — переписку никто не перехватывает."
+ },
+ "devices.added": {
+  "en": "Added {date}. Device code {fp}",
+  "ru": "Добавлено {date}. Код устройства {fp}"
+ },
+ "devices.newDevice": {
+  "en": "{name} added a new device \"{label}\". Device code {fp}. Compare it with them in person or by call to be sure it is really them.",
+  "ru": "У {name} новое устройство «{label}». Код устройства {fp}. Сверьте его при встрече или по звонку, чтобы убедиться, что это он."
+ },
+ "devices.primary": {
+  "en": "Main device: keeps your account",
+  "ru": "Основное устройство: хранит ваш аккаунт"
+ },
+ "devices.backupCopy": {
+  "en": "This is a linked device: a backup made here does not include your account key.",
+  "ru": "Это привязанное устройство: резервная копия отсюда не включает ключ вашего аккаунта."
+ },
+ "devices.companionInfo": {
+  "en": "This is a linked device. Your account key stays on the main device. Calls and group admin actions are only on the main device.",
+  "ru": "Это привязанное устройство. Ключ вашего аккаунта остаётся на основном устройстве. Звонки и действия администратора групп доступны только на основном."
+ },
+ "devices.pair.explain": {
+  "en": "The new device gets its own protection and a pass signed by this phone, plus your contacts and chat history. Your account key does not leave this phone. Messages are copied to it through the server in encrypted form.",
+  "ru": "Новое устройство получит собственную защиту и пропуск, подписанный этим телефоном, а также контакты и историю чатов. Ключ вашего аккаунта не покидает этот телефон. Сообщения копируются на него через сервер в зашифрованном виде."
+ },
+ "devlink.send.warn": {
+  "en": "Both phones would use the same account and disturb each other's secure chats, so after the move erase this phone.",
+  "ru": "Два телефона будут работать под одним аккаунтом и мешать защищённым чатам друг друга, поэтому после переноса сотрите этот телефон."
+ },
+ "devlink.send.done": {
+  "en": "Sent and received by the new phone. Erase this phone now so that two devices do not share one account.",
+  "ru": "Отправлено и получено новым телефоном. Сотрите этот телефон сейчас, чтобы один аккаунт не работал на двух устройствах."
+ },
+ "settings.server": {
+  "en": "Connection server",
+  "ru": "Сервер подключения"
+ },
+ "connect.online.sub": {
+  "en": "Everyone who has the app open right now on the same server and hasn't hidden themselves.",
+  "ru": "Все, кто прямо сейчас открыл приложение на том же сервере и не скрыл себя из списка."
+ },
+ "settings.linkPreviews.disclaimer": {
+  "en": "To show a preview, the Messenger server briefly opens the link for you — it sees the link, not the message.",
+  "ru": "Чтобы показать превью, сервер Мессенджера сам ненадолго открывает ссылку — он видит саму ссылку, но не текст сообщения."
+ },
+ "outbox.reason.noKey": {
+  "en": "Waiting for the contact's encryption",
+  "ru": "Ждём защиту собеседника"
+ },
+ "chat.keyChange.text": {
+  "en": "{name}'s security code has changed (new phone or reinstall, but it could also be someone pretending to be them). Messages are on hold until you confirm. Compare the safety number with them in person or over another channel.",
+  "ru": "Код защиты {name} изменился (новый телефон или переустановка, но это может быть и подмена). Сообщения ждут, пока вы не подтвердите. Сверьте число безопасности лично или по другому каналу."
+ },
+ "chat.keyChange.confirm": {
+  "en": "Accept the new security code of {name}? Only do this if the safety number matches.",
+  "ru": "Принять новый код защиты {name}? Делайте это, только если число безопасности совпало."
+ },
+ "toast.keyAccepted": {
+  "en": "New security code of {name} accepted",
+  "ru": "Новый код защиты {name} принят"
+ },
+ "toast.keyRejected": {
+  "en": "New security code of {name} rejected",
+  "ru": "Новый код защиты {name} отклонён"
+ },
+ "toast.waitingKeyConfirm": {
+  "en": "{name}'s security code changed. The message will be sent after you confirm it.",
+  "ru": "Код защиты {name} изменился. Сообщение уйдёт после вашего подтверждения."
+ },
+ "toast.contactKeyChanged": {
+  "en": "{name}'s security code has changed. Open the chat to compare and confirm it.",
+  "ru": "Код защиты {name} изменился. Откройте чат, сверьте и подтвердите его."
+ },
+ "trust.channel": {
+  "en": "Chat confirmed as theirs",
+  "ru": "Собеседник подтверждён"
+ },
+ "trust.changed": {
+  "en": "Security code changed — not confirmed",
+  "ru": "Код защиты сменился — не подтверждён"
+ },
+ "notif.keyChanged.title": {
+  "en": "Security code changed",
+  "ru": "Сменился код защиты"
+ },
+ "notif.keyChanged.body": {
+  "en": "{name}'s security code changed. Open Messenger to check it before sending anything private.",
+  "ru": "У контакта {name} сменился код защиты. Откройте Мессенджер и проверьте его, прежде чем отправлять личное."
+ },
+ "call.keyChanged": {
+  "en": "{name}'s security code changed. Confirm it first — calls are blocked until then.",
+  "ru": "У {name} сменился код защиты. Сначала подтвердите его — до тех пор звонки заблокированы."
+ },
+ "settings.requireVerified.hint": {
+  "en": "Before calling (or answering) a contact you have not verified with a safety number or QR, the app will ask you to verify first. A changed security code always blocks calls until confirmed.",
+  "ru": "Перед звонком (и ответом на звонок) контакту, которого вы не проверили по числу безопасности или QR, приложение предложит сначала проверить. Сменившийся код защиты блокирует звонки всегда — пока не подтвердите."
+ },
+ "settings.encrypt.hint": {
+  "en": "Messages and files are stored encrypted with a code made from your PIN (6+ digits). Protects against someone copying the device storage. If you forget the PIN, the data cannot be recovered. A short PIN can still be guessed — use a long one.",
+  "ru": "Переписка и файлы хранятся зашифрованными кодом из вашего PIN (от 6 цифр). Защищает, если кто-то скопирует хранилище устройства. Забудете PIN — данные не восстановить. Короткий PIN можно подобрать — берите длинный."
+ },
+ "toast.keysRegenerated": {
+  "en": "Your protection on this device was set up again: your sigil has changed. Compare it with your contacts.",
+  "ru": "Защита на этом устройстве создана заново: ваша руна изменилась. Сверьте её с контактами."
+ },
+ "sys.keysResynced": {
+  "en": "Protection with the contact was re-synchronised",
+  "ru": "Защита переписки пересинхронизирована"
+ },
+ "toast.safetyNumberNoKey": {
+  "en": "Not connected yet — the safety number appears after the first connection",
+  "ru": "Ещё нет соединения — число безопасности появится после первого подключения"
+ },
+ "demo.s4": {
+  "en": "To chat with a real person open Contacts and add them by ID or QR code. Messages are private: only you and they can read them. Write again when you are ready.",
+  "ru": "Чтобы общаться с живым человеком, откройте «Контакты» и добавьте его по ID или QR-коду. Сообщения личные: прочитать их можете только вы и собеседник. Напишите ещё раз, когда будете готовы."
+ },
+ "stories.hint": {
+  "en": "Visible to your contacts for 24 hours. Private: only your contacts can see it.",
+  "ru": "Видна вашим контактам 24 часа. Её видят только ваши контакты."
+ },
+ "chat.thread.empty.title": {
+  "en": "Start the conversation. Messages are private.",
+  "ru": "Начните переписку. Сообщения личные."
+ },
+ "discovery.setting.hint": {
+  "en": "Off by default. When on, the server keeps only a scrambled form of your number/email, your ID and your public code. Tap the switch to read the details.",
+  "ru": "По умолчанию выключено. Если включить, сервер хранит только зашифрованный вид вашего номера/почты, ваш ID и публичный код. Нажмите на переключатель, чтобы прочитать подробности."
+ },
+ "discovery.explain": {
+  "en": "Enter phone numbers (with country code) or emails of people you know. Your app scrambles each one and asks the server which of them were published by people who chose to be found. The server never sees the numbers you search for; people who did not opt in look the same as people who are not here. Limits apply (20 searches per hour).",
+  "ru": "Введите номера телефонов (с кодом страны) или email знакомых. Приложение шифрует каждый и спрашивает у сервера, какие из них опубликовали люди, согласившиеся на поиск. Сервер не видит сами номера, которые вы ищете; люди, не включившие поиск, выглядят так же, как тех, кого здесь нет. Действуют лимиты (20 поисков в час)."
+ },
+ "discovery.risk": {
+  "en": "Honest warning: phone numbers can be guessed. Protection and rate limits make mass guessing slow, not impossible. That is why this is opt-in.",
+  "ru": "Честное предупреждение: номера телефонов можно перебрать. Защита и лимиты делают массовый перебор медленным, но не невозможным. Поэтому функция добровольная."
+ },
+ "discovery.consent": {
+  "en": "Let people find you by your phone/email?\n\nThe server will store: a scrambled form of your number/email, your ID and your public code (and your name only if you allow it), for up to {days} days, renewed whenever you connect. Nothing else; your contacts and messages never leave your device.\n\nRisk: anyone who already knows your number can check whether you use Messenger, and phone numbers can be guessed (protection and rate limits slow this down, they do not prevent it). You can turn this off at any time; the entry is deleted.",
+  "ru": "Разрешить находить вас по номеру/почте?\n\nСервер будет хранить: зашифрованный вид номера/почты, ваш ID и публичный код (и имя, только если вы разрешите) — до {days} дн., срок продлевается при каждом подключении. Больше ничего; ваши контакты и сообщения не покидают устройство.\n\nРиск: любой, кто уже знает ваш номер, сможет проверить, пользуетесь ли вы «Мессенджером», а номера можно перебирать (защита и лимиты замедляют это, но не исключают). Выключить можно в любой момент — запись удаляется."
+ },
+ "discovery.verifyHint": {
+  "en": "Added. Compare the safety number in the contact card to be sure it is really them.",
+  "ru": "Добавлено. Сверьте число безопасности в карточке контакта, чтобы убедиться, что это он."
+ },
+ "help.privacy.body": {
+  "en": "Messages are private: only you and the other person can read them, not the server. The server only helps devices find each other and keeps an encrypted message for up to 14 days if the recipient is offline. In a contact's profile, open the safety number to compare it or scan a QR in person and mark the contact as verified. In Settings you can set a PIN and enable \"Encrypt data on this device\" — then messages and files are stored encrypted with a code made from your PIN (if you forget the PIN, the data cannot be recovered).",
+  "ru": "Сообщения личные: прочитать их можете только вы и собеседник, не сервер. Сервер лишь помогает устройствам найти друг друга и до 14 дней придерживает зашифрованное сообщение, если получатель офлайн. В профиле контакта откройте число безопасности — сверьте его или отсканируйте QR при встрече и отметьте контакт проверенным. В настройках можно задать PIN и включить «Шифровать данные на устройстве» — тогда сообщения и файлы хранятся зашифрованными кодом из вашего PIN (забудете PIN — данные не восстановить)."
+ },
+ "help.start.body": {
+  "en": "Messenger has no accounts and no central server that stores your messages. When you first open the app, you pick a name (a phone number or email is optional and is never sent anywhere as is). To talk to someone, you both need to add each other: send them your invite link, show your QR code, or share your contact card.",
+  "ru": "В «Мессенджере» нет аккаунтов и центрального сервера, который хранил бы ваши сообщения. При первом запуске вы выбираете имя (номер телефона или почта необязательны и никуда не отправляются в открытом виде). Чтобы переписываться с кем-то, вы оба должны добавить друг друга: отправьте ссылку-приглашение, покажите свой QR-код или поделитесь карточкой контакта."
+ },
+ "help.settingsHelp.body": {
+  "en": "In Settings you can change your name, language, and appearance (light, dark or automatic). You can also turn sounds, notifications and link previews on or off, and export or import a backup of your contacts and messages. Rare options are under “Advanced” inside each section.",
+  "ru": "В настройках можно изменить имя, язык интерфейса и оформление (светлое, тёмное или автоматическое). Также можно включить или выключить звуки, уведомления и превью ссылок, а ещё экспортировать или импортировать резервную копию контактов и сообщений. Редкие параметры спрятаны под «Дополнительно» внутри каждого раздела."
+ },
+ "settings.privacy.note": {
+  "en": "These work both ways: if you turn one off, you also stop seeing that information from your contacts.",
+  "ru": "Эти параметры работают в обе стороны: если выключить один, вы тоже перестанете видеть эту информацию о своих контактах."
+ },
+ "toast.confirmHardReset": {
+  "en": "Full reset: account, PIN, protection and all data will be deleted. Continue?",
+  "ru": "Полный сброс: удалит аккаунт, пин-код, защиту и все данные. Продолжить?"
+ },
+ "toast.confirmDeleteAccount": {
+  "en": "Delete account? This permanently erases contacts, messages and protection from this device. There is no server copy — this cannot be undone unless you made a backup.",
+  "ru": "Удалить аккаунт? Это безвозвратно сотрёт контакты, сообщения и защиту с этого устройства. Серверной копии нет — отменить нельзя, если вы заранее не сделали резервную копию."
+ },
+ "settings.deleteAccount.explain": {
+  "en": "Permanently erases contacts, messages and your account from this device. There is no server copy to restore from — make a backup first if you want one.",
+  "ru": "Безвозвратно удаляет контакты, сообщения и аккаунт с этого устройства. Серверной копии не существует — если нужна возможность восстановления, сначала сделайте резервную копию."
+ },
+ "toast.confirmPanic": {
+  "en": "This will instantly and irreversibly erase everything on this device — account, contacts, messages. There is no undo. Continue?",
+  "ru": "Это мгновенно и безвозвратно удалит всё на этом устройстве — аккаунт, контакты, сообщения. Отменить будет нельзя. Продолжить?"
+ },
+ "settings.calmMode.explain": {
+  "en": "Turns off the animated background and softens blur — for a quieter, more focused interface.",
+  "ru": "Отключает анимацию фона и уменьшает размытие — для более спокойного и сфокусированного интерфейса."
+ },
+ "settings.translateServer.disclaimer": {
+  "en": "Used by default: libretranslate.com. Translating a message sends its text to this server as is — pick one you trust, or run your own. The key is needed only if the server requires it.",
+  "ru": "По умолчанию: libretranslate.com. При переводе текст сообщения уходит на этот сервер как есть — выберите сервер, которому доверяете, или поднимите свой. Ключ нужен, только если сервер его требует."
+ },
+ "selfHost.explain": {
+  "en": "Messenger's server never sees message content — only who's online and brief delivery details (and, for link previews, a fetched link). Running your own gives full control over that, useful for firms, clinics or teams that need \"the vendor can't see our traffic\" in writing.",
+  "ru": "Сервер Мессенджера никогда не видит содержимое сообщений — только то, кто онлайн, и краткие сведения о доставке (а для превью ссылок — загруженную ссылку). Запуск собственного сервера даёт полный контроль над этим — полезно компаниям, клиникам и командам, которым нужно письменно подтвердить, что «вендор не видит наш трафик»."
+ },
+ "onboarding.id.hint": {
+  "en": "Optional. Leave it blank to stay anonymous — friends can still add you by link or QR.",
+  "ru": "Необязательно. Оставьте пустым, чтобы остаться анонимным — друзья всё равно добавят вас по ссылке или QR."
+ },
+ "onboarding.hint": {
+  "en": "Used Messenger before? Enter the same phone/email to get your account back (chats come only from a backup file).",
+  "ru": "Уже пользовались Мессенджером? Введите тот же телефон/email, чтобы вернуть аккаунт (переписка возвращается только из файла резервной копии)."
+ },
+ "onboarding.profile.title": {
+  "en": "What's your name?",
+  "ru": "Как вас зовут?"
+ },
+ "onboarding.ready.title": {
+  "en": "Invite a friend",
+  "ru": "Пригласите друга"
+ },
+ "onboarding.ready.inviteHint": {
+  "en": "Send the link or show the QR code — your chat appears as soon as they open it.",
+  "ru": "Отправьте ссылку или покажите QR-код — чат появится, как только друг его откроет."
+ },
+ "onboarding.start": {
+  "en": "Continue to Messenger",
+  "ru": "Перейти в Мессенджер"
+ },
+ "onboarding.lang.more": {
+  "en": "Other languages",
+  "ru": "Другие языки"
+ },
+ "firstRun.sub": {
+  "en": "Messenger connects people directly. Start with one friend.",
+  "ru": "Мессенджер соединяет людей напрямую. Начните с одного друга."
+ },
+ "firstRun.qrHint": {
+  "en": "Show this code to your friend — they scan it and you are connected.",
+  "ru": "Покажите этот код другу: он наведёт камеру, и вы окажетесь на связи."
+ },
+ "chats.empty.title": {
+  "en": "No chats yet",
+  "ru": "Пока нет чатов"
+ },
+ "chats.empty.sub": {
+  "en": "Invite a friend to start chatting.",
+  "ru": "Пригласите друга, чтобы начать переписку."
+ },
+ "fx.sigilToggle": {
+  "en": "Show contacts’ sigils",
+  "ru": "Показывать руны контактов"
+ },
+ "fx.mySigil": {
+  "en": "Your sigil",
+  "ru": "Ваша руна"
+ },
+ "fx2.look.unavailable": {
+  "en": "{name} has Vision Loop turned off",
+  "ru": "У {name} выключен Vision Loop"
+ },
+ "ui.simple.title": {
+  "en": "Simple mode",
+  "ru": "Простой режим"
+ },
+ "ui.simple.on": {
+  "en": "On",
+  "ru": "Включён"
+ },
+ "ui.simple.off": {
+  "en": "Off",
+  "ru": "Выключен"
+ },
+ "ui.simple.hint": {
+  "en": "Shows only the essentials. Everything else is one tap away under “More”.",
+  "ru": "Показывает только самое нужное. Всё остальное — в одно касание под кнопкой «Ещё»."
+ },
+ "menu.more": {
+  "en": "More",
+  "ru": "Ещё"
+ },
+ "onboarding.invite.share": {
+  "en": "Invite a friend",
+  "ru": "Пригласить друга"
+ },
+ "onboarding.invite.copy": {
+  "en": "Copy link",
+  "ru": "Скопировать ссылку"
+ },
+ "onboarding.invite.next": {
+  "en": "Next: send the link — the chat will appear when your friend opens it. You can also do this later from the Chats tab.",
+  "ru": "Дальше: отправьте ссылку — чат появится, когда друг её откроет. Это можно сделать и позже на вкладке «Чаты»."
+ },
+ "onboarding.welcome.lang": {
+  "en": "Language",
+  "ru": "Язык"
+ },
+ "chats.empty.invite": {
+  "en": "Invite a friend",
+  "ru": "Пригласить друга"
+ },
+ "chats.empty.more": {
+  "en": "Other ways to add",
+  "ru": "Другие способы"
+ }
+}

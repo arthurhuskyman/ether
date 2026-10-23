@@ -176,7 +176,7 @@ test("свой пак: добавить, отправить (dataB64 ≤ 64 КБ
 
 test("панель: пункт «Стикеры» в меню «+», кнопка в эмодзи-панели, вкладки, aria, отправка по тапу", async () => {
   const a = await booted("en"); const d = a.document;
-  const menu = d.querySelectorAll("#composer-menu-sheet .composer-menu-item:not(.composer-recent)");
+  const menu = d.querySelectorAll("#composer-menu-sheet .composer-menu-item:not(.composer-recent):not(#composer-menu-more)");
   assert.equal(menu.length, 8);
   assert.ok(d.querySelector("#chat-sticker-btn") && d.querySelector("#emoji-sticker-btn"));
   a.run(`window.__sent = []; trySendOrQueue = async (c, id, p) => { window.__sent.push(p); };`);

@@ -6,7 +6,7 @@ const vm = require("vm");
 const { createApp, closeAll, ROOT } = require("./harness");
 test.after(closeAll);
 
-const SKIN_IDS = ["cartoon", "comic", "watercolor", "neon", "steampunk", "gothic", "clay", "lego", "wood", "glass", "chalk", "newyear"];
+const SKIN_IDS = ["cartoon", "comic", "watercolor", "neon", "steampunk", "gothic", "clay", "lego", "wood", "glass", "chalk", "newyear", "sakura"];
 
 function loadDict(file) {
   const w = {}; w.window = w;
@@ -17,15 +17,15 @@ const J = (x) => JSON.parse(JSON.stringify(x));
 const ph = (s) => (String(s).match(/\{\w+\}|%[sd]/g) || []).sort().join(",");
 
 // ---------------- скины ----------------
-test("скины: каждый из 12 регистрируется с иконками, звуками, deco", async () => {
+test("скины: каждый из 13 регистрируется со звуками; иконки и deco — у тех, у кого они есть", async () => {
   const a = createApp(); await a.ready;
   const info = JSON.parse(a.run(`JSON.stringify(Skins.IDS.map((id) => { Skins.set(id); const s = Skins.spec(); return { id, has: !!s, icons: s && s.icons ? Object.keys(s.icons) : [], sound: s && s.sound ? Object.keys(s.sound) : [], deco: !!(s && typeof s.deco === "function") }; }))`));
-  assert.equal(info.length, 13);
+  assert.equal(info.length, 14);
   for (const id of SKIN_IDS) {
     const r = info.find((x) => x.id === id);
     assert.ok(r && r.has, id + " зарегистрирован");
-    assert.ok(r.icons.length >= 10, id + " иконки");
-    assert.ok(r.deco, id + " deco");
+    assert.ok(r.icons.length === 0 || r.icons.length >= 10, id + " иконки");
+    assert.ok(r.sound.length === 6, id + " звуки");
     for (const k of ["in", "out", "tap", "tab", "react", "error"]) assert.ok(r.sound.includes(k) || r.sound.length === 0, id + " звук " + k);
   }
   assert.equal(info.find((x) => x.id === "default").has, false);
@@ -75,7 +75,7 @@ test("скины: play() проигрывает каждую партитуру 
 test("скины: deco рисует слой, возвращает cleanup; calm-режим и обе схемы не бросают", async () => {
   const a = createApp(); await a.ready;
   const res = JSON.parse(a.run(`JSON.stringify(Skins.IDS.filter((i) => i !== "default").map((id) => {
-    Skins.set(id); const sp = Skins.spec(); const out = { id };
+    Skins.set(id); const sp = Skins.spec(); const out = { id }; if (!sp || typeof sp.deco !== "function") return { id, nodeco: true };
     for (const calm of [false, true]) for (const scheme of ["light", "dark"]) {
       const layer = document.createElement("div"); document.body.appendChild(layer);
       let cleanup, err = null;
@@ -86,7 +86,9 @@ test("скины: deco рисует слой, возвращает cleanup; calm
     }
     try { sp.deco(document.createElement("div")); out.noOpts = true; } catch (e) { out.noOptsErr = String(e); }
     return out; }))`));
+  assert.ok(res.filter((r) => !r.nodeco).length >= 4, "декор остался минимум у четырёх скинов");
   for (const r of res) {
+    if (r.nodeco) continue;
     assert.equal(r.cleanupErr, undefined, r.id);
     for (const k of ["livelight", "livedark", "calmlight", "calmdark"]) { assert.equal(r[k].err, null, r.id + k); assert.ok(r[k].kids > 0, r.id + k + " нарисовал"); assert.ok(["function", "undefined"].includes(r[k].cleanup)); }
     assert.equal(r.noOpts, true, r.id + " без opts: " + r.noOptsErr);
@@ -99,11 +101,11 @@ test("скины: apply/set/render/wire/sfx/onTap, невалидные id", asy
   const r = J(a.run(`(() => {
     const o = {};
     Skins.wire();
-    o.cards = document.querySelectorAll("#skin-grid .skin-card").length;
+    o.cards = document.querySelectorAll("#skin-grid .skin-card").length; o.sheetCards = document.querySelectorAll("#skin-sheet-grid .skin-card").length;
     o.apply1 = Skins.apply("nope"); o.valid = [Skins.valid("neon"), Skins.valid("x"), Skins.valid(null)];
     Skins.set("neon"); o.layer = !!document.getElementById("skin-deco"); o.layerSkin = document.getElementById("skin-deco").dataset.skin;
     o.active = document.querySelector("#skin-grid .skin-card.active").dataset.skin;
-    document.querySelector('#skin-grid [data-skin="gothic"]').click(); o.afterClick = Skins.get();
+    document.querySelector('#skin-sheet-grid [data-skin="gothic"]').click(); o.afterClick = Skins.get();
     localStorage.setItem(Skins.KEY, "garbage"); o.garbage = Skins.get();
     o.sfxNo = Skins.sfx("nonexistent"); o.name = Skins.name("lego"); o.nameUnknown = Skins.name("zzz");
     Skins.set("default"); o.attr = document.documentElement.getAttribute("data-skin"); o.sfxDefault = Skins.sfx("tap");
@@ -111,7 +113,7 @@ test("скины: apply/set/render/wire/sfx/onTap, невалидные id", asy
     // тап по кнопке в скине — не бросает; в default — игнорируется
     Skins.set("steampunk"); document.body.insertAdjacentHTML("beforeend", '<button id="zb">x</button>'); document.getElementById("zb").click();
     o.ok = true; return o; })()`));
-  assert.equal(r.cards, 13); assert.equal(r.apply1, "default"); assert.deepEqual(r.valid, [true, false, false]);
+  assert.equal(r.cards, 6, "5 скинов + ячейка «…»"); assert.equal(r.sheetCards, 14, "в шторке все 14"); assert.equal(r.apply1, "default"); assert.deepEqual(r.valid, [true, false, false]);
   assert.equal(r.layer, true); assert.equal(r.layerSkin, "neon"); assert.equal(r.active, "neon"); assert.equal(r.afterClick, "gothic");
   assert.equal(r.garbage, "default"); assert.equal(r.sfxNo, false); assert.equal(r.attr, null); assert.equal(r.sfxDefault, false);
   assert.equal(r.nameUnknown, "zzz"); assert.equal(r.regBogus, false); assert.equal(r.ok, true);

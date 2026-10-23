@@ -59,22 +59,5 @@
     error: [{ f: [520, 330], t: 0, d: 0.5, v: 0.09, w: "sine" }, { f: [390, 250], t: 0.22, d: 0.6, v: 0.07, w: "sine" }]
   };
   // Декор: размытые пигментные пятна медленно плывут, редкие капли стекают вниз
-  function deco(layer, o) {
-    const calm = o && o.calm, dark = o && o.scheme === "dark";
-    const blobs = dark
-      ? [["rgba(200,80,150,.45)", 360, -12, -6, 40, 30, 0], ["rgba(70,110,220,.5)", 400, 55, 8, -40, 40, -9], ["rgba(40,170,160,.4)", 340, -10, 62, 50, -30, -16], ["rgba(130,80,230,.5)", 420, 50, 70, -30, -40, -4], ["rgba(220,120,200,.3)", 260, 30, 36, 40, 50, -22]]
-      : [["rgba(255,160,200,.6)", 360, -12, -6, 40, 30, 0], ["rgba(140,190,255,.6)", 400, 55, 8, -40, 40, -9], ["rgba(160,235,200,.55)", 340, -10, 62, 50, -30, -16], ["rgba(210,170,255,.6)", 420, 50, 70, -30, -40, -4], ["rgba(255,220,150,.45)", 260, 30, 36, 40, 50, -22]];
-    for (const [c, s, x, y, dx, dy, dl] of blobs) {
-      const b = document.createElement("div"); b.className = "wb";
-      b.style.cssText = `--c:${c};--s:${s}px;--x:${x}%;--y:${y}%;--dx:${dx}px;--dy:${dy}px;--dl:${dl}s;--d:${32 + Math.abs(dl)}s`;
-      if (calm) b.style.animation = "none";
-      layer.appendChild(b);
-    }
-    if (calm) return;
-    const drops = [["rgba(150,120,255,.7)", 12, 0, 22], ["rgba(255,130,180,.7)", 38, -7, 26], ["rgba(110,170,255,.7)", 64, -13, 20], ["rgba(120,210,180,.7)", 86, -4, 28]];
-    for (const [c, x, dl, d] of drops) {
-      const e = document.createElement("div"); e.className = "wd"; e.style.cssText = `--c:${c};--x:${x}%;--dl:${dl}s;--d:${d}s`; layer.appendChild(e);
-    }
-  }
-  Skins.register("watercolor", { icons, sound, haptic: { tap: [6] }, deco });
+Skins.register("watercolor", { icons, sound, haptic: { tap: [6] } });
 })();
