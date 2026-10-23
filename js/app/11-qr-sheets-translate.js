@@ -1535,7 +1535,26 @@ function renderComposerRecent() {
   el.classList.remove("hidden");
 }
 function collapseComposerPlus() { setComposerFan(false); }
+// Переключатели, чьё состояние показано классом (.active/.on), сообщают его и скринридеру: aria-pressed следует за классом.
+const ARIA_PRESSED_SEL = ".theme-seg button, #chat-filters .chat-filter-chip, .onboarding-lang-btn, #story-swatches .story-swatch, #call-mute-btn, #call-speaker-btn, #call-video-btn";
+function syncAriaPressed(root) {
+  try {
+    (root || document).querySelectorAll(ARIA_PRESSED_SEL).forEach((b) => {
+      if (b.classList.contains("summary-period")) return;
+      const on = b.classList.contains("active") || b.classList.contains("on") ? "true" : "false";
+      if (b.getAttribute("aria-pressed") !== on) b.setAttribute("aria-pressed", on);
+    });
+  } catch (e) {}
+}
+function wireAriaPressedSync() {
+  syncAriaPressed();
+  if (typeof MutationObserver === "undefined" || !document.body) return;
+  let t = null;
+  new MutationObserver(() => { if (t) return; t = setTimeout(() => { t = null; syncAriaPressed(); }, 50); })
+    .observe(document.body, { subtree: true, attributes: true, attributeFilter: ["class"], childList: true });
+}
 function wireComposerPlusMode() {
+  try { wireAriaPressedSync(); } catch (e) {}
   wireChatInputKeys();
   const plusBtn = $("#chat-plus-btn"); if (!plusBtn) return;
   plusBtn.addEventListener("click", (e) => {

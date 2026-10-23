@@ -214,15 +214,18 @@ const LocalAI = (() => {
 
   // ---- Сводка чата: детерминированная выжимка за период (без нейросети, без сети) ----
   const URL_IN_TEXT = /\bhttps?:\/\/[^\s<>"']{3,200}/gi;
+  const DATE_IN_TEXT = /\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}[./]\d{1,2}(?:[./]\d{2,4})?(?!\d)|\b\d{1,2}:\d{2}\b/;
   function chatDigest(c, opts) {
     opts = opts || {};
     const now = opts.now || Date.now(), since = opts.since || 0;
-    const all = (c && Array.isArray(c.messages) ? c.messages : []).filter((m) => m && !m.deleted && m.from !== "system" && Number(m.ts) >= since && Number(m.ts) <= now + 60000);
+    let all = (c && Array.isArray(c.messages) ? c.messages : []).filter((m) => m && !m.deleted && m.from !== "system" && Number(m.ts) >= since && Number(m.ts) <= now + 60000);
+    if (opts.unread) all = all.filter((m) => m.from !== "me" && !m.readAckSent);
+    if (opts.last > 0) all = all.slice(-Math.min(5000, opts.last | 0));
     const nameOf = (m) => m.from === "me" ? (opts.meName || "me") : String(m.fromName || (c && c.name) || opts.someone || "?").slice(0, 40);
     const authorKey = (m) => m.from === "me" ? "me" : (m.fromId || "them");
     const people = new Map();
     const files = { image: 0, video: 0, audio: 0, file: 0 };
-    const links = [], polls = [], notes = [], textParts = [], questions = [];
+    const links = [], polls = [], notes = [], textParts = [], questions = [], dates = [];
     const wordFreq = new Map();
     let texts = 0;
     all.forEach((m, idx) => {
@@ -234,6 +237,7 @@ const LocalAI = (() => {
       if (!t) return;
       texts++;
       const found = t.match(URL_IN_TEXT); if (found) for (const u of found) if (links.length < 50 && !links.includes(u)) links.push(u);
+      if (dates.length < 6) { const tt = t.replace(URL_IN_TEXT, " "); if (DATE_IN_TEXT.test(tt)) dates.push(tt.replace(/\s+/g, " ").slice(0, 120)); }
       textParts.push(/[.!?…]$/.test(t) ? t : t + ".");
       for (const w of t.toLowerCase().replace(URL_IN_TEXT, " ").match(/[\p{L}][\p{L}\p{N}-]{3,}/gu) || []) if (!STOP.has(w)) wordFreq.set(w, (wordFreq.get(w) || 0) + 1);
       if (/\?\s*$/.test(t) && t.length > 3) {
@@ -254,7 +258,7 @@ const LocalAI = (() => {
     return {
       count: all.length, texts,
       people: Array.from(people.values()).sort((a, b) => b.n - a.n).slice(0, 8),
-      topics, key, questions: questions.slice(-5), links: links.slice(0, 8), files, polls: polls.slice(0, 5), notes: notes.slice(0, 5), tasks: tasks.slice(0, 10),
+      topics, key, questions: questions.slice(-5), dates: dates.slice(0, 5), links: links.slice(0, 8), files, polls: polls.slice(0, 5), notes: notes.slice(0, 5), tasks: tasks.slice(0, 10),
     };
   }
   return { TF_SHA384, chatDigest, makeProgress, cleanTranscript, rms, setEngine, isReady, loadEngine, decodeToMono16k, transcribeBlob, summarize, sentences, onProgress: (fn) => { progressListeners.add(fn); return () => progressListeners.delete(fn); }, MODEL, TF_URL, getDiag, envInfo, hintFor, LOAD_PLAN, importLib };
@@ -313,7 +317,7 @@ function summarySince(period, now) {
   return 0;
 }
 function chatSummaryHtml(c, period) {
-  const d = LocalAI.chatDigest(c, { since: summarySince(period), meName: T("chat.poll.you"), someone: T("sys.someone") });
+  const d = LocalAI.chatDigest(c, { since: summarySince(period), last: period === "last50" ? 50 : period === "last200" ? 200 : 0, unread: period === "unread", meName: T("chat.poll.you"), someone: T("sys.someone") });
   const e = escapeHtml;
   if (!d.count) return `<p class="summary-empty">${e(T("summary.empty"))}</p>`;
   const sec = (title, inner) => `<section class="summary-sec"><h4>${e(title)}</h4>${inner}</section>`;
@@ -323,6 +327,7 @@ function chatSummaryHtml(c, period) {
   if (d.topics.length) h += sec(T("summary.topics"), `<div class="summary-chips">${d.topics.map((w) => `<span class="summary-chip">${e(w)}</span>`).join("")}</div>`);
   if (d.key) h += sec(T("summary.key"), `<p class="summary-key">${e(d.key)}</p>`);
   if (d.questions.length) h += sec(T("summary.questions"), list(d.questions.map((q) => `<b>${e(q.who)}:</b> ${e(q.text)}`)));
+  if (d.dates && d.dates.length) h += sec(T("summary.dates"), list(d.dates.map(e)));
   if (d.tasks.length) h += sec(T("summary.tasks"), list(d.tasks.map((x) => `${e(x.text)} <span class="muted">· ${e(x.board)}</span>`)));
   if (d.polls.length) h += sec(T("summary.polls"), list(d.polls.map(e)));
   if (d.notes.length) h += sec(T("summary.notes"), list(d.notes.map(e)));
@@ -348,6 +353,11 @@ function wireChatSummary() {
   const sheet = document.getElementById("summary-sheet"); if (!sheet) return;
   sheet.querySelectorAll(".summary-period").forEach((b) => b.addEventListener("click", () => { sheet.dataset.period = b.dataset.period; renderChatSummary(); }));
   const cp = document.getElementById("summary-copy"); if (cp) cp.addEventListener("click", () => { try { const b = document.getElementById("summary-body"); copyText(b.innerText || b.textContent, T("toast.msgCopied")); } catch (e) {} });
+  const sh = document.getElementById("summary-share");
+  if (sh && typeof navigator !== "undefined" && typeof navigator.share === "function") {
+    sh.classList.remove("hidden");
+    sh.addEventListener("click", () => { try { const b = document.getElementById("summary-body"); Promise.resolve(navigator.share({ title: T("summary.shareTitle"), text: b.innerText || b.textContent })).catch(() => {}); } catch (e) {} });
+  }
   for (const id of ["chat-summary-btn", "contact-summary-btn"]) {
     const btn = document.getElementById(id);
     if (btn) btn.addEventListener("click", () => { try { collapseComposerPlus(); } catch (e) {} const cid = state.chatId || state.contactCardId; if (cid) openChatSummary(cid); });

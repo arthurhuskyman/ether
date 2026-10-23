@@ -176,7 +176,7 @@
       <button type="button" id="global-search-btn" class="icon-btn nav-global-search-btn" aria-label="Search everywhere" data-i18n-aria="search.global.title"><svg data-icon="search" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"></svg></button>
     </div>
     <div id="nav-chat-mode" class="nav-mode-chat hidden">
-      <button type="button" id="chat-back" class="icon-btn back-btn"><svg data-icon="chevron-left" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"></svg></button>
+      <button type="button" id="chat-back" aria-label="Back" data-i18n-aria="sys.back" class="icon-btn back-btn"><svg data-icon="chevron-left" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"></svg></button>
       <button type="button" id="chat-peer-tap" class="chat-header-info chat-header-tappable">
         <span id="chat-peer-avatar" class="chat-peer-avatar"></span>
         <span class="chat-peer-info-col">
@@ -191,7 +191,7 @@
       <button type="button" id="chat-more-btn" class="icon-btn" aria-label="More" aria-haspopup="dialog" data-i18n-aria="chat.moreMenu"><svg data-icon="more" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"></svg></button>
     </div>
     <div id="nav-contact-mode" class="nav-mode-chat hidden">
-      <button type="button" id="contact-back" class="icon-btn back-btn"><svg data-icon="chevron-left" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"></svg></button>
+      <button type="button" id="contact-back" aria-label="Back" data-i18n-aria="sys.back" class="icon-btn back-btn"><svg data-icon="chevron-left" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"></svg></button>
       <span id="nav-contact-title" class="nav-contact-title"></span>
       <span class="icon-btn" style="visibility:hidden;"><svg data-icon="chevron-left" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"></svg></span>
     </div>
@@ -565,7 +565,7 @@
       <div data-settings-adv class="settings-group flat-content" data-settings-category="appearance">
         <div class="settings-row column">
           <span data-i18n="settings.glass">Glass transparency</span> <span id="glass-slider-value" class="fine muted"></span>
-          <input id="glass-slider" type="range" min="0" max="1" step="0.01" />
+          <input id="glass-slider" aria-label="Glass transparency" data-i18n-aria="settings.glass" type="range" min="0" max="1" step="0.01" />
         </div>
       </div>
       <div class="settings-group flat-content" data-settings-category="help">
@@ -613,7 +613,7 @@
       <div id="chat-search-bar" class="search-bar glass hidden">
         <input id="chat-search-input" type="text" placeholder="Search in chat" data-i18n-ph="chat.search" class="search-input-inline" autocomplete="off" />
         <span id="chat-search-counter" class="search-counter"></span>
-        <button type="button" id="chat-search-close" class="icon-btn small"><svg data-icon="x" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"></svg></button>
+        <button type="button" id="chat-search-close" aria-label="Close" data-i18n-aria="sys.close" class="icon-btn small"><svg data-icon="x" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"></svg></button>
       </div>
 
       <div id="pinned-msg-banner" class="pinned-msg-banner glass hidden">
@@ -636,11 +636,11 @@
       <div id="reply-banner" class="edit-banner glass hidden">
         <svg data-icon="reply" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg>
         <div class="reply-banner-body"><div class="reply-banner-author">Reply</div><div class="reply-banner-text"></div></div>
-        <button type="button" id="reply-cancel-btn" class="icon-btn small"><svg data-icon="x" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"></svg></button>
+        <button type="button" id="reply-cancel-btn" aria-label="Cancel" data-i18n-aria="chat.reply.cancel" class="icon-btn small"><svg data-icon="x" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"></svg></button>
       </div>
 
       <div id="multiselect-banner" class="edit-banner glass hidden">
-        <button type="button" id="multiselect-cancel-btn" class="icon-btn small"><svg data-icon="x" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"></svg></button>
+        <button type="button" id="multiselect-cancel-btn" aria-label="Cancel" data-i18n-aria="sys.cancel" class="icon-btn small"><svg data-icon="x" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"></svg></button>
         <span id="multiselect-count" class="edit-banner-text">0</span>
         <button type="button" id="multiselect-forward-btn" class="icon-btn" aria-label="Forward"><svg data-icon="reply" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"></svg></button>
         <button type="button" id="multiselect-delete-btn" class="icon-btn" aria-label="Delete"><svg data-icon="trash" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"></svg></button>
@@ -658,7 +658,7 @@
       <div id="edit-banner" class="edit-banner glass hidden">
         <svg data-icon="edit" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg>
         <span class="edit-banner-text" data-i18n="chat.editingLabel">Editing</span>
-        <button type="button" id="edit-cancel-btn" class="icon-btn small"><svg data-icon="x" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"></svg></button>
+        <button type="button" id="edit-cancel-btn" aria-label="Cancel" data-i18n-aria="chat.edit.cancel" class="icon-btn small"><svg data-icon="x" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"></svg></button>
       </div>
 
       <!-- "Отправить позже": долгое нажатие на кнопку отправки открывает
@@ -807,7 +807,7 @@
   <div class="call-bottom-area">
   <div class="call-volume">
     <svg data-icon="volume" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"></svg>
-    <input id="call-volume-slider" type="range" min="0" max="1" step="0.01" value="1" />
+    <input id="call-volume-slider" aria-label="Volume" data-i18n-aria="call.volume" type="range" min="0" max="1" step="0.01" value="1" />
   </div>
   <button type="button" id="call-sound-fix-btn" class="call-sound-fix hidden" data-i18n="call.soundProblem">Sound problem? Tap</button>
   <div class="call-controls" id="call-controls-active">
@@ -952,6 +952,9 @@
     <div class="sheet-handle"></div>
     <h3 id="summary-sheet-title" class="sheet-title" data-i18n="summary.title">Chat summary</h3>
     <div class="summary-periods" role="group" aria-label="Period" data-i18n-aria="summary.period">
+      <button type="button" class="summary-period" data-period="last50" aria-pressed="false" data-i18n="summary.last50">Last 50</button>
+      <button type="button" class="summary-period" data-period="last200" aria-pressed="false" data-i18n="summary.last200">Last 200</button>
+      <button type="button" class="summary-period" data-period="unread" aria-pressed="false" data-i18n="summary.unread">Unread</button>
       <button type="button" class="summary-period" data-period="today" aria-pressed="false" data-i18n="summary.today">Today</button>
       <button type="button" class="summary-period on" data-period="week" aria-pressed="true" data-i18n="summary.week">7 days</button>
       <button type="button" class="summary-period" data-period="all" aria-pressed="false" data-i18n="summary.all">All time</button>
@@ -959,6 +962,7 @@
     <div id="summary-body" class="summary-body" aria-live="polite"></div>
     <p class="fine muted" data-i18n="summary.note">Made on this device by counting words — no AI model is used and nothing leaves your device. It can miss context.</p>
     <button type="button" id="summary-copy" class="btn-secondary" data-i18n="chat.copy">Copy</button>
+    <button type="button" id="summary-share" class="btn-secondary hidden" data-i18n="summary.share">Share</button>
     <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="summary-sheet" data-i18n="sys.cancel">Cancel</button>
   </div>
 </div>
@@ -979,7 +983,7 @@
   <div class="sheet-panel glass-content">
     <div class="sheet-handle"></div>
     <h3 id="note-sheet-title" class="sheet-title"></h3>
-    <textarea id="note-input" class="rich-input note-input" rows="8"></textarea>
+    <textarea id="note-input" aria-label="Note" data-i18n-aria="chat.note.defaultTitle" class="rich-input note-input" rows="8"></textarea>
     <p class="fine muted" data-i18n="chat.note.hint">Everyone in this chat can edit the note. If two people save at once, the later edit wins.</p>
     <button type="button" id="note-save-btn" class="btn-primary" data-i18n="chat.note.save">Save</button>
     <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="note-sheet" data-i18n="sys.cancel">Cancel</button>
@@ -1008,7 +1012,7 @@
   <div class="sheet-panel glass-content">
     <div class="sheet-handle"></div>
     <h3 id="text-sheet-title" class="sheet-title"></h3>
-    <input id="text-sheet-input" type="text" class="rich-input" maxlength="120" autocomplete="off" />
+    <input id="text-sheet-input" aria-labelledby="text-sheet-title" type="text" class="rich-input" maxlength="120" autocomplete="off" />
     <div id="text-sheet-choices" class="text-sheet-choices hidden" role="radiogroup"></div>
     <button type="button" id="text-sheet-ok" class="btn-primary" data-i18n="sys.ok">OK</button>
     <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="text-sheet" data-i18n="sys.cancel">Cancel</button>
@@ -1164,7 +1168,7 @@
   <div class="sheet-panel glass-content">
     <div class="sheet-handle"></div>
     <h2 data-i18n="chat.contact.rename">Rename contact</h2>
-    <input id="rename-input" type="text" maxlength="40" class="rename-input" />
+    <input id="rename-input" aria-label="Rename contact" data-i18n-aria="chat.contact.rename" type="text" maxlength="40" class="rename-input" />
     <button type="button" id="rename-save-btn" class="btn-primary" data-i18n="sys.save">Save</button>
     <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="rename-sheet" data-i18n="sys.cancel">Cancel</button>
   </div>
@@ -1241,7 +1245,7 @@
   <div class="sheet-panel glass-content">
     <div class="sheet-handle"></div>
     <h2 data-i18n="chat.jumpToDate">Jump to date</h2>
-    <input id="jump-date-input" type="date" class="rename-input" />
+    <input id="jump-date-input" aria-label="Jump to date" data-i18n-aria="chat.jumpToDate" type="date" class="rename-input" />
     <button type="button" id="jump-date-go-btn" class="btn-primary" data-i18n="sys.go">Go</button>
     <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="jump-date-sheet" data-i18n="sys.cancel">Cancel</button>
   </div>
@@ -1330,7 +1334,7 @@
     <div class="sheet-handle"></div>
     <h2 data-i18n="group.new">New group</h2>
     <div class="group-avatar-picker">
-      <button type="button" id="new-group-avatar-btn" class="avatar avatar-lg group-avatar-btn" style="background:var(--accent)"><svg data-icon="plus" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg></button>
+      <button type="button" id="new-group-avatar-btn" aria-label="Change group photo" data-i18n-aria="group.avatar.change" class="avatar avatar-lg group-avatar-btn" style="background:var(--accent)"><svg data-icon="plus" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg></button>
       <input id="new-group-avatar-input" type="file" accept="image/*" style="display:none;" />
     </div>
     <input id="new-group-name" type="text" maxlength="60" placeholder="Group name" data-i18n-ph="group.name.placeholder" />
@@ -1347,10 +1351,10 @@
     <div class="sheet-handle"></div>
     <h2 data-i18n="group.info">Group info</h2>
     <div class="group-avatar-picker">
-      <button type="button" id="group-info-avatar-btn" class="avatar avatar-lg group-avatar-btn"></button>
+      <button type="button" id="group-info-avatar-btn" aria-label="Change group photo" data-i18n-aria="group.avatar.change" class="avatar avatar-lg group-avatar-btn"></button>
       <input id="group-info-avatar-input" type="file" accept="image/*" style="display:none;" />
     </div>
-    <input id="group-info-name" type="text" maxlength="60" class="rename-input" />
+    <input id="group-info-name" aria-label="Group name" data-i18n-aria="group.name.placeholder" type="text" maxlength="60" class="rename-input" />
     <button type="button" id="group-info-rename-btn" class="btn-secondary" data-i18n="group.rename">Save name</button>
     <textarea id="group-info-description" class="rename-input" maxlength="200" rows="2" placeholder="Group description" data-i18n-ph="group.description.placeholder"></textarea>
     <button type="button" id="group-info-description-btn" class="btn-secondary" data-i18n="group.description.save">Save description</button>
@@ -1481,7 +1485,7 @@
 </div>
 
 <div id="sr-announcer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
-<div id="toast"></div>
+<div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 <div id="panic-shake-banner" class="panic-shake-banner hidden">
   <span data-i18n="toast.panicShakeTriggered">Phone shaken — this device will be wiped in a moment.</span>
   <button type="button" id="panic-shake-cancel-btn" data-i18n="sys.cancel">Cancel</button>

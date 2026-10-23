@@ -1,5 +1,6 @@
 // Эмуляция устройств + автоматическая проверка вёрстки.
-// node tools/device-check.js <outdir> [--devices a,b] [--skins x,y] [--schemes light,dark] [--langs ru,ar] [--ui simple|full] [--shots]
+// node tools/device-check.js <outdir> [--devices a,b] [--skins x,y] [--schemes light,dark] [--langs ru,ar] [--ui simple|full] [--shots] [--call [--kb]] [--extra]
+// --extra: редкие экраны — онбординг, шит сообщения, просмотр историй, групповой звонок, экран блокировки, видеозвонок.
 // Устройства — из playwright.devices (UA, вьюпорт, DPR, touch) + свои (se: 320x568, desktop: 1280x800).
 // Движок только Chromium (WebKit в песочнице недоступен): iOS-специфику (safe-area, vibrate, Now Playing) это не проверяет.
 // На каждый экран: горизонтальный overflow документа, элементы за правым/левым краем, обрезанный текст,
@@ -14,7 +15,7 @@ const opt = (n, d) => { const i = args.indexOf("--" + n); return i < 0 ? d : arg
 const DEV = { se: { viewport: { width: 320, height: 568 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, userAgent: devices["iPhone 14"].userAgent }, desktop: { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 } };
 const devNames = opt("devices", "se,iPhone 15,Pixel 7,Galaxy S24,iPad Pro 11,desktop").split(",");
 const skins = opt("skins", "default").split(","), schemes = opt("schemes", "light,dark").split(","), langs = opt("langs", "ru").split(",");
-const shots = args.includes("--shots"), callMode = args.includes("--call"), wantKb = args.includes("--kb");
+const shots = args.includes("--shots"), callMode = args.includes("--call"), wantKb = args.includes("--kb"), extra = args.includes("--extra");
 const SCREENS = ["chats", "chat", "menu", "settings", "appearance"];
 fs.mkdirSync(out, { recursive: true });
 
@@ -24,7 +25,7 @@ async function audit(page) {
     const vis = (e) => { const r = e.getBoundingClientRect(); const s = getComputedStyle(e); return r.width > 0 && r.height > 0 && s.visibility !== "hidden" && s.display !== "none" && !e.closest(".hidden,[hidden],[aria-hidden=true]"); };
     const id = (e) => e.id ? "#" + e.id : (e.tagName.toLowerCase() + (e.className && typeof e.className === "string" ? "." + e.className.trim().split(/\s+/).slice(0, 2).join(".") : ""));
     for (const e of document.querySelectorAll("body *")) {
-      if (!vis(e) || e.closest("svg,.deco,[class*=deco],#fx-root,.egg")) continue;
+      if (!vis(e) || e.closest("svg,.deco,[class*=deco],.onboarding-glow,#fx-root,.egg")) continue;
       const r = e.getBoundingClientRect();
       if ((r.right > vw + 2 || r.left < -2) && !e.closest("[class*=carousel],.swipe-actions,.chat-row-actions,.onboarding-slides,.tab-pane:not(.active)") && res.offscreen.length < 15) res.offscreen.push(id(e) + " " + Math.round(r.left) + ".." + Math.round(r.right));
       const s = getComputedStyle(e);
@@ -65,6 +66,14 @@ async function audit(page) {
     const page = await ctx.newPage(); const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await page.goto(url, { waitUntil: "load" }); await page.waitForTimeout(1200);
+    const tag = `${dn.replace(/ /g, "_")}-${skin}-${scheme}-${lang}`;
+    const rec = async (name) => {
+      await page.waitForTimeout(350);
+      const a = await audit(page).catch((e) => ({ error: e.message }));
+      report.push({ tag, screen: name, ...a });
+      if (shots) await page.screenshot({ path: path.join(out, `${tag}-${name}.png`) });
+    };
+    if (extra) await rec("onboarding");
     try {
       await page.click('[data-slide="0"] .onboarding-next'); await page.waitForTimeout(250);
       await page.fill("#onboarding-name", "Аня"); await page.click('[data-slide="1"] button[type=submit]'); await page.waitForTimeout(1200);
@@ -76,7 +85,6 @@ async function audit(page) {
         renderTab(); renderChatThread();
       });
     } catch (e) { errors.push("setup: " + e.message.split("\n")[0]); }
-    const tag = `${dn.replace(/ /g, "_")}-${skin}-${scheme}-${lang}`;
     const step = async (name, fn) => {
       try { await fn(); } catch (e) { errors.push(name + ": " + e.message.split("\n")[0]); }
       await page.waitForTimeout(350);
@@ -103,6 +111,19 @@ async function audit(page) {
       if (g.mini && g.header && g.mini.t < g.header.b - 1) bad2.push("mini выше низа шапки");
       for (const k of ["input", "plus", "tab"]) if (g.mini && g[k] && g.mini.b > g[k].t + 1 && g.mini.t < g[k].b - 1) bad2.push("mini перекрывает " + k);
       report.push({ tag, screen: "call-geometry", geo, errors: bad2 });
+    }
+    if (extra) {
+      await page.evaluate(() => { try { document.querySelectorAll(".anchored-menu,.sheet").forEach((e) => e.classList.add("hidden")); closeChat(); state.tab = "chats"; } catch (e) {} });
+      await step("msg-sheet", async () => { await page.evaluate(() => { state.chatId = DEMO_CHAT_ID; state.tab = "chats"; renderTab(); renderChatThread(); openMessageSheet("m2", DEMO_CHAT_ID); }); });
+      await step("msg-sheet-mine", async () => { await page.evaluate(() => { try { closeMessageSheet && closeMessageSheet(); } catch (e) {} document.querySelectorAll(".sheet").forEach((e) => e.classList.add("hidden")); openMessageSheet("m1", DEMO_CHAT_ID); }); });
+      await step("story-viewer", async () => { await page.evaluate(() => { document.querySelectorAll(".sheet").forEach((e) => e.classList.add("hidden")); try { closeMessageSheet && closeMessageSheet(); } catch (e) {} state.chatId = null; renderTab(); const a0 = document.getElementById("app-shell"); if (a0) a0.style.visibility = "hidden"; const now = Date.now(); storiesList = [{ id: "s1", owner: DEMO_CHAT_ID, text: "Привет из истории! Длинный текст для проверки переноса строк", bg: 2, ts: now - 5000, seen: false }, { id: "s2", owner: DEMO_CHAT_ID, text: "Вторая", bg: 4, ts: now - 4000, seen: false }]; openStoryViewer(DEMO_CHAT_ID); }); });
+      await step("story-composer", async () => { await page.evaluate(() => { try { document.getElementById("story-viewer").classList.add("hidden"); const a1 = document.getElementById("app-shell"); if (a1) a1.style.visibility = ""; if (__storyViewer && __storyViewer.timer) clearTimeout(__storyViewer.timer); __storyViewer = null; } catch (e) {} openStoryComposer(); }); });
+      await step("gcall", async () => { await page.evaluate(() => { try { document.querySelectorAll("#story-composer,.story-composer,.sheet").forEach((e) => e.classList.add("hidden")); } catch (e) {} const now = Date.now(); const members = ["Борис", "Вера", "Глеб", "Аня"].map((n, i) => ({ id: "gm" + i, name: n })); state.contacts.set("__g", { id: "__g", name: "Команда", isGroup: true, managed: true, status: "paired", members: [{ id: "me", name: "Аня" }, ...members], messages: [], lastActivity: now }); GC.gid = "__g"; GC.stream = null; GC.peers = new Map(members.map((m, i) => [m.id, { name: m.name, stream: null, hasVideo: false, muted: i === 1 }])); GC.startedAt = now - 65000; gcallRenderScreen(); const a = document.getElementById("app-shell"); if (a) a.style.visibility = "hidden"; }); });
+      await page.evaluate(() => { GC.gid = null; gcallRenderScreen(); const a = document.getElementById("app-shell"); if (a) a.style.visibility = ""; });
+      await step("call-audio", async () => { await page.evaluate(() => { state.callId = null; openCallScreen(DEMO_CHAT_ID, "active"); setCallPhaseActive(); }); });
+      await step("call-video", async () => { await page.evaluate(() => { const c = document.createElement("canvas"); c.width = 320; c.height = 240; const g = c.getContext("2d"); g.fillStyle = "#58a"; g.fillRect(0, 0, 320, 240); g.fillStyle = "#fc6"; g.fillRect(100, 60, 120, 120); const st = c.captureStream(5); const rv = document.getElementById("call-remote-video"), lv = document.getElementById("call-local-video"); rv.srcObject = st; lv.srcObject = st; rv.classList.remove("hidden"); lv.classList.remove("hidden"); document.getElementById("call-video-overlays").classList.remove("hidden"); syncCallVideoState(); }); });
+      await page.evaluate(() => { try { const rv = document.getElementById("call-remote-video"), lv = document.getElementById("call-local-video"); rv.srcObject = null; lv.srcObject = null; rv.classList.add("hidden"); lv.classList.add("hidden"); syncCallVideoState(); document.getElementById("call-screen").classList.add("hidden"); state.callId = null; } catch (e) {} });
+      await step("lock", async () => { await page.evaluate(() => { showLockScreen(); }); });
     }
     if (errors.length) report.push({ tag, screen: "errors", errors });
     await ctx.close();

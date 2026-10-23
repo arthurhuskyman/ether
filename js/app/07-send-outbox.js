@@ -263,8 +263,8 @@ async function deleteMessageForBoth(contactId, msgId) {
 // ===== Истории: короткая история на 24 часа (текст или фото с подписью) для всех контактов (сквозное шифрование — тот же канал, что у сообщений) =====
 const STORY_TTL_MS = 24 * 3600e3, STORY_MAX_LEN = 280, STORY_BG_COUNT = 6;
 const STORY_PHOTO_MAX_DIM = 1080;            // длинная сторона отправляемого фото
-const STORY_PHOTO_TARGET_BYTES = 400 * 1024; // к этому размеру сжимаем при публикации
-const STORY_PHOTO_MAX_BYTES = 512 * 1024;    // жёсткий потолок при приёме (с запасом над целью)
+const STORY_PHOTO_TARGET_BYTES = 300 * 1024; // жёсткая цель на отправке: к этому размеру сжимаем при публикации
+const STORY_PHOTO_MAX_BYTES = 400 * 1024;    // потолок при приёме (с запасом над целью 300 КБ)
 const STORY_PHOTO_MAX_SIDE = 4096;           // заявленные размеры сверх этого — мусор
 const STORY_PER_OWNER_MAX = 20, STORY_PHOTO_MIMES = ["image/jpeg", "image/png", "image/webp"];
 let storiesList = null; // [{ id, owner ("me" или id контакта), text, bg, ts, seen, photo?: { mime, w, h, size } }]
@@ -568,17 +568,30 @@ function threadMessages(c, rootId) {
   }
   return out;
 }
+const threadSeen = new Set(); // id ответов, показанных в открытой панели треда (бейдж «непрочитано» на чипе гаснет)
+function threadUnreadCount(c, rootId) {
+  const ms = threadMessages(c, rootId); if (!ms) return 0;
+  return ms.slice(1).filter((m) => m.from === "them" && !m.readAckSent && !threadSeen.has(m.id)).length;
+}
+function markThreadSeen(c, rootId) {
+  const ms = threadMessages(c, rootId); if (!ms) return;
+  const before = threadSeen.size; for (const m of ms.slice(1)) if (m.from === "them") threadSeen.add(m.id);
+  if (threadSeen.size !== before) { try { renderChatThreadInner(); } catch (e) {} }
+}
 function openThread(contactId, rootId) {
   const c = state.contacts.get(contactId); if (!c || !threadMessages(c, rootId)) return;
   state.threadRoot = { cid: contactId, rootId };
   const sheet = $("#thread-sheet"); if (!sheet) return;
   renderThreadSheet(); sheet.classList.remove("hidden");
+  markThreadSeen(c, rootId);
+  setTimeout(() => { try { const i = $("#thread-input"); if (i && !i.disabled && !sheet.classList.contains("hidden")) i.focus(); } catch (e) {} }, 60);
 }
 function closeThreadSheet() { state.threadRoot = null; const sheet = $("#thread-sheet"); if (sheet) sheet.classList.add("hidden"); }
 function renderThreadSheet() {
   const tr = state.threadRoot, list = $("#thread-list"); if (!tr || !list) return;
   const c = state.contacts.get(tr.cid), msgs = c && threadMessages(c, tr.rootId);
   if (!msgs) { closeThreadSheet(); return; }
+  for (const m of msgs.slice(1)) if (m.from === "them") threadSeen.add(m.id); // открытая панель = ответы видны
   const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 40;
   const item = (m, i) => {
     const who = m.from === "me" ? T("chat.poll.you") : (m.fromName || c.name || T("sys.someone"));

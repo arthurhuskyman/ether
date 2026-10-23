@@ -55,7 +55,7 @@ function ensureMessageRendered(contactId, msgId) {
 function chatRenderSig(c, q, list) {
   let h = c.id + "|" + q + "|" + (state.multiSelect ? Array.from(state.multiSelect).join(",") : "") + "|" + (unreadDividerFor.get(c.id) || "")
     + "|" + document.documentElement.lang + "|" + Store.linkPreviewMode + linkPreviewAllowed.size + "|" + linkPreviewCache.size + "|" + (c.pinnedMessageId || "") + "|" + (isGroup(c) ? "g" : "p") + "|" + (function () { try { return localStorage.getItem("ether.fx") || ""; } catch (e) { return ""; } })();
-  h += "|win:" + (list ? list.length : c.messages.length);
+  h += "|win:" + (list ? list.length : c.messages.length); h += "|ts:" + threadSeen.size;
   for (const m of (list || c.messages)) {
     h += "\n" + m.id + ":" + (m.rv || 0) + (m.ack || "") + (m.edited ? "e" : "") + (m.deleted ? "d" : "") + (m.favorite ? "f" : "") + (m.ttl || "") + (m.forwarded ? "w" : "") + ":" + (m.text || "")
       + (m.translation ? m.translation.text : "") + (m.reactions ? JSON.stringify(m.reactions) : "") + (m.poll && typeof EtherRich !== "undefined" && EtherRich.isClosed(m) ? "pc" : "")
@@ -404,7 +404,8 @@ if (m.replyTo) {
     const translationHtml = (m.translation && m.translation.text)
       ? `<div class="bubble-translation"><span class="bubble-translation-label">${escapeHtml(T("chat.translated"))}</span> ${linkifyAndHighlight(m.translation.text, q)}</div>` : "";
     if (typeof m.text === "string" && (m.text.length > 140 || (m.text.match(/\n/g) || []).length >= 3)) inner.classList.add("bubble-long");
-    const threadChip = replyCounts.get(m.id) ? `<button type="button" class="thread-chip" data-thread="${escapeHtml(m.id)}" aria-haspopup="dialog" aria-label="${escapeHtml(T("chat.thread.aria", { n: replyCounts.get(m.id) }))}">${Icons.html("chat", 13)}<span>${escapeHtml(T("chat.thread.replies", { n: replyCounts.get(m.id) }))}</span></button>` : "";
+    const thUnread = replyCounts.get(m.id) ? threadUnreadCount(c, m.id) : 0;
+    const threadChip = replyCounts.get(m.id) ? `<button type="button" class="thread-chip${thUnread ? " has-unread" : ""}" data-thread="${escapeHtml(m.id)}" aria-haspopup="dialog" aria-label="${escapeHtml(thUnread ? T("chat.thread.aria.unread", { n: replyCounts.get(m.id), n2: thUnread }) : T("chat.thread.aria", { n: replyCounts.get(m.id) }))}">${Icons.html("chat", 13)}<span>${escapeHtml(T("chat.thread.replies", { n: replyCounts.get(m.id) }))}</span>${thUnread ? `<span class="thread-unread" aria-hidden="true">${thUnread}</span>` : ""}</button>` : "";
     inner.innerHTML = `${senderLabel}${fwdMark}${replyHtml}${body}${threadChip}${translationHtml}${previewSlotHtml}<span class="bubble-time">${ttlMark}${favMark}${formatTime(m.ts)}${editedMark}${tick}</span>${reactionsHtml}`;
     // Долгое нажатие — открывает обычное меню действий (ответить/
     // переслать/удалить), для ЛЮБОГО типа сообщения, как в большинстве

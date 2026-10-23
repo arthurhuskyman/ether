@@ -1025,7 +1025,12 @@ async function backfillVoiceWave(msgId, el) {
     const blob = await IDB.get("file:" + msgId);
     if (!AC || !blob || blob.size > 4 * 1024 * 1024) return;
     const ctx = new AC(); let audio;
-    try { audio = await ctx.decodeAudioData(await blob.arrayBuffer()); } finally { try { ctx.close(); } catch (e) {} }
+    try {
+      const buf = await blob.arrayBuffer();
+      // старый Safari: decodeAudioData только с колбэками (промис не возвращает)
+      audio = await new Promise((res, rej) => { const r = ctx.decodeAudioData(buf, res, rej); if (r && typeof r.then === "function") r.then(res, rej); });
+    } finally { try { ctx.close(); } catch (e) {} }
+    await new Promise((r) => setTimeout(r, 0)); // расчёт волны не должен задерживать отрисовку
     const data = audio.getChannelData(0), n = Math.min(data.length, 200000), step = Math.max(1, Math.floor(data.length / n));
     const abs = new Float32Array(Math.ceil(data.length / step));
     for (let i = 0, k = 0; i < data.length; i += step, k++) abs[k] = Math.abs(data[i]);
