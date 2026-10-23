@@ -75,7 +75,8 @@ for (const code of codes) {
 
   const missingKeys = [];
   const extraKeys = [];
-  for (const k of refKeys) if (!keys.has(k)) missingKeys.push(k);
+  const ENGLISH_ONLY = new Set(["sigil.wordlist"]); // словарь из 64 слов для сверки руны: намеренно один на все языки (английский фолбэк)
+  for (const k of refKeys) if (!keys.has(k) && !ENGLISH_ONLY.has(k)) missingKeys.push(k);
   for (const k of keys) if (!refKeys.has(k)) extraKeys.push(k);
 
   if (missingKeys.length || extraKeys.length) {
