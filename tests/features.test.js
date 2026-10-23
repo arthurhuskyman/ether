@@ -181,7 +181,7 @@ test("Ритуал дня: не показывается при самом пе�
   first.close();
 });
 
-test("Messenger Breathing / Seasonal / Soft skin: классы и CSS-переменные, пауза при скрытии, учёт Low Power", async () => {
+test("The Messenger Breathing / Seasonal / Soft skin: классы и CSS-переменные, пауза при скрытии, учёт Low Power", async () => {
   const a = await chatApp();
   const root = a.document.documentElement;
   assert.ok(root.classList.contains("fx-breathing") && root.classList.contains("fx-season"));

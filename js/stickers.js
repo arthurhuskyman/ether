@@ -84,7 +84,7 @@
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><path d="M64 6C98 6 122 30 120 64S96 122 62 120 6 96 8 62 30 6 64 6Z" fill="${m[2]}"/><circle cx="24" cy="26" r="5" fill="#fff" fill-opacity=".7"/><circle cx="106" cy="100" r="4" fill="#fff" fill-opacity=".7"/><text x="64" y="86" font-size="66" text-anchor="middle" font-family="'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif">${m[1]}</text></svg>`;
   }
   const PACKS = [
-    { id: "ether", name: { en: "Messenger", ru: "Мессенджер" }, items: RUNES.map((r, i) => ({ id: r[0], name: { en: "Rune " + r[1], ru: "Руна " + r[1] }, emoji: "ᚠ", svg: () => runeSvg(i) })) },
+    { id: "ether", name: { en: "The Messenger", ru: "Мессенджер" }, items: RUNES.map((r, i) => ({ id: r[0], name: { en: "Rune " + r[1], ru: "Руна " + r[1] }, emoji: "ᚠ", svg: () => runeSvg(i) })) },
     { id: "faces", name: { en: "Faces", ru: "Рожицы" }, items: FACES.map((f, i) => ({ id: f[0], name: f[1], emoji: "🙂", svg: () => faceSvg(i) })) },
     { id: "mood", name: { en: "Mood", ru: "Настроение" }, items: MOODS.map((m, i) => ({ id: m[0], name: m[3], emoji: m[1], svg: () => moodSvg(i) })) },
   ];

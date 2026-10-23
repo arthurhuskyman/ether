@@ -756,7 +756,7 @@ const httpServer = http.createServer(async (req, res) => {
 
   if (req.method === "GET" && (url === "/" || url === "/health")) {
     res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
-    res.end("Messenger signaling relay OK\n");
+    res.end("The Messenger signaling relay OK\n");
     return;
   }
 

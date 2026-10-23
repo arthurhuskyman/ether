@@ -144,7 +144,7 @@ test("скины: файлы sakura на месте, подключены в ind
 // скин может менять лишь оформление — цвет рамки, скругление, тень.
 test("скины: ни один css/skins/*.css и skins.css не задаёт раскладку .skin-grid / .skin-card", () => {
   const files = [path.join(ROOT, "css", "skins.css")].concat(fs.readdirSync(path.join(ROOT, "css", "skins")).map((f) => path.join(ROOT, "css", "skins", f)));
-  const FORBID = /^(grid|grid-[\w-]+|width|min-width|max-width|height|min-height|max-height|padding(-[\w-]+)?|margin(-[\w-]+)?|inset(-[\w-]+)?|font|font-size|font-family|line-height|display|gap|row-gap|column-gap|flex(-[\w-]+)?|align-[\w-]+|justify-[\w-]+|position|zoom|transform)$/;
+  const FORBID = /^(grid|grid-[\w-]+|width|min-width|max-width|height|min-height|max-height|padding(-[\w-]+)?|margin(-[\w-]+)?|inset(-[\w-]+)?|font|font-size|font-family|font-weight|letter-spacing|line-height|display|gap|row-gap|column-gap|flex(-[\w-]+)?|align-[\w-]+|justify-[\w-]+|position|zoom|transform)$/;
   const bad = [];
   for (const f of files) {
     const src = fs.readFileSync(f, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");

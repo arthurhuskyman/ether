@@ -64,7 +64,7 @@
   "ru": "Все, кто прямо сейчас открыл приложение на том же сервере и не скрыл себя из списка."
  },
  "settings.linkPreviews.disclaimer": {
-  "en": "To show a preview, the Messenger server briefly opens the link for you — it sees the link, not the message.",
+  "en": "To show a preview, the The Messenger server briefly opens the link for you — it sees the link, not the message.",
   "ru": "Чтобы показать превью, сервер Мессенджера сам ненадолго открывает ссылку — он видит саму ссылку, но не текст сообщения."
  },
  "outbox.reason.noKey": {
@@ -108,7 +108,7 @@
   "ru": "Сменился код защиты"
  },
  "notif.keyChanged.body": {
-  "en": "{name}'s security code changed. Open Messenger to check it before sending anything private.",
+  "en": "{name}'s security code changed. Open The Messenger to check it before sending anything private.",
   "ru": "У контакта {name} сменился код защиты. Откройте Мессенджер и проверьте его, прежде чем отправлять личное."
  },
  "call.keyChanged": {
@@ -160,7 +160,7 @@
   "ru": "Честное предупреждение: номера телефонов можно перебрать. Защита и лимиты делают массовый перебор медленным, но не невозможным. Поэтому функция добровольная."
  },
  "discovery.consent": {
-  "en": "Let people find you by your phone/email?\n\nThe server will store: a scrambled form of your number/email, your ID and your public code (and your name only if you allow it), for up to {days} days, renewed whenever you connect. Nothing else; your contacts and messages never leave your device.\n\nRisk: anyone who already knows your number can check whether you use Messenger, and phone numbers can be guessed (protection and rate limits slow this down, they do not prevent it). You can turn this off at any time; the entry is deleted.",
+  "en": "Let people find you by your phone/email?\n\nThe server will store: a scrambled form of your number/email, your ID and your public code (and your name only if you allow it), for up to {days} days, renewed whenever you connect. Nothing else; your contacts and messages never leave your device.\n\nRisk: anyone who already knows your number can check whether you use The Messenger, and phone numbers can be guessed (protection and rate limits slow this down, they do not prevent it). You can turn this off at any time; the entry is deleted.",
   "ru": "Разрешить находить вас по номеру/почте?\n\nСервер будет хранить: зашифрованный вид номера/почты, ваш ID и публичный код (и имя, только если вы разрешите) — до {days} дн., срок продлевается при каждом подключении. Больше ничего; ваши контакты и сообщения не покидают устройство.\n\nРиск: любой, кто уже знает ваш номер, сможет проверить, пользуетесь ли вы «Мессенджером», а номера можно перебирать (защита и лимиты замедляют это, но не исключают). Выключить можно в любой момент — запись удаляется."
  },
  "discovery.verifyHint": {
@@ -172,7 +172,7 @@
   "ru": "Сообщения личные: прочитать их можете только вы и собеседник, не сервер. Сервер лишь помогает устройствам найти друг друга и до 14 дней придерживает зашифрованное сообщение, если получатель офлайн. В профиле контакта откройте число безопасности — сверьте его или отсканируйте QR при встрече и отметьте контакт проверенным. В настройках можно задать PIN и включить «Шифровать данные на устройстве» — тогда сообщения и файлы хранятся зашифрованными кодом из вашего PIN (забудете PIN — данные не восстановить)."
  },
  "help.start.body": {
-  "en": "Messenger has no accounts and no central server that stores your messages. When you first open the app, you pick a name (a phone number or email is optional and is never sent anywhere as is). To talk to someone, you both need to add each other: send them your invite link, show your QR code, or share your contact card.",
+  "en": "The Messenger has no accounts and no central server that stores your messages. When you first open the app, you pick a name (a phone number or email is optional and is never sent anywhere as is). To talk to someone, you both need to add each other: send them your invite link, show your QR code, or share your contact card.",
   "ru": "В «Мессенджере» нет аккаунтов и центрального сервера, который хранил бы ваши сообщения. При первом запуске вы выбираете имя (номер телефона или почта необязательны и никуда не отправляются в открытом виде). Чтобы переписываться с кем-то, вы оба должны добавить друг друга: отправьте ссылку-приглашение, покажите свой QR-код или поделитесь карточкой контакта."
  },
  "help.settingsHelp.body": {
@@ -208,7 +208,7 @@
   "ru": "По умолчанию: libretranslate.com. При переводе текст сообщения уходит на этот сервер как есть — выберите сервер, которому доверяете, или поднимите свой. Ключ нужен, только если сервер его требует."
  },
  "selfHost.explain": {
-  "en": "Messenger's server never sees message content — only who's online and brief delivery details (and, for link previews, a fetched link). Running your own gives full control over that, useful for firms, clinics or teams that need \"the vendor can't see our traffic\" in writing.",
+  "en": "The Messenger's server never sees message content — only who's online and brief delivery details (and, for link previews, a fetched link). Running your own gives full control over that, useful for firms, clinics or teams that need \"the vendor can't see our traffic\" in writing.",
   "ru": "Сервер Мессенджера никогда не видит содержимое сообщений — только то, кто онлайн, и краткие сведения о доставке (а для превью ссылок — загруженную ссылку). Запуск собственного сервера даёт полный контроль над этим — полезно компаниям, клиникам и командам, которым нужно письменно подтвердить, что «вендор не видит наш трафик»."
  },
  "onboarding.id.hint": {
@@ -216,7 +216,7 @@
   "ru": "Необязательно. Оставьте пустым, чтобы остаться анонимным — друзья всё равно добавят вас по ссылке или QR."
  },
  "onboarding.hint": {
-  "en": "Used Messenger before? Enter the same phone/email to get your account back (chats come only from a backup file).",
+  "en": "Used The Messenger before? Enter the same phone/email to get your account back (chats come only from a backup file).",
   "ru": "Уже пользовались Мессенджером? Введите тот же телефон/email, чтобы вернуть аккаунт (переписка возвращается только из файла резервной копии)."
  },
  "onboarding.profile.title": {
@@ -232,7 +232,7 @@
   "ru": "Отправьте ссылку или покажите QR-код — чат появится, как только друг его откроет."
  },
  "onboarding.start": {
-  "en": "Continue to Messenger",
+  "en": "Continue to The Messenger",
   "ru": "Перейти в Мессенджер"
  },
  "onboarding.lang.more": {
@@ -240,7 +240,7 @@
   "ru": "Другие языки"
  },
  "firstRun.sub": {
-  "en": "Messenger connects people directly. Start with one friend.",
+  "en": "The Messenger connects people directly. Start with one friend.",
   "ru": "Мессенджер соединяет людей напрямую. Начните с одного друга."
  },
  "firstRun.qrHint": {

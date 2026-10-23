@@ -52,11 +52,11 @@ test("шаги: на моках собирается отчёт со всеми 
   assert.equal(by.audio.ok, true); assert.match(by.audio.detail, /state after resume: running/);
   assert.equal(by.vibration.ok, null);
   assert.equal(by.mic.ok, true); assert.match(by.mic.detail, /recorded mime audio\/mp4, 4 B/);
-  assert.equal(by.media.ok, true); assert.match(by.media.detail, /metadata set: Messenger - test/);
+  assert.equal(by.media.ok, true); assert.match(by.media.detail, /metadata set: The Messenger - test/);
   assert.equal(by.push.ok, false); assert.match(by.push.detail, /supported=false/);
   assert.ok(by.viewport.detail.includes("safe-area"));
   assert.ok(asked.length >= 3);
-  assert.match(report, /^Messenger — device check/); assert.match(report, /\[SKIP\]/); assert.match(report, /\[OK\]/);
+  assert.match(report, /^The Messenger — device check/); assert.match(report, /\[SKIP\]/); assert.match(report, /\[OK\]/);
   assert.ok(!/eyJ|@/.test(report.replace(/Messenger — device check/, "")), "в отчёте нет почты/токенов");
 });
 

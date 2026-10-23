@@ -1,5 +1,5 @@
 /**
- * i18n.js — движок интернационализации для Messenger.
+ * i18n.js — движок интернационализации для The Messenger.
  * Зависит от languages-meta.js (глобальный объект window.LANGUAGES — только
  * метаданные языков без словарей) и window.__LANG_DICTS (словари, грузятся
  * лениво через js/lang/<code>.js, см. ensureLoaded ниже).

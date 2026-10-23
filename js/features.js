@@ -302,7 +302,7 @@ function fxRitual() {
   document.body.appendChild(el); setTimeout(() => el.remove(), 2600);
 }
 
-// ---------- Messenger Breathing, Seasonal Ambience, мягкий скин контакта ----------
+// ---------- The Messenger Breathing, Seasonal Ambience, мягкий скин контакта ----------
 function seasonHue(date) {
   const d = date ? new Date(date) : new Date();
   const doy = Math.floor((d - new Date(d.getFullYear(), 0, 0)) / 86400000);
@@ -389,7 +389,7 @@ function fxSigilPng(keyStr, name, fp) {
         g.fillStyle = "#fff"; g.textAlign = "center";
         g.font = "600 44px system-ui, sans-serif"; g.fillText(String(name || "").slice(0, 28), W / 2, 670);
         g.font = "500 30px ui-monospace, monospace"; g.fillStyle = "#b9b1e8"; g.fillText(fp || "", W / 2, 730);
-        g.font = "400 26px system-ui, sans-serif"; g.fillStyle = "#7f78a8"; g.fillText("Messenger · " + T("fx.sigil.title"), W / 2, 820);
+        g.font = "400 26px system-ui, sans-serif"; g.fillStyle = "#7f78a8"; g.fillText("The Messenger · " + T("fx.sigil.title"), W / 2, 820);
         try { cv.toBlob((b) => resolve(b), "image/png"); } catch (e) { resolve(null); }
       };
       img.onerror = () => resolve(null);
@@ -655,7 +655,7 @@ async function exportConversationPoster(contactId) {
   g.font = "400 36px Inter, sans-serif"; g.fillStyle = "rgba(255,255,255,.7)"; g.fillText(T("fx.poster.messages"), W / 2, 580);
   g.fillStyle = "#fff"; g.font = "italic 44px Inter, sans-serif";
   posterPhrases(c, 4).forEach((p, i) => g.fillText("«" + p + "»", W / 2, 760 + i * 120));
-  g.font = "400 30px Inter, sans-serif"; g.fillStyle = "rgba(255,255,255,.5)"; g.fillText("Messenger", W / 2, H - 70);
+  g.font = "400 30px Inter, sans-serif"; g.fillStyle = "rgba(255,255,255,.5)"; g.fillText("The Messenger", W / 2, H - 70);
   const blob = await new Promise((res) => cv.toBlob(res, "image/png"));
   if (blob && typeof downloadBlob === "function") downloadBlob(blob, `ether-poster-${(c.name || "chat").replace(/[^\p{L}\p{N}]+/gu, "-")}.png`);
   return blob;

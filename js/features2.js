@@ -566,7 +566,7 @@ function replayScenes(data, c, year, month) {
   const scenes = [{ kind: "title", lines: [c.name || "", monthName], dur: 3 }];
   scenes.push({ kind: "stats", lines: [T("fx2.replay.messages", { n: data.count }), T("fx2.replay.busiest", { n: data.busiest.count }), data.pauseDays ? T("fx2.replay.pause", { n: data.pauseDays }) : "", data.topEmoji ? data.topEmoji : ""].filter(Boolean), dur: 5 });
   for (const q of data.quotes) scenes.push({ kind: "quote", lines: [truncate(q.text, 110), "— " + q.who], dur: 4 });
-  scenes.push({ kind: "outro", lines: ["Messenger"], dur: 2 });
+  scenes.push({ kind: "outro", lines: ["The Messenger"], dur: 2 });
   return scenes;
 }
 function replayDraw(g, w, h, scene, t, hue) {

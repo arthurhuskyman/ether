@@ -14,10 +14,10 @@ async function booted(storage) {
 }
 const collapsed = (d, id) => d.getElementById(id).closest("[data-settings-adv]").classList.contains("adv-collapsed");
 
-test("вверху экрана — блок «Часто используемые» с 6 плитками, список категорий на месте", async () => {
+test("вверху экрана — блок «Часто используемые» с 7 плитками (последняя — режим «Простой»), список категорий на месте", async () => {
   const a = await booted(); const d = a.document;
   const tiles = Array.from(d.querySelectorAll("#settings-category-list .settings-quick-tile"));
-  assert.deepEqual(tiles.map((t) => t.dataset.quick), ["theme", "skin", "sounds", "notifications", "pin", "backup"]);
+  assert.deepEqual(tiles.map((t) => t.dataset.quick), ["theme", "skin", "sounds", "notifications", "pin", "backup", "uimode"]);
   assert.match(d.querySelector(".settings-quick-title").textContent, /Часто используемые/);
   assert.equal(d.querySelectorAll("#settings-category-list .settings-category-row").length, 6);
   assert.ok(d.querySelector(".settings-quick").compareDocumentPosition(d.querySelector(".settings-category-row")) & 4, "блок выше категорий");

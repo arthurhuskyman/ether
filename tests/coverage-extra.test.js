@@ -61,7 +61,7 @@ test("Skins: неизвестный id → default, set/get/apply, meta theme-co
     window.__o = r;
   })()`);
   const o = JSON.parse(JSON.stringify(a.window.__o));
-  assert.equal(o.bad, "default"); assert.equal(o.get0, "default"); assert.equal(o.n, 13);
+  assert.equal(o.bad, "default"); assert.equal(o.get0, "default"); assert.equal(o.n, 14);
   assert.equal(new Set(o.seen).size, o.seen.length > 0 ? new Set(o.seen).size : 0);
   assert.ok(o.seen.every((s) => /#[0-9a-f]{6}$/i.test(s)));
   assert.equal(o.attrDefault, null);

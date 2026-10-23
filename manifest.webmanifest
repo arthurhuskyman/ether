@@ -1,6 +1,6 @@
 {
-  "name": "Мессенджер — связь напрямую",
-  "short_name": "Мессенджер",
+  "name": "The Messenger",
+  "short_name": "The Messenger",
   "orientation": "portrait",
   "description": "Сообщения и звонки напрямую между устройствами.",
   "lang": "ru",

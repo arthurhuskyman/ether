@@ -1,8 +1,8 @@
 window.__LANG_DICTS = window.__LANG_DICTS || {};
 window.__LANG_DICTS["ja"] = {
-    "app.title": "Messenger — 直接接続",
+    "app.title": "The Messenger — 直接接続",
     "app.tagline": "デバイス間で直接メッセージと通話。",
-    "app.name": "Messenger",
+    "app.name": "The Messenger",
     "onboarding.name.placeholder": "お名前",
     "onboarding.id.placeholder": "電話番号またはメール",
     "onboarding.id.hint": "任意です。空欄にすると匿名のプロフィールになります——招待コードやQRコードで追加してもらうことはできますが、電話番号やメールアドレスの検索では見つかりません。",
@@ -30,7 +30,7 @@ window.__LANG_DICTS["ja"] = {
     "toast.motionPermissionDenied": "モーションへのアクセスが拒否されました——「振ってワイプ」が機能するにはこれが必要です。",
     "onboarding.start": "開始",
     "onboarding.hint": "この電話番号/メールで以前登録しましたか？同じ情報を入力すると身元は復元されますが、連絡先・グループ・メッセージ履歴は復元されません — それらは元の端末にのみ存在します。下でバックアップをインポートしない限り。",
-    "lock.title": "Messenger ロック中",
+    "lock.title": "The Messenger ロック中",
     "lock.sub": "PIN コードを入力",
     "lock.unlock": "ロック解除",
     "lock.forgot": "PIN を忘れた?",
@@ -721,7 +721,7 @@ window.__LANG_DICTS["ja"] = {
     "skin.hint": "スキンは形、輪郭、フォント、背景を変更します。昼または夜のバージョンは、上の「外観」設定に従います。",
     "skin.day": "昼",
     "skin.night": "夜",
-    "skin.name.default": "Messenger",
+    "skin.name.default": "The Messenger",
     "skin.name.cartoon": "カートゥーン",
     "skin.name.comic": "コミック",
     "skin.name.watercolor": "水彩",
