@@ -172,6 +172,7 @@ class SignalingClient extends EventTarget {
 
       if (msg.type === "registered") {
         this.registered = true;
+        this.claimed = msg.claimed === true; // сервер держит claim этого id (нужен для алиаса при миграции id)
         this.features = Array.isArray(msg.features) ? msg.features.filter((f) => typeof f === "string").slice(0, 20) : [];
         this.prekeyCount = Number.isInteger(msg.prekeyCount) ? msg.prekeyCount : null;
         const users = (Array.isArray(msg.online) ? msg.online : []).map(normalizeRosterEntry).filter(Boolean);

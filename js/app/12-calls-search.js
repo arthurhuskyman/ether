@@ -150,7 +150,7 @@ function startCallInviteResend(id, invite) {
 // Glare: A звонит B и B звонит A одновременно. Детерминированно (одинаково с обеих сторон): звонящим остаётся тот, у кого id МЕНЬШЕ
 // (совпадает с порядком в WebRTC: меньший id — «вежливая» сторона). Второй вызов превращается в «принять входящий»: тот же экран,
 // фаза ringing; звонящая сторона ничего не замечает (её вызов считается основным, встречный invite/ringing она просто подтверждает).
-function callGlareYields(id) { return !!(state.callId === id && state.callPhase === "calling" && !state._callUserAccepted && String(Store.myId) > String(id)); }
+function callGlareYields(id) { return !!(state.callId === id && state.callPhase === "calling" && !state._callUserAccepted && String(myIdFor(id)) > String(id)); }
 function yieldCallGlare(id, video) {
   etherLog("info", "[call] glare: встречный вызов от " + String(id).slice(0, 10) + "… — мой id больше, перехожу на «входящий»");
   clearPendingCall();
@@ -1297,7 +1297,7 @@ async function acceptCall(withMute) {
     const cp = $("#call-phase"); if (cp) cp.textContent = T("call.connecting");
     const ci = $("#call-controls-incoming"); if (ci) ci.classList.add("hidden");
     const ca = $("#call-controls-active"); if (ca) ca.classList.remove("hidden");
-    const iShouldOffer = Store.myId < cid;
+    const iShouldOffer = myIdFor(cid) < cid;
     if (signaling && signaling.connected) {
       if (!link || link.status === "disconnected") attemptConnect(cid, iShouldOffer);
     } else {

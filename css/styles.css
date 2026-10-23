@@ -279,7 +279,7 @@ html[data-scheme="light"] .glass-content {
     inset 0 1px 0 rgba(255, 255, 255, 0.35),
     0 8px 22px rgba(138, 109, 255, 0.32);
 }
-.btn-secondary { background: var(--input-bg); color: var(--accent); flex: 1; }
+.btn-secondary { background: var(--input-bg); color: var(--text-link); flex: 1; }
 .btn-tertiary { background: transparent; color: var(--ink-1); font-weight: 500; }
 /* Единое подтверждение (раздел 15 роадмапа) — .destructive на обычной
    .sheet-action (плоская строка-кнопка) просто красит текст, но на
@@ -2151,7 +2151,8 @@ html[data-voice-style="cassette"] .fx-voice-deco.cassette, html[data-voice-style
 .profile-avatar-row { display: flex; align-items: center; gap: 14px; }
 .profile-avatar { width: 64px; height: 64px; border-radius: 50%; border: none; cursor: pointer; font-size: 22px; font-weight: 700; color: #fff; background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .profile-avatar-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
-.link-inline { border: none; background: transparent; color: var(--accent); font-weight: 600; font-size: var(--fs-base); padding: 2px 0; cursor: pointer; }
+.link-inline { border: none; background: transparent; color: var(--text-link); font-weight: 600; font-size: var(--fs-base); padding: 6px 0; min-height: 32px; cursor: pointer; }
+.chat-filter-chip-add { min-width: 36px; }
 .link-inline.destructive { color: var(--danger-text); }
 
 /* Шторка руны */
@@ -2845,6 +2846,7 @@ html[data-calm-mode="1"] .settings-adv-toggle .chevron { transition: none; }
   #nav-chat-mode .chat-header-info { gap: 6px; min-width: 56px; }
   #nav-chat-mode .icon-btn { min-width: 40px; width: 40px; }
   #nav-chat-mode .chat-peer-avatar, #nav-chat-mode .chat-peer-avatar .avatar { width: 24px; height: 24px; font-size: 10px; }
+  .skin-name { font-size: 11px; letter-spacing: -0.2px; }
   .call-btn > span { font-size: 8px; letter-spacing: -0.3px; overflow-wrap: normal; word-break: normal; width: calc(100% + 4px); max-width: none; margin-inline: -2px; }
   #call-screen { padding: 48px 8px 12px; }
   .call-controls { gap: 2px; }

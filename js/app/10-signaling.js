@@ -942,7 +942,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
       // Поля приглашения приходят от постороннего: оставляем только известные, строковые и ограниченные по длине
       const seenIds = new Set(), clean = [];
       for (const m of payload.members) {
-        if (!m || typeof m !== "object" || typeof m.id !== "string" || !m.id || m.id.length > 64 || seenIds.has(m.id)) return;
+        if (!m || typeof m !== "object" || typeof m.id !== "string" || !m.id || m.id.length > 128 || seenIds.has(m.id)) return;
         seenIds.add(m.id);
         const cm = { id: m.id, name: typeof m.name === "string" ? m.name.slice(0, 40) : "" };
         if (m.role === "admin" || m.role === "member") cm.role = m.role;
@@ -1486,12 +1486,23 @@ async function idMigDecrypt(from, fn) {
 function idMigProgress(on) {
   try { if (on) updateSignalingStatusUI("connecting", T("idmig.working")); else refreshSignalingStatusText(); } catch (e) {}
 }
+// Загрузка приложения: если прошлый запуск сохранил состояние миграции, но не успел сменить id - достраиваем (без сети и без перезапуска сокета)
+function idMigBootFix() {
+  const m = idMigGet();
+  if (!(m && m.done && m.newId && m.legacyId && Store.myId === m.legacyId)) return false;
+  Store.myId = m.newId; renameIdEverywhere(m.legacyId, m.newId); persistContacts();
+  return true;
+}
 // Привязка к соединению: параметры алиаса и запуск миграции, когда сервер подтвердил регистрацию
 function idMigWireSignaling(sig) {
   const m = idMigGet();
   if (idMigWindowOpen(m)) { sig.legacyId = m.legacyId; sig.legacyFor = idMigIsLegacyPeer; sig.aliasOld = m.legacyId; sig.aliasActive = m.aliasOk === true; }
   sig.addEventListener("alias-result", (ev) => { try { idMigOnAliasResult(sig, ev.detail || {}); } catch (e) { etherLog("warn", "[idmig] alias-result:", String(e)); } });
   sig.addEventListener("online-list", () => { try { idMigOnRegistered(sig); } catch (e) { etherLog("warn", "[idmig] boot:", String(e)); } });
+  // Ключ контакта становится известен позже (ростер/присутствие) - тогда и уходит ему уведомление; запуск отложен, чтобы сначала отработали обработчики приложения
+  let t = null;
+  const later = () => { if (t) return; t = setTimeout(() => { t = null; const mm = idMigGet(); if (signaling === sig && mm && idMigWindowOpen(mm) && mm.aliasOk === true) idMigSendNotices().catch(() => {}); }, 400); };
+  sig.addEventListener("presence", later); sig.addEventListener("online-list", later);
 }
 function idMigShouldRun() {
   if (!Store.myId || !Store.myPrivateKeyJwk) return false;
@@ -1508,6 +1519,7 @@ function idMigOnRegistered(sig) {
     else if (idMigWindowOpen(m) && m.aliasOk === true) idMigSendNotices().catch(() => {});
     return;
   }
+  if (sig.claimed !== true) return; // без закреплённого claim старого id алиас не поставить: дождёмся подключения, где сервер его закрепил
   if (idMigShouldRun()) idMigRun({}).then((r) => { if (r && r.status === "migrated") idMigShowSheet(); }).catch((e) => etherLog("warn", "[idmig] run:", String(e)));
 }
 // Единственный вход миграции. opts.iterations - ТОЛЬКО для тестов (явный параметр; в приложении не передаётся), opts.onProgress - необязательный

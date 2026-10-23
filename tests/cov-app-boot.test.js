@@ -41,7 +41,8 @@ test("онбординг: слайды, сетка языков, проверк�
   assert.equal(a.run(`__onboardingSlide`), 2, "переход на последний (третий) шаг");
   assert.equal(q("#onboarding-ready-name").textContent, "Zed"); assert.ok(q("#onboarding-avatar").textContent.length > 0);
   // повторный запуск с телефоном
-  idf.value = "+7 900 123-45-67"; await submit(); assert.equal(a.run(`Store.myIdentityRaw`), "+79001234567"); assert.equal(a.run(`Store.myId`).length, 64);
+  idf.value = "+7 900 123-45-67"; await submit(); for (let i = 0; i < 100 && a.run(`document.getElementById("onboarding-invite-code").textContent`) !== "+79001234567"; i++) { t.tick(100); await sleep(50); } // таймеры в этом тесте фальшивые: вывод id v2 уступает кадр через setTimeout; новый аккаунт: id v2 (PBKDF2 600k) считается дольше кадра
+  assert.equal(a.run(`Store.myIdentityRaw`), "+79001234567"); assert.match(a.run(`Store.myId`), /^v2:[0-9a-f]{64}$/, "новый аккаунт сразу на id v2");
   assert.equal(a.run(`document.getElementById("onboarding-invite-code").textContent`), "+79001234567");
   // drag-and-drop на карточку и кнопка импорта
   const card = q(".onboarding-card"); for (const ev of ["dragenter", "dragover"]) card.dispatchEvent(new a.window.Event(ev, { cancelable: true })); assert.ok(card.classList.contains("drag-over"));

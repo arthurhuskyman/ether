@@ -52,7 +52,7 @@ test("D4: pinSave защищён busy-флагом", () => {
 
 test("D5: смена id сбрасывает Ratchet и envelopeCache", () => {
   const t = require("fs").readFileSync(require("path").join(__dirname, "..", "js/app/13-settings-debug.js"), "utf8");
-  assert.match(t, /Store\.myId = identity\.id;\s*try \{ Ratchet\.resetAll\(\); \} catch \(e2\) \{\}[^\n]*\n\s*try \{ envelopeCache\.clear\(\)/);
+  assert.match(t, /Store\.myId = newId;[\s\S]{0,400}?try \{ Ratchet\.resetAll\(\); \} catch \(e2\) \{\}[^\n]*\n\s*try \{ envelopeCache\.clear\(\)/); // id v2: newId выводится из номера (C2)
 });
 
 test("D6/D13: имена из presence/packet.n обрезаются, heartbeat валидируется", () => {

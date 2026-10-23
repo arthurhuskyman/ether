@@ -212,3 +212,4 @@ html[dir="rtl"][data-skin="clay"] .bubble-row.theirs .bubble, html[dir="rtl"][da
 html[dir="rtl"][data-skin="clay"] .bubble::after { background: radial-gradient(ellipse 16px 11px at 14% 74%, var(--clay-dent), transparent 72%), var(--clay-noise); background-size: auto, 180px 180px; }
 html.kb-open[data-skin="clay"] #tab-bar.glass { padding-bottom: 6px; }
 html[data-skin="clay"][data-scheme="dark"] #tab-bar .tab-btn.active { color: #ffb59a; } /* акцент #ff9f80 на вдавленной подложке давал 4.06:1 */
+html[data-skin="clay"][data-scheme="dark"] .btn-secondary { color: #fff; }

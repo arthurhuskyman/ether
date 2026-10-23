@@ -492,6 +492,7 @@ function startApp() {
     state._firstRenderDone = true;
     if (state.tab === "chats" && !state.chatId) { try { renderChatsList(); } catch (e) {} }
   }, 400);
+  try { idMigBootFix(); } catch (e) { etherLog("error", "[startApp] idMigBootFix:", String(e)); }
   try { initSignaling(); } catch (e) { etherLog("error", "[startApp] initSignaling:", String(e)); }
   try { startOutboxRetryLoop(); } catch (e) {}
   try { setInterval(sweepExpiredMessages, 30000); sweepExpiredMessages(); } catch (e) {}
