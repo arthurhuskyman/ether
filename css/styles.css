@@ -319,6 +319,8 @@ html[data-scheme="light"] .glass-content {
   font-size: var(--fs-xs); font-weight: 600; color: var(--danger-text);
   flex: 0 0 auto;
 }
+.nav-conn-indicator { position: relative; }
+.nav-conn-indicator::after { content: ""; position: absolute; inset: -14px -10px; } /* область нажатия >= 44px, вид не меняется */
 .nav-conn-indicator::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
 .nav-mode-list {
   padding: 0 4px;
@@ -2742,7 +2744,8 @@ html[data-calm-mode="1"] .story-bars span.cur::after { animation: none; transfor
 .settings-row > span:first-child:has(+ .fine.muted) { flex: 0 0 auto; max-width: 62%; }
 .settings-row > .fine.muted { min-width: 0; text-align: end; overflow-wrap: anywhere; }
 /* переключатель темы (4 сегмента): «Системная» не рвётся посреди слова */
-.theme-seg button { min-width: 0; padding-inline: 2px; white-space: nowrap; letter-spacing: 0; font-size: min(var(--fs-sm), 3.1vw); }
+.theme-seg button { min-height: 36px; }
+.theme-seg button { min-width: 0; padding-inline: 2px; white-space: nowrap; letter-spacing: 0; font-size: clamp(10px, 2.9vw, var(--fs-sm)); overflow-wrap: normal; }
 
 /* ===== Меню «+»: сетка 2 колонки, крупные плашки одной ширины; контейнер без рамки ===== */
 #composer-menu-sheet .sheet-panel { width: min(320px, calc(100vw - 24px)); max-width: calc(100vw - 24px); border: 0 !important; outline: 0; box-shadow: none; background: none; }

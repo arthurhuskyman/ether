@@ -29,7 +29,7 @@ async function audit(page) {
       if ((r.right > vw + 2 || r.left < -2) && !e.closest("[class*=carousel],.swipe-actions,.chat-row-actions,.onboarding-slides,.tab-pane:not(.active)") && res.offscreen.length < 15) res.offscreen.push(id(e) + " " + Math.round(r.left) + ".." + Math.round(r.right));
       const s = getComputedStyle(e);
       if (e.children.length === 0 && e.textContent.trim() && /hidden|clip/.test(s.overflowX) && e.scrollWidth > e.clientWidth + 2 && s.textOverflow !== "ellipsis" && res.clipped.length < 15) res.clipped.push(id(e) + " " + e.textContent.trim().slice(0, 24));
-      if (/^(BUTTON|A|INPUT|SELECT)$/.test(e.tagName) || e.getAttribute("role") === "button") { if ((r.width < 32 || r.height < 32) && res.small.length < 15 && e.type !== "hidden" && e.type !== "checkbox" && e.type !== "radio") res.small.push(id(e) + " " + Math.round(r.width) + "x" + Math.round(r.height)); }
+      if (/^(BUTTON|A|INPUT|SELECT)$/.test(e.tagName) || e.getAttribute("role") === "button") { const pa = getComputedStyle(e, '::after'); const bigHit = pa.position === 'absolute' && pa.content !== 'none' && parseFloat(pa.width) >= 32 && parseFloat(pa.height) >= 32; if ((r.width < 32 || r.height < 32) && !bigHit && res.small.length < 15 && e.type !== "hidden" && e.type !== "checkbox" && e.type !== "radio") res.small.push(id(e) + " " + Math.round(r.width) + "x" + Math.round(r.height)); }
     }
     // Наложения: пары видимых интерактивных элементов, чьи рамки (или рамки их текста) пересекаются, хотя ни один не вложен в другой.
     // Ловит «вкладки налезают друг на друга» (длинные подписи без ellipsis) и перекрытие композера плавающими панелями.

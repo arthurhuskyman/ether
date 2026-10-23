@@ -60,12 +60,12 @@ test("тред: долгое нажатие (touch/mouse), отмена движ
   const b = () => bubble(a, "t1");
   a.run(`{ const el = document.querySelector('#chat-messages .bubble[data-msg-id="t1"]'); __touch(el, "touchstart", 10, 10); }`); t.tick(150);
   assert.ok(b().classList.contains("bubble-pressing")); t.tick(500);
-  assert.deepEqual(J(a.window.__fly), ["t1", "alice"]); b().click(); // гасится флагом
-  a.window.__fly = null;
-  a.run(`{ const el = document.querySelector('#chat-messages .bubble[data-msg-id="t1"]'); __touch(el, "touchstart", 10, 10); __touch(el, "touchmove", 60, 10); }`); t.tick(700); assert.equal(a.window.__fly, null, "движение отменяет долгое нажатие");
+  assert.deepEqual(J((a.window.__sheet || []).pop()), ["t1", "alice"]); b().click(); // гасится флагом
+  a.window.__sheet = [];
+  a.run(`{ const el = document.querySelector('#chat-messages .bubble[data-msg-id="t1"]'); __touch(el, "touchstart", 10, 10); __touch(el, "touchmove", 60, 10); }`); t.tick(700); assert.equal((a.window.__sheet || []).length, 0, "движение отменяет долгое нажатие");
   a.run(`{ const el = document.querySelector('#chat-messages .bubble[data-msg-id="t1"]'); __touch(el, "touchend", 60, 10); __touch(el, "touchcancel", 60, 10);
     el.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, clientX: 5, clientY: 5 })); el.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, clientX: 6, clientY: 6 })); el.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, clientX: 90, clientY: 90 })); el.dispatchEvent(new MouseEvent("mouseup", { bubbles: true })); el.dispatchEvent(new MouseEvent("mouseleave", { bubbles: true })); }`);
-  a.run(`state.multiSelect = new Set(); { const el = document.querySelector('#chat-messages .bubble[data-msg-id="t1"]'); __touch(el, "touchstart", 1, 1); } `); t.tick(700); assert.equal(a.window.__fly, null, "в мультивыборе меню не открывается"); a.run(`state.multiSelect = null;`);
+  a.run(`state.multiSelect = new Set(); { const el = document.querySelector('#chat-messages .bubble[data-msg-id="t1"]'); __touch(el, "touchstart", 1, 1); } `); t.tick(700); assert.equal((a.window.__sheet || []).length, 0, "в мультивыборе меню не открывается"); a.run(`state.multiSelect = null;`);
   // свайп-ответ: короткий не срабатывает, длинный ставит replyTo
   a.run(`{ const el = document.querySelector('#chat-messages .bubble[data-msg-id="t1"]'); state.replyTo = null; __touch(el, "touchstart", 100, 100); __touch(el, "touchmove", 120, 101); __touch(el, "touchend", 120, 101); }`);
   assert.equal(a.run(`state.replyTo`), null);

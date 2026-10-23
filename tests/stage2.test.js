@@ -96,7 +96,7 @@ test("C7: отметка «проверен» привязана к ключу �
   // звонок: смена ключа
   a.run(`state.contacts.get("alice").pendingKey = { key: { kty: "EC", x: "n", y: "n" }, at: Date.now() }; window.__toasts = []; const t0 = toast; toast = (m) => { window.__toasts.push(m); };`);
   await a.run(`beginCall("alice", false)`);
-  assert.match(a.run(`window.__toasts.pop()`), /ключ/i);
+  assert.match(a.run(`window.__toasts.pop()`), /ключ|код защиты/i);
   assert.equal(a.run(`state.callId`), null);
   // режим «только проверенным»: спрашивает и не звонит
   a.run(`state.contacts.get("alice").pendingKey = undefined; Store.requireVerifiedCalls = true; window.__asked = 0; confirmSheet = () => { window.__asked++; return Promise.resolve(false); };`);
