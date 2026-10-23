@@ -372,9 +372,12 @@ function wireSettingsScreen() {
       const v = e.target.value.trim(); if (!v) return;
       try {
         const identity = await Identity.idFor(v);
+        let newId = identity.id;
+        try { newId = (await deriveOnboardingId(identity)).id; } catch (e2) { etherLog("warn", "[idv2] вывод id v2 не удался:", String(e2)); } // новый номер сразу в id v2
         try { discoveryUnpublishBeforeIdChange(); } catch (e2) {}
         Store.myIdentityRaw = identity.normalized;
-        Store.myId = identity.id;
+        Store.myId = newId;
+        try { localStorage.removeItem("ether.idMig"); if (Identity.isV2(newId)) idMigUpdate((m) => { m.done = true; m.fresh = true; m.at = Date.now(); }); } catch (e2) {} // ручная смена номера: прежняя миграция и алиас больше не относятся к этому id
         try { Ratchet.resetAll(); } catch (e2) {} // сессии привязаны к паре id: со старым id они бесполезны
         try { envelopeCache.clear(); } catch (e2) {}
         idEl.classList.remove("input-invalid");

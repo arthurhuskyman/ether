@@ -105,6 +105,7 @@ function sendGroupRosterTo(g, memberId) {
   const payload = { kind: "group-invite", id: crypto.randomUUID(), groupId: g.id, groupName: g.name, members: g.members, groupAvatar: g.avatar || undefined, groupDescription: g.description || undefined };
   if (g.createdBy) payload.createdBy = g.createdBy; // B5: создатель едет в ростере — иначе получатель новой группы делал создателем/админом того, кто прислал (любого участника при авто-досылке)
   if (g.rosterVer > 0) payload.ver = g.rosterVer;
+  if (typeof idMigGroupPayloadFor === "function") idMigGroupPayloadFor(payload, memberId); // контакту, знающему меня под старым id, ростер уходит с прежним id
   if (g.writeRestricted) payload.writeRestricted = true;
   else if (typeof g.writeRestricted === "boolean") payload.writeRestricted = false;
   etherLog("info", "[group] roster →", String(memberId).slice(0, 8) + "…", "groupId=" + String(g.id).slice(0, 8) + "…", "payload.id=" + String(payload.id).slice(0, 8) + "…");
@@ -680,7 +681,7 @@ async function encryptForContact(contact, msgId, payload, forceV1) {
   const serverOk = !!(signaling && Array.isArray(signaling.features) && signaling.features.includes("ratchet2"));
   if (contact.rc && serverOk && !forceV1 && !(typeof Devices !== "undefined" && Devices.isCompanion())) {
     try {
-      envelope = await Ratchet.encrypt({ contactId: contact.id, myId: Store.myId, myPrivJwk: Store.myPrivateKeyJwk, theirPubJwk: contact.publicKey, getBundle: () => fetchPrekeyBundle(contact.id) }, payload);
+      envelope = await Ratchet.encrypt({ contactId: contact.id, myId: myIdFor(contact.id), myPrivJwk: Store.myPrivateKeyJwk, theirPubJwk: contact.publicKey, getBundle: () => fetchPrekeyBundle(contact.id) }, payload);
     } catch (e) { etherLog("warn", "[ratchet] шифрование не удалось, отправляю прежним способом:", String(e)); }
   }
   if (!envelope) {
@@ -688,7 +689,7 @@ async function encryptForContact(contact, msgId, payload, forceV1) {
     // v2 (AES-GCM с AAD «ether-env-v2|от|кому»: конверт нельзя перенаправить другому адресату/направлению) — только если получатель заведомо умеет
     // (contact.e2) и сервер пропускает такой формат (feature env2); иначе прежний v1, чтобы старые клиенты не теряли сообщения.
     const env2Ok = !!(contact.e2 && signaling && Array.isArray(signaling.features) && signaling.features.includes("env2"));
-    envelope = await CryptoHelper.encryptJson(sharedKey, payload, env2Ok ? CryptoHelper.envAad(Store.myId, contact.id) : undefined);
+    envelope = await CryptoHelper.encryptJson(sharedKey, payload, env2Ok ? CryptoHelper.envAad(myIdFor(contact.id), contact.id) : undefined);
     envelope.rc = 1; // «я умею Double Ratchet» — собеседник запомнит и дальше отвечает уже им
   }
   envelope.e2 = 1; // «я умею конверты v2»

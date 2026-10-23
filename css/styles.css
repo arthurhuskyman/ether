@@ -257,7 +257,7 @@ html[data-scheme="light"] .glass-content {
 .onboarding-nav .btn-tertiary, .onboarding-nav .btn-primary { width: auto; flex: 1 1 0; }
 .onboarding-lang-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 14px; }
 .onboarding-lang-btn { border: 1px solid var(--input-border); border-radius: var(--radius-m); padding: 12px 10px; background: var(--input-bg); color: var(--ink-0); font-size: var(--fs-sm); cursor: pointer; }
-.onboarding-lang-btn.active { border-color: var(--accent); background: rgba(138, 109, 255, 0.12); color: var(--accent); font-weight: 600; }
+.onboarding-lang-btn.active { border-color: var(--accent); background: rgba(138, 109, 255, 0.12); color: var(--text-link); font-weight: 600; }
 #onboarding-lang-select { margin-bottom: 4px; }
 .onboarding-id-wrap { position: relative; }
 .onboarding-id-wrap input { padding-inline-end: 38px; }
@@ -1611,7 +1611,7 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
 .call-volume input[type="range"] {
   flex: 1; accent-color: #fff;
   background: transparent;
-  height: 28px;
+  height: 32px;
 }
 .call-volume input[type="range"]::-webkit-slider-runnable-track { background: rgba(255, 255, 255, 0.3); border-radius: 4px; }
 .call-volume input[type="range"]::-moz-range-track { background: rgba(255, 255, 255, 0.3); border-radius: 4px; }
@@ -2279,7 +2279,7 @@ html[data-scheme="light"] .bubble-row.theirs .bubble-forwarded { background: rgb
 #message-sheet .sheet-actions { gap: 4px; margin-bottom: 6px; }
 #message-sheet .sheet-action { padding: 10px 14px; border-radius: 12px; }
 #message-sheet .reaction-bar { margin-bottom: 6px; flex-wrap: nowrap; gap: 2px; justify-content: space-between; padding: 4px 0 8px; max-height: none; overflow: visible; }
-#message-sheet .reaction-bar .reaction-emoji { flex: 1 1 0; min-width: 44px; max-width: 52px; min-height: 44px; }
+#message-sheet .reaction-bar .reaction-emoji { flex: 1 1 0; min-width: 34px; max-width: 52px; min-height: 44px; }
 #message-sheet .reaction-bar.hidden { display: none; }
 #message-sheet .sheet-cancel { margin-top: 2px; }
 
@@ -2845,7 +2845,7 @@ html[data-calm-mode="1"] .settings-adv-toggle .chevron { transition: none; }
   #nav-chat-mode .chat-header-info { gap: 6px; min-width: 56px; }
   #nav-chat-mode .icon-btn { min-width: 40px; width: 40px; }
   #nav-chat-mode .chat-peer-avatar, #nav-chat-mode .chat-peer-avatar .avatar { width: 24px; height: 24px; font-size: 10px; }
-  .call-btn > span { font-size: 9px; letter-spacing: -0.2px; }
+  .call-btn > span { font-size: 8px; letter-spacing: -0.3px; overflow-wrap: normal; word-break: normal; width: calc(100% + 4px); max-width: none; margin-inline: -2px; }
   #call-screen { padding: 48px 8px 12px; }
   .call-controls { gap: 2px; }
 }

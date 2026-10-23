@@ -14,7 +14,7 @@ const Devices = (() => {
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
   };
   const NOT_FOR_COMPANION = ["ether.privKey", "ether.ratchet", "ether.claimToken", "ether.sigKey", "ether.outbox", "ether.pendingNoKey", "ether.heldDeliveries",
-    "ether.dev.list", "ether.dev.peers", "ether.dev.self", "ether.dev.revoked", "ether.dev.ops", "ether.dev.wantAt", "ether.pushSubscription", "ether.pinHash", "ether.pinSalt", "ether.pinEnabled", "ether.groupDeliveryMap"];
+    "ether.dev.list", "ether.dev.peers", "ether.dev.self", "ether.dev.revoked", "ether.dev.ops", "ether.dev.wantAt", "ether.idMig", "ether.pushSubscription", "ether.pinHash", "ether.pinSalt", "ether.pinEnabled", "ether.groupDeliveryMap"];
   const self = () => ls.get(K_SELF);
   const isCompanion = () => !!self();
   const jwkPub = (p) => ({ kty: "EC", crv: "P-256", x: p.x, y: p.y, ext: true });
@@ -123,7 +123,7 @@ const Devices = (() => {
     if (!payload || payload.kind !== "chat" || !hasFeature("devmail") || !contact.publicKey) return null;
     await refreshPeer(contact.id, false);
     const certs = peerCerts(contact.id).slice(0, 7); if (!certs.length) return null;
-    return Promise.all(certs.map(async (c) => ({ dev: c.devId, envelope: await staticEnv(payload, jwkPub(c.pub), Store.myId, contact.id) })));
+    return Promise.all(certs.map(async (c) => ({ dev: c.devId, envelope: await staticEnv(payload, jwkPub(c.pub), typeof myIdFor === "function" ? myIdFor(contact.id) : Store.myId, contact.id) })));
   }
   // ---- sync-op: зеркалирование любых действий между устройствами аккаунта ----
   // Конверт «от себя себе» (статический v2 с AAD ether-env-v2|я|я) вида {kind:"sync-op", opId, to, op}, где op — payload исходного kind.
@@ -193,6 +193,8 @@ const Devices = (() => {
     const op = p.op, k = op.kind;
     if (k === "cert-renew") return applyCertRenew(op);
     if (k === "cert-want") return handleCertWant(op);
+    if (k === "id-migrate") return applyIdMigrate(op);
+    if (k === "peer-rename") return typeof handleIdMigrateNotice === "function" ? handleIdMigrateNotice("", op.notice, { viaSync: true }) : false; // контакт сменил id: то же переименование на этом устройстве (подпись проверяется ключом контакта)
     const c = targetContact(p, op); if (!c) return false;
     const mine = (m) => m && m.from === "me";
     const find = (id) => c.messages.find((m) => m.id === id);
@@ -342,6 +344,37 @@ const Devices = (() => {
     ls.set("ether.dev.wantAt", Date.now());
     sendOp({ kind: "cert-want", devId: me.devId, expires: me.cert.expires }, Store.myId, "").catch(() => {}); return true;
   }
+  // ---- миграция id v1 -> v2 (docs/AUDIT-V76.md C2): сертификаты и список подписываются под новый id, companion переключается сам ----
+  // Основное, ДО смены Store.myId (пока сокет зарегистрирован под старым id и companion слушает его ящик): перевыпускает действующие сертификаты
+  // (те же devId, ключи и сроки), подписывает список для нового id (seq+1) и отправляет каждому companion подписанную команду id-migrate.
+  // Список для нового id публикуется обычным publish() после переподключения под новым id. Возвращает число уведомлённых устройств.
+  async function migrateAnnounce(oldId, newId, ts) {
+    if (isCompanion() || !Store.myPrivateKeyJwk) return 0;
+    const l = listState(), now = Date.now(); if (!(l.seq > 0) && !l.certs.length) return 0;
+    const certs = [];
+    for (const c of l.certs.filter(active)) certs.push(await DeviceCert.issue(Store.myPrivateKeyJwk, { id: newId, devId: c.devId, pub: c.pub, label: c.label, ttlMs: c.expires - now, now }));
+    l.certs = certs; l.seq++; l.signed = await DeviceCert.signList(Store.myPrivateKeyJwk, { id: newId, seq: l.seq, certs, revoked: l.revoked }); ls.set(K_LIST, l);
+    const notice = await DeviceCert.signIdMigrate(Store.myPrivateKeyJwk, { old: oldId, new: newId, ts: ts || now });
+    let n = 0;
+    for (const c of certs) { try { if (await sendOp({ kind: "id-migrate", cert: c, notice }, oldId, c.devId)) n++; } catch (e) {} }
+    return n;
+  }
+  // Companion: принимает команду только с подписью основного ключа (сертификат для нового id и уведомление old->new), тот же devId и ключ устройства
+  async function applyIdMigrate(op) {
+    const me = self(), c = op && op.cert, n = op && op.notice;
+    if (!me || !c || !n || c.devId !== me.devId || n.old !== Store.myId || c.id !== n.new || typeof n.new !== "string" || !/^v2:[0-9a-f]{64}$/.test(n.new)) return false;
+    if (!c.pub || !me.cert.pub || c.pub.x !== me.cert.pub.x || c.pub.y !== me.cert.pub.y) return false;
+    if (!(await DeviceCert.verifyCert(Store.myPublicKeyJwk, c)) || !(await DeviceCert.verifyIdMigrate(Store.myPublicKeyJwk, n))) return false;
+    const oldId = Store.myId;
+    ls.set(K_SELF, { devId: me.devId, cert: c }); ls.set(K_PEERS, {});
+    Store.myId = n.new;
+    if (typeof renameIdEverywhere === "function") renameIdEverywhere(oldId, n.new);
+    try { localStorage.setItem("ether.idMig", JSON.stringify({ v: 1, done: true, companion: true, at: Date.now(), peers: [], notices: {}, renames: {} })); } catch (e) {}
+    if (typeof persistContacts === "function") persistContacts();
+    // Основное публикует список для нового id при своём переподключении: пробуем несколько раз
+    for (const ms of [2000, 20000, 90000]) setTimeout(() => { try { if (typeof initSignaling === "function" && !(signaling && signaling.registered)) initSignaling(); } catch (e) {} }, ms);
+    return true;
+  }
   // ---- подключение к сигналингу ----
   async function deviceSign(nonce, id, devId) { return DeviceCert.signText(Store.myPrivateKeyJwk, "ether-devauth-v1|" + nonce + "|" + id + "|" + devId); }
   function wireSignaling(sig) {
@@ -396,5 +429,5 @@ const Devices = (() => {
     if (b && !b.dataset.dvWired) { b.dataset.dvWired = "1"; b.addEventListener("click", openList); }
   }
   if (typeof document !== "undefined") { if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", wire); else wire(); }
-  return { renewDue, wantCert, syncRead, syncAckIn, applySyncOp, requestFile, stubFile, sendOp, isCompanion, self, listState, peers, issuePairing, revoke, publish, companionData, applyCompanion, refreshPeer, deviceKeyFor, staticEnv, needsServer, copiesFor, syncSent, applySyncSent, wireSignaling, deviceSign, openList, peerCerts, noteNewDevices, ownTargets };
+  return { migrateAnnounce, applyIdMigrate, renewDue, wantCert, syncRead, syncAckIn, applySyncOp, requestFile, stubFile, sendOp, isCompanion, self, listState, peers, issuePairing, revoke, publish, companionData, applyCompanion, refreshPeer, deviceKeyFor, staticEnv, needsServer, copiesFor, syncSent, applySyncSent, wireSignaling, deviceSign, openList, peerCerts, noteNewDevices, ownTargets };
 })();

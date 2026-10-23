@@ -181,6 +181,11 @@ class SignalingClient extends EventTarget {
         this.discoverySalt = this.features.includes("discovery") && typeof msg.discoverySalt === "string" && /^[0-9a-zA-Z_-]{16,200}$/.test(msg.discoverySalt) ? msg.discoverySalt : "";
         this.discoveryPublished = msg.discoveryPublished === true;
         this.dispatchEvent(new CustomEvent("discovery-state", { detail: { salt: this.discoverySalt, published: this.discoveryPublished } }));
+        // Миграция id: алиас старого id -> этот (сервер пересылает на него сообщения контактов, ещё не перешедших на новый id)
+        if (this.aliasOld && (this.aliasOldClaim || this.claim) && this.features.includes("alias")) this.send("alias-set", { old: this.aliasOld, oldClaim: this.aliasOldClaim || this.claim });
+      } else if (msg.type === "alias-result") {
+        this.aliasActive = msg.ok === true;
+        this.dispatchEvent(new CustomEvent("alias-result", { detail: { ok: msg.ok === true, old: typeof msg.old === "string" ? msg.old.slice(0, 128) : "", error: typeof msg.error === "string" ? msg.error.slice(0, 30) : null } }));
       } else if (msg.type === "discovery-result" && typeof msg.rid === "string") {
         this.dispatchEvent(new CustomEvent("discovery-result", { detail: { rid: msg.rid, found: Array.isArray(msg.found) ? msg.found.slice(0, 200) : [], error: typeof msg.error === "string" ? msg.error.slice(0, 30) : null } }));
       } else if (msg.type === "discovery-published") {
@@ -346,12 +351,14 @@ class SignalingClient extends EventTarget {
     }
   }
 
-  signal(to, data) { return this.send("signal", { to, data }); }
+  // Миграция id: legacyId/legacyFor(to) - от имени какого id слать этому адресату (контакт ещё пишет на старый id; сервер ставит from=старый id только по алиасу)
+  _asFor(to) { return this.aliasActive && this.legacyId && typeof this.legacyFor === "function" && this.legacyFor(to) ? { as: this.legacyId } : {}; }
+  signal(to, data) { return this.send("signal", { to, data, ...this._asFor(to) }); }
 
   // Копии для других устройств получателя/аккаунта: [{dev, envelope}] (dev "" = основное); sync-sent себе — только копии, без envelope
   deliverMulti(to, msgId, envelope, fromPublicKey, kind, copies) {
     if (!Array.isArray(copies) || !copies.length || copies.length > 8) return false;
-    return this.send("deliver", { to, msgId, envelope: envelope || undefined, fromPublicKey, kind: typeof kind === "string" ? kind : "chat", copies });
+    return this.send("deliver", { to, msgId, envelope: envelope || undefined, fromPublicKey, kind: typeof kind === "string" ? kind : "chat", copies, ...this._asFor(to) });
   }
   getDevices(to, rid) { return this.send("devices-get", { to, rid }); }
   putDevices(list) { return this.send("devices-put", { list }); }
@@ -366,6 +373,7 @@ class SignalingClient extends EventTarget {
       envelope,
       fromPublicKey,
       kind: typeof kind === "string" ? kind : "chat",
+      ...this._asFor(to),
     });
   }
 
@@ -453,5 +461,15 @@ const Identity = (() => {
     return { id, normalized: value, type };
   }
 
-  return { normalize, hashId, idFor, hashIdV2, idV2For };
+  const isV2 = (id) => typeof id === "string" && /^v2:[0-9a-f]{64}$/.test(id);
+  // Вывод id v2 для интерфейса: перед тяжёлой частью отдаём управление UI (onProgress("start") -> кадр отрисовки -> deriveBits, который браузер
+  // считает вне главного потока), затем onProgress("done"). iterations - ТОЛЬКО явный параметр для тестов; в приложении не передаётся (600 000).
+  async function idV2ForAsync(raw, opts) {
+    const o = opts || {};
+    if (typeof o.onProgress === "function") { try { o.onProgress("start"); } catch (e) {} }
+    await new Promise((r) => setTimeout(r, 30));
+    try { return await idV2For(raw, o.iterations); }
+    finally { if (typeof o.onProgress === "function") { try { o.onProgress("done"); } catch (e) {} } }
+  }
+  return { normalize, hashId, idFor, hashIdV2, idV2For, idV2ForAsync, isV2, ID_V2_ITER };
 })();

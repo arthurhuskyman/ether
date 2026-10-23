@@ -193,12 +193,12 @@ function gcallOnLinkStatus(ev) {
   gcallJoinRetry(id);
 }
 // Статус 'connected' приходит раньше открытия канала данных и проверки подлинности, поэтому первая отправка может не пройти:
-// повторяем каждые 500 мс (до ~10 с), а в sentJoin записываем только реально отправленное.
+// повторяем каждые 500 мс (до ~30 с: под нагрузкой рукопожатие канала данных занимает дольше 10 с — раньше join тогда терялся навсегда), а в sentJoin записываем только реально отправленное.
 function gcallJoinRetry(id, attempt) {
   const gid = GC.gid; if (!gid) return;
   if (GC.sentJoin.has(id)) return;
   if (gcallSend(id, { t: "join", muted: GC.muted, video: GC.video })) { GC.sentJoin.add(id); return; }
-  if ((attempt || 0) >= 20) return;
+  if ((attempt || 0) >= 60) return;
   setTimeout(() => { if (GC.gid === gid && !GC.sentJoin.has(id) && gcallLinkOk(id)) gcallJoinRetry(id, (attempt || 0) + 1); }, 500);
 }
 

@@ -243,8 +243,15 @@ function wireOnboardingOnce() {
       let identity;
       try { identity = await Identity.idFor(idVal); }
       catch (err) { toast(T(err.message)); idField && idField.classList.add("input-invalid"); return; }
+      // Новые аккаунты сразу получают id v2 (PBKDF2 600k, docs/AUDIT-V76.md C2). Вывод идёт вне главного потока; пока он считается, кнопка занята.
+      const submitBtn = form.querySelector("[type=submit]");
+      if (submitBtn) submitBtn.disabled = true;
+      let newId = identity.id;
+      try { newId = (await deriveOnboardingId(identity)).id; } catch (err) { etherLog("warn", "[idv2] вывод id v2 не удался, остаюсь на v1 до миграции:", String(err)); }
+      if (submitBtn) submitBtn.disabled = false;
       Store.myIdentityRaw = identity.normalized;
-      Store.myId = identity.id;
+      Store.myId = newId;
+      if (Identity.isV2(newId)) { try { idMigUpdate((m) => { m.done = true; m.fresh = true; m.at = Date.now(); }); } catch (err) {} }
     } else {
       Store.myIdentityRaw = "";
       Store.myId = crypto.randomUUID();
@@ -266,6 +273,11 @@ function wireOnboardingOnce() {
     const o = $("#onboarding"); if (o) o.classList.add("hidden");
     try { startApp(); } catch (e) { etherLog("error", "[startApp]", String(e)); }
   });
+}
+// id v2 для нового аккаунта; opts.iterations - ТОЛЬКО явный параметр тестов (в приложении не передаётся: 600 000 итераций)
+function deriveOnboardingId(identity, opts) {
+  opts = opts || {};
+  return idMigDeriveNewIdentity(identity.normalized, { iterations: opts.iterations, onProgress: (st) => { if (st === "start") toast(T("idmig.working")); } });
 }
 async function ensureKeyPair(opts) {
   try {

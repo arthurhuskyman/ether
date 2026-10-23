@@ -261,6 +261,76 @@ function loadChatFolders() {
   state.folders = state.folders.filter((f) => f && typeof f.id === "string" && typeof f.name === "string" && Array.isArray(f.contactIds));
 }
 function persistChatFolders() { try { Store.chatFoldersJson = JSON.stringify(state.folders); } catch (e) { handlePersistError(e, "chatFolders"); } }
+// ---- Переименование id (миграция id v1 -> v2, см. «Миграция id» в 10-signaling.js) ----
+// renameIdEverywhere: id участника заменяется во ВСЕХ локальных хранилищах - группы (участники, создатель, бан-лист), авторы сообщений,
+// реакции и голоса, очередь отправки, групповые подтверждения, ожидающие ключа, удержанные конверты, отложенные сообщения, папки, черновики,
+// «был в сети», журнал звонков, доверенный контакт Dead Man's Switch. История сообщений НЕ трогается, кроме полей-ссылок на автора.
+function renameIdEverywhere(oldId, newId) {
+  if (!oldId || !newId || oldId === newId) return;
+  const sw = (a) => (a === oldId ? newId : a);
+  const uniq = (arr) => { const seen = new Set(), out = []; for (const x of arr) if (!seen.has(x)) { seen.add(x); out.push(x); } return out; };
+  for (const c of state.contacts.values()) {
+    if (c.isGroup) {
+      if (Array.isArray(c.members)) {
+        const out = [];
+        for (const m of c.members) {
+          if (m && m.id === oldId) { if (c.members.some((x) => x && x.id === newId)) continue; m.id = newId; }
+          out.push(m);
+        }
+        c.members = out;
+      }
+      if (c.createdBy === oldId) c.createdBy = newId;
+      if (Array.isArray(c.banned)) c.banned = uniq(c.banned.map(sw));
+      if (Array.isArray(c.admins)) c.admins = uniq(c.admins.map(sw));
+    }
+    for (const m of (c.messages || [])) {
+      if (m.fromId === oldId) m.fromId = newId;
+      if (m.reactions && typeof m.reactions === "object") for (const e of Object.keys(m.reactions)) if (Array.isArray(m.reactions[e])) m.reactions[e] = uniq(m.reactions[e].map(sw));
+      if (m.pollVotes && typeof m.pollVotes === "object" && m.pollVotes[oldId] !== undefined) { if (m.pollVotes[newId] === undefined) m.pollVotes[newId] = m.pollVotes[oldId]; delete m.pollVotes[oldId]; }
+    }
+  }
+  // очередь отправки: получатель; конверты, зашифрованные старой парой id, пересоздаются
+  for (const [mid, e] of outbox) if (e.to === oldId) { e.to = newId; try { envelopeCache.delete(mid); } catch (er) {} }
+  persistOutbox();
+  for (const v of groupDeliveryMap.values()) if (v.to === oldId) v.to = newId;
+  persistGroupDeliveryMap();
+  if (pendingNoKey.has(oldId)) { const a = pendingNoKey.get(oldId), b = pendingNoKey.get(newId) || []; pendingNoKey.delete(oldId); pendingNoKey.set(newId, b.concat(a)); persistPendingNoKey(); }
+  if (Array.isArray(heldDeliveries)) { let ch = false; for (const h of heldDeliveries) if (h && h.from === oldId) { h.from = newId; ch = true; } if (ch) persistHeld(); }
+  { let ch = false; for (const s of state.scheduledMessages) if (s && s.contactId === oldId) { s.contactId = newId; ch = true; } if (ch) persistScheduledMessages(); }
+  { let ch = false; for (const f of state.folders) if (f && Array.isArray(f.contactIds) && f.contactIds.includes(oldId)) { f.contactIds = uniq(f.contactIds.map(sw)); ch = true; } if (ch) persistChatFolders(); }
+  if (state.drafts && state.drafts[oldId] !== undefined) { if (state.drafts[newId] === undefined) state.drafts[newId] = state.drafts[oldId]; delete state.drafts[oldId]; persistDrafts(); }
+  if (state.lastSeen && state.lastSeen[oldId] !== undefined) { state.lastSeen[newId] = Math.max(state.lastSeen[newId] || 0, state.lastSeen[oldId]); delete state.lastSeen[oldId]; persistLastSeen(); }
+  { let ch = false; for (const r of state.callLog) if (r && r.contactId === oldId) { r.contactId = newId; ch = true; } if (ch) persistCallLog(); }
+  try { if (Store.deadManContactId === oldId) Store.deadManContactId = newId; } catch (e) {}
+  if (state.chatId === oldId) state.chatId = newId;
+  if (state.contactCardId === oldId) state.contactCardId = newId;
+}
+// renameContactId: контакт старый id -> новый id. Переписка, ключ, настройки (избранное, закреп, блок, без звука) остаются в той же записи;
+// если запись с новым id уже есть (чужак, успевший написать раньше уведомления), её сообщения вливаются в контакт. Возвращает запись или null.
+function renameContactId(oldId, newId) {
+  const c = state.contacts.get(oldId);
+  if (!c || !newId || oldId === newId || c.isGroup || c.isSelf) return null;
+  const ex = state.contacts.get(newId);
+  if (ex && (ex.isGroup || ex.isSelf)) return null;
+  const entries = Array.from(state.contacts.entries());
+  state.contacts.clear();
+  for (const [k, v] of entries) { if (k === oldId) state.contacts.set(newId, c); else if (k !== newId) state.contacts.set(k, v); }
+  c.id = newId;
+  if (ex) {
+    const have = new Set(c.messages.map((m) => m.id));
+    for (const m of ex.messages || []) if (!have.has(m.id)) c.messages.push(m);
+    c.messages.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+    c.lastActivity = Math.max(c.lastActivity || 0, ex.lastActivity || 0);
+    if (!c.publicKey && ex.publicKey) c.publicKey = ex.publicKey;
+  }
+  try { if (mesh && mesh.get(oldId)) mesh.remove(oldId); } catch (e) {}
+  onlineSet.delete(oldId); onlineRoster.delete(oldId); c.online = onlineSet.has(newId); c.status = "disconnected";
+  renameIdEverywhere(oldId, newId);
+  try { Ratchet.reset(oldId); Ratchet.reset(newId); } catch (e) {} // пара id изменилась: сессия начнётся заново (при расхождении - обычный rc-reset)
+  persistContacts();
+  try { syncBlockedToSW(); syncWatch(true); } catch (e) {}
+  return c;
+}
 // При быстрой печати обработчик "input" дёргает persistDrafts() на
 // каждый символ — 5-10 localStorage.setItem в секунду. Дебаунс в
 // 250мс группирует их в одну запись за паузу в наборе текста.
@@ -312,7 +382,7 @@ function syncDiscoveryPublish() {
   if (sig.discoveryPublished && !state._discoveryDirty) return;
   const raw = Store.myIdentityRaw; if (!raw) return;
   Discovery.prepareOne(raw, sig.discoverySalt).then((it) => {
-    if (!it || signaling !== sig || !Store.phoneDiscover || it.id !== Store.myId) return;
+    if (!it || signaling !== sig || !Store.phoneDiscover || (it.id !== Store.myId && it.id !== idMigLegacyId() && !(Identity.isV2(Store.myId) && Store.myIdentityRaw))) return;
     state._discoveryDirty = false;
     sig.discoveryPublish([it.hash], Store.phoneDiscoverName, Store.phoneDiscoverName ? Store.name : "");
   }).catch(() => {});

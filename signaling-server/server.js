@@ -1187,6 +1187,7 @@ const CLAIMS_PERSIST = process.env.CLAIMS_PERSIST !== "0";
 const CLAIMS_FILE = process.env.CLAIMS_FILE || path.join(process.env.DATA_DIR || __dirname, ".ether-claims.json");
 const claims = new Map(); // id -> { h: sha256(claim) hex, seen: ts }
 const claimCreateHits = new Map();
+const aliasHits = new Map();
 const CLAIM_RE = /^[0-9a-f]{64}$/;
 function sha256Hex(str) { return crypto.createHash("sha256").update(str).digest("hex"); }
 function validClaim(c) { return typeof c === "string" && CLAIM_RE.test(c); }
@@ -1260,6 +1261,54 @@ function claimCheckRegister(id, claim, ip) {
 }
 function touchClaim(id) { const r = claims.get(id); if (r) { r.seen = Date.now(); scheduleClaimsSave(); } }
 loadClaims();
+
+// ---------- Алиас старого id на новый (миграция id v1 -> v2, docs/AUDIT-V76.md C2) ----------
+// Клиент, перешедший на id v2, остаётся доступным по старому id ещё ALIAS_TTL_DAYS суток: сервер пересылает deliver/signal для старого id на новый
+// и разрешает отправлять от имени старого id (поле "as") тем контактам, кто пока не обновился. Алиас ставит ТОЛЬКО сокет, доказавший оба claim-а:
+// зарегистрирован под новым id с совпавшим claim и прислал claim старого id, совпавший с записью старого (сравнение хэшей через timingSafeEqual).
+// Старый id без claim (клиент до claim-ов) алиасом не защитить - отказ. Файл 0600, TTL и потолок числа записей.
+const ALIAS_TTL_MS = envInt("ALIAS_TTL_DAYS", 90) * 86400_000;
+const ALIASES_MAX = envInt("ALIASES_MAX", 50000);
+const ALIASES_PERSIST = process.env.ALIASES_PERSIST ? process.env.ALIASES_PERSIST !== "0" : process.env.CLAIMS_PERSIST !== "0";
+const ALIASES_FILE = process.env.ALIASES_FILE || path.join(process.env.DATA_DIR || __dirname, ".ether-aliases.json");
+const aliases = new Map(); // старый id -> { to: новый id, exp: ts }
+function aliasLive(old) {
+  const a = aliases.get(old);
+  if (!a) return null;
+  if (Date.now() > a.exp) { aliases.delete(old); scheduleAliasesSave(); return null; }
+  return a;
+}
+// Кому на самом деле адресовать сообщение для id: если старый id сам сейчас онлайн (другое устройство), алиас не применяется.
+function aliasResolve(id) { const a = aliasLive(id); return a && !clients.has(id) ? a.to : id; }
+// От чьего имени шлёт сокет: "as" допустим только если алиас этого старого id указывает на id сокета.
+function aliasSender(myId, as) { if (typeof as !== "string" || !as || as === myId) return myId; const a = aliasLive(as); return a && a.to === myId ? as : myId; }
+function aliasesOf(newId) { const out = []; for (const [o, a] of aliases) if (a.to === newId && Date.now() <= a.exp) out.push(o); return out; }
+function saveAliases() {
+  if (!ALIASES_PERSIST) return;
+  try {
+    const tmp = ALIASES_FILE + ".tmp";
+    fs.writeFileSync(tmp, JSON.stringify({ v: 1, aliases: Array.from(aliases.entries()) }), { mode: 0o600 });
+    fs.renameSync(tmp, ALIASES_FILE);
+  } catch (e) { console.warn("[alias] не удалось сохранить:", e.message); }
+}
+let aliasesTimer = null;
+function scheduleAliasesSave() { if (!ALIASES_PERSIST || aliasesTimer) return; aliasesTimer = setTimeout(() => { aliasesTimer = null; saveAliases(); }, 1000); }
+function loadAliases() {
+  if (!ALIASES_PERSIST) return 0;
+  try {
+    if (!fs.existsSync(ALIASES_FILE)) return 0;
+    const data = JSON.parse(fs.readFileSync(ALIASES_FILE, "utf8"));
+    if (!data || data.v !== 1 || !Array.isArray(data.aliases)) return 0;
+    const now = Date.now();
+    for (const e of data.aliases) {
+      if (!Array.isArray(e) || typeof e[0] !== "string" || !e[0] || e[0].length > 128 || !e[1] || typeof e[1].to !== "string" || !e[1].to || e[1].to.length > 128 || typeof e[1].exp !== "number" || e[1].exp < now) continue;
+      if (aliases.size >= ALIASES_MAX) break;
+      aliases.set(e[0], { to: e[1].to, exp: Math.min(e[1].exp, now + ALIAS_TTL_MS) });
+    }
+    return aliases.size;
+  } catch (e) { console.warn("[alias] не удалось прочитать файл:", e.message); return 0; }
+}
+loadAliases();
 
 // ---------- Обнаружение по хэшу телефона/почты (добровольно, по умолчанию у клиента ВЫКЛ) ----------
 // Клиент, включивший «Меня можно найти», публикует ключ обнаружения = HMAC-SHA256(DISCOVERY_SALT, нормализованный телефон/email).
@@ -1348,7 +1397,8 @@ function safeSend(ws, obj) {
   }
 }
 function rosterEntry(id) {
-  const c = clients.get(id);
+  let c = clients.get(id);
+  if (!c) { const a = aliasLive(id); if (a) c = clients.get(a.to); } // старый id в алиасе показывается онлайн, пока онлайн новый
   return c ? { id, name: c.name || "", visible: c.visible !== false, publicKey: c.publicKey || null, caps: c.caps || [] } : null;
 }
 // Кто кого видит в списке «онлайн» (A3). Раньше каждый зарегистрировавшийся получал ВСЕХ: id (хэш телефона/почты без соли — перебирается
@@ -1383,6 +1433,14 @@ function broadcastPresence(id, online, extra = {}) {
     if (otherId === id) continue;
     if (!canSeePresence(c, otherId, id, target)) continue;
     safeSend(c.ws, { type: "presence", id, online, ...entry, ...rest });
+  }
+  // Те же сведения под старыми id алиаса - только тем, кто следит именно за старым id (контакты, ещё не обновившиеся)
+  for (const oldId of aliasesOf(id)) {
+    if (clients.has(oldId)) continue;
+    for (const [otherId, c] of clients) {
+      if (otherId === id || !c.watch || !c.watch.has(oldId) || !canSeePresence(c, otherId, id, target)) continue;
+      safeSend(c.ws, { type: "presence", ...entry, ...rest, id: oldId, online });
+    }
   }
 }
 function flushMailbox(id, ws) {
@@ -1479,7 +1537,7 @@ function devicesCtx() {
     mailboxKeys: (prefix) => Array.from(mailbox.keys()).filter((k) => k.startsWith(prefix)),
     mailboxDropBox: (k) => { const b = mailbox.get(k); if (b) for (const m of Array.from(b.keys())) mailboxRemove(k, m); scheduleMailboxSave(); } };
 }
-const SERVER_FEATURES = ["ratchet2", "prekeys", "watch", "claim", "env2", "devicelink", "devlist", "devmail", "devsync", "devpush", "devnotify"].concat(DISCOVERY_ENABLED ? ["discovery"] : []);
+const SERVER_FEATURES = ["ratchet2", "prekeys", "watch", "claim", "env2", "devicelink", "devlist", "devmail", "devsync", "devpush", "devnotify", "alias"].concat(DISCOVERY_ENABLED ? ["discovery"] : []);
 
 // ---------- Prekey-пакеты для начала Double Ratchet (3DH/4DH) ----------
 // Клиент заранее выкладывает подписанный-по-смыслу prekey (spk, меняется раз в неделю) и пачку одноразовых (opks).
@@ -1624,6 +1682,7 @@ wss.on("connection", (ws, req) => {
         visible: msg.visible !== false,
         // Возможности клиента (напр. "env2"): короткий белый список строк, рассылается наблюдателям вместе с присутствием
         caps: Array.isArray(msg.caps) ? msg.caps.filter((x) => typeof x === "string" && /^[a-z0-9]{1,12}$/.test(x)).slice(0, 8) : [],
+        claimOk: claimMatches(claims.get(msg.id), msg.claim), // сокет доказал владение id (нужно для alias-set)
         publicKey: validPublicKeyJwk(msg.publicKey) ? msg.publicKey : null, // раньше без проверки типа/размера и рассылалось всем наблюдателям
         // Новый клиент передаёт список контактов уже при регистрации — первый ростер сразу урезан (иначе до отдельного watch он бы получил всех)
         watch: Array.isArray(msg.watch) ? new Set(msg.watch.filter((x) => typeof x === "string" && validPeerId(x)).slice(0, WATCH_MAX)) : null,
@@ -1643,6 +1702,27 @@ wss.on("connection", (ws, req) => {
       return;
     }
 
+    // alias-set: «мой прежний id (old) теперь этот сокет» - 90 суток пересылки deliver/signal со старого id на новый (см. блок «Алиас» выше)
+    if (msg.type === "alias-set" && myId) {
+      const reply = (o) => safeSend(ws, Object.assign({ type: "alias-result", old: typeof msg.old === "string" ? msg.old.slice(0, 128) : "" }, o));
+      if (!wsRateLimitOk(aliasHits, myId, 10)) return reply({ ok: false, error: "rate" });
+      const old = msg.old, me = clients.get(myId);
+      if (typeof old !== "string" || !old || old.length > 128 || old === myId || !validPeerId(old)) return reply({ ok: false, error: "invalid" });
+      if (!me || !me.claimOk || !claims.has(myId)) return reply({ ok: false, error: "no-claim" }); // новый id должен быть закреплён за этим сокетом
+      const oldRec = claims.get(old);
+      if (!oldRec || claimExpired(oldRec, Date.now()) || !claimMatches(oldRec, msg.oldClaim)) return reply({ ok: false, error: "old-claim" }); // без доказательства владения старым id алиас не ставим
+      if (!aliases.has(old) && aliases.size >= ALIASES_MAX) return reply({ ok: false, error: "full" });
+      const cur = aliases.get(old);
+      if (cur && cur.to !== myId && Date.now() <= cur.exp && clients.has(cur.to)) return reply({ ok: false, error: "taken" });
+      aliases.set(old, { to: myId, exp: Date.now() + ALIAS_TTL_MS });
+      oldRec.seen = Date.now(); scheduleClaimsSave(); scheduleAliasesSave();
+      // Уже накопленная для старого id почта переезжает в ящик нового
+      const oldBox = mailbox.get(old);
+      if (oldBox && !clients.has(old)) { for (const [mid, entry] of Array.from(oldBox)) { mailboxPut(myId, mid, entry); mailboxRemove(old, mid); } scheduleMailboxSave(); flushMailbox(myId, ws); }
+      console.log("[alias] " + shortId(old) + " → " + shortId(myId) + " aliases=" + aliases.size);
+      return reply({ ok: true, ttlDays: Math.round(ALIAS_TTL_MS / 86400_000) });
+    }
+
     // watch: «следите за этими контактами» — заменяет весь список; в ответ — те из них, кто сейчас онлайн
     if (msg.type === "watch" && myId) {
       if (!wsRateLimitOk(watchHits, myId, 20)) return;
@@ -1651,7 +1731,7 @@ wss.on("connection", (ws, req) => {
       const prevWatch = me.watch;
       me.watch = new Set(ids);
       // Скрытого чужой watch не делает видимым: нужен он сам в чужом ростере (см. canSeePresence).
-      const online = ids.filter((i) => i !== myId).map((i) => rosterEntry(i)).filter((e) => e && canSeePresence(me, myId, e.id, clients.get(e.id)));
+      const online = ids.filter((i) => i !== myId).map((i) => rosterEntry(i)).filter((e) => e && canSeePresence(me, myId, e.id, clients.get(aliasResolve(e.id))));
       safeSend(ws, { type: "watch-result", online, strict: STRICT_ROSTER });
       // Скрытый, убравший контакта из watch, перестаёт быть для него «онлайн».
       if (me.visible === false && prevWatch) {
@@ -1695,14 +1775,16 @@ wss.on("connection", (ws, req) => {
 
     if (msg.type === "signal" && myId && typeof msg.to === "string" && validPeerId(msg.to)) {
       if (!wsRateLimitOk(signalHits, myId, SIGNAL_RATE_LIMIT_PER_MIN)) return;
+      const sid = aliasSender(myId, msg.as); // от имени старого id (алиас) - для контактов, которые ещё не перешли на новый
+      const origTo = msg.to; msg.to = aliasResolve(msg.to); // адресат со старым id алиаса -> новый id
       const target = clients.get(msg.to);
-      const payload = { type: "signal", from: myId, data: msg.data };
+      const payload = { type: "signal", from: sid, data: msg.data };
       // Скрытый адресат, у которого отправителя нет в ростере, неотличим от офлайн/незарегистрированного: тот же ответ unreachable, без доставки.
-      if (target && canReach(myId, clients.get(myId), msg.to, target)) {
+      if (target && canReach(sid, clients.get(myId), msg.to, target)) {
         safeSend(target.ws, payload);
         console.log("[sig] " + shortId(myId) + " → " + shortId(msg.to) + " t=" + sanitizeForLog(msg.data && msg.data.t, 24));
       } else {
-        safeSend(ws, { type: "unreachable", to: msg.to });
+        safeSend(ws, { type: "unreachable", to: origTo });
         console.log("[sig] " + shortId(myId) + " → UNREACHABLE " + shortId(msg.to) + " t=" + sanitizeForLog(msg.data && msg.data.t, 24));
       }
       if (msg.data && msg.data.t === "call-invite") {
@@ -1715,7 +1797,7 @@ wss.on("connection", (ws, req) => {
         if (inviteNonce && callInvitePushSent.has(inviteNonce)) return;
         // Push только если он осмыслен и допустим: у получателя есть подписка, а если он онлайн — отправитель вправе его достичь (canReach;
         // скрытому «чужому» звонок и push не уходят). Иначе мусорные приглашения с разных id не расходуют лимит получателя (3/15 с) и не глушат настоящие звонки.
-        if (!pushSubs.has(msg.to) || (target && !canReach(myId, clients.get(myId), msg.to, target))) return;
+        if (!pushSubs.has(msg.to) || (target && !canReach(sid, clients.get(myId), msg.to, target))) return;
         if (!wsRateLimitOk(callPushIpHits, ipAddr, CALL_PUSH_PER_IP_PER_MIN)) { console.log("[call-push] ip-throttled " + shortId(myId)); return; } // отдельный лимит на IP отправителя (на смену id не реагирует)
         // Принудительные (force) push о звонке обходят общий троттлинг — ограничиваем отдельно: не чаще раза в 15 с на получателя
         // и раза в 30 с на пару отправитель→получатель (первый push уходит сразу).
@@ -1731,11 +1813,11 @@ wss.on("connection", (ws, req) => {
         const me = clients.get(myId);
         const recipientLang = (pushSubs.get(msg.to) || {}).lang;
         const myName = (me && me.name) || pushText(recipientLang, "call");
-        sendPushTo(msg.to, myId, {
+        sendPushTo(msg.to, sid, {
           title: "📞 " + myName,
           body: pushText(recipientLang, "incomingCall"),
-          tag: "ether-call-" + myId,
-          contactId: myId,
+          tag: "ether-call-" + sid,
+          contactId: sid,
           kind: "call",
         }, { force: true }).catch(() => {});
       }
@@ -1749,6 +1831,8 @@ wss.on("connection", (ws, req) => {
       // и попытается сделать доставку через свой же WS, что немедленно
       // провалится в "target.readyState !== OPEN" (это тот же WS).
       // Отсекаем сразу.
+      const sid = aliasSender(myId, msg.as); // от имени старого id (алиас) - для контактов, которые ещё не перешли на новый
+      msg.to = aliasResolve(msg.to); // адресат со старым id алиаса -> новый id (ящик, push и доставка - на новый)
       if (msg.to === myId && !((msg.kind === "sync-sent" || msg.kind === "sync-op") && Array.isArray(msg.copies))) return;
       if (!wsRateLimitPairOk(myId, msg.to, DELIVER_RATE_LIMIT_PER_MIN)) return;
       if (!wsRateLimitOk(deliverTotalHits, myId, DELIVER_TOTAL_LIMIT_PER_MIN)) return; // общий потолок на отправителя независимо от получателей
@@ -1781,7 +1865,7 @@ wss.on("connection", (ws, req) => {
       const target = clients.get(msg.to);
       console.log("[deliver] " + shortId(myId) + " → " + shortId(msg.to) + " msgId=" + sanitizeForLog(msg.msgId, 8) + "… kind=" + sanitizeForLog(kind, 24) + " online=" + !!target);
       const payload = {
-        from: myId,
+        from: sid,
         msgId: msg.msgId,
         envelope,
         fromPublicKey: msg.fromPublicKey || null,
@@ -1795,10 +1879,10 @@ wss.on("connection", (ws, req) => {
         return;
       }
       if (msg.to === myId) { safeSend(ws, { type: "deliver-ack", msgId: msg.msgId }); return; } // sync-sent: только копии другим устройствам
-      const dupKey = deliverDupKey(msg.to, myId, msg.msgId, envelope);
+      const dupKey = deliverDupKey(msg.to, sid, msg.msgId, envelope);
       const inBox = mailbox.get(msg.to);
       const prev = inBox && inBox.get(msg.msgId);
-      const isDup = recentAcked.has(dupKey) || !!(prev && prev.from === myId && deliverDupKey(msg.to, myId, msg.msgId, prev.envelope) === dupKey);
+      const isDup = recentAcked.has(dupKey) || !!(prev && prev.from === sid && deliverDupKey(msg.to, sid, msg.msgId, prev.envelope) === dupKey);
       if (isDup) {
         safeSend(ws, { type: "deliver-ack", msgId: msg.msgId });
         return;
@@ -1822,11 +1906,11 @@ wss.on("connection", (ws, req) => {
           const me = clients.get(myId);
           const recipientLang = (pushSubs.get(msg.to) || {}).lang;
           const myName = (me && me.name) || pushText(recipientLang, "newMessage");
-          sendPushTo(msg.to, myId, {
+          sendPushTo(msg.to, sid, {
             title: myName,
             body: pushText(recipientLang, "newMessage"),
-            tag: "ether-msg-" + myId,
-            contactId: myId,
+            tag: "ether-msg-" + sid,
+            contactId: sid,
             kind: "message",
           }).catch(() => {});
         }, PUSH_AFTER_MS);
@@ -2035,6 +2119,8 @@ setInterval(() => {
   // Подключённый владелец «появляется» постоянно: продлеваем его claim (иначе непрерывно онлайн >TTL claim бы истёк), и чистим протухшие.
   const now = Date.now();
   for (const id of clients.keys()) { const r = claims.get(id); if (r) r.seen = now; }
+  // Пока жив алиас и онлайн его владелец, claim старого id тоже продлевается (иначе через CLAIM_TTL старый id смог бы занять чужой клиент)
+  for (const [o, a] of aliases) { if (now > a.exp) { aliases.delete(o); scheduleAliasesSave(); } else if (clients.has(a.to)) { const r = claims.get(o); if (r) r.seen = now; } }
   if (pruneClaims(now) || clients.size) scheduleClaimsSave();
   if (DISCOVERY_ENABLED) { for (const id of clients.keys()) discoveryTouch(id); discoveryExpire(); scheduleDiscoverySave(); }
 }, 3600 * 1000).unref();
@@ -2042,6 +2128,7 @@ setInterval(() => {
 function shutdown() {
   console.log("Завершаем работу…");
   try { saveClaims(); } catch (e) {}
+  try { saveAliases(); } catch (e) {}
   try { if (DISCOVERY_ENABLED) saveDiscovery(); } catch (e) {}
   try { savePushSubs(); } catch (e) {}
   try { saveDeviceLists(); } catch (e) {}

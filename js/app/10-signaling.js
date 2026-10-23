@@ -46,6 +46,7 @@ function regenerateMyId() {
   try { discoveryUnpublishBeforeIdChange(); } catch (e) {}
   Store.myIdentityRaw = "";
   Store.myId = crypto.randomUUID();
+  try { localStorage.removeItem("ether.idMig"); __idMigRaw = undefined; } catch (e) {} // случайный id: алиасов и миграции больше нет
   try { Ratchet.resetAll(); } catch (e) {} // сессии привязаны к паре id: со старым id они бесполезны
   try { envelopeCache.clear(); } catch (e) {}
   toast(T("claim.newIdDone"));
@@ -72,6 +73,7 @@ function initSignaling() {
   etherLog("info", "[signaling] connecting to " + url);
   const sig = signaling = new SignalingClient(url, Store.myId, { name: Store.name, visible: Store.discoverable, publicKey: Store.myPublicKeyJwk });
   sig.watchIds = watchedContactIds;
+  idMigWireSignaling(sig); // миграция id v1 -> v2: алиас старого id и запуск миграции после регистрации
   if (typeof Devices !== "undefined") Devices.wireSignaling(sig); // companion-режим и публикация списка устройств (js/devices.js)
   signalingCleanup = wireSignalingEvents(sig);
   sig.addEventListener("slow-connect", () => { if (!sig.connected) updateSignalingStatusUI("connecting", T("status.waking")); });
@@ -125,7 +127,7 @@ async function handleIncomingOffer(from, packet, replySignal) {
   }
   // Оба конца могут одновременно слать offer (звонок с force). Тай-брейк как в attemptConnect: offerer — тот, у кого id меньше.
   // Если мы — этот offerer и наш линк ещё подключается, встречный offer игнорируем: собеседник примет наш и ответит.
-  if (existing && existing.role === "offerer" && existing.status === "connecting" && Store.myId < from && Date.now() - (existing._createdAt || 0) < CONNECT_STUCK_MS) {
+  if (existing && existing.role === "offerer" && existing.status === "connecting" && myIdFor(from) < from && Date.now() - (existing._createdAt || 0) < CONNECT_STUCK_MS) {
     etherLog("info", "[offer] " + String(from).slice(0, 10) + "…", "встречный offer: я offerer по тай-брейку, игнорирую");
     return;
   }
@@ -328,7 +330,7 @@ function wireSignalingEvents(sig) {
     if (state.tab === "connect") { renderContactsList(); renderOnlineRosterList(); }
   }));
   subs.push(on("signal", async (ev) => {
-    const { from, data: packet } = ev.detail;
+    const from = canonPeer(ev.detail.from), packet = ev.detail.data;
     if (!packet || !packet.t) return;
     etherLog("info", "[signal] from " + String(from).slice(0, 10) + "…", "t=" + packet.t);
 
@@ -527,13 +529,14 @@ async function progressAuth(id, link) {
   if (authLinkStale(id, link)) return;
   const fp = link.fingerprints();
   if (!fp.local || !fp.remote) { etherLog("warn", "[auth] нет отпечатков DTLS в SDP — проверка невозможна"); finishAuth(id, link, "unverified"); return; } // для контакта с authSeen finishAuth превратит это в «fail» (даунгрейд)
-  const key = await LinkAuth.secret(Store.myPrivateKeyJwk, c.publicKey, Store.myId, id);
+  const myIdA = myIdFor(id);
+  const key = await LinkAuth.secret(Store.myPrivateKeyJwk, c.publicKey, myIdA, id);
   if (!link._tagSent) {
     link._tagSent = true;
-    link.send({ kind: "auth", s: 2, t: await LinkAuth.tag(key, Store.myId, id, link._myNonce, link._peerNonce, fp.local, fp.remote) });
+    link.send({ kind: "auth", s: 2, t: await LinkAuth.tag(key, myIdA, id, link._myNonce, link._peerNonce, fp.local, fp.remote) });
   }
   if (link._peerTag) {
-    const ok = await LinkAuth.verify(key, link._peerTag, id, Store.myId, link._peerNonce, link._myNonce, fp.local, fp.remote);
+    const ok = await LinkAuth.verify(key, link._peerTag, id, myIdA, link._peerNonce, link._myNonce, fp.local, fp.remote);
     finishAuth(id, link, ok ? "ok" : "fail");
   }
 }
@@ -683,7 +686,8 @@ const deliverInFlight = new Set();
 // mailboxAck уходит ПОСЛЕ расшифровки и сохранения: при ошибке сервер переотправит конверт при следующем подключении (не более
 // DELIVER_MAX_ATTEMPTS раз на msgId, затем подтверждаем и показываем системную запись). Повтор (from,msgId) игнорируем, но подтверждаем.
 async function handleDeliver(detail, replay) {
-  const { from, msgId, envelope, fromPublicKey, kind, fromDev } = detail;
+  const { msgId, envelope, fromPublicKey, kind, fromDev } = detail;
+  const from = canonPeer(detail.from); // контакт уже переименован по уведомлению id-migrate, а сообщение пришло ещё со старым id
   const ackBox = () => { if (!replay && signaling) signaling.mailboxAck(msgId); };
   const dKey = from + "|" + msgId;
   const sender = state.contacts.get(from);
@@ -725,12 +729,12 @@ async function handleDeliver(detail, replay) {
       const theirKey = devKey || (from === Store.myId ? Store.myPublicKeyJwk : ((c0 && c0.publicKey) || fromPublicKey));
       if (!theirKey) throw new Error("no key");
       if (envelope && envelope.v === 2 && envelope.h && !devKey) {
-        payload = await Ratchet.decrypt({ contactId: from, myId: Store.myId, myPrivJwk: Store.myPrivateKeyJwk, theirPubJwk: theirKey }, envelope);
+        payload = await idMigDecrypt(from, (myIdTry) => Ratchet.decrypt({ contactId: from, myId: myIdTry, myPrivJwk: Store.myPrivateKeyJwk, theirPubJwk: theirKey }, envelope));
         markContactRatchet(c0);
       } else {
         const sharedKey = await CryptoHelper.deriveSharedKey(Store.myPrivateKeyJwk, theirKey);
         // v2 без поля h — конверт с AAD (отправитель = from, получатель = я); v1 расшифровывается как раньше
-        payload = await CryptoHelper.decryptJson(sharedKey, envelope, envelope && envelope.v === 2 ? CryptoHelper.envAad(from, Store.myId) : undefined);
+        payload = await idMigDecrypt(from, (myIdTry) => CryptoHelper.decryptJson(sharedKey, envelope, envelope && envelope.v === 2 ? CryptoHelper.envAad(from, myIdTry) : undefined));
         if (envelope && envelope.rc) markContactRatchet(c0);
       }
       if (envelope && envelope.e2) markContactEnv2(c0);
@@ -949,6 +953,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
       if (typeof payload.groupAvatar === "string" && payload.groupAvatar.length > 40000) payload.groupAvatar = undefined;
       if (typeof payload.groupId !== "string" || !payload.groupId || payload.groupId.length > 64) return;
     }
+    idMigNormalizeGroupPayload(payload); // мой прежний id / уже переименованные контакты -> текущие id
     if (!payload.members.some((m) => m.id === Store.myId)) return;
   // Ищем группу по payload.groupId. Дополнительно, если по id её нет —
   // ищем по «логической идентичности»: тот же состав участников + то же
@@ -1145,6 +1150,8 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     ensureContactEntry(from, payload.requesterName || null);
     addGroupMember(payload.groupId, from);
     try { if (typeof fxReferralInviterHit === "function") fxReferralInviterHit(from); } catch (e) {}
+  } else if (kind === "id-migrate") {
+    handleIdMigrateNotice(from, payload).catch((e) => etherLog("warn", "[idmig] notice:", String(e)));
   } else if (kind === "rc-reset") {
     handleRatchetResetRequest(from);
   } else if (kind === "heartbeat") {
@@ -1308,7 +1315,7 @@ async function attemptConnect(id, force) {
   if (!signaling || !signaling.connected) return;
   if (!onlineSet.has(id) && !force) return;
   if (!force && isUnreachableCooldown(id)) return;
-  const iShouldOffer = Store.myId < id;
+  const iShouldOffer = myIdFor(id) < id;
   if (!iShouldOffer && !force) {
     const last = _notMyTurnLogAt.get(id);
     if (!last || Date.now() - last > 30000) {
@@ -1404,3 +1411,227 @@ function renderOnlineRosterList() {
   }
 }
 
+
+// =====================================================================
+// Миграция id v1 -> v2 (docs/AUDIT-V76.md C2, docs/PRIVACY.md)
+// =====================================================================
+// v1: id = SHA-256("ether:" + телефон/почта) - без соли, перебирается по всему пространству номеров. v2 = "v2:" + PBKDF2-SHA256 (600 000 итераций).
+// Порядок миграции (один раз, после разблокировки, когда сервер объявил feature "alias"):
+//  1. из сохранённого телефона/почты считается id v2 (deriveBits вне главного потока; интерфейсу сначала отдаётся кадр);
+//  2. личность без телефона (случайный id) просто помечается перенесённой: id не меняется;
+//  3. сохраняется состояние ether.idMig и Store.myId меняется на v2; сокет перерегистрируется под новым id (claim-токен тот же, claim старого id
+//     остаётся нетронутым) и просит сервер поставить АЛИАС старый -> новый на 90 суток (alias-set: сервер сверяет оба claim-а);
+//  4. каждому контакту уходит подписанное долгосрочным ключом уведомление id-migrate {old,new,ts,sig}; получатель проверяет подпись ключом,
+//     известным ему за старый id, и переименовывает контакт с сохранением истории (renameContactId). Ratchet-сессия пары начинается заново.
+//  5. пока контакт не перешёл (legacyPeers), я для него остаюсь старым id: шифрую с парой (старый id, его id) и шлю с полем as=старый id -
+//     сервер штампует from=старый id только если алиас принадлежит этому сокету. Так существующие ratchet-сессии и чаты с необновившимися
+//     контактами продолжают работать 90 суток без сбоя; как только расшифровка с новым id удалась, контакт считается перешедшим.
+const IDMIG_KEY = "ether.idMig", IDMIG_WINDOW_MS = 90 * 86400_000, IDMIG_NOTICE_MAX_AGE_MS = 150 * 86400_000;
+let __idMigRaw, __idMigObj = null, __idMigRunning = null;
+function idMigGet() {
+  let raw = null; try { raw = localStorage.getItem(IDMIG_KEY); } catch (e) {}
+  if (raw === __idMigRaw) return __idMigObj;
+  let o = null; try { o = raw ? JSON.parse(raw) : null; } catch (e) { o = null; }
+  if (!o || typeof o !== "object" || Array.isArray(o)) o = null;
+  if (o) {
+    if (!Array.isArray(o.peers)) o.peers = [];
+    if (!o.notices || typeof o.notices !== "object" || Array.isArray(o.notices)) o.notices = {};
+    if (!o.renames || typeof o.renames !== "object" || Array.isArray(o.renames)) o.renames = {};
+  }
+  __idMigRaw = raw; __idMigObj = o; return o;
+}
+function idMigUpdate(fn) {
+  const m = idMigGet() || { v: 1 };
+  if (!Array.isArray(m.peers)) m.peers = [];
+  if (!m.notices || typeof m.notices !== "object") m.notices = {};
+  if (!m.renames || typeof m.renames !== "object") m.renames = {};
+  fn(m);
+  try { localStorage.setItem(IDMIG_KEY, JSON.stringify(m)); scheduleIDBBackup(); } catch (e) {}
+  __idMigRaw = undefined; // кэш недействителен: следующий idMigGet перечитает запись
+  return m;
+}
+const idMigWindowOpen = (m) => !!(m && m.legacyId && Number(m.until) > Date.now());
+function idMigLegacyId() { const m = idMigGet(); return idMigWindowOpen(m) ? m.legacyId : ""; }
+// Для этого собеседника я пока «старый id»: сервер подтвердил алиас, окно 90 суток открыто, контакт ещё не показал, что знает мой новый id
+function idMigIsLegacyPeer(peerId) { const m = idMigGet(); return idMigWindowOpen(m) && m.aliasOk === true && m.peers.includes(peerId); }
+// Мой id в паре с этим собеседником (ratchet, AAD конвертов, аутентификация P2P-канала, тай-брейк offerer)
+function myIdFor(peerId) { return idMigIsLegacyPeer(peerId) ? idMigGet().legacyId : Store.myId; }
+// Старый id контакта, уже переименованного по уведомлению, -> его текущий id (запоздавшие сообщения/сигналы с прежним from)
+function canonPeer(id) {
+  const m = idMigGet(); let r = id, n = 0;
+  while (m && typeof r === "string" && Object.prototype.hasOwnProperty.call(m.renames, r) && typeof m.renames[r] === "string" && n++ < 5) r = m.renames[r];
+  return r;
+}
+// Какие «мои id» пробовать при расшифровке входящего от from: ожидаемый для пары, затем второй (если окно миграции открыто)
+function idMigDecryptIds(from) {
+  const m = idMigGet(), pri = myIdFor(from);
+  if (!idMigWindowOpen(m)) return [pri];
+  return [pri, pri === Store.myId ? m.legacyId : Store.myId];
+}
+async function idMigDecrypt(from, fn) {
+  const ids = idMigDecryptIds(from); let err = null;
+  for (let i = 0; i < ids.length; i++) {
+    try {
+      const r = await fn(ids[i]);
+      if (i > 0) { // подошёл второй id: собеседник обращается ко мне иначе, чем мы считали
+        const legacy = ids[i] !== Store.myId;
+        idMigUpdate((m) => { const has = m.peers.includes(from); if (legacy && !has) m.peers.push(from); else if (!legacy && has) m.peers = m.peers.filter((x) => x !== from); });
+        try { envelopeCache.clear(); } catch (e) {}
+      }
+      return r;
+    } catch (e) { if (!err) err = e; }
+  }
+  throw err;
+}
+function idMigProgress(on) {
+  try { if (on) updateSignalingStatusUI("connecting", T("idmig.working")); else refreshSignalingStatusText(); } catch (e) {}
+}
+// Привязка к соединению: параметры алиаса и запуск миграции, когда сервер подтвердил регистрацию
+function idMigWireSignaling(sig) {
+  const m = idMigGet();
+  if (idMigWindowOpen(m)) { sig.legacyId = m.legacyId; sig.legacyFor = idMigIsLegacyPeer; sig.aliasOld = m.legacyId; sig.aliasActive = m.aliasOk === true; }
+  sig.addEventListener("alias-result", (ev) => { try { idMigOnAliasResult(sig, ev.detail || {}); } catch (e) { etherLog("warn", "[idmig] alias-result:", String(e)); } });
+  sig.addEventListener("online-list", () => { try { idMigOnRegistered(sig); } catch (e) { etherLog("warn", "[idmig] boot:", String(e)); } });
+}
+function idMigShouldRun() {
+  if (!Store.myId || !Store.myPrivateKeyJwk) return false;
+  if (typeof Devices !== "undefined" && Devices.isCompanion()) return false; // companion следует id основного устройства
+  const m = idMigGet();
+  return !(m && m.done);
+}
+function idMigOnRegistered(sig) {
+  if (signaling !== sig || !sig.registered || !Array.isArray(sig.features) || !sig.features.includes("alias")) return;
+  const m = idMigGet();
+  if (m && m.done && m.newId && Store.myId === m.legacyId) { idMigApplySwitch(m.legacyId, m.newId); return; } // сбой посреди миграции: достраиваем переключение
+  if (m && m.done) {
+    if (m.legacyId && !idMigWindowOpen(m) && !m.expired) idMigUpdate((x) => { x.expired = true; x.peers = []; });
+    else if (idMigWindowOpen(m) && m.aliasOk === true) idMigSendNotices().catch(() => {});
+    return;
+  }
+  if (idMigShouldRun()) idMigRun({}).then((r) => { if (r && r.status === "migrated") idMigShowSheet(); }).catch((e) => etherLog("warn", "[idmig] run:", String(e)));
+}
+// Единственный вход миграции. opts.iterations - ТОЛЬКО для тестов (явный параметр; в приложении не передаётся), opts.onProgress - необязательный
+function idMigRun(opts) {
+  if (__idMigRunning) return __idMigRunning;
+  return (__idMigRunning = idMigRunInner(opts || {}).finally(() => { __idMigRunning = null; }));
+}
+async function idMigRunInner(opts) {
+  const m0 = idMigGet();
+  if (m0 && m0.done) return { status: "done" };
+  const oldId = Store.myId, raw = Store.myIdentityRaw;
+  if (!oldId) return { status: "no-id" };
+  if (Identity.isV2(oldId)) { idMigUpdate((m) => { m.done = true; m.fresh = true; m.at = Date.now(); }); return { status: "v2" }; }
+  if (!raw) { idMigUpdate((m) => { m.done = true; m.anon = true; m.at = Date.now(); }); return { status: "anon" }; } // случайный id: не из номера, менять нечего
+  let r;
+  idMigProgress(true);
+  try { r = await Identity.idV2ForAsync(raw, { iterations: opts.iterations, onProgress: opts.onProgress }); }
+  catch (e) { idMigProgress(false); return { status: "error", error: String(e) }; }
+  idMigProgress(false);
+  if (Store.myId !== oldId || Store.myIdentityRaw !== raw) return { status: "aborted" }; // за время вывода id сменили вручную
+  if (r.idV1 !== oldId) { idMigUpdate((m) => { m.done = true; m.anon = true; m.at = Date.now(); }); return { status: "anon" }; } // id не соответствует сохранённому номеру
+  const newId = r.id, ts = Date.now();
+  const peers = [];
+  for (const c of state.contacts.values()) if (!c.isGroup && !c.isSelf && !c.isDemo && c.id && c.id !== oldId && !c.id.startsWith("__")) peers.push(c.id);
+  // Устройства аккаунта: сертификаты и список перевыпускаются под новый id; companion получает подписанную команду, пока мы ещё под старым id
+  let devs = 0;
+  try { if (typeof Devices !== "undefined" && Devices.migrateAnnounce) devs = await Devices.migrateAnnounce(oldId, newId, ts); } catch (e) { etherLog("warn", "[idmig] devices:", String(e)); }
+  const notice = await DeviceCert.signIdMigrate(Store.myPrivateKeyJwk, { old: oldId, new: newId, ts });
+  idMigUpdate((m) => { Object.assign(m, { done: true, at: ts, legacyId: oldId, newId, until: ts + IDMIG_WINDOW_MS, peers, notice, aliasOk: undefined, devices: devs }); });
+  idMigApplySwitch(oldId, newId);
+  return { status: "migrated", oldId, newId, peers: peers.length };
+}
+// Переключение локального состояния на новый id (идемпотентно: можно вызывать повторно после сбоя)
+function idMigApplySwitch(oldId, newId) {
+  try { discoveryUnpublishBeforeIdChange(); } catch (e) {}
+  Store.myId = newId;
+  renameIdEverywhere(oldId, newId);
+  try { envelopeCache.clear(); } catch (e) {}
+  state._discoveryDirty = true;
+  persistContacts();
+  initSignaling();
+  try { renderTab(); } catch (e) {}
+}
+function idMigOnAliasResult(sig, d) {
+  const m = idMigGet(); if (!m || !m.legacyId || d.old !== m.legacyId) return;
+  const ok = d.ok === true;
+  idMigUpdate((x) => { x.aliasOk = ok; x.aliasErr = ok ? undefined : d.error || "error"; });
+  sig.aliasActive = ok;
+  if (!ok) {
+    etherLog("warn", "[idmig] алиас не установлен:", String(d.error));
+    if (d.error === "old-claim" || d.error === "no-claim") { try { Ratchet.resetAll(); envelopeCache.clear(); } catch (e) {} } // без алиаса сессии пар со старым id бесполезны; контакты узнают о смене по уведомлению
+  }
+  idMigSendNotices().catch((e) => etherLog("warn", "[idmig] notices:", String(e)));
+}
+// Подписанное уведомление каждому контакту (через обычную очередь отправки: ретраи, ящик сервера для офлайн, статический конверт v1/v2)
+async function idMigSendNotices() {
+  const m = idMigGet(); if (!m || !m.newId || !m.legacyId || !m.notice || !Store.myPrivateKeyJwk) return 0;
+  let n = 0;
+  for (const c of Array.from(state.contacts.values())) {
+    if (c.isGroup || c.isSelf || c.isDemo || !c.id || c.id === Store.myId || m.notices[c.id] || !c.publicKey || c.blocked) continue;
+    const msgId = crypto.randomUUID();
+    addToOutbox(msgId, c.id, { kind: "id-migrate", id: msgId, old: m.notice.old, new: m.notice.new, ts: m.notice.ts, sig: m.notice.sig });
+    const e = outbox.get(msgId); if (e) e.forceV1 = true; // статический ключ: уведомление должно открыться при любом состоянии ratchet
+    idMigUpdate((x) => { x.notices[c.id] = Date.now(); });
+    n++;
+    flushOutboxItem(msgId);
+  }
+  return n;
+}
+// Получатель уведомления. from - id отправителя после canonPeer. opts.viaSync - применение, пересланное другим моим устройством (транспортный from не проверяется)
+async function handleIdMigrateNotice(from, p, opts) {
+  opts = opts || {};
+  if (!p || typeof p !== "object" || typeof p.old !== "string" || typeof p.new !== "string" || typeof p.sig !== "string" || !Number.isFinite(p.ts)) return false;
+  if (!p.old || p.old.length > 128 || !Identity.isV2(p.new) || p.old === p.new || p.sig.length > 200) return false;
+  if (!opts.viaSync && from !== p.old && from !== p.new) return false; // уведомление приходит либо со старого id (через алиас), либо с нового
+  const now = Date.now();
+  if (p.ts > now + 86400_000 || now - p.ts > IDMIG_NOTICE_MAX_AGE_MS) return false;
+  if (p.new === Store.myId || p.new === idMigLegacyId() || p.old === Store.myId) return false;
+  const known = idMigGet();
+  const c = state.contacts.get(p.old);
+  if (!c) return !!(known && known.renames[p.old] === p.new); // уже применено ранее (повтор) - не ошибка
+  if (c.isGroup || c.isSelf || c.isDemo || !c.publicKey) return false;
+  if (!(await DeviceCert.verifyIdMigrate(c.publicKey, p))) { etherLog("warn", "[idmig] подпись уведомления не сошлась, игнорирую"); return false; }
+  const ex = state.contacts.get(p.new);
+  if (ex && (ex.isGroup || ex.isSelf || (ex.publicKey && keysDiffer(ex.publicKey, c.publicKey)))) return false; // новый id уже занят другим человеком
+  const nc = renameContactId(p.old, p.new); if (!nc) return false;
+  idMigUpdate((m) => {
+    m.renames[p.old] = p.new;
+    const keys = Object.keys(m.renames); if (keys.length > 2000) delete m.renames[keys[0]];
+    if (m.peers.includes(p.old)) m.peers = m.peers.map((x) => (x === p.old ? p.new : x));
+    if (m.notices[p.old] !== undefined) { m.notices[p.new] = m.notices[p.old]; delete m.notices[p.old]; }
+  });
+  try { envelopeCache.clear(); } catch (e) {}
+  pushSystemNote(nc, "sys.peerIdUpdated", { name: nc.name || T("sys.someone") });
+  if (!opts.viaSync && typeof Devices !== "undefined" && !Devices.isCompanion()) { try { Devices.sendOp({ kind: "peer-rename", notice: { old: p.old, new: p.new, ts: p.ts, sig: p.sig } }, p.new).catch(() => {}); } catch (e) {} }
+  try { flushOutbox(); } catch (e) {}
+  if (state.tab === "chats") renderChatsList();
+  return true;
+}
+// Роли/участники во входящем ростере группы: мой старый id -> новый, уже переименованные контакты -> их новые id
+function idMigNormalizeGroupPayload(payload) {
+  const m = idMigGet(); if (!m || !payload || !Array.isArray(payload.members)) return;
+  const map = (id) => (id === m.legacyId && id ? Store.myId : canonPeer(id));
+  const seen = new Set(), out = [];
+  for (const mem of payload.members) { const nid = map(mem.id); if (seen.has(nid)) continue; seen.add(nid); out.push(nid === mem.id ? mem : Object.assign({}, mem, { id: nid })); }
+  payload.members = out;
+  if (typeof payload.createdBy === "string") payload.createdBy = map(payload.createdBy);
+}
+// Исходящий ростер для контакта, который ещё знает меня под старым id: мой новый id заменяется старым (иначе у него появится «чужой» участник)
+function idMigGroupPayloadFor(payload, memberId) {
+  if (!idMigIsLegacyPeer(memberId) || !Array.isArray(payload.members)) return;
+  const legacy = idMigGet().legacyId;
+  payload.members = payload.members.map((mem) => (mem && mem.id === Store.myId ? Object.assign({}, mem, { id: legacy }) : mem));
+  if (payload.createdBy === Store.myId) payload.createdBy = legacy;
+}
+// Одноразовое пояснение для пользователя (текст - только в js/lang)
+async function idMigShowSheet() {
+  const m = idMigGet(); if (!m || m.sheetShown || !m.legacyId) return;
+  idMigUpdate((x) => { x.sheetShown = true; });
+  try { await confirmSheet(T("idmig.sheet"), { okLabel: T("idmig.ok"), cancelLabel: T("idmig.close") }); } catch (e) {}
+}
+// Новый или изменённый id из номера/почты: сразу v2 (медленный вывод с индикатором). opts.iterations - только тесты.
+async function idMigDeriveNewIdentity(raw, opts) {
+  opts = opts || {};
+  const r = await Identity.idV2ForAsync(raw, { iterations: opts.iterations, onProgress: opts.onProgress });
+  return { id: r.id, normalized: r.normalized, type: r.type, idV1: r.idV1 };
+}

@@ -1,8 +1,10 @@
 /* ============================ НЕОН (neon) — киберпанк-минимализм: почти чёрный фон, тонкие светящиеся линии, голубой и пурпурный акценты ============================ */
-@font-face { font-family: "SkTektur"; font-weight: 400; font-style: normal; font-display: swap; src: url("../../fonts/skins/tektur-400.woff2") format("woff2"); }
-@font-face { font-family: "SkTektur"; font-weight: 700; font-style: normal; font-display: swap; src: url("../../fonts/skins/tektur-700.woff2") format("woff2"); }
+@font-face { font-family: "SkTektur"; font-weight: 400; font-style: normal; font-display: swap; unicode-range: U+0000-024F, U+1E00-1EFF, U+2000-20CF, U+2100-23FF, U+2460-2BFF; src: url("../../fonts/skins/tektur-400.woff2") format("woff2"); }
+@font-face { font-family: "SkTektur"; font-weight: 700; font-style: normal; font-display: swap; unicode-range: U+0000-024F, U+1E00-1EFF, U+2000-20CF, U+2100-23FF, U+2460-2BFF; src: url("../../fonts/skins/tektur-700.woff2") format("woff2"); }
+@font-face { font-family: "Play"; font-weight: 400; font-style: normal; font-display: swap; src: url("../../fonts/skins/play-400.woff2") format("woff2"); }
+@font-face { font-family: "Play"; font-weight: 700; font-style: normal; font-display: swap; src: url("../../fonts/skins/play-700.woff2") format("woff2"); }
 html[data-skin="neon"] {
-  --sk-font: "SkTektur", "Bahnschrift", "Segoe UI", system-ui, sans-serif; --sk-head: "SkTektur", "Bahnschrift", "Segoe UI", system-ui, sans-serif; --sk-tracking: .01em;
+  --sk-font: "SkTektur", "Play", "Bahnschrift", "Segoe UI", system-ui, sans-serif; --sk-head: "SkTektur", "Play", "Bahnschrift", "Segoe UI", system-ui, sans-serif; --sk-tracking: .01em;
   --sk-bw: 1px; --sk-bs: solid; --sk-radius: 14px; --sk-bubble-r: 14px; --sk-tail: 4px; --sk-btn-r: 10px; --sk-field-r: 14px;
   --sk-blur: blur(14px) saturate(140%); --sk-blur-px: 14px; --sk-press-scale: .97;
   --r-sm: 6px; --r-md: 10px; --r-lg: 14px; --r-xl: 20px;

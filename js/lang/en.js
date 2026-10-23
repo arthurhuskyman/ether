@@ -541,9 +541,7 @@ window.__LANG_DICTS["en"] = {
     "summary.dates": "Dates and times",
     "summary.share": "Share",
     "summary.shareTitle": "Chat summary",
-    "summary.copied": "Summary copied",
     "group.avatar.change": "Change group photo",
-    "chat.thread.unread": "Unread replies: {n}",
     "chat.thread.aria.unread": "Thread, replies: {n}, unread: {n2}",
     "chats.noResults": "Nothing found",
     "chats.noInFilter": "No chats in this filter",
@@ -1232,5 +1230,10 @@ window.__LANG_DICTS["en"] = {
     "onboarding.welcome.lang": "Language",
     "chats.empty.invite": "Invite a friend",
     "chats.empty.more": "Other ways to add",
+    "idmig.working": "Updating your ID protection…",
+    "idmig.sheet": "We have upgraded the protection of your ID. Before, your ID could be worked out from your phone number or email by anyone who tried enough guesses. Now it is much harder to guess. Your chats and history stay as they are. Your contacts get a confirmation that this is still you, and in updated apps the conversation simply continues. If someone still has an older app, your previous ID keeps working for 90 days; after that they need to update the app to keep talking to you.",
+    "idmig.ok": "Got it",
+    "idmig.close": "Close",
+    "sys.peerIdUpdated": "{name} upgraded their ID protection. The chat and its history are kept.",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("en");

@@ -248,7 +248,7 @@ const CRITICAL_LS_KEYS = [
   "ether.translateEndpoint", "ether.translateApiKey",
   "ether.readable", "ether.fxInit", "ether.requireVerifiedCalls", "ether.localAi", "ether.localAiLang", "ether.stories", "ether.quietOn", "ether.quietFrom", "ether.quietTo", "ether.wpColor1", "ether.wpColor2", "ether.chatWallpaper", "ether.voiceSpeed", "ether.deadManEnabled", "ether.deadManThresholdDays", "ether.deadManContactId", "ether.deadManLastSentAt",
   "ether.panicShakeEnabled", "ether.fx", "ether.sigKey", "ether.fx.aurora", "ether.keyInfo",
-  "ether.claimToken", "ether.phoneDiscover", "ether.phoneDiscoverName",
+  "ether.claimToken", "ether.phoneDiscover", "ether.phoneDiscoverName", "ether.idMig",
   "ether.fx.campfires", "ether.receiptsEnabled", "ether.lastSeenVisible", "ether.presenceVisible", "ether.myStatus",
 ];
 

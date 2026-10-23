@@ -74,6 +74,7 @@ html[data-skin="glass"] #tab-bar .tab-btn:active { transform: scale(.92); }
 
 /* ---- строки списков: отдельные капли стекла, без blur (список длинный) ---- */
 html[data-skin="glass"] :is(.chat-row, .settings-row, .settings-category-row, .sheet-action, .forward-row, .board-col, .contact-gallery-item) { -webkit-backdrop-filter: none; backdrop-filter: none; background-image: var(--gl-hi); border-radius: 26px; }
+html[data-skin="glass"] .sheet-action { background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0) 60%); }
 html[data-skin="glass"] .chat-row { margin: 3px 0; box-shadow: 0 8px 24px rgba(2, 4, 30, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.3); }
 html[data-skin="glass"][data-scheme="light"] .chat-row { box-shadow: 0 8px 24px rgba(50, 70, 160, 0.14), inset 0 1px 0 #fff; }
 html[data-skin="glass"] .chat-row-wrapper { border-radius: 26px; }
@@ -118,7 +119,7 @@ html[data-skin="glass"] #chat-input::placeholder, html[data-skin="glass"] .searc
 html[data-skin="glass"] #composer-menu-sheet .composer-menu-item { background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(255, 255, 255, 0.4), transparent 70%), var(--sk-menu, rgba(44, 48, 120, 0.82)); -webkit-backdrop-filter: var(--sk-blur); backdrop-filter: var(--sk-blur); border-radius: 999px; font-weight: 700; }
 html[data-skin="glass"] #toast { border-radius: 28px; background: var(--gl-hi), var(--sk-toast, rgba(60, 70, 160, 0.55)); color: #fff; border: 1px solid rgba(255, 255, 255, 0.5); -webkit-backdrop-filter: var(--sk-blur); backdrop-filter: var(--sk-blur); font-weight: 700; padding: 12px 24px; box-shadow: var(--sk-shadow); }
 html[data-skin="glass"][data-scheme="light"] #composer-menu-sheet .composer-menu-item { --sk-menu: rgba(255, 255, 255, 0.9); }
-html[data-skin="glass"][data-scheme="light"] #toast { --sk-toast: rgba(70, 90, 200, 0.7); }
+html[data-skin="glass"][data-scheme="light"] #toast { --sk-toast: rgba(38, 52, 150, 0.92); }
 html[data-skin="glass"] .board-col { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3); border-radius: 18px; }
 html[data-skin="glass"] .board-card { border-radius: 20px; background-image: var(--gl-hi); }
 html[data-skin="glass"] .chip { border-radius: 999px; }
@@ -161,3 +162,9 @@ html[data-skin="glass"][data-scheme="dark"] #composer-menu-sheet .composer-menu-
 html[data-skin="glass"][data-scheme="dark"] { --gl-hi: linear-gradient(180deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.05) 38%, rgba(255, 255, 255, 0) 100%); }
 html[data-skin="glass"][data-scheme="dark"] #tab-bar .tab-btn::before { background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(255, 255, 255, 0.16), transparent 70%), rgba(255, 255, 255, 0.08); }
 html[data-skin="glass"][data-scheme="dark"] #composer-menu-sheet .composer-menu-item { background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(255, 255, 255, 0.12), transparent 70%), var(--sk-menu); }
+/* Узкие экраны (320–380 px): плотные подписи в сегментах темы и карточках скинов, меньшие боковые отступы строк */
+@media (max-width: 380px) {
+  html[data-skin="glass"] .settings-row { padding-inline: max(12px, env(safe-area-inset-left)) 12px; }
+  html[data-skin="glass"] .theme-seg button { font-size: 11px; padding-inline: 2px; }
+  html[data-skin="glass"] .skin-name { font-size: 11px; letter-spacing: -0.2px; }
+}

@@ -6,7 +6,9 @@ const { bootApp, closeAll } = require("./harness");
 test.after(closeAll);
 const { RTCAudioSource, RTCVideoSource } = wrtc.nonstandard;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-async function until(fn, ms = 10000) { const end = Date.now() + ms; while (Date.now() < end) { if (fn()) return true; await sleep(50); } return false; }
+// Ожидание ограничено только на случай настоящего зависания: под нагрузкой (параллельные jsdom + WebRTC) рукопожатие бывает медленнее 10 с.
+const LOAD = 3;
+async function until(fn, ms = 10000) { const end = Date.now() + ms * LOAD; while (Date.now() < end) { if (fn()) return true; await sleep(50); } return false; }
 const timers = [];
 test.after(() => { for (const t of timers.splice(0)) clearInterval(t); setTimeout(() => process.exit(process.exitCode || 0), 1500); });
 

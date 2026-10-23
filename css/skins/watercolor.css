@@ -1,6 +1,8 @@
 /* ============================ АКВАРЕЛЬ (watercolor) — мягкая акварельная заливка: пастельные пятна, прозрачные поверхности, округлый шрифт ============================ */
-@font-face { font-family: "Comfortaa"; font-weight: 400; font-style: normal; font-display: swap; src: url("../../fonts/skins/comfortaa-400.woff2") format("woff2"); }
-@font-face { font-family: "Comfortaa"; font-weight: 700; font-style: normal; font-display: swap; src: url("../../fonts/skins/comfortaa-700.woff2") format("woff2"); }
+@font-face { font-family: "Comfortaa"; font-weight: 400; font-style: normal; font-display: swap; unicode-range: U+0000-024F, U+1E00-1EFF, U+2000-20CF, U+2100-23FF, U+2460-2BFF; src: url("../../fonts/skins/comfortaa-400.woff2") format("woff2"); }
+@font-face { font-family: "Comfortaa"; font-weight: 700; font-style: normal; font-display: swap; unicode-range: U+0000-024F, U+1E00-1EFF, U+2000-20CF, U+2100-23FF, U+2460-2BFF; src: url("../../fonts/skins/comfortaa-700.woff2") format("woff2"); }
+@font-face { font-family: "Nunito"; font-weight: 400; font-style: normal; font-display: swap; src: url("../../fonts/skins/nunito-400.woff2") format("woff2"); }
+@font-face { font-family: "Nunito"; font-weight: 800; font-style: normal; font-display: swap; src: url("../../fonts/skins/nunito-800.woff2") format("woff2"); }
 html[data-skin="watercolor"] {
   --sk-font: "Comfortaa", "Nunito", ui-rounded, system-ui, sans-serif; --sk-head: "Comfortaa", "Nunito", ui-rounded, system-ui, sans-serif; --sk-tracking: 0;
   --sk-bw: 1px; --sk-bs: solid; --sk-radius: 24px; --sk-bubble-r: 22px; --sk-tail: 6px; --sk-btn-r: 16px; --sk-field-r: 22px;

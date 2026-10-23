@@ -44,6 +44,16 @@ const DeviceCert = (() => {
     for (const c of list.certs) if (c.id === id && !rev.has(c.devId) && await verifyCert(identityPub, c, now)) good.push(c);
     return { ok: true, certs: good };
   }
+  // Уведомление о смене id (миграция id v1 -> v2): подписывается долгосрочным ключом личности, тем же, что подписывает списки устройств.
+  // Контакт проверяет подпись ключом, который он уже знает за СТАРЫМ id; без этого подделать «я теперь вот этот id» нельзя.
+  const migMsg = (n) => te.encode(["ether-idmig-v1", n.old, n.new, n.ts].join("|"));
+  async function signIdMigrate(identityPriv, { old, new: nw, ts }) {
+    const n = { old, new: nw, ts: ts || Date.now() }; n.sig = await sign(identityPriv, migMsg(n)); return n;
+  }
+  async function verifyIdMigrate(identityPub, n) {
+    if (!identityPub || !n || typeof n.old !== "string" || typeof n.new !== "string" || typeof n.sig !== "string" || n.sig.length > 200 || !Number.isFinite(n.ts)) return false;
+    return verify(identityPub, n.sig, migMsg(n));
+  }
   // Отпечаток устройства для показа пользователю и сверки (как safety number): 5 групп по 4 hex из SHA-256 публичного ключа устройства.
   async function fingerprint(cert) {
     const h = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", te.encode(cert.devId + "|" + cert.pub.x + "|" + cert.pub.y))), (b) => b.toString(16).padStart(2, "0")).join("");
@@ -51,6 +61,6 @@ const DeviceCert = (() => {
   }
   // Подпись произвольной строки ключом устройства (ответ на challenge сервера при регистрации companion)
   const signText = (priv, text) => sign(priv, te.encode(text));
-  return { signText, genDeviceKey, newDeviceId, issue, verifyCert, signList, verifyList, fingerprint, MAX_DEVICES };
+  return { signIdMigrate, verifyIdMigrate, signText, genDeviceKey, newDeviceId, issue, verifyCert, signList, verifyList, fingerprint, MAX_DEVICES };
 })();
 if (typeof module !== "undefined") module.exports = DeviceCert;

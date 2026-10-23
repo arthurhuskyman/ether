@@ -15,9 +15,50 @@ const opt = (n, d) => { const i = args.indexOf("--" + n); return i < 0 ? d : arg
 const DEV = { se: { viewport: { width: 320, height: 568 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, userAgent: devices["iPhone 14"].userAgent }, desktop: { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 } };
 const devNames = opt("devices", "se,iPhone 15,Pixel 7,Galaxy S24,iPad Pro 11,desktop").split(",");
 const skins = opt("skins", "default").split(","), schemes = opt("schemes", "light,dark").split(","), langs = opt("langs", "ru").split(",");
-const shots = args.includes("--shots"), callMode = args.includes("--call"), wantKb = args.includes("--kb"), extra = args.includes("--extra");
+const shots = args.includes("--shots"), callMode = args.includes("--call"), wantKb = args.includes("--kb"), extra = args.includes("--extra"), wantContrast = args.includes("--contrast");
 const SCREENS = ["chats", "chat", "menu", "settings", "appearance"];
 fs.mkdirSync(out, { recursive: true });
+
+async function contrastAudit(page) {
+  return page.evaluate(() => {
+    const P = (c) => { const m = c.match(/rgba?\(([^)]+)\)/); if (!m) return null; const p = m[1].split(/[ ,\/]+/).filter(Boolean).map(Number); return [p[0], p[1], p[2], p.length > 3 ? p[3] : 1]; };
+    const over = (f, b) => { const a = f[3]; return [f[0] * a + b[0] * (1 - a), f[1] * a + b[1] * (1 - a), f[2] * a + b[2] * (1 - a), 1]; };
+    const lum = (c) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); };
+    const cr = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+    const vis = (e) => { const r = e.getBoundingClientRect(); const s = getComputedStyle(e); return r.width > 0 && r.height > 0 && s.visibility !== "hidden" && s.display !== "none" && +s.opacity > 0.05 && !e.closest(".hidden,[hidden],[aria-hidden=true],#skin-deco,svg,.tab-pane:not(.active)"); };
+    const id = (e) => e.id ? "#" + e.id : (e.tagName.toLowerCase() + (e.className && typeof e.className === "string" ? "." + e.className.trim().split(/\s+/).slice(0, 2).join(".") : ""));
+    const out = [];
+    for (const e of document.querySelectorAll("body *")) {
+      let txt = ""; for (const n of e.childNodes) if (n.nodeType === 3) txt += n.textContent; txt = txt.trim(); if (!txt || !vis(e) || e.closest(".avatar,.fx-av,.avatar-xl,.gcall-avatar,.egg,#fx-root,#call-screen,#story-viewer,#lock-screen")) continue;
+      const r = e.getBoundingClientRect(); if (r.right < 0 || r.left > innerWidth || r.bottom < 0) continue;
+      const s = getComputedStyle(e); let fg = P(s.color); if (!fg) continue;
+      // фон: собираем стек от предка вниз; градиент -> набор вариантов
+      const chain = []; for (let x = e; x; x = x.parentElement) chain.push(x);
+      let variants = [[255, 255, 255, 0]];
+      let stack = []; let unk = false;
+      for (const x of chain) { const cs = getComputedStyle(x); const bg = P(cs.backgroundColor); const gi = cs.backgroundImage; stack.push({ bg, gi }); if (/url\(/.test(gi) || /radial-gradient/.test(gi)) unk = true; if (bg && bg[3] === 1 && gi === "none") break; if (gi !== "none" && /gradient/.test(gi) && bg && bg[3] === 1) break; }
+      // от дальнего к ближнему
+      let bases = [[0, 0, 0, 1]];
+      for (let i = stack.length - 1; i >= 0; i--) {
+        const { bg, gi } = stack[i]; let nb = [];
+        let layers = [];
+        if (gi !== "none") { const cols = (gi.match(/rgba?\([^)]+\)/g) || []).map(P).filter(Boolean); if (cols.length) layers = cols; }
+        for (const b of bases) {
+          let cur = b; if (bg && bg[3] > 0) cur = over(bg, cur);
+          if (layers.length) for (const l of layers) nb.push(l[3] > 0 ? over(l, cur) : cur); else nb.push(cur);
+        }
+        bases = nb.slice(0, 6);
+      }
+      if (unk) continue;
+      let worst = 99, wb = null;
+      for (const b of bases) { const f = over(fg, b); const c = cr(f, b); if (c < worst) { worst = c; wb = b; } }
+      const fs = parseFloat(s.fontSize), big = fs >= 24 || (fs >= 18.66 && +s.fontWeight >= 700);
+      const need = big ? 3 : 4.5;
+      if (worst < need) out.push({ el: id(e), txt: txt.slice(0, 22), ratio: +worst.toFixed(2), fg: s.color, bg: wb && wb.map(Math.round).join(","), fs });
+    }
+    return { contrast: out };
+  });
+}
 
 async function audit(page) {
   return page.evaluate(() => {
@@ -70,6 +111,7 @@ async function audit(page) {
     const rec = async (name) => {
       await page.waitForTimeout(350);
       const a = await audit(page).catch((e) => ({ error: e.message }));
+      if (wantContrast) Object.assign(a, await contrastAudit(page).catch(() => ({})));
       report.push({ tag, screen: name, ...a });
       if (shots) await page.screenshot({ path: path.join(out, `${tag}-${name}.png`) });
     };
@@ -89,6 +131,7 @@ async function audit(page) {
       try { await fn(); } catch (e) { errors.push(name + ": " + e.message.split("\n")[0]); }
       await page.waitForTimeout(350);
       const a = await audit(page).catch((e) => ({ error: e.message }));
+      if (wantContrast) Object.assign(a, await contrastAudit(page).catch(() => ({})));
       report.push({ tag, screen: name, ...a });
       if (shots) await page.screenshot({ path: path.join(out, `${tag}-${name}.png`) });
     };
@@ -112,6 +155,7 @@ async function audit(page) {
       for (const k of ["input", "plus", "tab"]) if (g.mini && g[k] && g.mini.b > g[k].t + 1 && g.mini.t < g[k].b - 1) bad2.push("mini перекрывает " + k);
       report.push({ tag, screen: "call-geometry", geo, errors: bad2 });
     }
+    if (wantContrast) for (const cat of ["profile", "appearance", "privacy", "notifications", "data", "help"]) await step("set-" + cat, async () => { await page.click('.tab-btn[data-tab="settings"]').catch(() => {}); await page.evaluate((c) => { try { openSettingsCategory(c); } catch (e) {} }, cat); });
     if (extra) {
       await page.evaluate(() => { try { document.querySelectorAll(".anchored-menu,.sheet").forEach((e) => e.classList.add("hidden")); closeChat(); state.tab = "chats"; } catch (e) {} });
       await step("msg-sheet", async () => { await page.evaluate(() => { state.chatId = DEMO_CHAT_ID; state.tab = "chats"; renderTab(); renderChatThread(); openMessageSheet("m2", DEMO_CHAT_ID); }); });
@@ -129,9 +173,9 @@ async function audit(page) {
     await ctx.close();
   }
   await b.close(); srv.close();
-  const bad = report.filter((r) => r.error || (r.overlap && r.overlap.length) || r.overflowDoc || (r.offscreen && r.offscreen.length) || (r.clipped && r.clipped.length) || (r.small && r.small.length) || (r.errors && r.errors.length));
+  const bad = report.filter((r) => r.error || (r.overlap && r.overlap.length) || r.overflowDoc || (r.offscreen && r.offscreen.length) || (r.clipped && r.clipped.length) || (r.small && r.small.length) || (r.contrast && r.contrast.length) || (r.errors && r.errors.length));
   fs.writeFileSync(path.join(out, "report.json"), JSON.stringify(report, null, 1));
   console.log(`экранов: ${report.length}, с замечаниями: ${bad.length}`);
-  for (const r of bad) console.log(r.tag, r.screen, JSON.stringify({ doc: r.overflowDoc || undefined, off: r.offscreen && r.offscreen.length ? r.offscreen.slice(0, 4) : undefined, clip: r.clipped && r.clipped.length ? r.clipped.slice(0, 3) : undefined, small: r.small && r.small.length ? r.small.slice(0, 4) : undefined, overlap: r.overlap && r.overlap.length ? r.overlap.slice(0, 5) : undefined, err: r.errors || r.error }));
+  for (const r of bad) console.log(r.tag, r.screen, JSON.stringify({ doc: r.overflowDoc || undefined, off: r.offscreen && r.offscreen.length ? r.offscreen.slice(0, 4) : undefined, clip: r.clipped && r.clipped.length ? r.clipped.slice(0, 3) : undefined, small: r.small && r.small.length ? r.small.slice(0, 4) : undefined, overlap: r.overlap && r.overlap.length ? r.overlap.slice(0, 5) : undefined, contrast: r.contrast && r.contrast.length ? r.contrast.slice(0, 6).map((c) => c.ratio + " " + c.el + " " + c.txt) : undefined, err: r.errors || r.error }));
   process.exit(bad.length ? 1 : 0);
 })();

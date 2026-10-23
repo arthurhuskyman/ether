@@ -591,7 +591,9 @@ function renderThreadSheet() {
   const tr = state.threadRoot, list = $("#thread-list"); if (!tr || !list) return;
   const c = state.contacts.get(tr.cid), msgs = c && threadMessages(c, tr.rootId);
   if (!msgs) { closeThreadSheet(); return; }
+  const seenBefore = threadSeen.size;
   for (const m of msgs.slice(1)) if (m.from === "them") threadSeen.add(m.id); // открытая панель = ответы видны
+  if (threadSeen.size !== seenBefore) setTimeout(() => { try { renderChatThreadInner(); } catch (e) {} }, 0);
   const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 40;
   const item = (m, i) => {
     const who = m.from === "me" ? T("chat.poll.you") : (m.fromName || c.name || T("sys.someone"));

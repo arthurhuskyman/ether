@@ -16,7 +16,7 @@ const Discovery = (() => {
   async function prepareOne(raw, salt) {
     let ident;
     try { ident = await Identity.idFor(raw); } catch (e) { return null; }
-    return { raw: String(raw).trim(), normalized: ident.normalized, type: ident.type, id: ident.id, hash: await hmac(salt, ident.normalized) };
+    return { raw: String(raw).trim(), normalized: ident.normalized, type: ident.type, id: ident.id, idV1: ident.id, hash: await hmac(salt, ident.normalized) };
   }
   async function prepare(rawList, salt) {
     const seen = new Set(), out = [];
@@ -44,6 +44,24 @@ const Discovery = (() => {
     }
     return out;
   }
+  // Обновлённые (id v2) контакты зарегистрированы под "v2:...": id из ответа сверяется медленным выводом v2 из введённого номера, но только для найденных
+  // (не более V2_VERIFY_MAX за поиск), а не для всех введённых. Сервер по-прежнему не может подсунуть чужой id под известный номер.
+  const V2_VERIFY_MAX = 10;
+  async function verifyV2(found, prepared, iterations) {
+    const byHash = new Map(prepared.map((p) => [p.hash, p]));
+    const out = [], seen = new Set();
+    for (const f of Array.isArray(found) ? found : []) {
+      if (out.length >= V2_VERIFY_MAX) break;
+      if (!f || typeof f.hash !== "string" || typeof f.id !== "string" || !Identity.isV2(f.id) || seen.has(f.id)) continue;
+      const p = byHash.get(f.hash);
+      if (!p || !f.publicKey || typeof f.publicKey !== "object" || Array.isArray(f.publicKey)) continue;
+      let want = ""; try { want = await Identity.hashIdV2(p.normalized, iterations); } catch (e) { continue; }
+      if (want !== f.id) continue;
+      seen.add(f.id);
+      out.push({ id: f.id, hash: f.hash, publicKey: f.publicKey, name: cleanName(f.name), raw: p.raw, normalized: p.normalized });
+    }
+    return out;
+  }
   // Запрос к серверу пачками ≤200. Возвращает { found, error } (error — "rate"/"timeout"/… при неудаче; уже найденное сохраняется).
   async function lookup(sig, prepared, opts) {
     const timeoutMs = (opts && opts.timeoutMs) || 8000;
@@ -61,10 +79,11 @@ const Discovery = (() => {
       });
       if (res.error) error = res.error;
       found.push(...verify(res.found, chunk));
+      try { const have = new Set(found.map((x) => x.id)); for (const v of await verifyV2(res.found, chunk, opts && opts.iterations)) if (!have.has(v.id)) found.push(v); } catch (e) {}
     }
     return { found, error };
   }
   function supported(sig) { return !!(sig && sig.connected && sig.registered && Array.isArray(sig.features) && sig.features.includes("discovery") && sig.discoverySalt); }
-  return { BATCH, hmac, prepare, prepareOne, splitInput, verify, lookup, supported, cleanName };
+  return { BATCH, hmac, prepare, prepareOne, splitInput, verify, verifyV2, lookup, supported, cleanName };
 })();
 if (typeof window !== "undefined") window.Discovery = Discovery;

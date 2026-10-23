@@ -1,8 +1,10 @@
 /* ============================ ЗИМА (newyear) — современная зима: ледяной синий, клюквенный и еловый акценты, мягкий снег без мишуры ============================ */
-@font-face { font-family: "Montserrat Alt NY"; font-weight: 400; font-style: normal; font-display: swap; src: url("../../fonts/skins/montserrat-alternates-400.woff2") format("woff2"); }
-@font-face { font-family: "Montserrat Alt NY"; font-weight: 700; font-style: normal; font-display: swap; src: url("../../fonts/skins/montserrat-alternates-700.woff2") format("woff2"); }
+@font-face { font-family: "Montserrat Alt NY"; font-weight: 400; font-style: normal; font-display: swap; unicode-range: U+0000-024F, U+1E00-1EFF, U+2000-20CF, U+2100-23FF, U+2460-2BFF; src: url("../../fonts/skins/montserrat-alternates-400.woff2") format("woff2"); }
+@font-face { font-family: "Montserrat Alt NY"; font-weight: 700; font-style: normal; font-display: swap; unicode-range: U+0000-024F, U+1E00-1EFF, U+2000-20CF, U+2100-23FF, U+2460-2BFF; src: url("../../fonts/skins/montserrat-alternates-700.woff2") format("woff2"); }
+@font-face { font-family: "Nunito"; font-weight: 400; font-style: normal; font-display: swap; src: url("../../fonts/skins/nunito-400.woff2") format("woff2"); }
+@font-face { font-family: "Nunito"; font-weight: 800; font-style: normal; font-display: swap; src: url("../../fonts/skins/nunito-800.woff2") format("woff2"); }
 html[data-skin="newyear"] {
-  --sk-font: "Montserrat Alt NY", "Montserrat Alternates", "Segoe UI", system-ui, sans-serif; --sk-head: "Montserrat Alt NY", "Montserrat Alternates", "Segoe UI", system-ui, sans-serif; --sk-tracking: 0;
+  --sk-font: "Montserrat Alt NY", "Nunito", "Segoe UI", system-ui, sans-serif; --sk-head: "Montserrat Alt NY", "Nunito", "Segoe UI", system-ui, sans-serif; --sk-tracking: 0;
   --sk-bw: 1px; --sk-bs: solid; --sk-radius: 20px; --sk-bubble-r: 20px; --sk-tail: 6px; --sk-btn-r: 14px; --sk-field-r: 20px;
   --sk-blur: none; --sk-blur-px: 0px; --sk-press-scale: .97;
   --r-sm: 8px; --r-md: 14px; --r-lg: 20px; --r-xl: 26px;

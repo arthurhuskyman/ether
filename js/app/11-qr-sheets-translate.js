@@ -325,7 +325,11 @@ function wireConnectScreen() {
     let identity;
     try { identity = await Identity.idFor(raw); }
     catch (e) { toast(T(e.message)); if (addValEl) addValEl.classList.add("input-invalid"); return; }
-    if (identity.id === Store.myId) { toast(T("toast.ownId")); return; }
+    // Пока мы на id v2, человека по номеру ищем тоже по id v2 (обновлённые контакты зарегистрированы под ним); уже добавленный по id v1 - тот же контакт
+    if (Identity.isV2(Store.myId) && !state.contacts.has(identity.id)) {
+      try { const v2 = await idMigDeriveNewIdentity(identity.normalized, { onProgress: (st) => { if (st === "start") toast(T("idmig.working")); } }); identity = Object.assign({}, identity, { id: v2.id }); } catch (e) { etherLog("warn", "[idv2] id v2 контакта:", String(e)); }
+    }
+    if (identity.id === Store.myId || identity.id === idMigLegacyId()) { toast(T("toast.ownId")); return; }
     if (state.contacts.has(identity.id)) toast(T("toast.alreadyAdded"));
     else {
       if (recentlyDeletedIds.delete(identity.id)) persistRecentlyDeleted(); // осознанное повторное добавление снимает блокировку из deleteContact
