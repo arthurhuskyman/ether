@@ -16,7 +16,7 @@ test("предзагрузка SW: все файлы существуют, не�
 
 test("все статические скрипты index.html, кроме тяжёлых библиотек, есть в предзагрузке; transformers.js — только по требованию", () => {
   const srcs = [...html.matchAll(/<script src="([^"]+)"/g)].map((m) => m[1]);
-  assert.ok(srcs.length > 20);
+  assert.ok(srcs.length >= 5); // бандлы + vendor + textscale
   for (const s of srcs) assert.ok(shell.includes(s) || /^js\/lang\//.test(s), "не в предзагрузке: " + s);
   assert.ok(!shell.includes("js/vendor/transformers.min.js"));
   assert.ok(!srcs.includes("js/vendor/transformers.min.js"));

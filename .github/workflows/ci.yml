@@ -34,6 +34,8 @@ jobs:
         working-directory: signaling-server
       - name: CSP is up to date
         run: node tools/csp-hash.js --check
+      - name: Bundles are up to date
+        run: node tools/build-bundles.js --check
       - name: Client tests
         run: node --test --test-concurrency=2 --test-timeout=180000 *.test.js
         working-directory: tests

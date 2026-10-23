@@ -12,7 +12,7 @@ test("кнопка «Мои устройства» открывает лист; 
   d.getElementById("settings-devices-btn").click();
   const sh = d.getElementById("devicelink-sheet"); assert.ok(sh);
   assert.ok([...sh.querySelectorAll("button")].some((b) => b.className.includes("btn-primary")), "есть кнопка привязки");
-  for (const f of ["devicecert.js", "devices.js"]) { assert.ok(fs.readFileSync(path.join(R, "sw.js"), "utf8").includes('"./js/' + f + '"')); assert.ok(fs.readFileSync(path.join(R, "index.html"), "utf8").includes('src="js/' + f + '"')); }
+  for (const f of ["devicecert.js", "devices.js"]) { const w = require("./src-helper").wiredInHtmlAndSw("js/" + f); assert.ok(w.sw, f); assert.ok(w.html, f); } // файлы внутри js/bundle.features.js
 });
 test("applyCompanion: проверяет пакет и кладёт ключ устройства вместо ключа личности", async () => {
   const a = createApp({ storage: { "ether.lang": "en" } }); await a.ready;

@@ -98,9 +98,9 @@ test("скины: названия есть в en и ru, файлы подклю
   const en = fs.readFileSync(path.join(ROOT, "js/lang/en.js"), "utf8"), ru = fs.readFileSync(path.join(ROOT, "js/lang/ru.js"), "utf8");
   for (const id of ["default", ...IDS]) { assert.ok(en.includes(`"skin.name.${id}"`), "en " + id); assert.ok(ru.includes(`"skin.name.${id}"`), "ru " + id); }
   const html = fs.readFileSync(path.join(ROOT, "index.html"), "utf8"), sw = fs.readFileSync(path.join(ROOT, "sw.js"), "utf8");
-  assert.match(html, /css\/skins\.css/); assert.match(html, /js\/skins\.js/);
+  assert.match(html, /css\/skins\.css/); assert.ok(require("./src-helper").wiredInHtmlAndSw("js/skins.js").html); // skins.js внутри js/bundle.features.js
   assert.match(html, /data-skin/, "ранний скрипт в <head> ставит скин до первой отрисовки");
-  assert.match(sw, /\.\/css\/skins\.css/); assert.match(sw, /\.\/js\/skins\.js/);
+  assert.match(sw, /\.\/css\/skins\.css/); assert.ok(require("./src-helper").wiredInHtmlAndSw("js/skins.js").sw);
 });
 
 test("скины: в списке 14 скинов, главная пятёрка по умолчанию, sakura зарегистрирован", async () => {
@@ -134,8 +134,9 @@ test("скины: файлы sakura на месте, подключены в ind
   for (const id of IDS) {
     assert.ok(fs.existsSync(path.join(ROOT, "css", "skins", id + ".css")), id + ".css");
     assert.ok(fs.existsSync(path.join(ROOT, "js", "skins", id + ".js")), id + ".js");
-    assert.ok(html.includes(`js/skins/${id}.js`), "index.html " + id);
-    assert.ok(sw.includes(`./js/skins/${id}.js`), "sw.js " + id);
+    const w = require("./src-helper").wiredInHtmlAndSw(`js/skins/${id}.js`); // скины внутри js/bundle.features.js
+    assert.ok(w.html, "index.html " + id);
+    assert.ok(w.sw, "sw.js " + id);
   }
   assert.equal(fs.readdirSync(path.join(ROOT, "css", "skins")).length, 14 - 1, "13 css-файлов скинов (у обычного вида своего нет)");
 });

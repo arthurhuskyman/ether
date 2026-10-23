@@ -23,7 +23,7 @@ test("кнопки на месте, ключи i18n есть в en и ru, скр
   const d = a.document;
   assert.ok(d.getElementById("settings-link-device-btn")); assert.ok(d.getElementById("onboarding-link-device-btn"));
   const R = path.join(__dirname, "..");
-  assert.ok(fs.readFileSync(path.join(R, "sw.js"), "utf8").includes('"./js/devicelink.js"'));
+  assert.ok(require("./src-helper").wiredInHtmlAndSw("js/devicelink.js").sw); // внутри js/bundle.features.js
   const keys = [...fs.readFileSync(path.join(R, "js/devicelink.js"), "utf8").matchAll(/tr\("(devlink\.[\w.-]*\w)"/g)].map((m) => m[1]);
   for (const l of ["en", "ru"]) { const src = fs.readFileSync(path.join(R, "js/lang", l + ".js"), "utf8"); for (const k of new Set(keys)) assert.ok(src.includes('"' + k + '"'), l + " нет " + k); }
 });

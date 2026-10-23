@@ -72,6 +72,7 @@ function createApp(opts = {}) {
   let html = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
   const srcs = [];
   html = html.replace(/<script src="([^"]+)"><\/script>/g, (m, s) => { srcs.push(s); return ""; });
+  if (opts.scripts) { srcs.length = 0; srcs.push(...opts.scripts); } // тест бандлов: подставить свой список скриптов (исходники вместо бандлов)
   srcs.unshift("js/lang/en.js", "js/lang/ru.js"); // словари подключаем сразу — динамическая подгрузка <script> в jsdom не выполняется
   const fetchLog = [];
   const dom = new JSDOM(html, {

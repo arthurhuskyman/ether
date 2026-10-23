@@ -9,15 +9,20 @@ const { appScriptPaths } = require("./src-helper");
 
 const onDisk = fs.readdirSync(path.join(ROOT, "js/app")).filter((f) => f.endsWith(".js")).sort().map((f) => "js/app/" + f);
 
-test("index.html подключает все js/app/*.js в порядке номеров", () => {
+test("манифест бандлов: bundle.app.js = discovery + все js/app/*.js в порядке номеров; index.html подключает бандл, а не куски", () => {
+  // Раньше тест сверял отдельные <script src="js/app/..."> в index.html; теперь они склеены в js/bundle.app.js,
+  // поэтому проверяем манифест tools/build-bundles.js (appScriptPaths()) и что в index.html стоит бандл.
   assert.ok(onDisk.length > 0);
   assert.deepStrictEqual(appScriptPaths(), onDisk);
+  const html = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
+  assert.ok(html.includes('<script src="js/bundle.app.js"></script>'));
+  assert.ok(!/<script src="js\/app\//.test(html));
 });
 
-test("sw.js SHELL_FILES содержит те же куски в том же порядке", () => {
+test("sw.js предзагружает бандл приложения, а не отдельные куски", () => {
   const sw = fs.readFileSync(path.join(ROOT, "sw.js"), "utf8");
-  const inSw = [...sw.matchAll(/"\.\/(js\/app\/[^"]+\.js)"/g)].map((m) => m[1]);
-  assert.deepStrictEqual(inSw, onDisk);
+  assert.ok(sw.includes('"./js/bundle.app.js"'));
+  assert.deepStrictEqual([...sw.matchAll(/"\.\/(js\/app\/[^"]+\.js)"/g)], []);
   assert.ok(!sw.includes('"./js/app.js"'));
 });
 

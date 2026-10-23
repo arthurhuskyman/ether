@@ -32,7 +32,7 @@ test("M1: activate удаляет только старые ether-shell-*; trans
 test("M3: фоновый cache.put не пишет SHELL_FILES, но пишет прочее (runtime)", async () => {
   const t = load([]);
   t.ctx.fetch = async () => { const r = new Response("x", { status: 200 }); Object.defineProperty(r, "type", { value: "basic" }); return r; };
-  await fire(t.handlers.fetch, { request: req("https://x.test/js/devices.js") });
+  await fire(t.handlers.fetch, { request: req("https://x.test/js/bundle.features.js") });
   await fire(t.handlers.fetch, { request: req("https://x.test/css/skins/neon.css") });
   await new Promise((r) => setTimeout(r, 20));
   assert.deepEqual(t.puts, ["https://x.test/css/skins/neon.css"]);
