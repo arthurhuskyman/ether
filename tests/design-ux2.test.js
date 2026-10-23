@@ -252,6 +252,6 @@ test("меню «+»: порядок Эмодзи, Камера, Файл, Оп�
 
 test("форма пузыря «скина» не стирает хвостик: маленький угол остаётся у своих и чужих пузырей", () => {
   const css = require("fs").readFileSync(require("path").join(__dirname, "..", "css", "styles.css"), "utf8");
-  assert.match(css, /#screen-chat\[data-skin-shape\] \.bubble-row\.mine \.bubble \{[^}]*border-bottom-right-radius: 4px/);
-  assert.match(css, /#screen-chat\[data-skin-shape\] \.bubble-row\.theirs \.bubble \{[^}]*border-bottom-left-radius: 4px/);
+  assert.match(css, /#screen-chat\[data-skin-shape\] \.bubble-row\.mine \.bubble \{[^}]*border-end-end-radius: 4px/);
+  assert.match(css, /#screen-chat\[data-skin-shape\] \.bubble-row\.theirs \.bubble \{[^}]*border-end-start-radius: 4px/);
 });

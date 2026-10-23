@@ -70,7 +70,7 @@ test("скины: сохранённый скин применяется при 
   const meta = () => a.run(`document.querySelector('meta[name="theme-color"]').getAttribute("content")`);
   assert.equal(meta(), "#07060f", "ночной неон");
   a.run(`applyTheme("light")`);
-  assert.equal(meta(), "#f1edfd", "дневной неон");
+  assert.equal(meta(), "#eaf4ff", "дневной неон (= --bg-0 скина)");
   const d = a.document;
   const cards = Array.from(d.querySelectorAll("#skin-grid .skin-card"));
   assert.equal(cards.length, 13, "обычный + 12 скинов");

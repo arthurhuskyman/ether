@@ -218,3 +218,6 @@ html[data-calm-mode="1"][data-skin="gothic"] .sheet-panel { animation: none !imp
   html[data-skin="gothic"] .sheet-panel { animation: none !important; }
 }
 html[data-skin="gothic"] #composer-menu-sheet .composer-recent.composer-menu-item { min-height: 76px; padding: 14px 40px; }
+/* RTL: стрельчатые пузыри зеркалятся вместе с расположением (свои слева, чужие справа) */
+html[dir="rtl"][data-skin="gothic"] .bubble-row.mine .bubble, html[dir="rtl"][data-skin="gothic"] .bubble-row.mine .bubble::before { clip-path: var(--gt-lancet-r); }
+html[dir="rtl"][data-skin="gothic"] .bubble-row.theirs .bubble, html[dir="rtl"][data-skin="gothic"] .bubble-row.theirs .bubble::before { clip-path: var(--gt-lancet); }

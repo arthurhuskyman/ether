@@ -1646,7 +1646,7 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
 }
 .call-btn:active svg { transform: scale(0.95); }
 .call-btn.hangup svg { background: var(--danger-bg); color: #fff; }
-.call-btn.accept svg { background: var(--success); color: #fff; }
+.call-btn.accept svg { background: var(--success-bg); color: #fff; }
 
 #call-mute-btn.active svg { background: rgba(255, 69, 58, 0.9); color: #fff; }
 /* Раньше выключенный микрофон рисовался белой "палкой" через ::after
@@ -1750,7 +1750,8 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
 #toast {
   position: fixed;
   left: 0; right: 0; margin-inline: auto; width: fit-content; /* центр не зависит от transform (скины анимируют transform) */
-  bottom: calc(clamp(0px, env(safe-area-inset-bottom, 0px), 40px) + 100px);
+  /* над таб-баром скина (--tabbar-h задаёт js/skins.js), в чате — над композером */
+  bottom: calc(max(var(--tabbar-h, 0px), 72px + clamp(0px, env(safe-area-inset-bottom, 0px), 40px)) + 28px);
   transform: translateY(20px);
   background: rgba(40, 40, 46, 0.92);
   color: #fff;

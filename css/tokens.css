@@ -129,6 +129,7 @@
   --success-text: var(--success);
   --warning-text: var(--warning);
   --danger-text: var(--danger);
+  --success-bg: #1a7f37;                 /* заливка под белую иконку/текст: 5.1:1 (чистый --success давал 1.8:1) */
   --danger-bg: #d9362c;                  /* заливка под белый текст: 4.65:1 (чистый --danger даёт 3.4:1) */
   --success-soft: rgba(76, 217, 100, 0.16);
   --danger-soft: rgba(255, 69, 58, 0.16);
