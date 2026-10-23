@@ -66,10 +66,14 @@ async function audit(page) {
     const vw = innerWidth, res = { overflowDoc: document.documentElement.scrollWidth > vw + 1, offscreen: [], clipped: [], small: [] };
     const vis = (e) => { const r = e.getBoundingClientRect(); const s = getComputedStyle(e); return r.width > 0 && r.height > 0 && s.visibility !== "hidden" && s.display !== "none" && !e.closest(".hidden,[hidden],[aria-hidden=true]"); };
     const id = (e) => e.id ? "#" + e.id : (e.tagName.toLowerCase() + (e.className && typeof e.className === "string" ? "." + e.className.trim().split(/\s+/).slice(0, 2).join(".") : ""));
+    // Намеренные горизонтальные прокрутки (ряд чипов и т.п.): их содержимое за краем экрана — не дефект.
+    const inHScroll = (e) => { for (let x = e.parentElement; x && x !== document.body; x = x.parentElement) { if (/auto|scroll/.test(getComputedStyle(x).overflowX) && x.scrollWidth > x.clientWidth + 1) return true; } return false; };
+    // Видимая часть рамки: пересечение с рамками предков, обрезающих содержимое (overflow не visible).
+    const visRect = (e) => { let r = e.getBoundingClientRect(); let L = r.left, T = r.top, R = r.right, B = r.bottom; for (let x = e.parentElement; x && x !== document.body && x !== document.documentElement; x = x.parentElement) { const cs = getComputedStyle(x); if (cs.overflowX === "visible" && cs.overflowY === "visible") continue; const q = x.getBoundingClientRect(); if (cs.overflowX !== "visible") { L = Math.max(L, q.left); R = Math.min(R, q.right); } if (cs.overflowY !== "visible") { T = Math.max(T, q.top); B = Math.min(B, q.bottom); } } return { left: L, top: T, right: R, bottom: B }; };
     for (const e of document.querySelectorAll("body *")) {
       if (!vis(e) || e.closest("svg,.deco,[class*=deco],.onboarding-glow,#fx-root,.egg")) continue;
       const r = e.getBoundingClientRect();
-      if ((r.right > vw + 2 || r.left < -2) && !e.closest("[class*=carousel],.swipe-actions,.chat-row-actions,.onboarding-slides,.tab-pane:not(.active)") && res.offscreen.length < 15) res.offscreen.push(id(e) + " " + Math.round(r.left) + ".." + Math.round(r.right));
+      if ((r.right > vw + 2 || r.left < -2) && !e.closest("[class*=carousel],.swipe-actions,.chat-row-actions,.onboarding-slides,.tab-pane:not(.active)") && !inHScroll(e) && !e.classList.contains("sr-only") && res.offscreen.length < 15) res.offscreen.push(id(e) + " " + Math.round(r.left) + ".." + Math.round(r.right));
       const s = getComputedStyle(e);
       if (e.children.length === 0 && e.textContent.trim() && !e.classList.contains("sr-only") && /hidden|clip/.test(s.overflowX) && e.scrollWidth > e.clientWidth + 2 && s.textOverflow !== "ellipsis" && res.clipped.length < 15) res.clipped.push(id(e) + " " + e.textContent.trim().slice(0, 24));
       if (/^(BUTTON|A|INPUT|SELECT)$/.test(e.tagName) || e.getAttribute("role") === "button") { const pa = getComputedStyle(e, '::after'); const lbl = e.tagName === "INPUT" && e.closest("label"); const lr = lbl && lbl.getBoundingClientRect(); const bigHit = (lr && lr.height >= 40) || pa.position === 'absolute' && pa.content !== 'none' && parseFloat(pa.width) >= 32 && parseFloat(pa.height) >= 32; if ((r.width < 32 || r.height < 32) && !bigHit && res.small.length < 15 && e.type !== "hidden" && e.type !== "checkbox" && e.type !== "radio") res.small.push(id(e) + " " + Math.round(r.width) + "x" + Math.round(r.height)); }
@@ -85,6 +89,7 @@ async function audit(page) {
     for (let i = 0; i < inter.length; i++) for (let j = i + 1; j < inter.length; j++) {
       const a = inter[i], b = inter[j]; if (a.contains(b) || b.contains(a) || res.overlap.length >= 15) continue;
       if (a.closest(".sheet,.anchored-menu") || b.closest(".sheet,.anchored-menu") || (bar(a) && inScreen(b) && !b.closest("#call-screen")) || (bar(b) && inScreen(a) && !a.closest("#call-screen"))) continue; // шторки и прокручиваемый контент под шапкой/таб-баром — не наложение
+      const ra = visRect(a), rb = visRect(b); if (!hit(ra, rb)) continue; // обрезанное прокруткой/overflow не считается
       if (hit(a.getBoundingClientRect(), b.getBoundingClientRect()) || hit(textRect(a), b.getBoundingClientRect()) || hit(a.getBoundingClientRect(), textRect(b)) || hit(textRect(a), textRect(b))) res.overlap.push(id(a) + " × " + id(b));
     }
     return res;

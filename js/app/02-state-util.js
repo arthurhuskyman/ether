@@ -800,10 +800,8 @@ function systemTextScale() {
 }
 function applyDynamicType() {
   const st = document.documentElement.style;
-  if ((Store.fontSize || "normal") !== "system") { st.removeProperty("--ui-scale"); for (const k in DT_BASE) st.removeProperty(k); return; }
-  const r = systemTextScale();
-  st.setProperty("--ui-scale", String(+r.toFixed(3)));
-  for (const k in DT_BASE) st.setProperty(k, Math.round(DT_BASE[k] * r * 10) / 10 + "px");
+  // «Размер шрифта» заменён настройкой «Размер текста» (js/textscale.js, масштаб корня html): здесь только сбрасываем старые переменные
+  st.removeProperty("--ui-scale"); for (const k in DT_BASE) st.removeProperty(k);
 }
 function applyChatAppearancePrefs() {
   const messages = $("#chat-messages");

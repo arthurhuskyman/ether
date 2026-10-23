@@ -82,8 +82,8 @@ test("Dynamic Type: «Как в системе» выставляет множи
     window.__o = r;
   })()`);
   const o = JSON.parse(JSON.stringify(a.window.__o));
-  assert.ok(Number(o.sys) >= 0.85 && Number(o.sys) <= 1.6); assert.match(o.fs, /px$/);
-  assert.equal(o.after, "|"); assert.ok(o.opt);
+  assert.equal(o.sys, ""); assert.equal(o.fs, ""); // старый «Размер шрифта» больше не масштабирует: это делает «Размер текста» (js/textscale.js)
+  assert.equal(o.after, "|"); assert.ok(!o.opt, "старый ряд убран из настроек");
   a.close();
 });
 

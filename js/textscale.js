@@ -9,6 +9,8 @@ const TextScale = (() => {
   const LIST = ["system", "small", "normal", "large", "xlarge"];
   const FACTOR = { small: 0.875, normal: 1, large: 1.15, xlarge: 1.35 };
   const root = () => (typeof document !== "undefined" ? document.documentElement : null);
+  // однократный перенос старой настройки «Размер шрифта» (ether.fontSize) в «Размер текста»
+  try { if (!localStorage.getItem(KEY)) { const o = localStorage.getItem("ether.fontSize"); const m = { compact: "small", large: "large" }; if (m[o]) localStorage.setItem(KEY, m[o]); } } catch (e) {}
   function get() { let v = "system"; try { v = localStorage.getItem(KEY) || "system"; } catch (e) {} return LIST.includes(v) ? v : "system"; }
   function sysScale() {
     try {
