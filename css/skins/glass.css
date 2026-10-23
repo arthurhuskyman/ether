@@ -50,7 +50,7 @@ html[data-skin="glass"] body { font-weight: 300; }
 html[data-skin="glass"] :is(h1, h2, h3, #nav-title, .chat-row-name, #chat-peer-name, .settings-category-header-title, .btn-primary, .btn-secondary, .tab-btn, .unread-badge, .avatar, .sheet-panel h2) { font-weight: 700; }
 html[data-skin="glass"] .tab-btn { font-weight: 300; letter-spacing: .03em; }
 html[data-skin="glass"] .tab-btn.active { font-weight: 700; }
-html[data-skin="glass"] .bubble { font-weight: 300; font-size: calc(var(--t-body) + 1px); }
+html[data-skin="glass"] .bubble { font-weight: 300; font-size: calc(var(--t-body) + 0.0625rem); }
 html[data-skin="glass"] .bubble-time { font-weight: 300; }
 html[data-skin="glass"] :is(.chat-row-sub, .muted, .fine) { font-weight: 300; }
 html[data-skin="glass"] #nav-title { letter-spacing: -.02em; }
@@ -147,7 +147,7 @@ html[data-calm-mode="1"][data-skin="glass"] .bubble-row .bubble { animation: non
 html[data-skin="glass"] .settings-row { border-radius: 24px; padding-left: max(18px, env(safe-area-inset-left)); padding-right: 18px; }
 html[data-skin="glass"] :is(.chip.active, .chip[aria-pressed="true"], .chip.selected, .chat-filter-chip.active) { background: radial-gradient(ellipse 70% 45% at 40% 14%, rgba(255, 255, 255, 0.7), transparent 70%), var(--sk-btn-bg); color: var(--sk-btn-ink); border: 1px solid rgba(255, 255, 255, 0.7); box-shadow: 0 6px 16px rgba(70, 70, 220, 0.35), inset 0 -6px 10px rgba(40, 20, 140, 0.2); }
 html[data-skin="glass"] .theme-seg { border-radius: 999px; }
-html[data-skin="glass"] .theme-seg button { font-weight: 300; font-size: 13px; padding-inline: 6px; white-space: nowrap; border-radius: 999px; }
+html[data-skin="glass"] .theme-seg button { font-weight: 300; font-size: 0.8125rem; padding-inline: 6px; white-space: nowrap; border-radius: 999px; }
 html[data-skin="glass"] .theme-seg button.active, html[data-skin="glass"] .theme-seg button[aria-checked="true"], html[data-skin="glass"] .theme-seg button[aria-pressed="true"] { font-weight: 700; color: #0b0f33; }
 html[data-skin="glass"] .chat-filter-chip { border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.6); background-image: var(--gl-hi); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6); }
 html[data-skin="glass"] #composer-menu-sheet .sheet-panel { position: absolute; background-image: none; border: none; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
@@ -166,6 +166,6 @@ html[data-skin="glass"][data-scheme="dark"] #composer-menu-sheet .composer-menu-
 /* Узкие экраны (320–380 px): плотные подписи в сегментах темы и карточках скинов, меньшие боковые отступы строк */
 @media (max-width: 380px) {
   html[data-skin="glass"] .settings-row { padding-inline: max(12px, env(safe-area-inset-left)) 12px; }
-  html[data-skin="glass"] .theme-seg button { font-size: 11px; padding-inline: 2px; }
+  html[data-skin="glass"] .theme-seg button { font-size: 0.6875rem; padding-inline: 2px; }
 }
 html[data-skin="glass"][data-scheme="dark"] .btn-secondary { color: #fff; background-color: rgba(18, 22, 74, 0.55); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4); }

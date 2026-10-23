@@ -61,22 +61,22 @@
   --z-skip: 100300;
 
   /* Интерфейсная типографика — модульная шкала 1.25 (подписи, кнопки, элементы управления) */
-  --fs-xs: 11px;
-  --fs-sm: 13px;
-  --fs-base: 15px;
-  --fs-md: 17px;
-  --fs-lg: 22px;
-  --fs-xl: 28px;
-  --fs-2xl: 34px;
+  --fs-xs: 0.6875rem;
+  --fs-sm: 0.8125rem;
+  --fs-base: 0.9375rem;
+  --fs-md: 1.0625rem;
+  --fs-lg: 1.375rem;
+  --fs-xl: 1.75rem;
+  --fs-2xl: 2.125rem;
 
   /* Типографика КОНТЕНТА — отдельная шкала, чтобы заголовок, тело и метаданные заметно различались.
      Множитель --ui-scale задаёт «Размер шрифта» из настроек. */
   --ui-scale: 1;
-  --t-display: clamp(calc(26px * var(--ui-scale)), 7.2vw, calc(34px * var(--ui-scale)));
-  --t-title: clamp(calc(19px * var(--ui-scale)), 5.4vw, calc(22px * var(--ui-scale)));
-  --t-body: clamp(calc(15px * var(--ui-scale)), 4.2vw, calc(17px * var(--ui-scale)));
-  --t-caption: clamp(calc(12px * var(--ui-scale)), 3.4vw, calc(14px * var(--ui-scale)));
-  --t-meta: clamp(calc(11px * var(--ui-scale)), 3.1vw, calc(12px * var(--ui-scale)));
+  --t-display: clamp(calc(1.625rem * var(--ui-scale)), 7.2vw, calc(2.125rem * var(--ui-scale)));
+  --t-title: clamp(calc(1.1875rem * var(--ui-scale)), 5.4vw, calc(1.375rem * var(--ui-scale)));
+  --t-body: clamp(calc(0.9375rem * var(--ui-scale)), 4.2vw, calc(1.0625rem * var(--ui-scale)));
+  --t-caption: clamp(calc(0.75rem * var(--ui-scale)), 3.4vw, calc(0.875rem * var(--ui-scale)));
+  --t-meta: clamp(calc(0.6875rem * var(--ui-scale)), 3.1vw, calc(0.75rem * var(--ui-scale)));
 
   --tr-tight: -0.025em;
   --tr-normal: 0;
@@ -197,13 +197,13 @@
    и пересчёт интерфейсной (она задана обычными px). */
 html[data-font-size="compact"] {
   --ui-scale: 0.94;
-  --fs-xs: 10px; --fs-sm: 12px; --fs-base: 14px; --fs-md: 15px;
-  --fs-lg: 20px; --fs-xl: 25px; --fs-2xl: 30px;
+  --fs-xs: 0.625rem; --fs-sm: 0.75rem; --fs-base: 0.875rem; --fs-md: 0.9375rem;
+  --fs-lg: 1.25rem; --fs-xl: 1.5625rem; --fs-2xl: 1.875rem;
 }
 html[data-font-size="large"] {
   --ui-scale: 1.13;
-  --fs-xs: 12px; --fs-sm: 15px; --fs-base: 17px; --fs-md: 19px;
-  --fs-lg: 25px; --fs-xl: 32px; --fs-2xl: 39px;
+  --fs-xs: 0.75rem; --fs-sm: 0.9375rem; --fs-base: 1.0625rem; --fs-md: 1.1875rem;
+  --fs-lg: 1.5625rem; --fs-xl: 2rem; --fs-2xl: 2.4375rem;
 }
 
 /* OLED: настоящий чёрный канвас/панели (экономия заряда на AMOLED), остальное как у тёмной. */

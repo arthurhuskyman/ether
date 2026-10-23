@@ -596,6 +596,12 @@ function wireSettingsScreen() {
       $$(".theme-seg button").forEach((b) => b.classList.toggle("active", b === btn));
     });
   });
+  // Размер текста (Dynamic Type): сегменты Системный / Мелкий / Обычный / Крупный / Очень крупный (js/textscale.js).
+  if (typeof TextScale !== "undefined") {
+    const syncTs = () => $$("#text-scale-seg button").forEach((b) => { const on = b.dataset.textScale === TextScale.get(); b.classList.toggle("active", on); b.setAttribute("aria-checked", String(on)); });
+    $$("#text-scale-seg button").forEach((b) => b.addEventListener("click", () => { TextScale.set(b.dataset.textScale); syncTs(); }));
+    syncTs();
+  }
   const readableToggle = $("#settings-readable-mode");
   if (readableToggle) { readableToggle.checked = Store.readableMode; readableToggle.addEventListener("change", () => { Store.readableMode = readableToggle.checked; applyChatAppearancePrefs(); }); }
   const calmModeToggle = $("#settings-calm-mode");

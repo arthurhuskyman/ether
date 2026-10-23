@@ -28,6 +28,7 @@ const SHELL_FILES = [
   "./js/app/13-settings-debug.js",
   "./js/app/14-backup-boot.js",
   "./js/skins.js",
+  "./js/textscale.js",
   "./js/skins/cartoon.js",
   "./js/skins/comic.js",
   "./js/skins/watercolor.js",

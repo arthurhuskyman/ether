@@ -1,5 +1,5 @@
 // Эмуляция устройств + автоматическая проверка вёрстки.
-// node tools/device-check.js <outdir> [--devices a,b] [--skins x,y] [--schemes light,dark] [--langs ru,ar] [--ui simple|full] [--shots] [--call [--kb]] [--extra]
+// node tools/device-check.js <outdir> [--devices a,b] [--skins x,y] [--schemes light,dark] [--langs ru,ar] [--ui simple|full] [--shots] [--call [--kb]] [--extra] [--scale 1.6]
 // --extra: редкие экраны — онбординг, шит сообщения, просмотр историй, групповой звонок, экран блокировки, видеозвонок.
 // Устройства — из playwright.devices (UA, вьюпорт, DPR, touch) + свои (se: 320x568, desktop: 1280x800).
 // Движок только Chromium (WebKit в песочнице недоступен): iOS-специфику (safe-area, vibrate, Now Playing) это не проверяет.
@@ -16,6 +16,7 @@ const DEV = { se: { viewport: { width: 320, height: 568 }, deviceScaleFactor: 2,
 const devNames = opt("devices", "se,iPhone 15,Pixel 7,Galaxy S24,iPad Pro 11,desktop").split(",");
 const skins = opt("skins", "default").split(","), schemes = opt("schemes", "light,dark").split(","), langs = opt("langs", "ru").split(",");
 const shots = args.includes("--shots"), callMode = args.includes("--call"), wantKb = args.includes("--kb"), extra = args.includes("--extra"), wantContrast = args.includes("--contrast");
+const SCALE = parseFloat(opt("scale", "1")) || 1; // Dynamic Type: множитель корневого размера шрифта (html font-size = 16px × scale)
 const SCREENS = ["chats", "chat", "menu", "settings", "appearance"];
 fs.mkdirSync(out, { recursive: true });
 
@@ -106,8 +107,8 @@ async function audit(page) {
     await ctx.addInitScript(([skin, scheme, lang, uiMode]) => { try { if (!localStorage.getItem("__init")) { localStorage.setItem("__init", "1"); localStorage.setItem("ether.skin", skin); localStorage.setItem("ether.theme", scheme); localStorage.setItem("ether.lang", lang); if (uiMode === "simple" || uiMode === "full") localStorage.setItem("ether.uiMode", uiMode); } } catch (e) {} }, [skin, scheme, lang, opt("ui", "")]);
     const page = await ctx.newPage(); const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
-    await page.goto(url, { waitUntil: "load" }); await page.waitForTimeout(1200);
-    const tag = `${dn.replace(/ /g, "_")}-${skin}-${scheme}-${lang}`;
+    await page.goto(url, { waitUntil: "load" }); if (SCALE !== 1) await page.addStyleTag({ content: `html{font-size:${16 * SCALE}px !important}` }); await page.waitForTimeout(1200);
+    const tag = `${dn.replace(/ /g, "_")}-${skin}-${scheme}-${lang}` + (SCALE !== 1 ? `-x${Math.round(SCALE * 100)}` : "");
     const rec = async (name) => {
       await page.waitForTimeout(350);
       const a = await audit(page).catch((e) => ({ error: e.message }));

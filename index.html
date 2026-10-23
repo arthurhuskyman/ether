@@ -65,6 +65,7 @@
 <link rel="stylesheet" href="css/tokens.css" />
 <link rel="stylesheet" href="css/styles.css" />
 <link rel="stylesheet" href="css/skins.css" />
+<script src="js/textscale.js"></script>
 </head>
 <body>
 <a class="skip-link" href="#content" data-i18n="a11y.skip">Skip to content</a>
@@ -499,6 +500,16 @@
             <button type="button" data-theme="dark" data-i18n="settings.theme.dark">Dark</button>
             <button type="button" data-theme="oled" data-i18n="settings.theme.oled">OLED</button>
             <button type="button" data-theme="auto" class="active" data-i18n="settings.theme.auto">System</button>
+          </div>
+        </div>
+        <div class="settings-row column text-scale-row">
+          <span data-i18n="settings.textScale">Text size</span>
+          <div class="text-seg" id="text-scale-seg" role="radiogroup">
+            <button type="button" role="radio" data-text-scale="system" class="active" data-i18n="settings.textScale.system">System</button>
+            <button type="button" role="radio" data-text-scale="small" data-i18n="settings.textScale.small">Small</button>
+            <button type="button" role="radio" data-text-scale="normal" data-i18n="settings.textScale.normal">Regular</button>
+            <button type="button" role="radio" data-text-scale="large" data-i18n="settings.textScale.large">Large</button>
+            <button type="button" role="radio" data-text-scale="xlarge" data-i18n="settings.textScale.xlarge">Extra large</button>
           </div>
         </div>
         <div class="settings-row column skin-row">
