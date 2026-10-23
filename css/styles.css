@@ -2881,3 +2881,9 @@ html[data-ui="simple"] #first-run-card .fs-n { display: none; }
 /* Онбординг: шаг «Пригласить друга» */
 .onboarding-invite-actions { display: flex; flex-direction: column; gap: 8px; width: 100%; margin: 8px 0; }
 .onboarding-next-hint { margin: 6px 0 12px; text-align: center; }
+/* V.78 stage4 */
+.thread-chip.has-unread { border-color: var(--accent); }
+.thread-chip .thread-unread { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--accent); color: var(--accent-ink, #fff); font-size: 11px; font-weight: 600; line-height: 1; }
+#thread-sheet { z-index: var(--z-sheet); }
+.summary-periods { flex-wrap: wrap; }
+#summary-share.hidden { display: none; }
