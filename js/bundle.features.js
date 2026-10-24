@@ -1307,6 +1307,20 @@ const DeviceCheck = (() => {
     reportHint: "Отчёт содержит версию, тип устройства и технический журнал. Текстов сообщений, имён, ключей и токенов в нём нет — проверьте и отправьте сами.",
     qSound: "Вы услышали короткий тон?", qVib: "Телефон завибрировал?", qNow: "На экране блокировки/в шторке появилась карточка «Мессенджер — тест»?",
     qKb: "Нажмите в поле ниже: появилась клавиатура?", qWhisper: "Проверить распознавание речи? Скачается модель (около 80 МБ) — лучше по Wi-Fi.", qPush: "Запросить разрешение на уведомления?",
+    notifBtn: "Проверка уведомлений",
+    nc: {
+      title: "Проверка уведомлений", intro: "Проверим, дойдёт ли звонок, когда приложение закрыто.", refresh: "Проверить снова", allow: "Разрешить уведомления", testBtn: "Позвонить мне (тест)", testAria: "Отправить тестовый звонок на это устройство",
+      testHint: "Нажмите и сразу заблокируйте экран или откройте другое приложение: должно прийти уведомление «звонит».", testing: "Ждём тестовый звонок… (до 15 секунд)", testOk: "Тестовый звонок дошёл за {n} с.", testFail: "Тестовый звонок не пришёл за 15 секунд. Посмотрите подсказки ниже.", testNoServer: "Нет связи с сервером — проверьте интернет и повторите.",
+      close: "Закрыть", closeAria: "Закрыть проверку уведомлений", tipsTitle: "Если уведомления не приходят",
+      perm: "Разрешение на уведомления", permGranted: "разрешено", permDenied: "запрещено: включите в настройках телефона (Настройки → Уведомления → The Messenger)", permDefault: "ещё не запрошено", permNone: "этот браузер не умеет показывать уведомления",
+      inst: "Установлено на экран «Домой»", instYes: "да", instNo: "нет: на iPhone уведомления приходят только в установленном приложении (Поделиться → На экран «Домой»)",
+      sw: "Фоновая служба приложения", swYes: "работает", swNo: "не запущена: перезагрузите приложение",
+      sub: "Подписка на уведомления", subYes: "есть", subNo: "нет: включите уведомления в настройках приложения", subAge: "создана {a} назад", subAgeUnknown: "возраст неизвестен",
+      srv: "Сервер знает о вашем устройстве", srvYes: "да", srvNo: "не подтверждено: подождите несколько секунд после запуска и проверьте снова",
+      last: "Последнее уведомление получено", lastNone: "ещё ни одного", lastAgo: "{a} назад",
+      dMin: "мин.", dHour: "ч.", dDay: "дн.", dNow: "только что",
+      tips: ["Добавьте приложение на экран «Домой»: Поделиться → На экран «Домой» — и открывайте его оттуда.", "Выключите «Не беспокоить» и «Фокусирование» или добавьте The Messenger в разрешённые приложения.", "Настройки → Уведомления → The Messenger: включите «Допуск уведомлений», «Звуки» и «Экран блокировки», стиль баннеров — «Постоянные».", "Проверьте, что телефон не в режиме без звука и громкость звонка не на нуле.", "Если ничего не помогло: удалите приложение с экрана «Домой», установите заново и снова разрешите уведомления."],
+    },
     s: { env: "Устройство и версия", audio: "Звук", vibration: "Вибрация", mic: "Микрофон и запись", media: "Now Playing (MediaSession)", whisper: "Whisper (локальный ИИ)", push: "Push-уведомления", viewport: "Экран и клавиатура", storage: "Хранилище" },
   };
   const EN = {
@@ -1316,6 +1330,20 @@ const DeviceCheck = (() => {
     reportHint: "The report has the version, device type and a technical log. It has no message texts, names, keys or tokens - review it and send it yourself.",
     qSound: "Did you hear a short tone?", qVib: "Did the phone vibrate?", qNow: "Does a card \"The Messenger - test\" show on the lock screen / notification shade?",
     qKb: "Tap the field below: did the keyboard appear?", qWhisper: "Test speech recognition? This downloads a model (about 80 MB) - better on Wi-Fi.", qPush: "Ask for notification permission?",
+    notifBtn: "Notification check",
+    nc: {
+      title: "Notification check", intro: "We will check whether a call reaches you while the app is closed.", refresh: "Check again", allow: "Allow notifications", testBtn: "Call me (test)", testAria: "Send a test call to this device",
+      testHint: "Tap it, then lock the screen or open another app: a \"calling\" notification should arrive.", testing: "Waiting for the test call... (up to 15 seconds)", testOk: "The test call arrived in {n} s.", testFail: "The test call did not arrive within 15 seconds. See the tips below.", testNoServer: "No connection to the server - check the internet and try again.",
+      close: "Close", closeAria: "Close the notification check", tipsTitle: "If notifications do not arrive",
+      perm: "Notification permission", permGranted: "allowed", permDenied: "blocked: allow it in the phone settings (Settings > Notifications > The Messenger)", permDefault: "not asked yet", permNone: "this browser cannot show notifications",
+      inst: "Installed on the Home Screen", instYes: "yes", instNo: "no: on iPhone, notifications only arrive in the installed app (Share > Add to Home Screen)",
+      sw: "App background service", swYes: "running", swNo: "not running: reload the app",
+      sub: "Notification subscription", subYes: "present", subNo: "none: turn on notifications in the app settings", subAge: "created {a} ago", subAgeUnknown: "age unknown",
+      srv: "Server knows your device", srvYes: "yes", srvNo: "not confirmed: wait a few seconds after launch and check again",
+      last: "Last notification received", lastNone: "none yet", lastAgo: "{a} ago",
+      dMin: "min", dHour: "h", dDay: "d", dNow: "just now",
+      tips: ["Add the app to the Home Screen: Share > Add to Home Screen - and open it from there.", "Turn off Do Not Disturb and Focus, or add The Messenger to the allowed apps.", "Settings > Notifications > The Messenger: turn on Allow Notifications, Sounds and Lock Screen, set the banner style to Persistent.", "Make sure the phone is not on silent and the ringer volume is not zero.", "If nothing helps: remove the app from the Home Screen, install it again and allow notifications again."],
+    },
     s: { env: "Device and version", audio: "Sound", vibration: "Vibration", mic: "Microphone and recording", media: "Now Playing (MediaSession)", whisper: "Whisper (local AI)", push: "Push notifications", viewport: "Screen and keyboard", storage: "Storage" },
   };
   const L = () => { let l = "en"; try { l = (document.documentElement.getAttribute("lang") || "en").slice(0, 2); } catch (e) {} return l === "ru" ? RU : EN; };
@@ -1579,9 +1607,105 @@ const DeviceCheck = (() => {
     c.type = s.type = x.type = "button"; c.addEventListener("click", () => copy(text)); s.addEventListener("click", () => shareOrCopy(text)); x.addEventListener("click", close);
     actions.append(c, s); panel.append(out, actions, x);
   }
+  // ---------- V.79: «Проверка уведомлений» (настройки → уведомления): простыми словами, без жаргона ----------
+  let ringWaiter = null;
+  function onRing(d) { if (ringWaiter) ringWaiter(d || {}); }
+  function isStandalone() { try { return (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true; } catch (e) { return false; } }
+  function ageText(ms, nc) {
+    const m = Math.floor(ms / 60000);
+    if (m < 1) return nc.dNow;
+    if (m < 60) return m + " " + nc.dMin;
+    if (m < 60 * 24) return Math.floor(m / 60) + " " + nc.dHour;
+    return Math.floor(m / 1440) + " " + nc.dDay;
+  }
+  async function readLastPush() {
+    try { const c = await caches.open("ether-meta"); const r = await c.match("./__lastpush.json"); return r ? await r.json() : null; } catch (e) { return null; }
+  }
+  // Состояние для экрана и тестов: [{ id, ok: true|false|null, label, detail }]
+  async function notifState() {
+    const nc = L().nc, rows = [];
+    const hasN = typeof Notification !== "undefined";
+    const perm = hasN ? Notification.permission : "none";
+    rows.push({ id: "perm", ok: perm === "granted" ? true : perm === "default" ? null : false, label: nc.perm, detail: perm === "granted" ? nc.permGranted : perm === "denied" ? nc.permDenied : perm === "default" ? nc.permDefault : nc.permNone });
+    const st = isStandalone();
+    rows.push({ id: "inst", ok: st, label: nc.inst, detail: st ? nc.instYes : nc.instNo });
+    let reg = null, sub = null;
+    try { reg = await withTimeout(navigator.serviceWorker.getRegistration(), 3000, "sw"); } catch (e) {}
+    rows.push({ id: "sw", ok: !!(reg && reg.active), label: nc.sw, detail: reg && reg.active ? nc.swYes : nc.swNo });
+    try { if (reg && reg.pushManager) sub = await withTimeout(reg.pushManager.getSubscription(), 3000, "sub"); } catch (e) {}
+    let age = ""; try { const at = parseInt(localStorage.getItem("ether.pushSubAt") || "0", 10); age = sub && at ? nc.subAge.replace("{a}", ageText(Date.now() - at, nc)) : nc.subAgeUnknown; } catch (e) { age = nc.subAgeUnknown; }
+    rows.push({ id: "sub", ok: !!sub, label: nc.sub, detail: sub ? nc.subYes + ", " + age : nc.subNo });
+    let srvOk = false; try { srvOk = typeof state !== "undefined" && !!state._pushServerOk && !!sub; } catch (e) {}
+    rows.push({ id: "srv", ok: srvOk, label: nc.srv, detail: srvOk ? nc.srvYes : nc.srvNo });
+    const last = await readLastPush();
+    rows.push({ id: "last", ok: last && last.ts ? true : null, label: nc.last, detail: last && last.ts ? nc.lastAgo.replace("{a}", ageText(Date.now() - last.ts, nc)) : nc.lastNone });
+    return rows;
+  }
+  // Тест: просим сервер прислать push-звонок на это устройство и ждём 15 с (сообщение от SW или свежая отметка в кэше)
+  function runRingTest(ms) {
+    const sig = typeof signaling !== "undefined" ? signaling : null;
+    const t0 = Date.now(), limit = ms || 15000;
+    if (!sig || !sig.connected || !sig.pushTestRing) return Promise.resolve({ ok: false, reason: "noserver" });
+    return new Promise((resolve) => {
+      let done = false, poll = null;
+      const fin = (ok) => { if (done) return; done = true; clearInterval(poll); clearTimeout(tm); ringWaiter = null; resolve({ ok, sec: Math.max(1, Math.round((Date.now() - t0) / 1000)) }); };
+      ringWaiter = () => fin(true);
+      poll = setInterval(async () => { const l = await readLastPush(); if (l && l.ts >= t0 && (l.t === "call-ring")) fin(true); }, 1000);
+      const tm = setTimeout(() => fin(false), limit);
+      if (!sig.pushTestRing()) fin(false);
+    });
+  }
+  function openNotifCheck() {
+    const t = L(), nc = t.nc; const { panel, close } = openSheet(nc.title, nc.intro);
+    panel.setAttribute("role", "dialog"); panel.setAttribute("aria-label", nc.title);
+    const list = el("ul", "notifcheck-list"), res = el("p", "fine", ""), actions = el("div", "row-actions"), tipsBox = el("div", "");
+    res.setAttribute("role", "status"); res.setAttribute("aria-live", "polite");
+    const testBtn = el("button", "btn-primary", nc.testBtn); testBtn.type = "button"; testBtn.setAttribute("aria-label", nc.testAria);
+    const refreshBtn = el("button", "btn-secondary", nc.refresh); refreshBtn.type = "button"; refreshBtn.setAttribute("aria-label", nc.refresh);
+    const allowBtn = el("button", "btn-secondary", nc.allow); allowBtn.type = "button"; allowBtn.setAttribute("aria-label", nc.allow); allowBtn.classList.add("hidden");
+    const closeBtn = el("button", "btn-tertiary", nc.close); closeBtn.type = "button"; closeBtn.setAttribute("aria-label", nc.closeAria); closeBtn.addEventListener("click", close);
+    const hint = el("p", "fine muted", nc.testHint);
+    actions.append(testBtn, refreshBtn, allowBtn);
+    panel.append(list, hint, actions, res, tipsBox, closeBtn);
+    const renderTips = () => {
+      tipsBox.textContent = "";
+      tipsBox.appendChild(el("h3", "", nc.tipsTitle));
+      const ul = el("ul", "notifcheck-tips"); for (const tip of nc.tips) ul.appendChild(el("li", "", tip)); tipsBox.appendChild(ul);
+    };
+    const refresh = async () => {
+      const rows = await notifState();
+      list.textContent = "";
+      for (const r of rows) {
+        const li = el("li", "");
+        const mark = el("span", "nc-state " + (r.ok === true ? "nc-ok" : r.ok === false ? "nc-bad" : ""), r.ok === true ? "✓" : r.ok === false ? "✗" : "–");
+        mark.setAttribute("aria-hidden", "true");
+        const txt = el("span", "", r.label + ": " + r.detail);
+        li.append(mark, txt); list.appendChild(li);
+      }
+      const perm = rows.find((r) => r.id === "perm");
+      allowBtn.classList.toggle("hidden", !(perm && perm.ok === null && typeof Notification !== "undefined"));
+      const anyBad = rows.some((r) => r.ok === false);
+      tipsBox.classList.toggle("hidden", !anyBad && !(res.dataset.failed === "1"));
+      return rows;
+    };
+    renderTips();
+    refreshBtn.addEventListener("click", refresh);
+    allowBtn.addEventListener("click", async () => { try { await Notification.requestPermission(); } catch (e) {} try { if (typeof ensurePushSubscription === "function") await ensurePushSubscription(); } catch (e) {} refresh(); });
+    testBtn.addEventListener("click", async () => {
+      testBtn.disabled = true; res.dataset.failed = ""; res.textContent = nc.testing;
+      const r = await runRingTest(15000);
+      testBtn.disabled = false;
+      if (r.ok) res.textContent = nc.testOk.replace("{n}", String(r.sec));
+      else { res.textContent = r.reason === "noserver" ? nc.testNoServer : nc.testFail; res.dataset.failed = "1"; }
+      refresh();
+    });
+    refresh();
+    return { refresh, close };
+  }
+  try { if (typeof window !== "undefined") window.notifCheckOnRing = onRing; } catch (e) {}
   function wire() {
-    const a = document.getElementById("devicecheck-btn"), b = document.getElementById("report-problem-btn");
-    const pairs = [[a, "checkBtn", openCheck], [b, "reportBtn", openReport]];
+    const a = document.getElementById("devicecheck-btn"), b = document.getElementById("report-problem-btn"), n = document.getElementById("notifcheck-btn");
+    const pairs = [[a, "checkBtn", openCheck], [b, "reportBtn", openReport], [n, "notifBtn", openNotifCheck]];
     const relabel = () => { for (const [btn, key] of pairs) { const span = btn && btn.querySelector("span"); if (span) span.textContent = L()[key]; } };
     for (const [btn, , fn] of pairs) { if (!btn || btn.dataset.dcWired) continue; btn.dataset.dcWired = "1"; btn.addEventListener("click", fn); }
     relabel();
@@ -1591,7 +1715,7 @@ const DeviceCheck = (() => {
   if (typeof document !== "undefined") {
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", wire); else wire();
   }
-  return { STEPS, run, buildReport, buildErrorReport, sanitize, wire, openCheck, openReport };
+  return { STEPS, run, buildReport, buildErrorReport, sanitize, wire, openCheck, openReport, openNotifCheck, notifState, runRingTest, onRing };
 })();
 ;
 /* ==== js/devicecert.js ==== */

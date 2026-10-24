@@ -186,6 +186,13 @@ self.addEventListener("message", (event) => {
     event.waitUntil(caches.open("ether-meta").then((c) => c.put("./__blocked.json", new Response(JSON.stringify(ids), { headers: { "Content-Type": "application/json" } }))).catch(() => {}));
     return;
   }
+  // V.79: настройки для push-звонков (HTTP-адрес сервера для push-ack и локализованные строки) — SW не видит localStorage/i18n
+  if (data.type === "ring-config") {
+    const cfg = { httpBase: typeof data.httpBase === "string" ? data.httpBase.slice(0, 300) : "", strings: {} };
+    if (data.strings && typeof data.strings === "object") for (const k of ["ringTitle", "ringBody", "missed", "ended"]) if (typeof data.strings[k] === "string") cfg.strings[k] = data.strings[k].slice(0, 120);
+    event.waitUntil(metaPut("./__ringcfg.json", cfg));
+    return;
+  }
   if (data.type !== "show-notification") return;
   const title = String(data.title || "Мессенджер").slice(0, 60);
   const body = String(data.body || "").slice(0, 200);
@@ -209,11 +216,88 @@ self.addEventListener("message", (event) => {
   }));
 });
 
+// ---------- V.79: серия «гудков» web-push (docs/CALL-RELIABILITY-PROTOCOL.md, A/B/C) ----------
+const SIGNALING_FALLBACK_HTTP = "https://ether-1-baqy.onrender.com";
+const RING_DEFAULT_STRINGS = { ringTitle: "📞 {name} звонит", ringBody: "Нажмите, чтобы ответить", missed: "Пропущенный звонок от {name}", ended: "Звонок завершён" };
+function metaGet(name) { return caches.open("ether-meta").then((c) => c.match(name)).then((r) => (r ? r.json() : null)).catch(() => null); }
+function metaPut(name, obj) { return caches.open("ether-meta").then((c) => c.put(name, new Response(JSON.stringify(obj), { headers: { "Content-Type": "application/json" } }))).catch(() => {}); }
+function ringFill(tpl, name) { return String(tpl).replace("{name}", name); }
+function ringDeepLink(callId, from) {
+  let base = "/";
+  try { base = new URL(self.registration.scope).pathname; } catch (e) {}
+  return base + "#answer=" + encodeURIComponent(callId) + "&from=" + encodeURIComponent(from);
+}
+function hasVisibleWindow() {
+  return self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => list.some((c) => c.visibilityState === "visible")).catch(() => false);
+}
+function closeCallNotifications(callId) {
+  return self.registration.getNotifications().then((list) => {
+    const gone = [];
+    for (const n of list) {
+      const d = n.data || {};
+      if (d.callId === callId || n.tag === "ring-" + callId) { gone.push({ name: d.name || "", from: d.from || "", ring: n.tag === "ring-" + callId || d.ring === true }); try { n.close(); } catch (e) {} }
+    }
+    return gone;
+  }).catch(() => []);
+}
+function handleCallPush(raw) {
+  const callId = String(raw.callId || "").slice(0, 80);
+  if (!callId) return Promise.resolve();
+  return Promise.all([metaGet("./__ringcfg.json"), metaGet("./__blocked.json"), metaPut("./__lastpush.json", { ts: Date.now(), t: raw.t, callId })]).then(([cfg, blocked]) => {
+    cfg = cfg || {};
+    const str = Object.assign({}, RING_DEFAULT_STRINGS, cfg.strings || {});
+    const from = String(raw.from || "").slice(0, 200);
+    if (from && Array.isArray(blocked) && blocked.indexOf(from) >= 0) return null; // заблокирован: ни звонка, ни пропущенного
+    const nameOf = (n) => String(n || raw.name || "").slice(0, 60) || (from ? from.slice(0, 8) : "?");
+    if (raw.t === "call-ring") {
+      // push-ack — fire-and-forget (не блокирует показ), keepalive переживает закрытие SW
+      let ack = Promise.resolve();
+      if (typeof raw.ackToken === "string" && raw.ackToken) {
+        const base = String(cfg.httpBase || SIGNALING_FALLBACK_HTTP).replace(/\/+$/, "");
+        try { ack = Promise.resolve(fetch(base + "/push-ack", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callId, seq: raw.seq, ackToken: raw.ackToken }), keepalive: true })).catch(() => {}); } catch (e) { ack = Promise.resolve(); }
+      }
+      const name = nameOf();
+      const show = closeCallNotifications(callId).then(() => hasVisibleWindow()).then((visible) => {
+        if (visible) return; // приложение открыто и видно: звонок придёт по сокету
+        return self.registration.showNotification(ringFill(str.ringTitle, name), {
+          body: str.ringBody, tag: "ring-" + callId, badge: "./icons/icon-192.png", icon: "./icons/icon-192.png",
+          data: { callId, from, name, kind: "call", ring: true, video: !!raw.video, url: ringDeepLink(callId, from), ts: Date.now() },
+          vibrate: [300, 150, 300, 150, 300], requireInteraction: true,
+        });
+      });
+      // открытым окнам сообщаем, что гудок дошёл (экран «Проверка уведомлений» ждёт именно этого)
+      const notify = self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => { for (const c of list) { try { c.postMessage({ type: "ring-received", callId, seq: raw.seq, ts: Date.now() }); } catch (e) {} } }).catch(() => {});
+      return Promise.all([show, ack, notify]);
+    }
+    if (raw.t === "call-cancel") {
+      const reason = String(raw.reason || "");
+      return closeCallNotifications(callId).then((gone) => hasVisibleWindow().then((visible) => {
+        if (visible) return;
+        const info = gone.find((g) => g.name) || gone[0] || {};
+        const name = nameOf(info.name);
+        const fromId = from || info.from || "";
+        if (reason === "cancelled" || reason === "timeout") {
+          return self.registration.showNotification(ringFill(str.missed, name), {
+            tag: "missed-" + callId, badge: "./icons/icon-192.png", icon: "./icons/icon-192.png",
+            data: { callId, contactId: fromId || null, from: fromId, name, kind: "missed-call" },
+          });
+        }
+        return self.registration.showNotification(str.ended, {
+          tag: "ended-" + callId, badge: "./icons/icon-192.png", icon: "./icons/icon-192.png", silent: true,
+          data: { callId, contactId: null, from: fromId, name, kind: "call-ended" },
+        });
+      }));
+    }
+  });
+}
+
 self.addEventListener("push", (event) => {
   let raw = null;
   if (event.data) {
     try { raw = event.data.json(); } catch (e) { raw = null; }
   }
+  if (raw && (raw.t === "call-ring" || raw.t === "call-cancel")) { event.waitUntil(handleCallPush(raw)); return; }
+  event.waitUntil(metaPut("./__lastpush.json", { ts: Date.now(), t: "push" })); // для экрана «Проверка уведомлений»
   let n = raw && raw.notification && typeof raw.notification === "object"
     ? raw.notification
     : (raw && typeof raw === "object" ? raw : null);
@@ -263,6 +347,19 @@ self.addEventListener("notificationclick", (event) => {
   const contactId = data.contactId;
   const kind = data.kind || "message";
   const navigateUrl = data.navigate || "./";
+  // V.79: уведомление-«гудок»: окно есть — фокус + сообщение с глубокой ссылкой, нет — открываем /#answer=<callId>&from=<id>
+  if (data.ring === true && data.callId) {
+    event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+      for (const c of list) {
+        if ("focus" in c) {
+          c.postMessage({ type: "answer-call", callId: data.callId, from: data.from || "", name: data.name || "", url: data.url || "", video: !!data.video });
+          return c.focus();
+        }
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(data.url || "./");
+    }));
+    return;
+  }
   // P2.37 (урезанный вариант) — клик по самой кнопке-действию "Ответить"
   // (event.action === "reply") помечаем флагом focusInput, который
   // app.js использует, чтобы поставить курсор сразу в поле ввода после

@@ -2904,3 +2904,26 @@ html[data-ui="simple"] #first-run-card .fs-n { display: none; }
 #thread-sheet { z-index: var(--z-sheet); }
 .summary-periods { flex-wrap: wrap; }
 #summary-share.hidden { display: none; }
+/* V.79 calls */
+#answer-screen, #guest-call { position: fixed; inset: 0; z-index: var(--z-lock); display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--bg-0); }
+#answer-screen .avatar-lg { margin: 0 auto 14px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; }
+.answer-actions { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 20px; }
+.answer-actions .btn-primary, .answer-actions .btn-secondary, .answer-actions .btn-tertiary { flex: 1 1 120px; min-height: 48px; }
+.answer-actions .answer-accept { background: #1fa855; border-color: #1fa855; color: #fff; }
+.answer-actions .answer-decline { color: #d93025; }
+#guest-call .rename-input { width: 100%; margin: 12px 0; }
+.guest-call-sas { font-size: 2rem; letter-spacing: 6px; margin: 10px 0; }
+.call-noanswer { display: flex; flex-direction: column; gap: 8px; width: min(92%, 320px); margin-top: 12px; }
+.call-noanswer.hidden { display: none; }
+.call-noanswer .btn-secondary { min-height: 44px; }
+.linkcall-code { font-size: 1.6rem; font-weight: 700; letter-spacing: 4px; text-align: center; margin: 8px 0; }
+.join-code-btn { margin-top: 8px; }
+html.guest-call #tab-bar, html.guest-call #call-minimize-btn, html.guest-call #mini-call-bar { display: none !important; }
+html.guest-call #content { display: none !important; }
+.notifcheck-list { list-style: none; margin: 8px 0; padding: 0; }
+.notifcheck-list li { padding: 8px 0; border-bottom: 1px solid var(--line-1); display: flex; gap: 8px; align-items: baseline; }
+.notifcheck-list .nc-state { font-weight: 700; min-width: 1.4em; }
+.notifcheck-list .nc-ok { color: #1fa855; }
+.notifcheck-list .nc-bad { color: #d93025; }
+.notifcheck-tips { padding-left: 18px; margin: 8px 0; }
+@media (min-width: 700px) { #answer-screen, #guest-call { max-width: 420px; max-height: min(860px, 94dvh); margin: auto; left: 0; right: 0; top: 0; bottom: 0; } }

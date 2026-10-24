@@ -15,7 +15,7 @@ function loadCallLog() {
   // обновления. Считаем их уже просмотренными.
   for (const r of state.callLog) if (r.seen === undefined) r.seen = true;
 }
-function persistCallLog() { try { Store.callLogJson = JSON.stringify(state.callLog.slice(-MAX_CALL_LOG)); } catch (e) { handlePersistError(e, "callLog"); } }
+function persistCallLog() { if (state.guestMode) return; /* гость link-call: ничего не сохраняем */ try { Store.callLogJson = JSON.stringify(state.callLog.slice(-MAX_CALL_LOG)); } catch (e) { handlePersistError(e, "callLog"); } }
 function startCallRecord(contactId, direction) {
   const c = state.contacts.get(contactId);
   state.currentCallRecord = {
@@ -197,6 +197,7 @@ async function beginCall(id, withVideo) {
 
   openCallScreen(id, "calling");
   playDialingSound();
+  startCallEscalation(id); // через 20 с без ответа — «Позвать другим способом» / «Оставить голосовое» / «Позвонить ещё раз»
 
   // ============================================================
   // КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ.
@@ -271,7 +272,7 @@ async function beginCall(id, withVideo) {
   const invite = { t: "call-invite", n: Store.name, x: crypto.randomUUID() };
   signaling.signal(id, invite);
   const phaseEl = $("#call-phase");
-  if (phaseEl) phaseEl.textContent = offline ? T("call.viaPush") : T("call.calling");
+  if (phaseEl) phaseEl.textContent = state._peerRinging ? T("call.peerRinging") : T("call.dialing");
 
   clearPendingCall();
   pendingCall.contactId = id;
@@ -350,7 +351,7 @@ function openCallScreen(id, phase, opts) {
   const cs = $("#call-screen"); if (cs) cs.classList.remove("hidden");
   const pn = $("#call-peer-name"); if (pn) pn.textContent = (c && c.name) || T("sys.someone");
   const pa = $("#call-peer-avatar"); if (pa) { pa.style.background = avatarGradient((c && c.name) || "?"); pa.textContent = initials((c && c.name) || "?"); }
-  const cp = $("#call-phase"); if (cp) cp.textContent = phase === "calling" ? T("call.calling") : phase === "ringing" ? T("call.incoming") : T("call.active");
+  const cp = $("#call-phase"); if (cp) cp.textContent = phase === "calling" ? T("call.dialing") : phase === "ringing" ? T("call.incoming") : T("call.active");
   const incoming = phase === "ringing";
   const ci = $("#call-controls-incoming"); if (ci) ci.classList.toggle("hidden", !incoming);
   const ca = $("#call-controls-active"); if (ca) ca.classList.toggle("hidden", incoming);
@@ -383,6 +384,7 @@ function openCallScreen(id, phase, opts) {
 }
 
 function setCallPhaseActive() {
+  clearCallEscalation();
   state.callPhase = "active";
   state._callUserAccepted = true;
   clearPendingCall();
@@ -935,6 +937,9 @@ async function offerVoicemail(contactId) {
   setTimeout(() => { try { startVoiceRecording(); } catch (e) {} }, 150);
 }
 function closeCallScreen(reason, opts) {
+  clearCallEscalation();
+  state._peerRinging = false;
+  const lcId = isLinkCallId(state.callId) ? state.callId : null; // link-call: виртуального собеседника убираем после завершения
   const rec = state.currentCallRecord;
   if (rec && opts && opts.noAnswer) rec.noAnswer = true; // «не ответили» — отдельный случай: в чате «Нет ответа» и предложение голосовой почты
   const voicemailFor = rec && !(opts && opts.localError) && rec.direction === "out" && (["declined", "busy", "missed", "failed"].includes(reason) || (reason === "cancelled" && opts && opts.noAnswer)) && !rec.answeredAt ? rec.contactId : null;
@@ -973,6 +978,7 @@ function closeCallScreen(reason, opts) {
   }
   state.callId = null;
   state.callPhase = null;
+  if (lcId) setTimeout(() => { try { linkCallAfterCall(lcId); } catch (e) { etherLog("warn", "[linkcall] " + String(e)); } }, 0);
   if (state.tab === "chats" && state.chatsSegment === "calls") renderCallsList();
   // Защита от повторного рингтона. Если у собеседника ещё не отработал
   // call-ended (сеть мигнула, сигнал не дошёл) — он при пересогласовании
@@ -1066,6 +1072,7 @@ function wireCallMoreMenu() {
   sync();
 }
 function wireCallScreen() {
+  try { wireCallAlternatives(); } catch (e) { etherLog("warn", "[call] alternatives: " + String(e)); }
   wireCallMoreMenu();
   wireCallAudioResilience();
   wireCallGestures();
@@ -1470,3 +1477,526 @@ function wireChatFolders() {
   if (delBtn) delBtn.addEventListener("click", deleteFolderEdit);
 }
 
+
+// =====================================================================
+// V.79: надёжность звонка (docs/CALL-RELIABILITY-PROTOCOL.md). Экран «Входящий звонок» по уведомлению, состояния звонящего,
+// звонок по ссылке (link-call): создатель — зарегистрированный клиент, гость — любой браузер (гостевой режим без аккаунта).
+// =====================================================================
+const ANSWER_MAX_WAIT_MS = 50000;            // сервер держит неотвеченное приглашение 45 с
+const ANSWER_GRACE_AFTER_REGISTER_MS = 5000; // после регистрации сервер отдаёт приглашение сразу; не пришло — звонок завершён
+const CALL_ESCALATE_MS = 20000;              // через сколько секунд без ответа показать «другие способы»
+const LC_REQ_TIMEOUT_MS = 10000;
+const LC_GUEST_WAIT_MS = 90000;              // сколько гость ждёт, пока его впустят и соединят
+const answerUi = { active: false, from: "", callId: "", state: "", t0: 0, wantAnswer: false, timer: null, registeredAt: 0 };
+const answerDeclined = new Map();            // from -> время отклонения с экрана: опоздавшее приглашение отклоняем сразу
+
+// ---------- Экран «Входящий звонок» (/#answer=<callId>&from=<id>) ----------
+function answerNameFor(from, hint) {
+  let n = "";
+  try { const c = state.contacts.get(from); if (c && c.name) n = c.name; } catch (e) {}
+  if (!n) { try { const idx = JSON.parse(localStorage.getItem("ether.cnames") || "{}"); if (idx && typeof idx[from] === "string") n = idx[from]; } catch (e) {} }
+  return n || (typeof hint === "string" && hint.slice(0, 40)) || String(from).slice(0, 8);
+}
+function answerSetState(st) {
+  answerUi.state = st;
+  const set = (sel, show) => { const e = $(sel); if (e) e.classList.toggle("hidden", !show); };
+  set("#answer-accept-btn", st === "ringing"); set("#answer-decline-btn", st === "ringing" || st === "connecting");
+  set("#answer-callback-btn", st === "ended"); set("#answer-close-btn", st === "ended");
+  const s = $("#answer-status"); if (s) s.textContent = st === "ringing" ? T("call.incoming") : st === "connecting" ? T("ans.connecting") : T("ans.ended");
+}
+function hideAnswerScreen() {
+  answerUi.active = false; clearInterval(answerUi.timer); answerUi.timer = null;
+  const el = $("#answer-screen"); if (el) el.classList.add("hidden");
+  try { const m = /^#answer=/.test(location.hash); if (m) history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
+}
+function showAnswerScreen(from, callId, nameHint) {
+  const el = $("#answer-screen"); if (!el || !from) return false;
+  if (answerUi.active && answerUi.from === from) return true;
+  Object.assign(answerUi, { active: true, from, callId: callId || "", t0: Date.now(), wantAnswer: false, registeredAt: 0, named: false, triedJson: false });
+  const name = answerNameFor(from, nameHint);
+  if (name && name !== String(from).slice(0, 8)) answerUi.named = true;
+  const nm = $("#answer-name"); if (nm) nm.textContent = name;
+  const av = $("#answer-avatar"); if (av) { av.style.background = avatarGradient(name); av.textContent = initials(name); }
+  answerSetState("ringing");
+  el.classList.remove("hidden");
+  const b = $("#answer-accept-btn"); try { if (b) b.focus(); } catch (e) {}
+  clearInterval(answerUi.timer); answerUi.timer = setInterval(answerTick, 500);
+  return true;
+}
+// Имя мог не знать быстрый индекс (первый запуск после обновления): уточняем, когда контакты загружены, либо один раз разбираем сохранённый список
+function answerRefreshName() {
+  if (answerUi.named) return;
+  let name = "";
+  const c = state.contacts.get(answerUi.from);
+  if (c && c.name) name = c.name;
+  else if (!answerUi.triedJson) {
+    answerUi.triedJson = true;
+    try { const arr = JSON.parse(Store.contactsJson || "[]"); const f = Array.isArray(arr) && arr.find((x) => x && x.id === answerUi.from); if (f && f.name) name = f.name; } catch (e) {}
+  }
+  if (!name) return;
+  answerUi.named = true;
+  const nm = $("#answer-name"); if (nm) nm.textContent = name;
+  const av = $("#answer-avatar"); if (av) { av.style.background = avatarGradient(name); av.textContent = initials(name); }
+}
+function answerTick() {
+  if (!answerUi.active) { clearInterval(answerUi.timer); answerUi.timer = null; return; }
+  answerRefreshName();
+  const sig = typeof signaling !== "undefined" ? signaling : null;
+  if (sig && sig.registered && !answerUi.registeredAt) answerUi.registeredAt = Date.now();
+  const now = Date.now();
+  if (state.callId === answerUi.from) return; // приглашение пришло: дальше работает обычный экран звонка
+  if (now - answerUi.t0 > ANSWER_MAX_WAIT_MS || (answerUi.registeredAt && now - answerUi.registeredAt > ANSWER_GRACE_AFTER_REGISTER_MS)) {
+    if (answerUi.state !== "ended") answerSetState("ended");
+    clearInterval(answerUi.timer); answerUi.timer = null;
+  }
+}
+// Вызывается из обработчика call-invite сразу после openCallScreen(from, "ringing")
+function answerScreenOnInvite(from) {
+  const dAt = answerDeclined.get(from);
+  if (dAt && Date.now() - dAt < 60000) { answerDeclined.delete(from); const d = $("#call-decline-btn"); if (d) d.click(); hideAnswerScreen(); return; }
+  if (!answerUi.active || answerUi.from !== from) return;
+  const want = answerUi.wantAnswer;
+  hideAnswerScreen();
+  if (want) setTimeout(() => { if (state.callId === from && state.callPhase === "ringing") acceptCall(false); }, 0);
+}
+// Начальная отрисовка из location.hash (холодный старт по уведомлению). Только для существующего аккаунта.
+function answerBootFromLocation() {
+  let p = null; try { p = LinkCall.parseAnswerHash(location.hash); } catch (e) {}
+  if (!p || !p.from || !(Store.name && Store.myId)) return false;
+  return showAnswerScreen(p.from, p.callId);
+}
+// SW: клик по уведомлению, окно уже было открыто
+function answerFromNotification(d) {
+  if (!d || !d.from) return;
+  if (state.callId === d.from) { try { restoreCallScreen(); } catch (e) {} return; }
+  if (state.callId) return; // уже в другом звонке
+  showAnswerScreen(d.from, d.callId, d.name);
+}
+function wireAnswerScreen() {
+  const acc = $("#answer-accept-btn");
+  if (acc) acc.addEventListener("click", () => {
+    answerUi.wantAnswer = true;
+    // разрешение на микрофон запрашиваем прямо в жесте нажатия: поздний getUserMedia без жеста iOS может не показать
+    try { if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) navigator.mediaDevices.getUserMedia({ audio: true }).then((s) => s.getTracks().forEach((t) => t.stop()), () => {}); } catch (e) {}
+    if (state.callId === answerUi.from && state.callPhase === "ringing") { const f = answerUi.from; hideAnswerScreen(); acceptCall(false); return; }
+    answerSetState("connecting");
+  });
+  const dec = $("#answer-decline-btn");
+  if (dec) dec.addEventListener("click", () => {
+    const f = answerUi.from;
+    answerDeclined.set(f, Date.now());
+    if (state.callId === f && state.callPhase === "ringing") { const d = $("#call-decline-btn"); if (d) d.click(); answerDeclined.delete(f); }
+    else if (signaling && signaling.connected) { try { signaling.signal(f, { t: "call-declined" }); } catch (e) {} }
+    hideAnswerScreen();
+  });
+  const cb = $("#answer-callback-btn");
+  if (cb) cb.addEventListener("click", () => {
+    const f = answerUi.from; hideAnswerScreen();
+    const go = () => { if (!__appStarted) { setTimeout(go, 100); return; } if (state.contacts.get(f)) beginCall(f, false); };
+    go();
+  });
+  const cl = $("#answer-close-btn"); if (cl) cl.addEventListener("click", () => hideAnswerScreen());
+}
+
+// ---------- Звонящий: «Вызываем…» → «Звонит у собеседника…» → через 20 с «другие способы» ----------
+let callEscTimer = null;
+function clearCallEscalation() {
+  clearTimeout(callEscTimer); callEscTimer = null;
+  const a = $("#call-noanswer-actions"); if (a) a.classList.add("hidden");
+}
+function startCallEscalation(id) {
+  clearCallEscalation();
+  if (isLinkCallId(id)) return;
+  callEscTimer = setTimeout(() => {
+    callEscTimer = null;
+    if (state.callId !== id || state.callPhase !== "calling") return;
+    const a = $("#call-noanswer-actions"); if (a) a.classList.remove("hidden");
+  }, CALL_ESCALATE_MS);
+}
+// call-ringing от сервера (протокол C): push доставлен, у собеседника звонит
+function callRingingFromServer() {
+  if (!state.callId || state.callPhase !== "calling" || isLinkCallId(state.callId)) return;
+  state._peerRinging = true;
+  const p = $("#call-phase"); if (p) p.textContent = T("call.peerRinging");
+}
+// Тихий отбой исходящего (без предложения голосовой почты и без «не удалось»)
+function endOutgoingQuiet(id) {
+  clearCallEscalation();
+  try { const l = mesh.get(id); if (l) l.endCall(); } catch (e) {}
+  if (signaling && signaling.connected) { try { signaling.signal(id, { t: "call-ended" }); } catch (e) {} }
+  stopRingtone();
+  closeCallScreen("cancelled", { noAnswer: true, localError: true });
+}
+function wireCallAlternatives() {
+  const link = $("#call-alt-link-btn");
+  if (link) link.addEventListener("click", () => {
+    const id = state.callId; if (!id) return;
+    const c = state.contacts.get(id);
+    endOutgoingQuiet(id);
+    linkCallCreateAndShare({ forId: id, forName: (c && c.name) || "" }).catch((e) => etherLog("warn", "[linkcall] " + String(e)));
+  });
+  const vm = $("#call-alt-voicemail-btn");
+  if (vm) vm.addEventListener("click", () => {
+    const id = state.callId; if (!id) return;
+    endOutgoingQuiet(id);
+    if (typeof resetChatTransientState === "function") resetChatTransientState(id);
+    state.tab = "chats"; state.chatId = id; state.contactCardId = null; renderTab();
+    setTimeout(() => { try { startVoiceRecording(); } catch (e) {} }, 150);
+  });
+  const retry = $("#call-alt-retry-btn");
+  if (retry) retry.addEventListener("click", () => {
+    const id = state.callId; if (!id) return;
+    const video = !!state.callWantsVideo;
+    endOutgoingQuiet(id);
+    state._lastCallFailedAt = 0;
+    setTimeout(() => beginCall(id, video), 300);
+  });
+}
+
+// ---------- Звонок по ссылке (протокол E) ----------
+const lcRooms = new Map(); // room -> запись { role: "creator"|"guest", room, id, k, sig, status, ... }
+function isLinkCallId(id) { return typeof id === "string" && id.slice(0, 3) === "lc:"; }
+const sdpOfSignal = (data) => (data && data.d && typeof data.d.sdp === "string" ? data.d.sdp : "");
+// Исходящие сигналы комнаты идут строго по порядку; к offer/answer добавляется доказательство знания секрета k
+function lcOutFor(sig) {
+  if (sig._lcOut) return;
+  sig._lcOut = (room, data) => {
+    const e = lcRooms.get(room);
+    if (!e) return sig.send("linkcall-signal", { room, data });
+    e.outChain = e.outChain.then(async () => {
+      let d = data;
+      if (e.k && data && (data.t === "offer" || data.t === "answer")) {
+        try {
+          const fp = (mesh && mesh.get(e.id) && mesh.get(e.id).fingerprints()) || {};
+          d = { ...data, lcp: await LinkCall.proof(e.k, fp.local || "", data.t === "offer" ? "" : (fp.remote || "")) };
+        } catch (err) { d = data; }
+      }
+      sig.send("linkcall-signal", { room, data: d });
+    }).catch(() => {});
+    return true;
+  };
+}
+// Ждём один из ответов сервера (или linkcall-error) на наш запрос
+function lcWait(sig, types, ms) {
+  return new Promise((resolve) => {
+    const list = types.concat(["linkcall-error"]);
+    const done = (t, d) => { clearTimeout(timer); for (const x of list) sig.removeEventListener(x, hs[x]); resolve(t ? { type: t, detail: d || {} } : null); };
+    const hs = {};
+    for (const x of list) { hs[x] = (ev) => done(x, ev.detail); sig.addEventListener(x, hs[x]); }
+    const timer = setTimeout(() => done(null), ms || LC_REQ_TIMEOUT_MS);
+  });
+}
+function lcNewEntry(role, room, k, sig) {
+  const e = { role, room, id: LinkCall.idOf(room), k: k || null, sig, status: "new", queue: [], chain: Promise.resolve(), outChain: Promise.resolve(), createdAt: Date.now() };
+  lcRooms.set(room, e);
+  lcOutFor(sig);
+  return e;
+}
+function lcCopy(text) {
+  const ok = () => { try { toast(T("lc.copied")); } catch (e) {} };
+  try { if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text).then(ok, () => {}); } catch (e) {}
+  try { const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select(); if (document.execCommand && document.execCommand("copy")) ok(); ta.remove(); } catch (e) {}
+}
+async function lcShare(e) {
+  if (navigator.share) {
+    try { await navigator.share({ text: e.text }); return true; }
+    catch (err) { if (err && err.name === "AbortError") return false; }
+  }
+  lcCopy(e.text); // нет системного «Поделиться»: ссылка и код в буфере, код виден на экране ожидания
+  return false;
+}
+function lcSheet(id, show) { const s = $("#" + id); if (s) s.classList.toggle("hidden", !show); }
+let lcWaiting = null;
+function lcShowWait(e) {
+  lcWaiting = e;
+  const t = $("#linkcall-wait-title"); if (t) t.textContent = T("lc.waitTitle", { name: e.forName || T("lc.guest") });
+  const c = $("#linkcall-wait-code"); if (c) c.textContent = T("lc.codeLine", { code: e.code });
+  const h = $("#linkcall-wait-hint"); if (h) h.textContent = T("lc.waitHint");
+  lcSheet("linkcall-wait-sheet", true);
+}
+// Создатель: linkcall-create → ссылка с секретом k → системное «Поделиться» (или буфер) → экран «Ждём …»
+async function linkCallCreateAndShare(opts) {
+  opts = opts || {};
+  const sig = signaling;
+  if (!sig || !sig.connected) await waitForSignaling(CALL_SERVER_WAIT_MS);
+  const s = signaling;
+  if (!s || !s.connected) { toast(T("toast.noServer")); return null; }
+  const w = lcWait(s, ["linkcall-created"], LC_REQ_TIMEOUT_MS);
+  if (!s.linkcallCreate()) { toast(T("lc.createFailed")); return null; }
+  const r = await w;
+  if (!r || r.type !== "linkcall-created" || typeof r.detail.room !== "string" || !/^[A-Za-z0-9_-]{16,64}$/.test(r.detail.room)) {
+    const why = r && r.detail && r.detail.reason;
+    toast(why === "ratelimit" || why === "toomany" ? T("lc.tooMany") : T("lc.createFailed"));
+    return null;
+  }
+  const d = r.detail;
+  const e = lcNewEntry("creator", d.room, LinkCall.newSecret(), s);
+  e.status = "waiting"; e.code = String(d.code || "").slice(0, 6); e.forId = opts.forId || null; e.forName = String(opts.forName || "").slice(0, 40);
+  e.expiresAt = Number(d.expiresAt) || Date.now() + 600000;
+  e.link = LinkCall.buildLink(location.origin + location.pathname, e.room, e.k);
+  e.text = LinkCall.shareText(T("lc.shareText"), Store.name || T("lc.guest"), e.link, e.code);
+  e.expTimer = setTimeout(() => { if (e.status === "waiting") { const h = $("#linkcall-wait-hint"); if (h && lcWaiting === e) h.textContent = T("lc.expired"); lcDrop(e, { notify: true, keepSheet: true }); } }, Math.max(1000, e.expiresAt - Date.now()));
+  lcShowWait(e);
+  lcShare(e);
+  return e;
+}
+function lcDrop(e, o) {
+  if (!e || e.dropped) return; e.dropped = true; o = o || {};
+  clearTimeout(e.expTimer); clearTimeout(e.joinTimer);
+  if (o.notify && e.sig) { try { e.sig.linkcallEnd(e.room); } catch (x) {} }
+  lcRooms.delete(e.room);
+  if (lcWaiting === e) { lcWaiting = null; if (!o.keepSheet) lcSheet("linkcall-wait-sheet", false); }
+  if (lcApproving === e) { lcApproving = null; lcSheet("linkcall-approve-sheet", false); }
+  try { if (mesh && mesh.get(e.id)) mesh.remove(e.id); } catch (x) {}
+  state.contacts.delete(e.id);
+}
+let lcApproving = null;
+function lcShowApprove(e) {
+  lcApproving = e;
+  const t = $("#linkcall-approve-text"); if (t) t.textContent = T("lc.approveText", { name: e.guestName ? " (" + e.guestName + ")" : "" });
+  const s = $("#linkcall-approve-sas"); if (s) s.textContent = e.sas || "";
+  lcSheet("linkcall-wait-sheet", false); lcSheet("linkcall-approve-sheet", true);
+}
+// Создатель отказал/проверка не прошла: комната снова ждёт гостя (настоящий собеседник ещё может прийти)
+function lcDeny(e, reason) {
+  try { e.sig.linkcallDeny(e.room, e.guestRef); } catch (x) {}
+  if (reason === "verify") { try { toast(T("lc.err.verify")); } catch (x) {} }
+  e.status = "waiting"; e.guestRef = null; e.offer = null; e.offerFp = null; e.queue = []; e.deciding = false; e.sas = "";
+  if (lcApproving === e) { lcApproving = null; lcSheet("linkcall-approve-sheet", false); }
+  if (Date.now() < e.expiresAt) lcShowWait(e);
+}
+async function lcTryAdmit(e) {
+  if (e.status !== "guest" || !e.offer || e.deciding) return;
+  e.deciding = true;
+  const fp = e.offerFp;
+  if (!fp) { lcDeny(e, "verify"); return; }
+  if (e.offer.lcp) { // гость по ссылке доказал знание секрета: авто-разрешение
+    let exp = ""; try { exp = await LinkCall.proof(e.k, fp, ""); } catch (x) {}
+    if (e.status === "guest" && exp && exp === e.offer.lcp) lcAdmit(e); else lcDeny(e, "verify");
+    return;
+  }
+  // вход по коду (секрета нет): только ручное подтверждение, со сверочными значками из отпечатка
+  try { e.sas = await LinkCall.emojiOf(fp); } catch (x) { e.sas = ""; }
+  if (e.status === "guest") lcShowApprove(e);
+}
+function lcAdmit(e) {
+  if (e.status === "active" || e.dropped) return;
+  if (state.callId || (typeof gcallBusy === "function" && gcallBusy())) { lcDeny(e, "busy"); return; }
+  e.status = "active"; clearTimeout(e.expTimer);
+  lcSheet("linkcall-approve-sheet", false); lcSheet("linkcall-wait-sheet", false); lcApproving = null; lcWaiting = null;
+  try { e.sig.linkcallAllow(e.room, e.guestRef); } catch (x) {}
+  state.contacts.set(e.id, { id: e.id, name: e.guestName || e.forName || T("lc.guest"), raw: "", managed: false, ephemeral: true, publicKey: null, online: true, status: "disconnected", messages: [], lastActivity: Date.now(), archived: false, muted: false, blocked: false });
+  state._callUserAccepted = false; state.callWantsVideo = false;
+  openCallScreen(e.id, "calling");
+  const ph = $("#call-phase"); if (ph) ph.textContent = T("lc.connecting");
+  clearPendingCall(); pendingCall.contactId = e.id;
+  pendingCall.timer = setTimeout(() => {
+    if (state.callId !== e.id || state.callPhase === "active") return;
+    toast(T("calls.failed")); closeCallScreen("failed", { localError: true });
+  }, CALL_ACCEPT_CONNECT_MS + 20000);
+  // удержанные сигналы воспроизводятся по порядку: offer, затем ICE
+  const first = e.offer, rest = e.queue.splice(0);
+  e.chain = e.chain.then(() => { for (const data of [first].concat(rest)) e.sig.dispatchEvent(new CustomEvent("signal", { detail: { from: e.id, data } })); });
+}
+// Все сигналы комнаты проходят строго по очереди через этот шлюз
+function linkCallOnSignal(sig, d) {
+  const e = d && lcRooms.get(d.room);
+  if (!e || e.sig !== sig || !d.data || typeof d.data !== "object" || typeof d.data.t !== "string") return;
+  const data = d.data;
+  e.chain = e.chain.then(async () => {
+    if (e.dropped) return;
+    if (e.role === "creator" && e.status !== "active") { // до решения создателя в P2P-слой ничего не отдаём (IP не раскрывается)
+      if (data.t === "offer") { if (e.offer) return; e.offer = data; e.offerFp = LinkCall.fingerprintOf(sdpOfSignal(data)); lcTryAdmit(e); }
+      else if (e.queue.length < 120) e.queue.push(data);
+      return;
+    }
+    if (e.role === "guest" && data.t === "answer" && e.k) { // создатель обязан доказать знание секрета: иначе подмена на сигналинге
+      const fp = LinkCall.fingerprintOf(sdpOfSignal(data)), l = mesh && mesh.get(e.id), local = l && l.fingerprints().local;
+      let exp = ""; try { exp = fp && local ? await LinkCall.proof(e.k, fp, local) : ""; } catch (x) {}
+      if (!exp || data.lcp !== exp) { lcGuestFail(e, "verify"); return; }
+    }
+    if (e.role === "guest" && data.t === "answer") e.answered = true;
+    sig.dispatchEvent(new CustomEvent("signal", { detail: { from: e.id, data } }));
+  }).catch((err) => etherLog("warn", "[linkcall] signal: " + String(err)));
+}
+// Ответы сервера, не относящиеся к ожидаемому запросу (запрос-ответ обрабатывает lcWait)
+function linkCallOnServer(sig, type, d) {
+  d = d || {};
+  const e = typeof d.room === "string" ? lcRooms.get(d.room) : null;
+  if (type === "linkcall-guest") {
+    if (!e || e.role !== "creator" || e.sig !== sig) return;
+    if (e.status !== "waiting") { try { sig.linkcallDeny(e.room, d.guestRef); } catch (x) {} return; }
+    e.guestRef = d.guestRef; e.guestName = String(d.name || "").replace(/[\u0000-\u001f]/g, "").slice(0, 40); e.viaCode = !!d.viaCode; e.status = "guest";
+    lcTryAdmit(e);
+  } else if (type === "linkcall-end") {
+    if (!e || e.sig !== sig) return;
+    if (e.role === "guest") { if (state.callId === e.id) closeCallScreen("completed"); else lcGuestFail(e, "ended"); }
+    else if (state.callId === e.id) closeCallScreen("completed");
+    else lcDrop(e);
+  } else if (type === "linkcall-denied") {
+    if (e && e.role === "guest" && e.sig === sig) lcGuestFail(e, "denied");
+  }
+}
+function linkCallOnDisconnected(sig) {
+  for (const e of Array.from(lcRooms.values())) {
+    if (e.sig !== sig || e.status === "active" || state.callId === e.id) continue; // установленный P2P-звонок сервер не нужен
+    if (e.role === "guest") lcGuestFail(e, "conn");
+    else { lcDrop(e); try { toast(T("lc.createFailed")); } catch (x) {} }
+  }
+}
+// closeCallScreen → линк закрыт: убираем виртуального собеседника и сообщаем серверу
+function linkCallAfterCall(id) {
+  const e = lcRooms.get(LinkCall.roomOf(id));
+  if (!e) { state.contacts.delete(id); return; }
+  const wasGuest = e.role === "guest";
+  lcDrop(e, { notify: true });
+  if (wasGuest && state.guestMode) guestPanelEnded();
+}
+
+// ---------- Гость: присоединение по ссылке (#call=<room>.<k>) или по коду ----------
+const guestUi = { active: false, mode: "" };
+function guestPanel(show) { const p = $("#guest-call"); if (p) p.classList.toggle("hidden", !show); }
+function guestPanelSet(o) {
+  const set = (sel, v) => { const e = $(sel); if (e) e.classList.toggle("hidden", !v); };
+  const st = $("#guest-call-status"); if (st && o.status != null) st.textContent = o.status;
+  if (o.name != null) set("#guest-call-name", o.name);
+  if (o.join != null) set("#guest-call-join-btn", o.join);
+  if (o.close != null) set("#guest-call-close-btn", o.close);
+  if (o.sas != null) { const s = $("#guest-call-sas"); if (s) { s.textContent = o.sas; s.classList.toggle("hidden", !o.sas); } }
+}
+function guestPanelEnded() { guestUi.active = false; guestPanel(true); guestPanelSet({ status: T("lc.ended"), name: false, join: false, close: true, sas: "" }); }
+function lcGuestFail(e, reason) {
+  if (e) { try { if (state.callId === e.id) closeCallScreen("failed", { localError: true }); } catch (x) {} lcDrop(e, { notify: reason !== "conn" && reason !== "ended" }); }
+  guestUi.active = false;
+  const key = ["expired", "full", "notfound", "ratelimit", "denied", "verify", "conn"].includes(reason) ? "lc.err." + reason : reason === "ended" ? "lc.ended" : "lc.err.generic";
+  guestPanel(true); guestPanelSet({ status: T(key), name: false, join: false, close: true, sas: "" });
+}
+// Гостевой режим: окружение звонка без аккаунта (ничего не пишем в хранилище)
+function guestEnsureEnv(name) {
+  if (!mesh) {
+    mesh = new MeshManager(name || T("lc.guest"));
+    safeCall(wireMeshEvents, "wireMeshEvents");
+    safeCall(wireCallScreen, "wireCallScreen");
+    safeCall(wireSheetBackdrops, "wireSheetBackdrops");
+  }
+  const a = $("#app-shell"); if (a) a.classList.remove("hidden");
+  const o = $("#onboarding"); if (o) o.classList.add("hidden");
+}
+async function guestEnsureSignaling(name) {
+  if (signaling && signaling.guest) return signaling;
+  const url = effectiveSignalingUrl();
+  if (signalingCleanup) { try { signalingCleanup(); } catch (e) {} signalingCleanup = null; }
+  if (signaling) { try { signaling.stop(); } catch (e) {} signaling = null; }
+  const sig = signaling = new SignalingClient(url, "", { guest: true, name: name || "" });
+  signalingCleanup = wireSignalingEvents(sig);
+  sig.start();
+  await waitForSignaling(CALL_SERVER_WAIT_MS);
+  return sig;
+}
+// p: { room, k } (ссылка) или { code } (6 цифр); name — имя гостя без аккаунта
+async function linkCallGuestStart(p, name) {
+  if (guestUi.active) return;
+  guestUi.active = true;
+  guestPanel(true);
+  guestPanelSet({ status: T("lc.connecting"), name: false, join: false, close: false, sas: "" });
+  let sig = null;
+  if (state.guestMode) { guestEnsureEnv(name); sig = await guestEnsureSignaling(name); }
+  else { sig = signaling; if (!sig || !sig.connected) { await waitForSignaling(CALL_SERVER_WAIT_MS); sig = signaling; } }
+  if (!sig || !sig.connected) { lcGuestFail(null, "conn"); return; }
+  const myName = state.guestMode ? String(name || "").trim().slice(0, 40) : (Store.name || "");
+  const w = lcWait(sig, ["linkcall-joined"], LC_REQ_TIMEOUT_MS);
+  sig.linkcallJoin(p.room ? { room: p.room, name: myName } : { code: p.code, name: myName });
+  const r = await w;
+  if (!r) { lcGuestFail(null, "conn"); return; }
+  if (r.type === "linkcall-error") { const why = r.detail && r.detail.reason; lcGuestFail(null, ["expired", "full", "notfound", "ratelimit"].includes(why) ? why : "generic"); return; }
+  const room = String((r.detail && r.detail.room) || p.room || "");
+  if (!/^[A-Za-z0-9_-]{16,64}$/.test(room)) { lcGuestFail(null, "generic"); return; }
+  const e = lcNewEntry("guest", room, p.k || null, sig);
+  e.status = "joined";
+  state.contacts.set(e.id, { id: e.id, name: T("sys.someone"), raw: "", managed: false, ephemeral: true, publicKey: null, online: true, status: "disconnected", messages: [], lastActivity: Date.now(), archived: false, muted: false, blocked: false });
+  e.joinTimer = setTimeout(() => { if (!e.dropped && state.callPhase !== "active" && !(state.callId === e.id)) lcGuestFail(e, e.answered ? "generic" : "denied"); }, LC_GUEST_WAIT_MS);
+  try {
+    const link = mesh.createOutgoingLink(e.id);
+    const packet = await link.createInitialOffer("");
+    if (!packet) throw new Error("no offer");
+    if (!p.k) { // вход по коду: показываем сверочные значки, которые увидит и создатель при подтверждении
+      const fp = link.fingerprints().local;
+      let sas = ""; try { sas = await LinkCall.emojiOf(fp); } catch (x) {}
+      guestPanelSet({ status: T("lc.waitingAllow"), sas: sas ? T("lc.sas", { sas }) : "" });
+    } else guestPanelSet({ status: T("lc.waitingAllow") });
+    sig.signal(e.id, packet);
+  } catch (err) { etherLog("error", "[linkcall] offer: " + String(err)); lcGuestFail(e, "generic"); }
+}
+// Гость на звонке: создатель сам «звонит» по каналу данных — принимаем автоматически (гость уже нажал «Присоединиться»)
+function linkCallWireMesh() {
+  mesh.addEventListener("message", (ev) => {
+    const { id, payload } = ev.detail || {};
+    if (!isLinkCallId(id) || !payload || payload.kind !== "call-state" || payload.state !== "ringing") return;
+    const e = lcRooms.get(LinkCall.roomOf(id));
+    if (!e || e.role !== "guest") return;
+    setTimeout(() => {
+      if (state.callId === id && state.callPhase === "ringing") { guestPanel(false); clearTimeout(e.joinTimer); acceptCall(false); }
+    }, 0);
+  });
+}
+
+// ---------- Подключение интерфейса и точки входа ----------
+function linkCallBoot() { // из initBoot: ссылка #call= в браузере без аккаунта -> гостевой режим (true: обычный запуск не нужен)
+  let p = null; try { p = LinkCall.parseHash(location.hash); } catch (e) {}
+  if (!p || (Store.name && Store.myId)) return false;
+  state.guestMode = true; state.guestLink = p;
+  document.documentElement.classList.add("guest-call");
+  try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
+  wireGuestPanel();
+  guestPanel(true);
+  guestPanelSet({ status: T("lc.guestHint"), name: true, join: true, close: false, sas: "" });
+  return true;
+}
+function linkCallFromLocation() { // после startApp: аккаунт есть — присоединяемся под своим именем
+  let p = null; try { p = LinkCall.parseHash(location.hash); } catch (e) {}
+  if (!p) return false;
+  try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
+  if (state.callId) { toast(T("toast.alreadyInCall")); return true; }
+  linkCallGuestStart({ room: p.room, k: p.k }).catch((e) => etherLog("warn", "[linkcall] " + String(e)));
+  return true;
+}
+let __guestPanelWired = false;
+function wireGuestPanel() {
+  if (__guestPanelWired) return; __guestPanelWired = true;
+  const go = $("#guest-call-join-btn");
+  if (go) go.addEventListener("click", () => {
+    const nm = $("#guest-call-name"), name = nm ? nm.value : "";
+    const p = state.guestLink; if (!p) return;
+    state.guestLink = null;
+    linkCallGuestStart({ room: p.room, k: p.k }, name).catch((e) => etherLog("warn", "[linkcall] " + String(e)));
+  });
+  const cl = $("#guest-call-close-btn");
+  if (cl) cl.addEventListener("click", () => {
+    guestPanel(false);
+    if (state.guestMode) { try { location.replace(location.pathname + location.search); } catch (e) { location.reload(); } }
+  });
+}
+function wireLinkCallUi() {
+  wireGuestPanel();
+  wireAnswerScreen();
+  const share = $("#linkcall-wait-share"); if (share) share.addEventListener("click", () => { if (lcWaiting) lcShare(lcWaiting); });
+  const copy = $("#linkcall-wait-copy"); if (copy) copy.addEventListener("click", () => { if (lcWaiting) lcCopy(lcWaiting.text); });
+  const cancel = $("#linkcall-wait-cancel"); if (cancel) cancel.addEventListener("click", () => { if (lcWaiting) lcDrop(lcWaiting, { notify: true }); lcSheet("linkcall-wait-sheet", false); });
+  const allow = $("#linkcall-approve-allow"); if (allow) allow.addEventListener("click", () => { if (lcApproving) lcAdmit(lcApproving); });
+  const deny = $("#linkcall-approve-deny"); if (deny) deny.addEventListener("click", () => { if (lcApproving) lcDeny(lcApproving, "denied"); });
+  // ввод кода (6 цифр)
+  const open = () => { const i = $("#linkcall-code-input"); if (i) i.value = ""; const er = $("#linkcall-join-error"); if (er) er.textContent = ""; lcSheet("linkcall-join-sheet", true); setTimeout(() => { try { if (i) i.focus(); } catch (e) {} }, 60); };
+  for (const id of ["#chats-empty-join-btn", "#connect-join-code-btn"]) { const b = $(id); if (b) b.addEventListener("click", open); }
+  const go = $("#linkcall-join-go");
+  const submit = () => {
+    const i = $("#linkcall-code-input"), er = $("#linkcall-join-error");
+    const code = LinkCall.normalizeCode(i && i.value);
+    if (!code) { if (er) er.textContent = T("lc.badCode"); return; }
+    if (state.callId) { toast(T("toast.alreadyInCall")); return; }
+    lcSheet("linkcall-join-sheet", false);
+    linkCallGuestStart({ code }).catch((e) => etherLog("warn", "[linkcall] " + String(e)));
+  };
+  if (go) go.addEventListener("click", submit);
+  const ci = $("#linkcall-code-input"); if (ci) ci.addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); submit(); } });
+  window.addEventListener("hashchange", () => { try { if (/^#call=/.test(location.hash)) linkCallFromLocation(); else if (/^#answer=/.test(location.hash)) answerBootFromLocation(); } catch (e) {} });
+}

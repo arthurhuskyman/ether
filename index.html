@@ -84,6 +84,33 @@
   </div>
 </div>
 
+<!-- V.79: экран «Входящий звонок» по уведомлению (/#answer=<callId>&from=<id>) — рисуется сразу при старте, до полной загрузки приложения -->
+<div id="answer-screen" class="hidden" role="dialog" aria-modal="true" aria-labelledby="answer-name">
+  <div class="lock-card glass-content">
+    <div id="answer-avatar" class="avatar avatar-lg" aria-hidden="true"></div>
+    <h1 id="answer-name" class="lock-title"></h1>
+    <p id="answer-status" class="onboarding-sub" role="status" aria-live="polite"></p>
+    <div class="answer-actions">
+      <button type="button" id="answer-decline-btn" class="btn-secondary answer-decline" aria-label="Decline" data-i18n="ans.decline" data-i18n-aria="ans.decline">Decline</button>
+      <button type="button" id="answer-accept-btn" class="btn-primary answer-accept" aria-label="Answer" data-i18n="ans.answer" data-i18n-aria="ans.answer">Answer</button>
+      <button type="button" id="answer-callback-btn" class="btn-primary hidden" data-i18n="ans.callBack">Call back</button>
+      <button type="button" id="answer-close-btn" class="btn-tertiary hidden" data-i18n="sys.close">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- V.79: гостевой режим / присоединение к звонку по ссылке или коду. Без регистрации, ничего не сохраняется -->
+<div id="guest-call" class="hidden" role="dialog" aria-modal="true" aria-labelledby="guest-call-title">
+  <div class="lock-card glass-content">
+    <h1 id="guest-call-title" class="lock-title" data-i18n="lc.guestTitle">Call in The Messenger</h1>
+    <p id="guest-call-status" class="onboarding-sub" role="status" aria-live="polite"></p>
+    <input id="guest-call-name" type="text" maxlength="40" class="rename-input" autocomplete="off" aria-label="Your name (optional)" data-i18n-aria="lc.guestName" data-i18n-ph="lc.guestName" placeholder="Your name (optional)" />
+    <div id="guest-call-sas" class="guest-call-sas hidden" aria-live="polite"></div>
+    <button type="button" id="guest-call-join-btn" class="btn-primary" data-i18n="lc.joinBtn">Join</button>
+    <button type="button" id="guest-call-close-btn" class="btn-tertiary hidden" data-i18n="sys.close">Close</button>
+  </div>
+</div>
+
 <div id="onboarding" class="hidden">
   <div class="onboarding-glow"></div>
   <div class="onboarding-card glass-content">
@@ -259,6 +286,7 @@
         <h2 data-i18n="chats.empty.title">No chats yet</h2>
         <p data-i18n="chats.empty.sub">Invite a friend to start chatting.</p>
         <button type="button" id="chats-empty-invite-btn" class="btn-primary" data-i18n="chats.empty.invite">Invite a friend</button>
+        <button type="button" id="chats-empty-join-btn" class="btn-tertiary join-code-btn" data-i18n="lc.joinEntry">Join a call by code</button>
       </div>
       <div id="stories-row" class="stories-row hidden" role="list"></div>
       <div id="chats-list" class="chats-list"></div>
@@ -287,6 +315,7 @@
     </section>
 
     <section id="screen-connect" class="screen hidden">
+      <button type="button" id="connect-join-code-btn" class="btn-tertiary join-code-btn" data-i18n="lc.joinEntry">Join a call by code</button>
       <div class="connect-card flat-content">
         <h2 data-i18n="connect.myContacts">My contacts</h2>
         <p class="muted" data-i18n="connect.myContacts.sub">Everyone you've added. Tap a contact to chat or call.</p>
@@ -433,6 +462,7 @@
         <label class="settings-row"><span data-i18n="settings.notifications">Notifications for messages and calls</span><input id="settings-notifications" type="checkbox" class="switch" /></label>
         <label data-settings-adv class="settings-row"><span data-i18n="settings.requireVerified">Calls only with verified contacts</span><input id="settings-require-verified" type="checkbox" class="switch" /></label>
         <p data-settings-adv class="fine muted settings-hint" data-i18n="settings.requireVerified.hint">Before calling (or answering) a contact you have not verified with a safety number or QR, the app will ask you to verify first. A changed key always blocks calls until confirmed.</p>
+        <button type="button" id="notifcheck-btn" class="settings-row link-row"><span>Notification check</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
         <label class="settings-row"><span data-i18n="settings.hideNotifContent">Hide message content</span><input id="settings-hide-notif" type="checkbox" class="switch" /></label>
         <p class="fine muted settings-hint" data-i18n="settings.hideNotifContent.hint">Notifications show only the sender's name, not the message text.</p>
         <label data-settings-adv class="settings-row"><span data-i18n="settings.linkPreviews">Link previews</span>
@@ -806,6 +836,11 @@
         <span id="call-quality-icon" class="call-quality-icon hidden" title=""><svg viewBox="0 0 24 24" width="13" height="13"><rect x="3" y="14" width="4" height="7" rx="1" fill="currentColor"/><rect x="10" y="9" width="4" height="12" rx="1" fill="currentColor"/><rect x="17" y="3" width="4" height="18" rx="1" fill="currentColor"/></svg></span>
       </div>
       <button type="button" id="call-notice" class="call-notice hidden" role="status" aria-live="polite"></button>
+      <div id="call-noanswer-actions" class="call-noanswer hidden" role="group" aria-label="No answer" data-i18n-aria="call.alt.title">
+        <button type="button" id="call-alt-link-btn" class="btn-secondary" data-i18n="call.alt.link">Invite another way</button>
+        <button type="button" id="call-alt-voicemail-btn" class="btn-secondary" data-i18n="call.alt.voicemail">Leave a voice message</button>
+        <button type="button" id="call-alt-retry-btn" class="btn-secondary" data-i18n="call.alt.retry">Call again</button>
+      </div>
   </div>
   <div class="call-bottom-area">
   <div class="call-volume">
@@ -1163,6 +1198,43 @@
       <button type="button" class="sheet-action" id="mute-preset-forever" data-i18n="chat.contact.mute.forever">Forever</button>
     </div>
     <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="mute-sheet" data-i18n="sys.cancel">Cancel</button>
+  </div>
+</div>
+
+<div id="linkcall-join-sheet" class="sheet hidden" role="dialog" aria-modal="true" aria-labelledby="linkcall-join-title">
+  <div class="sheet-backdrop"></div>
+  <div class="sheet-panel glass-content">
+    <div class="sheet-handle"></div>
+    <h2 id="linkcall-join-title" data-i18n="lc.joinTitle">Join a call</h2>
+    <input id="linkcall-code-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="7" autocomplete="one-time-code" class="pin-input" aria-label="6-digit code" data-i18n-aria="lc.codePh" data-i18n-ph="lc.codePh" placeholder="6 digits" />
+    <p id="linkcall-join-error" class="fine muted" role="alert"></p>
+    <button type="button" id="linkcall-join-go" class="btn-primary" data-i18n="lc.joinBtn">Join</button>
+    <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="linkcall-join-sheet" data-i18n="sys.cancel">Cancel</button>
+  </div>
+</div>
+
+<div id="linkcall-wait-sheet" class="sheet hidden" role="dialog" aria-modal="true" aria-labelledby="linkcall-wait-title">
+  <div class="sheet-backdrop"></div>
+  <div class="sheet-panel glass-content">
+    <div class="sheet-handle"></div>
+    <h2 id="linkcall-wait-title"></h2>
+    <p id="linkcall-wait-code" class="linkcall-code" aria-live="polite"></p>
+    <p id="linkcall-wait-hint" class="fine muted"></p>
+    <button type="button" id="linkcall-wait-share" class="btn-primary" data-i18n="lc.shareAgain">Send the link again</button>
+    <button type="button" id="linkcall-wait-copy" class="btn-secondary" data-i18n="lc.copyLink">Copy link</button>
+    <button type="button" id="linkcall-wait-cancel" class="btn-tertiary sheet-cancel" data-i18n="sys.cancel">Cancel</button>
+  </div>
+</div>
+
+<div id="linkcall-approve-sheet" class="sheet hidden" role="alertdialog" aria-modal="true" aria-labelledby="linkcall-approve-title">
+  <div class="sheet-backdrop"></div>
+  <div class="sheet-panel glass-content">
+    <div class="sheet-handle"></div>
+    <h2 id="linkcall-approve-title" data-i18n="lc.approveTitle">Someone joined</h2>
+    <p id="linkcall-approve-text" class="fine"></p>
+    <p id="linkcall-approve-sas" class="linkcall-code" aria-live="polite"></p>
+    <button type="button" id="linkcall-approve-allow" class="btn-primary" data-i18n="lc.allow">Let them in</button>
+    <button type="button" id="linkcall-approve-deny" class="btn-tertiary sheet-cancel" data-i18n="ans.decline">Decline</button>
   </div>
 </div>
 

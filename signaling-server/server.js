@@ -66,8 +66,6 @@ const PUSH_THROTTLE_MS = 30 * 1000;
 const PUSH_DEDUP_TTL_MS = 10 * 60 * 1000;
 const PUSH_AFTER_MS = 5000;
 const pushSentForMsgId = new Map();
-const callInvitePushSent = new Map(); // packet.x -> ts — от повторной отправки ОДНОГО И ТОГО ЖЕ call-invite (например, ретрай после переподключения клиента) получатель не должен получать второй push на ту же самую попытку звонка
-const CALL_INVITE_PUSH_DEDUP_TTL_MS = 60 * 1000;
 
 // ---------- TURN (ICE) ----------
 // Metered.ca теперь требует оплаты и не используется — переменная
@@ -670,9 +668,10 @@ const httpServer = http.createServer(async (req, res) => {
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Link-T, X-Link-U");
 
+  const url = req.url || "";
+  if (url === "/push-ack") { handlePushAck(req, res, clientIp(req)); return; }
   if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
 
-  const url = req.url || "";
   if (url.startsWith("/link/") && await require("./devicelink").handle(req, res, clientIp(req))) return; // перенос на новое устройство (docs/MULTIDEVICE.md)
   if (req.method === "GET" && (url === "/ice" || url.startsWith("/ice?"))) {
     const ip = clientIp(req);
@@ -783,6 +782,7 @@ if (PUSH_ENABLED) {
   console.log("[push] Web Push не настроен (нет VAPID-ключей или пакета web-push)");
 }
 
+const linkcall = require("./linkcall")({ safeSend: (ws, o) => safeSend(ws, o), rateOk: wsRateLimitOk, envInt });
 const wss = new WebSocketServer({ server: httpServer, maxPayload: MAX_PAYLOAD });
 
 const clients = new Map();
@@ -1549,13 +1549,181 @@ const prekeyFetchHits = new Map();
 const prekeyPairHits = new Map();   // отдельно от deliverHits: выборка prekey не должна съедать квоту deliver (и наоборот)
 const prekeyTargetHits = new Map(); // общий лимит на ЦЕЛЬ: не даём выкачать одноразовые ключи жертвы с разных аккаунтов
 const PREKEY_FETCH_PER_TARGET_PER_MIN = 10;
-const callPushRecipientAt = new Map(); // получатель -> ts последнего принудительного push о звонке
-const callPushPairAt = new Map();      // отправитель→получатель -> ts
-const CALL_PUSH_RECIPIENT_BURST = 3;
-const CALL_PUSH_PER_IP_PER_MIN = Number(process.env.CALL_PUSH_PER_IP_PER_MIN) || 10;
+// ---------- Серия «гудков» о звонке (docs/CALL-RELIABILITY-PROTOCOL.md, A–D) ----------
+// Звонок офлайн-получателю: push #1 сразу, затем каждые RING_INTERVAL_MS, всего не более RING_MAX; пока звонок не завершён
+// (call-accepted/declined/busy/ended, call-invite-ack, дисконнект звонящего, RING_HOLD_MS). Неотвеченное приглашение держится RING_HOLD_MS
+// и отдаётся получателю при регистрации. Онлайн-получателю серия стартует с задержкой RING_ONLINE_GRACE_MS (если сокет «мёртвый», push дойдёт;
+// живой клиент ответит call-invite-ack и серия отменится).
+const RING_INTERVAL_MS = envInt("RING_INTERVAL_MS", 5000);
+const RING_MAX = envInt("RING_MAX", 6);
+const RING_HOLD_MS = envInt("RING_HOLD_MS", 45000);
+const RING_ONLINE_GRACE_MS = envInt("RING_ONLINE_GRACE_MS", 4000);
+const RING_PAIR_MS = envInt("RING_PAIR_MS", 20000);              // 1 звонок на пару отправитель→получатель за 20 с
+const RING_RECIPIENT_PER_MIN = envInt("RING_RECIPIENT_PER_MIN", 3); // не более 3 новых звонков в минуту одному получателю
+const RING_TOMBSTONE_MS = envInt("RING_TOMBSTONE_MS", 60000);    // запись о звонке живёт после остановки: запоздавший push-ack ещё проверяется
+const RING_MAX_CALLS = envInt("RING_MAX_CALLS", 20000);
+const RING_PENDING_PER_RECIPIENT = 3;
+const PUSH_ACK_PER_IP_PER_MIN = envInt("PUSH_ACK_PER_IP_PER_MIN", 60);
+const PUSH_TEST_PER_MIN = envInt("PUSH_TEST_PER_MIN", 3);
+// Секрет HMAC для ackToken: PUSH_ACK_SECRET из окружения, иначе случайный на время жизни процесса (после рестарта токены старых push недействительны — это нормально, TTL push 30 с).
+const PUSH_ACK_SECRET = process.env.PUSH_ACK_SECRET || crypto.randomBytes(32).toString("hex");
+const rings = new Map();        // callId -> запись (в т.ч. остановленные до RING_TOMBSTONE_MS)
+const ringPairIdx = new Map();  // "from→to" -> callId активного звонка
+const callPairAt = new Map();   // "from→to" -> ts последнего звонка
+const callRecipientAt = new Map(); // получатель -> [ts…] новых звонков за минуту
 const callPushIpHits = new Map();
-const CALL_PUSH_RECIPIENT_MS = 15 * 1000, CALL_PUSH_PAIR_MS = 30 * 1000;
+const pushAckIpHits = new Map();
+const testRingHits = new Map(), testRingIpHits = new Map();
+const CALL_PUSH_PER_IP_PER_MIN = Number(process.env.CALL_PUSH_PER_IP_PER_MIN) || 10;
 const ipConnCount = new Map();         // ip -> число открытых сокетов
+function cleanCallId(v) { return (typeof v === "string" || typeof v === "number") && /^[A-Za-z0-9_-]{4,64}$/.test(String(v)) ? String(v) : null; }
+function ringSubHash(sub) { return crypto.createHash("sha256").update(String(sub && sub.endpoint || "")).digest("hex").slice(0, 16); }
+function ringToken(callId, seq, subHash) { return crypto.createHmac("sha256", PUSH_ACK_SECRET).update(callId + "|" + seq + "|" + subHash).digest("base64url"); }
+function ringDrop(rec) { // полное удаление записи
+  rings.delete(rec.callId);
+  if (ringPairIdx.get(rec.pk) === rec.callId) ringPairIdx.delete(rec.pk);
+}
+async function ringSendPush(rec, payload, opts) {
+  const entry = pushSubs.get(rec.to);
+  if (!PUSH_ENABLED || !entry) return false;
+  try {
+    await webpush.sendNotification(entry.subscription, JSON.stringify(payload), Object.assign({ TTL: 30, urgency: "high", timeout: 10000 }, opts));
+    return true;
+  } catch (e) {
+    if (e && (e.statusCode === 404 || e.statusCode === 410)) { if (pushSubs.get(rec.to) === entry) { pushSubs.delete(rec.to); schedulePushSubsSave(); } return "gone"; }
+    console.warn("[push] ошибка отправки звонка:", e && e.statusCode, e && e.message);
+    return false;
+  }
+}
+function ringOnce(rec) {
+  if (rec.done) return;
+  const seq = ++rec.sent;
+  if (seq < rec.total) { rec.timer = setTimeout(() => ringOnce(rec), RING_INTERVAL_MS); rec.timer.unref(); }
+  const entry = pushSubs.get(rec.to);
+  if (!entry) { if (!rec.test) return; ringStop(rec, "nosub"); return; }
+  const callerRec = clients.get(rec.fromReal);
+  const subHash = ringSubHash(entry.subscription);
+  rec.subHash = subHash;
+  const payload = { t: "call-ring", callId: rec.callId, from: rec.from, name: rec.name, seq, total: rec.total, video: rec.video, ackToken: ringToken(rec.callId, seq, subHash) };
+  void callerRec;
+  ringSendPush(rec, payload, { topic: "ring-" + rec.callId.slice(0, 8).replace(/[^A-Za-z0-9_-]/g, "x") + "-" + seq }).then((r) => { if (r === "gone") { rec.sent = rec.total; ringStop(rec, "gone"); } }).catch(() => {});
+}
+// reason: answered | declined | cancelled | timeout (уходят в cancel push) либо delivered | gone | nosub | test-end | evicted (тихо)
+function ringStop(rec, reason) {
+  if (!rec || rec.done) return;
+  rec.done = true; rec.stopReason = reason;
+  clearTimeout(rec.timer); clearTimeout(rec.hold);
+  if (ringPairIdx.get(rec.pk) === rec.callId) ringPairIdx.delete(rec.pk);
+  const loud = reason === "answered" || reason === "declined" || reason === "cancelled" || reason === "timeout";
+  if (loud && !rec.test && rec.sent > 0 && pushSubs.has(rec.to)) {
+    ringSendPush(rec, { t: "call-cancel", callId: rec.callId, reason, from: rec.from, name: rec.name }, { topic: "cancel-" + rec.callId.slice(0, 8).replace(/[^A-Za-z0-9_-]/g, "x") }).catch(() => {});
+  }
+  if (loud && !rec.test) { const t = clients.get(rec.to); if (t) safeSend(t.ws, { type: "call-cancel", callId: rec.callId, from: rec.from, reason }); }
+  rec.gc = setTimeout(() => ringDrop(rec), RING_TOMBSTONE_MS); rec.gc.unref();
+}
+// Сигнал звонка между парой: останавливает активную серию. from/to — уже после разрешения алиасов.
+function ringOnSignal(sid, to, t) {
+  if (t === "call-invite") return;
+  const stop = (pk, reason) => { const id = ringPairIdx.get(pk); const rec = id && rings.get(id); if (rec && !rec.test) ringStop(rec, reason); };
+  if (t === "call-ended") { stop(sid + "→" + to, "cancelled"); stop(to + "→" + sid, "declined"); }
+  else if (t === "call-accepted") stop(to + "→" + sid, "answered");
+  else if (t === "call-declined" || t === "call-busy") stop(to + "→" + sid, "declined");
+  else if (t === "call-invite-ack") stop(to + "→" + sid, "delivered");
+}
+function ringsStopFrom(id, reason) { for (const rec of Array.from(rings.values())) if (!rec.done && rec.fromReal === id && !rec.test) ringStop(rec, reason); }
+function ringNew(o) {
+  const rec = Object.assign({ sent: 0, total: RING_MAX, done: false, used: new Set(), video: false, test: false, pending: null, subHash: "" }, o);
+  rec.pk = rec.from + "→" + rec.to;
+  rings.set(rec.callId, rec);
+  if (!rec.test) ringPairIdx.set(rec.pk, rec.callId);
+  rec.hold = setTimeout(() => ringStop(rec, rec.test ? "test-end" : "timeout"), rec.test ? rec.total * RING_INTERVAL_MS + 2000 : RING_HOLD_MS);
+  rec.hold.unref();
+  return rec;
+}
+// call-invite: решает, нужны ли серия push и удержание приглашения. target — запись онлайн-получателя или undefined.
+function onCallInvite(myId, sid, ipAddr, msg, target) {
+  const d = msg.data, to = msg.to;
+  const hasSub = pushSubs.has(to);
+  const online = !!(target && target.ws.readyState === WebSocket.OPEN);
+  if (online && !hasSub) return;
+  // Скрытому «чужому» звонок и push не уходят (S2): мусорные приглашения не расходуют лимиты получателя.
+  if (target && !canReach(sid, clients.get(myId), to, target)) return;
+  const pk = sid + "→" + to, tNow = Date.now();
+  const act = ringPairIdx.get(pk); if (act && rings.has(act) && !rings.get(act).done) { console.log("[call-push] throttled " + shortId(myId) + " → " + shortId(to) + " (серия уже идёт)"); return; } // повтор приглашения (ретрай клиента): серия уже идёт
+  const callId = cleanCallId(d.callId) || cleanCallId(d.x) || crypto.randomBytes(9).toString("base64url");
+  if (rings.has(callId) || rings.size >= RING_MAX_CALLS) return;
+  if (hasSub && !wsRateLimitOk(callPushIpHits, ipAddr, CALL_PUSH_PER_IP_PER_MIN)) { console.log("[call-push] ip-throttled " + shortId(myId)); return; } // отдельный лимит на IP отправителя (на смену id не реагирует)
+  const lp = callPairAt.get(pk);
+  const recent = (callRecipientAt.get(to) || []).filter((x) => tNow - x < 60000);
+  if ((lp && tNow - lp < RING_PAIR_MS) || recent.length >= RING_RECIPIENT_PER_MIN) { console.log("[call-push] throttled " + shortId(myId) + " → " + shortId(to)); return; }
+  if (!online) { let n = 0; for (const r of rings.values()) if (!r.done && r.to === to && r.pending) n++; if (n >= RING_PENDING_PER_RECIPIENT) return; }
+  console.log((hasSub ? "[call-push] allowed " : "[call-hold] ") + shortId(myId) + " → " + shortId(to));
+  recent.push(tNow); callRecipientAt.set(to, recent); callPairAt.set(pk, tNow);
+  for (const m of [callPairAt, callRecipientAt]) if (m.size > 50000) m.delete(m.keys().next().value);
+  const me = clients.get(myId);
+  const lang = (pushSubs.get(to) || {}).lang;
+  const rec = ringNew({ callId, from: sid, fromReal: myId, to, name: (me && me.name) || pushText(lang, "call"), video: !!(d.video || d.kind === "video"), pending: online ? null : { from: sid, data: d } });
+  if (hasSub) {
+    if (online) { rec.timer = setTimeout(() => ringOnce(rec), RING_ONLINE_GRACE_MS); rec.timer.unref(); }
+    else ringOnce(rec);
+  }
+}
+// Получатель зарегистрировался: отдаём неотвеченные приглашения (A/D)
+function ringDeliverPending(id, ws) {
+  for (const rec of Array.from(rings.values())) {
+    if (rec.done || rec.to !== id || !rec.pending) continue;
+    const caller = clients.get(rec.fromReal);
+    if (!caller || !canReach(rec.from, caller, id, clients.get(id))) { ringStop(rec, "cancelled"); continue; }
+    safeSend(ws, { type: "signal", from: rec.from, data: rec.pending.data });
+    rec.pending = null;
+    ringStop(rec, "delivered");
+  }
+}
+function readJsonBody(req, res, max, cb) {
+  let size = 0, chunks = [], dead = false;
+  req.on("data", (c) => { size += c.length; if (size > max) { dead = true; res.writeHead(413); res.end(); req.destroy(); } else chunks.push(c); });
+  req.on("end", () => { if (dead) return; let o = null; try { o = JSON.parse(Buffer.concat(chunks).toString("utf8")); } catch (e) {} cb(o); });
+  req.on("error", () => {});
+}
+const PUSH_ACK_ORIGINS = new Set([APP_BASE_URL, ALLOWED_ORIGIN, ...String(process.env.PUSH_ACK_ORIGINS || "").split(",")].map((s) => { try { return s && s !== "*" ? new URL(s.trim()).origin : ""; } catch (e) { return ""; } }).filter(Boolean));
+// POST /push-ack {callId, seq, ackToken}: service worker подтверждает, что push показан → звонящему call-ringing (один раз)
+function handlePushAck(req, res, ip) {
+  const origin = req.headers.origin;
+  const reply = (code, obj) => { res.writeHead(code, { "Content-Type": "application/json" }); res.end(JSON.stringify(obj || {})); };
+  if (origin && !PUSH_ACK_ORIGINS.has(origin)) return reply(403, { error: "origin" });
+  if (origin) { res.setHeader("Access-Control-Allow-Origin", origin); res.setHeader("Vary", "Origin"); }
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS"); res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
+  if (req.method !== "POST") return reply(405, { error: "method" });
+  if (!wsRateLimitOk(pushAckIpHits, ip, PUSH_ACK_PER_IP_PER_MIN)) return reply(429, { error: "rate limited" });
+  readJsonBody(req, res, 1024, (b) => {
+    const seq = b && Number.isInteger(b.seq) ? b.seq : -1;
+    const rec = b && typeof b.callId === "string" && typeof b.ackToken === "string" && b.ackToken.length <= 64 ? rings.get(b.callId) : null;
+    if (!rec || seq < 1 || seq > rec.sent) return reply(403, { error: "token" });
+    const exp = Buffer.from(ringToken(rec.callId, seq, rec.subHash)), got = Buffer.from(b.ackToken);
+    if (exp.length !== got.length || !crypto.timingSafeEqual(exp, got)) return reply(403, { error: "token" });
+    if (rec.used.has(seq)) return reply(200, { ok: true, dup: true }); // токен одноразовый: повтор ничего не делает
+    rec.used.add(seq);
+    if (!rec.ringing && (!rec.done || rec.test)) { // call-ringing — один раз и только пока звонок не завершён
+      rec.ringing = true;
+      const c = clients.get(rec.fromReal);
+      if (c) safeSend(c.ws, { type: "call-ringing", callId: rec.callId });
+    }
+    reply(200, { ok: true });
+  });
+}
+// Тест push из диагностики клиента: сервер звонит САМОМУ клиенту (3 гудка, callId "test-…", без состояния звонка)
+function onPushTestRing(myId, ws, ipAddr) {
+  const err = (reason) => safeSend(ws, { type: "push-test-error", reason });
+  if (!PUSH_ENABLED) return err("disabled");
+  if (!pushSubs.has(myId)) return err("nosub");
+  if (!wsRateLimitOk(testRingHits, myId, PUSH_TEST_PER_MIN) || !wsRateLimitOk(testRingIpHits, ipAddr, PUSH_TEST_PER_MIN * 3) || rings.size >= RING_MAX_CALLS) return err("ratelimit");
+  const callId = "test-" + crypto.randomBytes(6).toString("hex");
+  const me = clients.get(myId);
+  const rec = ringNew({ callId, from: myId, fromReal: myId, to: myId, name: (me && me.name) || "Test", test: true, total: 3 });
+  safeSend(ws, { type: "push-test-started", callId, total: 3 });
+  ringOnce(rec);
+}
 // Язык push приходит от клиента: нормализуем ("ru_RU" → "ru-RU") и проверяем по белому списку формы, иначе "en".
 function normLang(l) {
   if (typeof l !== "string" || l.length > 35) return "en";
@@ -1631,6 +1799,14 @@ wss.on("connection", (ws, req) => {
       if (devicesMod.onMessage(ws, msg, devicesCtx())) return;
     }
 
+    // Звонок по ссылке: join/signal/end допустимы и с НЕзарегистрированного сокета (гость); create/allow/deny — только от зарегистрированного.
+    if (msg.type.startsWith("linkcall-")) {
+      const reg = myId && clients.get(myId) && clients.get(myId).ws === ws;
+      linkcall.onMessage(ws, msg, { id: reg ? myId : null, ip: ipAddr, onJoined: () => clearTimeout(regTimer) });
+      return;
+    }
+    if (msg.type === "push-test-ring" && myId && clients.get(myId) && clients.get(myId).ws === ws) { onPushTestRing(myId, ws, ipAddr); return; }
+
     // Всё, кроме register/ping, — только от текущего (не вытесненного) соединения зарегистрированного id.
     if (msg.type !== "register" && (!myId || !clients.get(myId) || clients.get(myId).ws !== ws)) return;
 
@@ -1698,6 +1874,7 @@ wss.on("connection", (ws, req) => {
       if (PUSH_ENABLED) safeSend(ws, { type: "vapid-key", key: VAPID_PUBLIC });
       clearThrottleForRecipient(myId);
       flushMailbox(myId, ws);
+      ringDeliverPending(myId, ws);
       broadcastPresence(myId, true);
       return;
     }
@@ -1778,6 +1955,7 @@ wss.on("connection", (ws, req) => {
       const sid = aliasSender(myId, msg.as); // от имени старого id (алиас) - для контактов, которые ещё не перешли на новый
       const origTo = msg.to; msg.to = aliasResolve(msg.to); // адресат со старым id алиаса -> новый id
       const target = clients.get(msg.to);
+      if (msg.data && typeof msg.data.t === "string") ringOnSignal(sid, msg.to, msg.data.t);
       const payload = { type: "signal", from: sid, data: msg.data };
       // Скрытый адресат, у которого отправителя нет в ростере, неотличим от офлайн/незарегистрированного: тот же ответ unreachable, без доставки.
       if (target && canReach(sid, clients.get(myId), msg.to, target)) {
@@ -1787,40 +1965,7 @@ wss.on("connection", (ws, req) => {
         safeSend(ws, { type: "unreachable", to: origTo });
         console.log("[sig] " + shortId(myId) + " → UNREACHABLE " + shortId(msg.to) + " t=" + sanitizeForLog(msg.data && msg.data.t, 24));
       }
-      if (msg.data && msg.data.t === "call-invite") {
-        // Дедупликация по packet.x — если это повторная отправка ТОГО ЖЕ
-        // самого приглашения (например, ретрай после переподключения
-        // клиента), получатель уже получил push на эту попытку звонка.
-        // На клиенте isDuplicateSignal защищает от повторной обработки
-        // сигнала, но push к тому моменту уже был бы отправлен повторно.
-        const inviteNonce = (typeof msg.data.x === "string" || typeof msg.data.x === "number") ? String(msg.data.x).slice(0, 128) : null;
-        if (inviteNonce && callInvitePushSent.has(inviteNonce)) return;
-        // Push только если он осмыслен и допустим: у получателя есть подписка, а если он онлайн — отправитель вправе его достичь (canReach;
-        // скрытому «чужому» звонок и push не уходят). Иначе мусорные приглашения с разных id не расходуют лимит получателя (3/15 с) и не глушат настоящие звонки.
-        if (!pushSubs.has(msg.to) || (target && !canReach(sid, clients.get(myId), msg.to, target))) return;
-        if (!wsRateLimitOk(callPushIpHits, ipAddr, CALL_PUSH_PER_IP_PER_MIN)) { console.log("[call-push] ip-throttled " + shortId(myId)); return; } // отдельный лимит на IP отправителя (на смену id не реагирует)
-        // Принудительные (force) push о звонке обходят общий троттлинг — ограничиваем отдельно: не чаще раза в 15 с на получателя
-        // и раза в 30 с на пару отправитель→получатель (первый push уходит сразу).
-        { const tNow = Date.now(), pk = myId + "→" + msg.to;
-          let lr = callPushRecipientAt.get(msg.to); const lp = callPushPairAt.get(pk);
-          if (lr && tNow - lr.ts >= CALL_PUSH_RECIPIENT_MS) lr = null; // окно получателя истекло
-          // Получатель: не более CALL_PUSH_RECIPIENT_BURST push за окно (а не один: иначе посторонний «глушит» настоящие звонки жертве).
-          if ((lr && lr.n >= CALL_PUSH_RECIPIENT_BURST) || (lp && tNow - lp < CALL_PUSH_PAIR_MS)) { console.log("[call-push] throttled " + shortId(myId) + " → " + shortId(msg.to)); return; }
-          console.log("[call-push] allowed " + shortId(myId) + " → " + shortId(msg.to));
-          if (inviteNonce) callInvitePushSent.set(inviteNonce, tNow); // nonce помечаем только после прохождения троттлинга
-          callPushRecipientAt.set(msg.to, lr ? { ts: lr.ts, n: lr.n + 1 } : { ts: tNow, n: 1 }); callPushPairAt.set(pk, tNow);
-          for (const m of [callPushRecipientAt, callPushPairAt]) if (m.size > 50000) m.delete(m.keys().next().value); }
-        const me = clients.get(myId);
-        const recipientLang = (pushSubs.get(msg.to) || {}).lang;
-        const myName = (me && me.name) || pushText(recipientLang, "call");
-        sendPushTo(msg.to, sid, {
-          title: "📞 " + myName,
-          body: pushText(recipientLang, "incomingCall"),
-          tag: "ether-call-" + sid,
-          contactId: sid,
-          kind: "call",
-        }, { force: true }).catch(() => {});
-      }
+      if (msg.data && msg.data.t === "call-invite") onCallInvite(myId, sid, ipAddr, msg, target);
       return;
     }
 
@@ -2041,9 +2186,11 @@ wss.on("connection", (ws, req) => {
   ws.on("close", () => {
     clearTimeout(regTimer);
     devicesMod.onClose(ws);
+    linkcall.onClose(ws);
     const left = (ipConnCount.get(ipAddr) || 1) - 1;
     if (left <= 0) ipConnCount.delete(ipAddr); else ipConnCount.set(ipAddr, left);
     if (myId && clients.get(myId) && clients.get(myId).ws === ws) {
+      ringsStopFrom(myId, "cancelled");
       const goneRec = clients.get(myId);
       const wasVisible = goneRec.visible;
       clients.delete(myId);
@@ -2084,20 +2231,14 @@ setInterval(() => {
     const cur = mailbox.get(uid);
     if (cur && cur.size === 0) mailbox.delete(uid);
   }
-  for (const m of [callPushRecipientAt, callPushPairAt]) for (const [k, v] of m) if (now - (typeof v === "number" ? v : v.ts) > CALL_PUSH_PAIR_MS) m.delete(k);
+  for (const [k, v] of callPairAt) if (now - v > RING_PAIR_MS) callPairAt.delete(k);
+  for (const [k, v] of callRecipientAt) { const f = v.filter((x) => now - x < 60000); if (f.length) callRecipientAt.set(k, f); else callRecipientAt.delete(k); }
 }, 60000);
 
 setInterval(() => {
   const now = Date.now();
   for (const [msgId, ts] of pushSentForMsgId) {
     if (now - ts > PUSH_DEDUP_TTL_MS) pushSentForMsgId.delete(msgId);
-  }
-}, 60 * 1000);
-
-setInterval(() => {
-  const now = Date.now();
-  for (const [x, ts] of callInvitePushSent) {
-    if (now - ts > CALL_INVITE_PUSH_DEDUP_TTL_MS) callInvitePushSent.delete(x);
   }
 }, 60 * 1000);
 

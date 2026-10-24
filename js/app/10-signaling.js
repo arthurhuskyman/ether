@@ -166,6 +166,7 @@ function wireSignalingEvents(sig) {
 
   subs.push(on("connected", () => {
     updateSignalingStatusUI("online", T("status.online"));
+    if (sig.guest) return; // гость link-call: не регистрируется — ни ростера, ни push, ни очереди
     for (const [id, link] of Array.from(mesh.links)) {
       if (link.status === "disconnected" && link._closed !== true) {
         etherLog("info", "[reconnect] dropping dead link to " + String(id).slice(0, 10) + "…");
@@ -254,6 +255,10 @@ function wireSignalingEvents(sig) {
     if (state.tab === "chats") renderChatsList();
     if (state.tab === "connect") renderOnlineRosterList();
   }));
+  subs.push(on("call-ringing", (ev) => { callRingingFromServer(ev.detail); })); // V.79 (протокол C): push доставлен, у собеседника звонит
+  subs.push(on("linkcall-signal", (ev) => { linkCallOnSignal(sig, ev.detail); })); // V.79 (протокол E): сигналы link-call проходят через шлюз
+  for (const lt of ["linkcall-created", "linkcall-joined", "linkcall-error", "linkcall-guest", "linkcall-end", "linkcall-allowed", "linkcall-denied"]) subs.push(on(lt, (ev) => { linkCallOnServer(sig, lt, ev.detail); }));
+  subs.push(on("disconnected", () => { try { linkCallOnDisconnected(sig); } catch (e) {} }));
   subs.push(on("unreachable", (ev) => {
     const { to } = ev.detail;
     if (!to) return;
@@ -291,7 +296,7 @@ function wireSignalingEvents(sig) {
     const { key } = ev.detail;
     if (key) { Store.vapidPublicKey = key; ensurePushSubscription().catch(() => {}); }
   }));
-  subs.push(on("push-subscribed", () => { etherLog("info", "[push] server confirmed subscription"); }));
+  subs.push(on("push-subscribed", () => { state._pushServerOk = Date.now(); etherLog("info", "[push] server confirmed subscription"); }));
   subs.push(on("online-list", () => { maybeUploadPrekeys(false); }));
   subs.push(on("prekey-low", () => { maybeUploadPrekeys(true); }));
   subs.push(on("online-list", (ev) => {
@@ -364,6 +369,7 @@ function wireSignalingEvents(sig) {
       openCallScreen(from, "ringing");
       try { ensureAudioCtx(); } catch (e) {}
       playRingtone();
+      try { answerScreenOnInvite(from); } catch (e) { etherLog("warn", "[answer] " + String(e)); }
       const c = state.contacts.get(from);
       if (c && !isContactMuted(c) && Store.notificationsEnabled) {
         // Раньше тут был force: true — уведомление показывалось, даже когда

@@ -60,6 +60,17 @@ npm start
 
 Часы сервера сигналинга и coturn не обязаны совпадать точно: срок жизни — сутки, допуск большой.
 
+## Доставка звонка и звонок по ссылке (V.79)
+
+Контракт: `docs/CALL-RELIABILITY-PROTOCOL.md`. Офлайн-получателю сервер шлёт серию web-push «гудков» (до 6, каждые 5 с, пока звонок не принят/отклонён/отменён, 45 с), держит приглашение 45 с до регистрации получателя, принимает `POST /push-ack` от service worker и шлёт звонящему `call-ringing`. Звонок по ссылке: комнаты `linkcall-*` (гость может быть без регистрации).
+
+Переменные окружения (все необязательные):
+- `PUSH_ACK_SECRET` — секрет HMAC для одноразовых `ackToken`. Не задан → случайный на время жизни процесса (после рестарта токены уже отправленных push недействительны, TTL push 30 с, это допустимо). Для нескольких инстансов за балансировщиком задайте одинаковый.
+- `PUSH_ACK_ORIGINS` — доп. origin'ы (через запятую), которым разрешён CORS на `/push-ack`; по умолчанию origin из `APP_BASE_URL`/`ALLOWED_ORIGIN`. `PUSH_ACK_PER_IP_PER_MIN` (60) — лимит /push-ack на IP.
+- `CALL_PUSH_PER_IP_PER_MIN` (10) — новых звонков с push с одного IP в минуту.
+- Тонкая настройка серии: `RING_INTERVAL_MS` (5000), `RING_MAX` (6), `RING_HOLD_MS` (45000), `RING_ONLINE_GRACE_MS` (4000), `RING_PAIR_MS` (20000, 1 звонок на пару), `RING_RECIPIENT_PER_MIN` (3), `PUSH_TEST_PER_MIN` (3).
+- Звонок по ссылке: `LINKCALL_TTL_MS` (600000), `LINKCALL_MAX_MS` (7200000), `LINKCALL_MAX_PER_ID` (3), `LINKCALL_MAX_ROOMS` (5000), `LINKCALL_CREATE_PER_MIN` (6), `LINKCALL_JOIN_ROOM_PER_MIN` (20), `LINKCALL_JOIN_CODE_PER_MIN` (5).
+
 ## Подключение приложения к своему серверу
 
 В Мессенджере: Settings → Signaling server → вставьте `wss://ваш-домен` → «Save and connect». Это уже существующая настройка (`Store.signalingUrl`) — весь смысл этого документа в том, чтобы разворачивание сервера было таким же простым, как сама настройка.

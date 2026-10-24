@@ -10,3 +10,6 @@ coverage/
 .ether-discovery.json.tmp
 .ether-devices.json
 .ether-devices.json.tmp
+
+# состояние сервера во время работы/тестов (не коммитить)
+signaling-server/.ether-*.json

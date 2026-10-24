@@ -198,8 +198,18 @@ async function migrateFilesEncryption(toEncrypted) {
     } catch (e) {}
   }
 }
+// V.79: маленький индекс id -> имя для мгновенного экрана «Входящий звонок» (не парсим весь список контактов с перепиской при холодном старте)
+let __cnamesKey = "";
+function syncContactNamesIndex() {
+  const o = {}; let n = 0;
+  for (const c of state.contacts.values()) { if (!c.managed || c.isGroup || c.isSelf || !c.name) continue; o[c.id] = String(c.name).slice(0, 40); if (++n >= 400) break; }
+  const j = JSON.stringify(o);
+  if (j === __cnamesKey) return; __cnamesKey = j;
+  try { localStorage.setItem("ether.cnames", j); } catch (e) {}
+}
 function persistContacts() {
   try { syncBlockedToSW(); } catch (e) {}
+  try { syncContactNamesIndex(); } catch (e) {}
   try { syncWatch(false); } catch (e) {}
   __contactsPersistPending = Array.from(state.contacts.values()).filter((c) => c.managed).map((c) => ({
     id: c.id, name: c.name, raw: c.raw, publicKey: c.publicKey,
@@ -812,7 +822,7 @@ function renderChatsList() {
   list.innerHTML = "";
   try { renderStoriesRow(); } catch (e) {}
   const query = state.searchQuery.toLowerCase();
-  const all = Array.from(state.contacts.values());
+  const all = Array.from(state.contacts.values()).filter((c) => !c.ephemeral); // ephemeral — виртуальный собеседник link-call (V.79)
   // Холодный старт: пока не прошло ~400мс с запуска (см. startApp), и
   // контактов ещё нет в памяти — показываем skeleton вместо пустого
   // экрана, чтобы не мигать "No one is online yet" на долю секунды,

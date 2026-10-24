@@ -271,6 +271,7 @@ async function applyImportedData(data) {
 // Mesh события
 // =====================================================================
 function wireMeshEvents() {
+  try { linkCallWireMesh(); } catch (e) { etherLog("warn", "[linkcall] wireMesh: " + String(e)); }
   if (typeof gcallWire === "function") gcallWire();
   if (typeof roomWire === "function") roomWire();
   if (typeof wireLocalAi === "function") wireLocalAi();
@@ -310,10 +311,10 @@ function wireMeshEvents() {
         // имя, которое пользователь задал контакту сам (переименование), перезаписывать нельзя
         if (link && link.remoteName && !c.nameLocal) c.name = String(link.remoteName).slice(0, 40);
         if (c.managed) persistContacts();
-        toast(T("toast.peerOnline", { name: c.name }));
+        if (!c.ephemeral) toast(T("toast.peerOnline", { name: c.name }));
         clearAutoConnectTimer(id);
         if (state.pendingOutgoing && state.pendingOutgoing.id === id) resetConnectScreen();
-        sendPrivacyPrefsTo(id);
+        if (!c.ephemeral) sendPrivacyPrefsTo(id);
         // Если этот контакт состоит в ОБЩЕЙ со мной группе — пересылаю
         // ему актуальный ростер при каждом переподключении. Раньше
         // ростер уходил ТОЛЬКО при явном действии в группе (добавили/
@@ -394,6 +395,8 @@ function wireMeshEvents() {
     try {
       const { id, payload } = ev.detail;
       const c = state.contacts.get(id); if (!c) return;
+      // V.79: гость link-call — не контакт; принимаем от него только служебное состояние звонка (остальное, включая чат/файлы/relay, отбрасываем)
+      if (c.ephemeral && !(payload && ["call-state", "ping", "pong", "sdp"].includes(payload.kind))) return;
       if (c.blocked) { if (payload && payload.kind === "call-state" && payload.state === "ringing") scheduleBlockedCallDecline(id, signaling); return; }
       { // шлюз аутентификации канала
         const lk = mesh.get(id);
@@ -755,6 +758,7 @@ function bootDidNotRender() {
   const lk = document.getElementById("lock-screen");
   const rc = document.getElementById("boot-recovery");
   if (!on || !ap || !lk || !rc) return false;
+  for (const xid of ["answer-screen", "guest-call"]) { const xe = document.getElementById(xid); if (xe && !xe.classList.contains("hidden")) return false; }
   return on.classList.contains("hidden") && ap.classList.contains("hidden")
       && lk.classList.contains("hidden") && rc.classList.contains("hidden");
 }

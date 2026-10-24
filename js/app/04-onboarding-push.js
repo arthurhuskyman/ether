@@ -34,9 +34,11 @@ function isSimpleUi() { return UiMode.isSimple(); }
 
 // Онбординг и запуск
 // =====================================================================
+let __fastBoot = false; // V.79: старт по уведомлению о звонке — сначала экран «Входящий звонок», второстепенная инициализация позже
 function bootAfterUnlock() {
   if (__appStarted) return;
   if (Store.name && Store.myId) {
+    try { __fastBoot = !!answerBootFromLocation(); } catch (e) { __fastBoot = false; }
     // Раньше здесь ЖДАЛИ window.__etherIceReady (ответ /ice с сервера)
     // ПЕРЕД тем, как вообще показать приложение — хотя ICE-серверы
     // нужны только в момент РЕАЛЬНОГО соединения (звонок, автоподключение
@@ -48,8 +50,8 @@ function bootAfterUnlock() {
     // STUN, если ICE_SERVERS к моменту реального соединения ещё пуст
     // (см. webrtc.js) — ждать здесь стало не нужно вовсе.
     ensureKeyPair().catch(() => {}).then(() => {
-      try { startApp(); }
-      catch (e) { etherLog("error", "[startApp]", String(e)); }
+      const go = () => { try { startApp(); } catch (e) { etherLog("error", "[startApp]", String(e)); } };
+      if (__fastBoot) setTimeout(go, 30); else go(); // 30 мс: браузер успевает нарисовать экран звонка до тяжёлого запуска
     }).catch(() => {
       try { startApp(); } catch (e) {}
     });
@@ -75,6 +77,7 @@ function initBoot() {
   wireConfirmSheet();
   wireKeyChangeBanner(); wireSafetySheet();
   wireLockScreen();
+  try { if (linkCallBoot()) return; } catch (e) { etherLog("error", "[boot] linkCallBoot: " + String(e)); } // гостевой режим по ссылке #call= (без аккаунта)
   if (Store.pinEnabled && Store.pinHash) { showLockScreen(); return; }
   bootAfterUnlock();
 }
@@ -351,10 +354,14 @@ function startApp() {
   // звонке ВСЕГДА падал с ошибкой, и звонки были полностью
   // невозможны. Попытка была направлена на улучшение фонового
   // рингтона, но такой ценой она не оправдана — откатываем.
+  // V.79: при старте по уведомлению о звонке второстепенные wire* откладываются на следующий такт (после первой отрисовки)
+  const FAST_ESSENTIAL = new Set(["wireMeshEvents", "wireCallScreen", "wireTabBar", "wireNetworkListeners", "wireServiceWorker", "applyStaticTranslations", "wireNotificationPermission"]);
+  const deferredWires = [];
+  const sc = (fn, name) => { if (__fastBoot && !FAST_ESSENTIAL.has(name)) deferredWires.push([fn, name]); else safeCall(fn, name); };
   safeCall(wireMeshEvents, "wireMeshEvents");
-  safeCall(wireTabBar, "wireTabBar");
-  safeCall(wireTabSwipe, "wireTabSwipe");
-  safeCall(() => {
+  sc(wireTabBar, "wireTabBar");
+  sc(wireTabSwipe, "wireTabSwipe");
+  sc(() => {
     // Если данные были полностью сброшены (localStorage.clear()) в ДРУГОЙ
     // открытой вкладке — эта вкладка иначе продолжала бы работать со
     // старыми данными в памяти, ничего не подозревая, до следующего
@@ -363,7 +370,7 @@ function startApp() {
     // конкретного ключа key был бы непустым).
     window.addEventListener("storage", (e) => { if (e.key === null) location.reload(); });
   }, "wireCrossTabReset");
-  safeCall(() => {
+  sc(() => {
     // Раньше тап по индикатору соединения переключал на вкладку
     // настроек — единственный способ понять, что происходит с
     // соединением, был "иди в настройки и смотри". Теперь он открывает
@@ -372,57 +379,57 @@ function startApp() {
     const nav = $("#nav-conn-indicator");
     if (nav) nav.addEventListener("click", () => { if (state._replaced) reclaimSignaling(); else openOutboxSheet(); });
   }, "wireNavConnIndicator");
-  safeCall(wireConnectScreen, "wireConnectScreen");
-  safeCall(wireQrButtons, "wireQrButtons");
-  safeCall(wireGroupInfo, "wireGroupInfo");
-  safeCall(wireChatScreen, "wireChatScreen");
-  safeCall(wireScheduleSend, "wireScheduleSend");
-  safeCall(wireReminders, "wireReminders");
-  safeCall(wireChatHeaderMenu, "wireChatHeaderMenu");
-  safeCall(wireCmdk, "wireCmdk");
-  safeCall(wireMuteSheet, "wireMuteSheet");
-  safeCall(wireCallScreen, "wireCallScreen");
-  safeCall(wireSettingsScreen, "wireSettingsScreen");
-  safeCall(wireGlobalSearch, "wireGlobalSearch");
-  safeCall(wireEscCloseAnySheet, "wireEscCloseAnySheet");
-  safeCall(wireSheetFocusManagement, "wireSheetFocusManagement");
-  safeCall(wireDebugScreen, "wireDebugScreen");
-  safeCall(wireSheetBackdrops, "wireSheetBackdrops");
-  safeCall(wireCameraButton, "wireCameraButton");
-  safeCall(wireSearchHandlers, "wireSearchHandlers");
-  safeCall(wireChatFolders, "wireChatFolders");
-  safeCall(wirePullToRefresh, "wirePullToRefresh");
-  safeCall(wireMediaComposeSheet, "wireMediaComposeSheet");
-  safeCall(wireJumpToDateSheet, "wireJumpToDateSheet");
-  safeCall(wireEmojiPicker, "wireEmojiPicker");
-  safeCall(wireComposerPlusMode, "wireComposerPlusMode");
-  safeCall(wireSkipLink, "wireSkipLink");
-  safeCall(wireBackupPasswordSheet, "wireBackupPasswordSheet");
-  safeCall(wireHandshakeToneSheet, "wireHandshakeToneSheet");
-  safeCall(wireNotificationPermission, "wireNotificationPermission");
-  safeCall(wireServiceWorker, "wireServiceWorker");
-  safeCall(wireRenameSheet, "wireRenameSheet");
-  safeCall(wireNotifBanner, "wireNotifBanner");
-  safeCall(wireContactCard, "wireContactCard");
-  safeCall(wireContactGallery, "wireContactGallery");
-  safeCall(wireNavTitleTaps, "wireNavTitleTaps");
-  safeCall(wirePanicButton, "wirePanicButton");
-  safeCall(wirePanicShakeBanner, "wirePanicShakeBanner");
-  safeCall(() => { if (Store.panicShakeEnabled) wirePanicShake(); }, "wirePanicShakeAutostart");
-  safeCall(wireShakeUndoGuard, "wireShakeUndoGuard");
-  safeCall(wireKeyboardFix, "wireKeyboardFix");
-  safeCall(wireKeepKeyboard, "wireKeepKeyboard");
-  safeCall(wireNetworkListeners, "wireNetworkListeners");
-  safeCall(wireViewportRecalc, "wireViewportRecalc");
-  safeCall(wireMediaViewer, "wireMediaViewer");
-  safeCall(wireLinkActionSheet, "wireLinkActionSheet");
-  safeCall(applyDebugTabVisibility, "applyDebugTabVisibility");
-  safeCall(() => { const el = $("#about-version"); if (el) el.textContent = APP_VERSION; }, "aboutVersion");
-  safeCall(initAudioWarmup, "initAudioWarmup");
-  safeCall(applyChatAppearancePrefs, "applyChatAppearancePrefs");
-  safeCall(applyCalmMode, "applyCalmMode");
-  safeCall(setupLanguageSelector, "setupLanguageSelector");
-  safeCall(applyStaticTranslations, "applyStaticTranslations");
+  sc(wireConnectScreen, "wireConnectScreen");
+  sc(wireQrButtons, "wireQrButtons");
+  sc(wireGroupInfo, "wireGroupInfo");
+  sc(wireChatScreen, "wireChatScreen");
+  sc(wireScheduleSend, "wireScheduleSend");
+  sc(wireReminders, "wireReminders");
+  sc(wireChatHeaderMenu, "wireChatHeaderMenu");
+  sc(wireCmdk, "wireCmdk");
+  sc(wireMuteSheet, "wireMuteSheet");
+  sc(wireCallScreen, "wireCallScreen");
+  sc(wireSettingsScreen, "wireSettingsScreen");
+  sc(wireGlobalSearch, "wireGlobalSearch");
+  sc(wireEscCloseAnySheet, "wireEscCloseAnySheet");
+  sc(wireSheetFocusManagement, "wireSheetFocusManagement");
+  sc(wireDebugScreen, "wireDebugScreen");
+  sc(wireSheetBackdrops, "wireSheetBackdrops");
+  sc(wireCameraButton, "wireCameraButton");
+  sc(wireSearchHandlers, "wireSearchHandlers");
+  sc(wireChatFolders, "wireChatFolders");
+  sc(wirePullToRefresh, "wirePullToRefresh");
+  sc(wireMediaComposeSheet, "wireMediaComposeSheet");
+  sc(wireJumpToDateSheet, "wireJumpToDateSheet");
+  sc(wireEmojiPicker, "wireEmojiPicker");
+  sc(wireComposerPlusMode, "wireComposerPlusMode");
+  sc(wireSkipLink, "wireSkipLink");
+  sc(wireBackupPasswordSheet, "wireBackupPasswordSheet");
+  sc(wireHandshakeToneSheet, "wireHandshakeToneSheet");
+  sc(wireNotificationPermission, "wireNotificationPermission");
+  sc(wireServiceWorker, "wireServiceWorker");
+  sc(wireRenameSheet, "wireRenameSheet");
+  sc(wireNotifBanner, "wireNotifBanner");
+  sc(wireContactCard, "wireContactCard");
+  sc(wireContactGallery, "wireContactGallery");
+  sc(wireNavTitleTaps, "wireNavTitleTaps");
+  sc(wirePanicButton, "wirePanicButton");
+  sc(wirePanicShakeBanner, "wirePanicShakeBanner");
+  sc(() => { if (Store.panicShakeEnabled) wirePanicShake(); }, "wirePanicShakeAutostart");
+  sc(wireShakeUndoGuard, "wireShakeUndoGuard");
+  sc(wireKeyboardFix, "wireKeyboardFix");
+  sc(wireKeepKeyboard, "wireKeepKeyboard");
+  sc(wireNetworkListeners, "wireNetworkListeners");
+  sc(wireViewportRecalc, "wireViewportRecalc");
+  sc(wireMediaViewer, "wireMediaViewer");
+  sc(wireLinkActionSheet, "wireLinkActionSheet");
+  sc(applyDebugTabVisibility, "applyDebugTabVisibility");
+  sc(() => { const el = $("#about-version"); if (el) el.textContent = APP_VERSION; }, "aboutVersion");
+  sc(initAudioWarmup, "initAudioWarmup");
+  sc(applyChatAppearancePrefs, "applyChatAppearancePrefs");
+  sc(applyCalmMode, "applyCalmMode");
+  sc(setupLanguageSelector, "setupLanguageSelector");
+  sc(applyStaticTranslations, "applyStaticTranslations");
 
   try {
     applyGlassAlpha(Store.glassAlpha);
@@ -458,6 +465,7 @@ function startApp() {
     loadContacts(); loadHeld(); loadLastSeen(); loadDrafts(); loadScheduledMessages(); loadChatFolders();
     restoreOutbox(); restoreGroupDeliveryMap(); restorePendingNoKey(); restoreRecentlyDeleted(); loadCallLog();
     migrateServerAckedFlags();
+    try { syncContactNamesIndex(); } catch (e) {} // индекс имён для экрана «Входящий звонок» (V.79)
     // Контакты теперь загружены — можно подставить имя уже выбранного
     // доверенного контакта для Dead Man's Switch (до этой точки
     // state.contacts был бы ещё пуст, см. settings init выше).
@@ -494,6 +502,8 @@ function startApp() {
   }, 400);
   try { idMigBootFix(); } catch (e) { etherLog("error", "[startApp] idMigBootFix:", String(e)); }
   try { initSignaling(); } catch (e) { etherLog("error", "[startApp] initSignaling:", String(e)); }
+  safeCall(wireLinkCallUi, "wireLinkCallUi");
+  if (deferredWires.length) setTimeout(() => { for (const [fn, name] of deferredWires.splice(0)) safeCall(fn, name); __fastBoot = false; }, 0);
   try { startOutboxRetryLoop(); } catch (e) {}
   try { setInterval(sweepExpiredMessages, 30000); sweepExpiredMessages(); } catch (e) {}
   // Проверяем раз в 30с + сразу при старте (не ждём первого тика) — так
@@ -509,6 +519,7 @@ function startApp() {
   try { updateCallsBadge(); } catch (e) {}
   try { maybeShowOnboardingHint(); } catch (e) {}
   try { maybeOfferSystemLanguage(); } catch (e) {}
+  try { linkCallFromLocation(); } catch (e) { etherLog("error", "[startApp] link-call:", String(e)); }
 }
 
 function applyStaticTranslations() {
@@ -537,6 +548,7 @@ function applyStaticTranslations() {
   // Список категорий Настроек строится из JS (не из data-i18n) — без перерисовки после смены языка
   // подписи оставались на языке, действовавшем в момент старта приложения.
   try { renderSettingsCategories(); updateSettingsCategoryView(); } catch (e) {}
+  try { syncRingConfigToSW(); } catch (e) {}
 }
 
 function setupLanguageSelector() {
@@ -852,6 +864,7 @@ function wireServiceWorker() {
   navigator.serviceWorker.register("./sw.js").then((reg) => {
     swRegistration = reg;
     setTimeout(() => { ensurePushSubscription().catch(() => {}); }, 1000);
+    setTimeout(() => { __ringCfgKey = ""; try { syncRingConfigToSW(); } catch (e) {} }, 1500);
     watchForWaitingSW(reg);
   }).catch(() => {});
 
@@ -892,6 +905,8 @@ function wireServiceWorker() {
         if (state.chatId === data.contactId) renderChatThreadInner();
       }
     }
+    if (data.type === "answer-call") { try { answerFromNotification(data); } catch (e) { etherLog("warn", "[answer] " + String(e)); } }
+    if (data.type === "ring-received") { try { if (typeof notifCheckOnRing === "function") notifCheckOnRing(data); } catch (e) {} }
     if (data.type === "push-subscription-changed") {
       ensurePushSubscription().catch(() => {});
     }
@@ -905,6 +920,7 @@ function wireServiceWorker() {
   let hadController = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     __blockedSyncKey = ""; try { syncBlockedToSW(); } catch (e) {} // новый SW не знает список заблокированных — отправляем заново
+    __ringCfgKey = ""; try { syncRingConfigToSW(); } catch (e) {}
     if (!hadController) { hadController = true; return; }
     if (sessionStorage.getItem("ether.reloadingForUpdate")) return;
     sessionStorage.setItem("ether.reloadingForUpdate", "1");
@@ -1003,6 +1019,17 @@ function showUpdateBanner(reg) {
 // =====================================================================
 // Web Push
 // =====================================================================
+// V.79: SW не видит localStorage/i18n — отдаём ему HTTP-адрес сервера (push-ack) и локализованные тексты уведомлений о звонке
+let __ringCfgKey = "";
+function syncRingConfigToSW() {
+  const msg = { type: "ring-config", httpBase: signalingHttpBase(), strings: { ringTitle: T("ring.title"), ringBody: T("ring.body"), missed: T("ring.missed"), ended: T("ring.ended") } };
+  const key = JSON.stringify(msg);
+  if (key === __ringCfgKey) return;
+  const target = (navigator.serviceWorker && navigator.serviceWorker.controller) || (swRegistration && swRegistration.active);
+  if (!target) return;
+  __ringCfgKey = key;
+  target.postMessage(msg);
+}
 async function ensurePushSubscription() {
   if (!Store.notificationsEnabled) return null;
   if (!("serviceWorker" in navigator) || !("PushManager" in window)) return null;
@@ -1025,6 +1052,7 @@ async function ensurePushSubscription() {
   }
   const subJson = sub.toJSON ? sub.toJSON() : sub;
   Store.pushSubscriptionJson = JSON.stringify(subJson);
+  try { const ep = String(subJson.endpoint || "").slice(-48); if (localStorage.getItem("ether.pushSubEp") !== ep) { localStorage.setItem("ether.pushSubEp", ep); localStorage.setItem("ether.pushSubAt", String(Date.now())); } } catch (e) {} // возраст подписки для «Проверки уведомлений»
   if (signaling && signaling.connected) signaling.sendPushSubscription(subJson);
   return sub;
 }

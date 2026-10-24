@@ -48,6 +48,7 @@ class SignalingClient extends EventTarget {
     this.name = opts.name || "";
     this.visible = opts.visible !== false;
     this.publicKey = opts.publicKey || null;
+    this.guest = opts.guest === true; // V.79: гость звонка по ссылке — сокет без register (допустим только linkcall-join)
     this.ws = null;
     this.shouldRun = false;
     this._retryDelay = 1000;
@@ -133,6 +134,7 @@ class SignalingClient extends EventTarget {
       this._retryDelay = 1000;
       this.connected = true;
       this._lastPongAt = Date.now();
+      if (this.guest) { this.dispatchEvent(new CustomEvent("connected")); return; }
       etherLog("info", "[signaling] соединение открыто, регистрируюсь как", String(this.myId).slice(0, 10) + "…");
       ws.send(JSON.stringify({
         type: "register",
@@ -249,6 +251,11 @@ class SignalingClient extends EventTarget {
       } else if (msg.type === "prekey-low") {
         this.prekeyCount = Number.isInteger(msg.count) ? msg.count : 0;
         this.dispatchEvent(new CustomEvent("prekey-low", { detail: { count: this.prekeyCount } }));
+      } else if (msg.type === "linkcall-signal" && typeof msg.room === "string") {
+        this.dispatchEvent(new CustomEvent("linkcall-signal", { detail: { room: msg.room.slice(0, 64), data: msg.data } }));
+      } else if (/^(linkcall-|call-ringing$|push-test)/.test(msg.type)) {
+        // V.79 (docs/CALL-RELIABILITY-PROTOCOL.md C/E): ответы сервера на link-call, «звонит у собеседника», результат теста гудков
+        this.dispatchEvent(new CustomEvent(msg.type, { detail: msg }));
       } else if (msg.type === "replaced") {
         etherLog("warn", "[signaling] вкладка отключена сервером — тот же id открыт в другом месте" + (msg.sameIp === true ? " (тот же адрес/сеть)" : msg.sameIp === false ? " (другой адрес)" : "") + (typeof msg.ageSec === "number" ? ", моё соединение жило " + msg.ageSec + " с" : ""));
         // Раньше здесь вручную ставилось shouldRun = false без вызова stop() —
@@ -323,7 +330,7 @@ class SignalingClient extends EventTarget {
       // сценарий: если страница была невидима, pong не может считаться
       // "просроченным". Проверяем document.visibilityState.
       const pageWasHidden = typeof document !== "undefined" && document.hidden;
-      if (this._lastPongAt && sincePong > 90000 && !pageWasHidden) {
+      if (this._lastPongAt && sincePong > 90000 && !pageWasHidden && !this.guest) {
         etherLog("warn", "[signaling] no pong for " + Math.round(sincePong / 1000) + "s, force-reconnect");
         try { this.ws.close(); } catch (e) {}
         this._lastPongAt = 0;
@@ -354,7 +361,17 @@ class SignalingClient extends EventTarget {
 
   // Миграция id: legacyId/legacyFor(to) - от имени какого id слать этому адресату (контакт ещё пишет на старый id; сервер ставит from=старый id только по алиасу)
   _asFor(to) { return this.aliasActive && this.legacyId && typeof this.legacyFor === "function" && this.legacyFor(to) ? { as: this.legacyId } : {}; }
-  signal(to, data) { return this.send("signal", { to, data, ...this._asFor(to) }); }
+  signal(to, data) {
+    // V.79: виртуальный собеседник link-call ("lc:<room>") — тот же код звонка, но транспорт linkcall-signal (docs протокол E)
+    if (typeof to === "string" && to.slice(0, 3) === "lc:") return this._lcOut ? this._lcOut(to.slice(3), data) : this.send("linkcall-signal", { room: to.slice(3), data });
+    return this.send("signal", { to, data, ...this._asFor(to) });
+  }
+  linkcallCreate() { return this.send("linkcall-create", {}); }
+  linkcallJoin(p) { return this.send("linkcall-join", p && p.room ? { room: p.room, name: p.name || undefined } : { code: p && p.code, name: p && p.name || undefined }); }
+  linkcallAllow(room, guestRef) { return this.send("linkcall-allow", { room, guestRef }); }
+  linkcallDeny(room, guestRef) { return this.send("linkcall-deny", { room, guestRef }); }
+  linkcallEnd(room) { return this.send("linkcall-end", { room }); }
+  pushTestRing() { return this.send("push-test-ring", {}); }
 
   // Копии для других устройств получателя/аккаунта: [{dev, envelope}] (dev "" = основное); sync-sent себе — только копии, без envelope
   deliverMulti(to, msgId, envelope, fromPublicKey, kind, copies) {
@@ -402,6 +419,46 @@ class SignalingClient extends EventTarget {
     return this.send("push-unsubscribe", {});
   }
 }
+
+// ---------- V.79: звонок по ссылке (docs/CALL-RELIABILITY-PROTOCOL.md, E): формат ссылки, секрет k, HMAC отпечатков, сверочные значки ----------
+const LinkCall = (() => {
+  const b64u = (bytes) => { let s = ""; for (const b of bytes) s += String.fromCharCode(b); return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); };
+  const unb64u = (s) => { const t = String(s).replace(/-/g, "+").replace(/_/g, "/"); const bin = atob(t + "=".repeat((4 - (t.length % 4)) % 4)); const out = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i); return out; };
+  const ROOM_RE = "[A-Za-z0-9_-]{16,64}", K_RE = "[A-Za-z0-9_-]{22}";
+  function newSecret() { return b64u(crypto.getRandomValues(new Uint8Array(16))); }
+  function buildLink(base, room, k) { return String(base || "") + "#call=" + room + "." + k; }
+  // "#call=<room>.<k>" (или целая ссылка/текст сообщения) -> { room, k } | null
+  function parseHash(h) {
+    const m = new RegExp("(?:^|[#&?\\s])call=(" + ROOM_RE + ")\\.(" + K_RE + ")(?![A-Za-z0-9_-])").exec(String(h || ""));
+    return m ? { room: m[1], k: m[2] } : null;
+  }
+  // "#answer=<callId>&from=<id>" -> { callId, from } | null
+  function parseAnswerHash(h) {
+    const m = /^#?answer=([^&]{1,80})&from=([^&]{1,200})$/.exec(String(h || ""));
+    if (!m) return null;
+    try { return { callId: decodeURIComponent(m[1]), from: decodeURIComponent(m[2]) }; } catch (e) { return null; }
+  }
+  function normalizeCode(v) { const d = String(v || "").replace(/\D/g, ""); return d.length === 6 ? d : null; }
+  function shareText(tpl, name, link, code) { return String(tpl).replace("{name}", () => name).replace("{link}", () => link).replace("{code}", () => code); }
+  // первый a=fingerprint из SDP в формате PeerLink.fingerprints(): "sha-256 ab:cd:…" (нижний регистр)
+  function fingerprintOf(sdp) {
+    const m = /a=fingerprint:(\S+)[ \t]+([0-9A-Fa-f:]+)/.exec(String(sdp || ""));
+    return m ? m[1].toLowerCase() + " " + m[2].toLowerCase() : null;
+  }
+  // HMAC-SHA256(k, "<локальный>|<удалённый>") -> base64url. До согласования удалённого отпечатка remote = "".
+  async function proof(k, local, remote) {
+    const key = await crypto.subtle.importKey("raw", unb64u(k), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+    return b64u(new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(String(local || "") + "|" + String(remote || "")))));
+  }
+  const EMOJI = ["🐶", "🐱", "🦊", "🐻", "🐼", "🐸", "🐵", "🦁", "🐯", "🐰", "🦄", "🐙", "🐢", "🐳", "🦋", "🐝", "🌵", "🌲", "🌻", "🍀", "🍎", "🍋", "🍉", "🍓", "🍕", "🍪", "🎈", "🎸", "🚀", "⚽", "🔑", "🔔", "⭐", "🌙", "☀️", "⚡", "❄️", "🔥", "🌈", "☂️", "🎁", "📌", "🧩", "🎲", "🚲", "⛵", "🏠", "🎯", "🍄", "🥑", "🍩", "🥕", "🎻", "🪁", "🧲", "🔭", "🪐", "🦉", "🐞", "🦀", "🍇", "🌶️", "🎺", "🛎️"];
+  // 4 значка из отпечатка DTLS: обе стороны видят одно и то же, если никто не подменил SDP по дороге
+  async function emojiOf(fp) {
+    const h = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode("ether-lc-sas|" + String(fp || ""))));
+    return [0, 1, 2, 3].map((i) => EMOJI[h[i] % EMOJI.length]).join(" ");
+  }
+  const isId = (id) => typeof id === "string" && id.slice(0, 3) === "lc:";
+  return { newSecret, buildLink, parseHash, parseAnswerHash, normalizeCode, shareText, fingerprintOf, proof, emojiOf, isId, roomOf: (id) => String(id).slice(3), idOf: (room) => "lc:" + room, b64u, unb64u, EMOJI };
+})();
 
 // ---------- Идентификатор из телефона/email ----------
 const Identity = (() => {
