@@ -70,6 +70,7 @@ function initSignaling() {
   for (const c of state.contacts.values()) c.online = false;
   if (!url) { updateSignalingStatusUI("off", "—"); renderChatsList(); renderOnlineRosterList(); return; }
   updateSignalingStatusUI("connecting", "…");
+  try { syncRingConfigToSW(); } catch (e) {} // адрес сервера для push-ack мог смениться
   etherLog("info", "[signaling] connecting to " + url);
   const sig = signaling = new SignalingClient(url, Store.myId, { name: Store.name, visible: Store.discoverable, publicKey: Store.myPublicKeyJwk });
   sig.watchIds = watchedContactIds;

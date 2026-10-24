@@ -1661,7 +1661,7 @@ const DeviceCheck = (() => {
   function openNotifCheck() {
     const t = L(), nc = t.nc; const { panel, close } = openSheet(nc.title, nc.intro);
     panel.setAttribute("role", "dialog"); panel.setAttribute("aria-label", nc.title);
-    const list = el("ul", "notifcheck-list"), res = el("p", "fine", ""), actions = el("div", "row-actions"), tipsBox = el("div", "");
+    const list = el("ul", "notifcheck-list"), res = el("p", "fine", ""), actions = el("div", "row-actions notifcheck-actions"), tipsBox = el("div", "");
     res.setAttribute("role", "status"); res.setAttribute("aria-live", "polite");
     const testBtn = el("button", "btn-primary", nc.testBtn); testBtn.type = "button"; testBtn.setAttribute("aria-label", nc.testAria);
     const refreshBtn = el("button", "btn-secondary", nc.refresh); refreshBtn.type = "button"; refreshBtn.setAttribute("aria-label", nc.refresh);

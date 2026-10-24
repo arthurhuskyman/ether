@@ -34,3 +34,11 @@ URL `/#answer=<callId>&from=<id>`: приложение сразу рисует 
 - `push-test-ring` (зарегистрированный клиент с подпиской) → `push-test-started {callId,total:3}` или `push-test-error {reason: disabled|nosub|ratelimit}`; callId `test-<hex>`; ack такого push → `call-ringing` самому клиенту; cancel push для теста не шлётся.
 - Link-call: `linkcall-signal` ретранслируется между сокетами комнаты сразу после входа гостя (до allow: нужно для проверки секрета создателем); `linkcall-allow` → гостю `linkcall-allowed {room}`; `linkcall-deny` → гостю `linkcall-denied {room}`, слот гостя освобождается, комната живёт до исходного expiresAt. Комната закрывается: создателем/гостем `linkcall-end`, закрытие любого сокета, TTL 10 мин (только до входа гостя), 2 ч. Партнёру приходит `linkcall-end {room, reason}`; создателю также при истечении. Лимиты: комнат на id ≤3, create 6/мин на id, signal ≤64 КБ.
 - Гость-незарегистрированный не закрывается по таймауту регистрации после успешного `linkcall-join`.
+
+## F. Клиент: что реализовано и принятые договорённости
+- `callId` для `call-ring`/`call-ringing` = поле `x` (или `callId`) из `call-invite`; в приглашение добавлено `video`. Клиент звонящего принимает любой `call-ringing` в фазе «Вызываем…» (звонок у клиента один).
+- SW знает HTTP-адрес сервера и локализованные строки через сообщение `{type:"ring-config", httpBase, strings:{ringTitle, ringBody, missed, ended}}` (без него — адрес по умолчанию и русские тексты). Каждый push SW пишет `./__lastpush.json` в кэш `ether-meta`; на `call-ring` открытым окнам уходит `{type:"ring-received"}`.
+- Клик по гудку: окно есть → `postMessage({type:"answer-call", callId, from, name, url})` + focus; иначе `openWindow(/#answer=…)`.
+- link-call: гость всегда первый шлёт offer (после `linkcall-joined`), в нём `lcp = HMAC(k, <отпечаток гостя>|"")`; создатель до решения не создаёт P2P-линк (IP не раскрывается), ответ `answer` несёт `lcp = HMAC(k, <свой>|<гостя>)`. Сверочные значки (вход по коду) = 4 эмодзи из SHA-256("ether-lc-sas|"+отпечаток гостя): гость показывает их на своём экране, создатель — в окне подтверждения.
+- Ответы сервера `linkcall-allowed`/`linkcall-denied` (гостю) и `push-test-started`/`push-test-error` клиент использует; `linkcall-end.reason` игнорируется.
+

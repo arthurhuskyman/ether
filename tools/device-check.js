@@ -174,6 +174,25 @@ async function audit(page) {
       await step("call-video", async () => { await page.evaluate(() => { const c = document.createElement("canvas"); c.width = 320; c.height = 240; const g = c.getContext("2d"); g.fillStyle = "#58a"; g.fillRect(0, 0, 320, 240); g.fillStyle = "#fc6"; g.fillRect(100, 60, 120, 120); const st = c.captureStream(5); const rv = document.getElementById("call-remote-video"), lv = document.getElementById("call-local-video"); rv.srcObject = st; lv.srcObject = st; rv.classList.remove("hidden"); lv.classList.remove("hidden"); document.getElementById("call-video-overlays").classList.remove("hidden"); syncCallVideoState(); }); });
       await page.evaluate(() => { try { const rv = document.getElementById("call-remote-video"), lv = document.getElementById("call-local-video"); rv.srcObject = null; lv.srcObject = null; rv.classList.add("hidden"); lv.classList.add("hidden"); syncCallVideoState(); document.getElementById("call-screen").classList.add("hidden"); state.callId = null; } catch (e) {} });
       await step("lock", async () => { await page.evaluate(() => { showLockScreen(); }); });
+      // V.79: экраны надёжности звонка и link-call
+      const hideV79 = () => page.evaluate(() => { try { hideAnswerScreen(); guestPanel(false); document.querySelectorAll(".sheet,#devicecheck-sheet").forEach((e) => e.classList.add("hidden")); const d = document.getElementById("devicecheck-sheet"); if (d) d.remove(); document.documentElement.classList.remove("guest-call"); } catch (e) {} });
+      await page.evaluate(() => { const l = document.getElementById("lock-screen"); if (l) l.classList.add("hidden"); });
+      await step("answer-screen", async () => { await page.evaluate(() => { showAnswerScreen("__x0", "c1"); }); });
+      await step("answer-ended", async () => { await page.evaluate(() => { answerSetState("ended"); }); });
+      await hideV79();
+      await step("guest-call", async () => { await page.evaluate(() => { document.documentElement.classList.add("guest-call"); guestPanel(true); guestPanelSet({ status: T("lc.guestHint"), name: true, join: true, close: false, sas: "" }); }); });
+      await step("guest-call-sas", async () => { await page.evaluate(() => { guestPanelSet({ status: T("lc.waitingAllow"), name: false, join: false, close: true, sas: T("lc.sas", { sas: "🐶 🐱 🦊 🐻" }) }); }); });
+      await hideV79();
+      await step("call-noanswer", async () => { await page.evaluate(() => { state.callId = null; openCallScreen(DEMO_CHAT_ID, "calling"); document.getElementById("call-noanswer-actions").classList.remove("hidden"); }); });
+      await page.evaluate(() => { try { document.getElementById("call-noanswer-actions").classList.add("hidden"); closeCallScreen("cancelled", { localError: true }); } catch (e) {} });
+      await step("linkcall-wait", async () => { await page.evaluate(() => { lcShowWait({ forName: "Борис", code: "123456" }); }); });
+      await hideV79();
+      await step("linkcall-approve", async () => { await page.evaluate(() => { lcShowApprove({ guestName: "Гоша", sas: "🐶 🐱 🦊 🐻" }); }); });
+      await hideV79();
+      await step("linkcall-join", async () => { await page.evaluate(() => { lcSheet("linkcall-join-sheet", true); }); });
+      await hideV79();
+      await step("notifcheck", async () => { await page.evaluate(() => { DeviceCheck.openNotifCheck(); }); });
+      await hideV79();
     }
     if (errors.length) report.push({ tag, screen: "errors", errors });
     await ctx.close();
