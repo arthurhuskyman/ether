@@ -2285,6 +2285,11 @@ process.on("SIGINT", shutdown);
 
 httpServer.listen(PORT, () => {
   console.log(`Сигнальный релей "Мессенджер" слушает порт ${PORT}`);
+  // Сводка настроек, влияющих на звонки и сохранность данных (без секретов): видно в логах Render сразу после старта.
+  console.log("[config] хранилище: " + (process.env.DATA_DIR ? "DATA_DIR=" + process.env.DATA_DIR : "рядом с сервером — на Render без Persistent Disk стирается при каждом рестарте") +
+    "; TRUST_PROXY: " + (TRUST_PROXY ? "вкл" : "ВЫКЛ (за прокси Render все клиенты будут видны с одного IP)") +
+    "; PUSH_ACK_SECRET: " + (process.env.PUSH_ACK_SECRET ? "задан" : "НЕ ЗАДАН (случайный, после рестарта токены гудков недействительны)") +
+    "; origin для push-ack: " + ([...PUSH_ACK_ORIGINS].filter(Boolean).join(", ") || "не заданы (подтверждение доставки не принимается из браузера)"));
   if (CF_TURN_KEY_ID && CF_TURN_API_TOKEN) console.log("[ice] заданы CF_TURN_* — используется Cloudflare TURN");
   { const n = extraTurnServers().length; if (process.env.TURN_EXTRA_JSON) console.log("[ice] TURN_EXTRA_JSON: серверов с логином — " + n); }
   if (staticTurnServers()) {
