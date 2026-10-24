@@ -1249,7 +1249,6 @@ window.__LANG_DICTS["en"] = {
     "ans.answer": "Answer",
     "ans.decline": "Decline",
     "ans.connecting": "Connecting…",
-    "ans.waiting": "Looking for the call…",
     "ans.ended": "The call has ended. Call back?",
     "ans.callBack": "Call back",
     "call.dialing": "Calling…",

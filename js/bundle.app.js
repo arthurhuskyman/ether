@@ -13006,7 +13006,7 @@ async function beginCall(id, withVideo) {
     // просто пропускаем, звонок уже идёт через P2P.
     if (signaling && signaling.connected) {
       try {
-        signaling.signal(id, { t: "call-invite", n: Store.name, x: crypto.randomUUID() });
+        signaling.signal(id, { t: "call-invite", n: Store.name, x: crypto.randomUUID(), video: !!withVideo });
       } catch (e) {}
     }
     // Если собеседник не ответил (и не отклонил), звонок не должен «звонить» вечно: тот же тайм-аут, что и в ветке через сервер
@@ -13039,7 +13039,7 @@ async function beginCall(id, withVideo) {
   }
 
   const offline = !onlineSet.has(id);
-  const invite = { t: "call-invite", n: Store.name, x: crypto.randomUUID() };
+  const invite = { t: "call-invite", n: Store.name, x: crypto.randomUUID(), video: !!withVideo };
   signaling.signal(id, invite);
   const phaseEl = $("#call-phase");
   if (phaseEl) phaseEl.textContent = state._peerRinging ? T("call.peerRinging") : T("call.dialing");
@@ -14023,7 +14023,7 @@ function wireCallScreen() {
 
 async function acceptCall(withMute) {
   { const ci = state.callId && state.contacts.get(state.callId);
-    if (ci && Store.requireVerifiedCalls && !isContactVerified(ci)) { toast(T("call.needVerifyIncoming", { name: ci.name || T("sys.someone") })); return; } }
+    if (ci && !ci.ephemeral && Store.requireVerifiedCalls && !isContactVerified(ci)) { toast(T("call.needVerifyIncoming", { name: ci.name || T("sys.someone") })); return; } }
   if (state._callUserAccepted) return;
   if (state._callAcceptInFlight) return;
   const cid = state.callId;
@@ -14697,16 +14697,18 @@ async function linkCallGuestStart(p, name) {
     sig.signal(e.id, packet);
   } catch (err) { etherLog("error", "[linkcall] offer: " + String(err)); lcGuestFail(e, "generic"); }
 }
-// Гость на звонке: создатель сам «звонит» по каналу данных — принимаем автоматически (гость уже нажал «Присоединиться»)
+// Гость сам открывает экран звонка и принимает его, как только открылся канал данных: гость уже нажал «Присоединиться»,
+// а ringing от создателя по каналу может уйти раньше, чем канал открыт (статус connected приходит до dc-open)
 function linkCallWireMesh() {
-  mesh.addEventListener("message", (ev) => {
-    const { id, payload } = ev.detail || {};
-    if (!isLinkCallId(id) || !payload || payload.kind !== "call-state" || payload.state !== "ringing") return;
+  mesh.addEventListener("link-dc-open", (ev) => {
+    const id = ev.detail && ev.detail.id;
+    if (!isLinkCallId(id)) return;
     const e = lcRooms.get(LinkCall.roomOf(id));
-    if (!e || e.role !== "guest") return;
-    setTimeout(() => {
-      if (state.callId === id && state.callPhase === "ringing") { guestPanel(false); clearTimeout(e.joinTimer); acceptCall(false); }
-    }, 0);
+    if (!e || e.role !== "guest" || e.dropped || state.callId) return;
+    guestPanel(false); clearTimeout(e.joinTimer);
+    state.callWantsVideo = false;
+    openCallScreen(id, "ringing");
+    acceptCall(false);
   });
 }
 

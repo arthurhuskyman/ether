@@ -1249,7 +1249,6 @@ window.__LANG_DICTS["ru"] = {
     "ans.answer": "Ответить",
     "ans.decline": "Отклонить",
     "ans.connecting": "Соединяем…",
-    "ans.waiting": "Ищем звонок…",
     "ans.ended": "Звонок завершён. Перезвонить?",
     "ans.callBack": "Перезвонить",
     "call.dialing": "Вызываем…",

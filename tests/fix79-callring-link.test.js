@@ -1,7 +1,9 @@
 // V.79: звонок по ссылке (link-call): формат ссылки, секрет k и HMAC отпечатков, гостевой режим без аккаунта, вход по коду,
 // подтверждение создателем со сверочными значками, ошибки. Сервер — мок протокола E (docs/CALL-RELIABILITY-PROTOCOL.md) на настоящем ws,
 // WebRTC — настоящий (wrtc) между двумя окнами. Сквозная проверка с реальным сервером — в signaling-server/test-callrings.js (если есть) / tests/fix79-callring-e2e.
+// Режим LINKCALL_REAL=1 (tests/fix79-callring-e2e.test.js): вместо мока поднимается настоящий signaling-server/server.js.
 const test = require("node:test");
+const { spawn } = require("node:child_process");
 const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
 const path = require("path");
@@ -12,11 +14,13 @@ const { RTCAudioSource } = wrtc.nonstandard;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const nb = (x) => String(x).replace(/ /g, " ");
 async function until(fn, ms = 8000) { const end = Date.now() + ms; while (Date.now() < end) { if (fn()) return true; await sleep(40); } return false; }
+const REAL = process.env.LINKCALL_REAL === "1";
 const timers = [];
+let realServer = null;
 test.after(async () => {
   await closeAll();
   for (const t of timers.splice(0)) clearInterval(t);
-  try { for (const c of wss.clients) c.terminate(); wss.close(); } catch (e) {}
+  try { if (wss) { for (const c of wss.clients) c.terminate(); wss.close(); } if (realServer) realServer.kill(); } catch (e) {}
   setTimeout(() => process.exit(process.exitCode || 0), 1500); // нативные потоки wrtc не дают процессу завершиться сами
 });
 
@@ -28,6 +32,12 @@ let wss, PORT;
 function send(ws, o) { try { ws.send(JSON.stringify(o)); } catch (e) {} }
 function other(r, ws) { return ws === r.creator ? r.guest : r.creator; }
 test.before(async () => {
+  if (REAL) {
+    PORT = 8799;
+    realServer = spawn(process.execPath, [path.join(ROOT, "signaling-server", "server.js")], { env: { ...process.env, PORT: String(PORT), VAPID_PUBLIC: "", VAPID_PRIVATE: "", CLAIMS_PERSIST: "0", MAILBOX_PERSIST: "0", ALIASES_PERSIST: "0", TRUST_PROXY: "", LINKCALL_JOIN_CODE_PER_MIN: "100", LINKCALL_JOIN_ROOM_PER_MIN: "100", LINKCALL_CREATE_PER_MIN: "100" }, stdio: "ignore" });
+    await sleep(1500);
+    return;
+  }
   wss = new WebSocketServer({ port: 0, host: "127.0.0.1" });
   await new Promise((r) => wss.on("listening", r));
   PORT = wss.address().port;
@@ -70,7 +80,8 @@ function installMedia(a) {
     return new wrtc.MediaStream([track]);
   } } });
 }
-const acct = (extra) => ({ "ether.name": "Создатель", "ether.myId": "creator-id", "ether.lang": "ru", ...(extra || {}), "ether.signalingUrl": "ws://127.0.0.1:" + PORT });
+let idN = 0;
+const acct = (extra) => ({ "ether.name": "Создатель", "ether.myId": "creator-id-" + (++idN), "ether.lang": "ru", ...(extra || {}), "ether.signalingUrl": "ws://127.0.0.1:" + PORT });
 async function creator() {
   const a = createApp({ realWebSocket: true, storage: acct() });
   await a.ready;
@@ -133,9 +144,9 @@ test("сверочные значки: 4 штуки, детерминирова�
 
 test("signal() к виртуальному собеседнику lc:<room> уходит как linkcall-signal; обычный получатель — как signal", async () => {
   const a = await bootApp({ storage: { "ether.lang": "ru" } });
-  a.run(`window.__s = []; signaling.ws = { readyState: 1, send: (x) => window.__s.push(JSON.parse(x)) }; signaling.connected = true;`);
+  a.run(`window.__s = []; signaling.send = (type, p) => { window.__s.push({ type, ...p }); return true; }; signaling.connected = true;`);
   a.run(`signaling.signal("lc:ROOM", { t: "ice" }); signaling.signal("bob", { t: "ice" });`);
-  assert.deepEqual(a.window.__s.map((x) => x.type), ["linkcall-signal", "signal"]);
+  assert.deepEqual(JSON.stringify(a.window.__s.map((x) => x.type)), JSON.stringify(["linkcall-signal", "signal"]));
   assert.equal(a.window.__s[0].room, "ROOM");
 });
 
@@ -165,10 +176,12 @@ test("ссылка с секретом: гость без аккаунта (го
   assert.ok(!vis(c, "#linkcall-approve-sheet"), "авто-разрешение: окна подтверждения нет");
   assert.equal(txt(c, "#call-peer-name"), "Гоша", "имя гостя из его поля");
   // доказательства секрета реально ходили по сигналам, а секрет k — нет
-  const room = rooms.get(e.room);
-  assert.ok(room.signals.some((s) => s.from === "guest" && s.t === "offer" && s.lcp), "offer гостя несёт HMAC");
-  assert.ok(room.signals.some((s) => s.from === "creator" && s.t === "answer" && s.lcp), "answer создателя несёт HMAC");
-  assert.ok(!JSON.stringify(room.signals).includes(e.k), "секрет k по серверу не проходил");
+  if (!REAL) {
+    const room = rooms.get(e.room);
+    assert.ok(room.signals.some((s) => s.from === "guest" && s.t === "offer" && s.lcp), "offer гостя несёт HMAC");
+    assert.ok(room.signals.some((s) => s.from === "creator" && s.t === "answer" && s.lcp), "answer создателя несёт HMAC");
+    assert.ok(!JSON.stringify(room.signals).includes(e.k), "секрет k по серверу не проходил");
+  }
   // гость ничего не сохранил
   const ls = g.window.localStorage; const keys = []; for (let i = 0; i < ls.length; i++) keys.push(ls.key(i));
   assert.ok(!keys.includes("ether.name") && !keys.includes("ether.myId") && !keys.includes("ether.contacts") && !keys.includes("ether.callLog"), "идентичность и журнал не сохранены: " + keys.join(","));
@@ -187,7 +200,7 @@ test("ссылка с секретом: гость без аккаунта (го
 test("вход по коду из главного меню: создатель видит «Кто-то подключился» с теми же 4 значками, что и гость; «Впустить» — звонок идёт", async () => {
   const c = await creator();
   const e = await c.run(`linkCallCreateAndShare({ forName: "Вика" })`);
-  const g = createApp({ realWebSocket: true, storage: { "ether.name": "Гость-аккаунт", "ether.myId": "guest-acc-id", "ether.lang": "ru", "ether.signalingUrl": "ws://127.0.0.1:" + PORT } });
+  const g = createApp({ realWebSocket: true, storage: { "ether.name": "Гость-аккаунт", "ether.myId": "guest-acc-id-" + (++idN), "ether.lang": "ru", "ether.signalingUrl": "ws://127.0.0.1:" + PORT } });
   await g.ready; assert.ok(await until(() => g.run(`signaling && signaling.registered === true`))); installMedia(g);
   for (const sel of ["#chats-empty-join-btn", "#connect-join-code-btn"]) assert.ok(g.document.querySelector(sel), "точка входа " + sel);
   assert.equal(nb(g.document.querySelector("#chats-empty-join-btn").textContent), "Присоединиться к звонку по коду");
@@ -207,7 +220,7 @@ test("вход по коду из главного меню: создатель 
   assert.ok(await until(() => g.run(`document.getElementById("guest-call-sas").textContent`).length > 3));
   const sasG = txt(g, "#guest-call-sas");
   for (const em of sasC) assert.ok(sasG.includes(em), "гость видит те же значки: " + sasG + " / " + sasC.join(" "));
-  assert.ok(!c.run(`lcRooms.get(${JSON.stringify(e.room)}).signals`) , "ничего не передано в P2P-слой до подтверждения");
+  assert.ok(c.run(`!!lcRooms.get(${JSON.stringify(e.room)}).offer`), "offer удержан шлюзом до подтверждения");
   assert.equal(c.run(`mesh.get("lc:" + ${JSON.stringify(e.room)}) === undefined`), true, "P2P-линк до подтверждения не создан (IP не раскрыт)");
   c.document.querySelector("#linkcall-approve-allow").click();
   assert.ok(await until(() => active(c) && active(g), 20000), "звонок активен");
@@ -219,7 +232,7 @@ test("вход по коду из главного меню: создатель 
 test("создатель отклонил вход по коду: комната снова ждёт, звонка нет, гость может быть заменён настоящим", async () => {
   const c = await creator();
   const e = await c.run(`linkCallCreateAndShare({ forName: "Вика" })`);
-  const g = createApp({ realWebSocket: true, storage: { "ether.name": "Чужой", "ether.myId": "stranger", "ether.lang": "ru", "ether.signalingUrl": "ws://127.0.0.1:" + PORT } });
+  const g = createApp({ realWebSocket: true, storage: { "ether.name": "Чужой", "ether.myId": "stranger-" + (++idN), "ether.lang": "ru", "ether.signalingUrl": "ws://127.0.0.1:" + PORT } });
   await g.ready; assert.ok(await until(() => g.run(`signaling && signaling.registered === true`)));
   g.run(`linkCallGuestStart({ code: ${JSON.stringify(e.code)} })`);
   assert.ok(await until(() => vis(c, "#linkcall-approve-sheet")));
@@ -232,29 +245,32 @@ test("создатель отклонил вход по коду: комната
 test("неверный секрет в ссылке: создатель отклоняет автоматически, звонка нет, показано «не удалось проверить ссылку»", async () => {
   const c = await creator();
   const e = await c.run(`linkCallCreateAndShare({ forName: "Вика" })`);
+  c.run(`window.__toasts = []; { const orig = toast; toast = (m) => { window.__toasts.push(m); return orig(m); }; }`);
   const wrongK = crypto.randomBytes(16).toString("base64url");
   const g = await guestApp("#call=" + e.room + "." + wrongK);
   g.document.querySelector("#guest-call-join-btn").click();
-  assert.ok(await until(() => c.run(`lcRooms.get(${JSON.stringify(e.room)}).status`) === "waiting" && c.run(`mock = 1`) && rooms.get(e.room).signals.length > 0));
+  if (REAL) await sleep(1500); else assert.ok(await until(() => rooms.get(e.room).signals.length > 0));
+  assert.ok(await until(() => c.run(`lcRooms.get(${JSON.stringify(e.room)}).status`) === "waiting"));
   await sleep(300);
   assert.equal(c.run(`state.callId`), null);
   assert.ok(!vis(c, "#linkcall-approve-sheet"), "поддельная ссылка не получает даже окна подтверждения");
-  assert.match(nb(c.document.querySelector("#toast").textContent), /Не удалось проверить ссылку/);
+  assert.ok(await until(() => c.window.__toasts.some((m) => /Не удалось проверить ссылку/.test(nb(m)))), "toast об ошибке проверки: " + c.window.__toasts.join("|"));
 });
 
 test("ошибки входа: устарела / занято / не найдено / много попыток — понятные экраны гостя без утечек", async () => {
   const map = { expired: "Ссылка устарела. Попросите отправить новую.", full: "В этом звонке уже есть собеседник.", notfound: "Звонок не найден. Проверьте ссылку или код.", ratelimit: "Слишком много попыток. Подождите минуту." };
   for (const [reason, text] of Object.entries(map)) {
-    mock.errors.join = reason;
+    if (REAL) { if (reason !== "notfound") continue; } else mock.errors.join = reason;
+    const roomForLoop = "R".repeat(22);
     const g = await guestApp("#call=" + "R".repeat(22) + "." + "K".repeat(22));
     g.document.querySelector("#guest-call-join-btn").click();
     assert.ok(await until(() => txt(g, "#guest-call-status") === text), reason + ": " + txt(g, "#guest-call-status"));
     assert.ok(vis(g, "#guest-call-close-btn") && !vis(g, "#guest-call-join-btn") && !vis(g, "#guest-call-name"));
-    delete mock.errors.join;
+    if (!REAL) delete mock.errors.join;
   }
   // настоящая комната, занятая другим гостем -> full
   const c = await creator(); const e = await c.run(`linkCallCreateAndShare({})`);
-  const g1 = createApp({ realWebSocket: true, storage: { "ether.name": "Первый", "ether.myId": "first", "ether.lang": "ru", "ether.signalingUrl": "ws://127.0.0.1:" + PORT } }); await g1.ready;
+  const g1 = createApp({ realWebSocket: true, storage: { "ether.name": "Первый", "ether.myId": "first-" + (++idN), "ether.lang": "ru", "ether.signalingUrl": "ws://127.0.0.1:" + PORT } }); await g1.ready;
   assert.ok(await until(() => g1.run(`signaling && signaling.registered === true`)));
   g1.run(`linkCallGuestStart({ code: ${JSON.stringify(e.code)} })`);
   assert.ok(await until(() => vis(c, "#linkcall-approve-sheet")));
@@ -262,7 +278,7 @@ test("ошибки входа: устарела / занято / не найде
   assert.ok(await until(() => txt(g2, "#guest-call-status") === map.full));
 });
 
-test("создателю: ошибка linkcall-create (слишком много ссылок) — понятное сообщение, окна ожидания нет", async () => {
+test("создателю: ошибка linkcall-create (слишком много ссылок) — понятное сообщение, окна ожидания нет", { skip: REAL }, async () => {
   const c = await creator();
   mock.errors.create = "toomany";
   const r = await c.run(`linkCallCreateAndShare({})`);

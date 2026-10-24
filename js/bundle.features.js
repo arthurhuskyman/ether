@@ -1310,7 +1310,7 @@ const DeviceCheck = (() => {
     notifBtn: "Проверка уведомлений",
     nc: {
       title: "Проверка уведомлений", intro: "Проверим, дойдёт ли звонок, когда приложение закрыто.", refresh: "Проверить снова", allow: "Разрешить уведомления", testBtn: "Позвонить мне (тест)", testAria: "Отправить тестовый звонок на это устройство",
-      testHint: "Нажмите и сразу заблокируйте экран или откройте другое приложение: должно прийти уведомление «звонит».", testing: "Ждём тестовый звонок… (до 15 секунд)", testOk: "Тестовый звонок дошёл за {n} с.", testFail: "Тестовый звонок не пришёл за 15 секунд. Посмотрите подсказки ниже.", testNoServer: "Нет связи с сервером — проверьте интернет и повторите.",
+      testHint: "Нажмите и сразу заблокируйте экран или откройте другое приложение: должно прийти уведомление «звонит».", testing: "Ждём тестовый звонок… (до 15 секунд)", testOk: "Тестовый звонок дошёл за {n} с.", testFail: "Тестовый звонок не пришёл за 15 секунд. Посмотрите подсказки ниже.", testNoServer: "Нет связи с сервером — проверьте интернет и повторите.", testNoSub: "Сервер пока не знает ваше устройство: включите уведомления и повторите через несколько секунд.", testDisabled: "На сервере уведомления сейчас выключены.", testRate: "Слишком часто. Подождите минуту.",
       close: "Закрыть", closeAria: "Закрыть проверку уведомлений", tipsTitle: "Если уведомления не приходят",
       perm: "Разрешение на уведомления", permGranted: "разрешено", permDenied: "запрещено: включите в настройках телефона (Настройки → Уведомления → The Messenger)", permDefault: "ещё не запрошено", permNone: "этот браузер не умеет показывать уведомления",
       inst: "Установлено на экран «Домой»", instYes: "да", instNo: "нет: на iPhone уведомления приходят только в установленном приложении (Поделиться → На экран «Домой»)",
@@ -1333,7 +1333,7 @@ const DeviceCheck = (() => {
     notifBtn: "Notification check",
     nc: {
       title: "Notification check", intro: "We will check whether a call reaches you while the app is closed.", refresh: "Check again", allow: "Allow notifications", testBtn: "Call me (test)", testAria: "Send a test call to this device",
-      testHint: "Tap it, then lock the screen or open another app: a \"calling\" notification should arrive.", testing: "Waiting for the test call... (up to 15 seconds)", testOk: "The test call arrived in {n} s.", testFail: "The test call did not arrive within 15 seconds. See the tips below.", testNoServer: "No connection to the server - check the internet and try again.",
+      testHint: "Tap it, then lock the screen or open another app: a \"calling\" notification should arrive.", testing: "Waiting for the test call... (up to 15 seconds)", testOk: "The test call arrived in {n} s.", testFail: "The test call did not arrive within 15 seconds. See the tips below.", testNoServer: "No connection to the server - check the internet and try again.", testNoSub: "The server does not know this device yet: turn notifications on and retry in a few seconds.", testDisabled: "Notifications are switched off on the server.", testRate: "Too often. Wait a minute.",
       close: "Close", closeAria: "Close the notification check", tipsTitle: "If notifications do not arrive",
       perm: "Notification permission", permGranted: "allowed", permDenied: "blocked: allow it in the phone settings (Settings > Notifications > The Messenger)", permDefault: "not asked yet", permNone: "this browser cannot show notifications",
       inst: "Installed on the Home Screen", instYes: "yes", instNo: "no: on iPhone, notifications only arrive in the installed app (Share > Add to Home Screen)",
@@ -1648,8 +1648,11 @@ const DeviceCheck = (() => {
     if (!sig || !sig.connected || !sig.pushTestRing) return Promise.resolve({ ok: false, reason: "noserver" });
     return new Promise((resolve) => {
       let done = false, poll = null;
-      const fin = (ok) => { if (done) return; done = true; clearInterval(poll); clearTimeout(tm); ringWaiter = null; resolve({ ok, sec: Math.max(1, Math.round((Date.now() - t0) / 1000)) }); };
+      let errOff = null;
+      const fin = (ok, reason) => { if (done) return; done = true; clearInterval(poll); clearTimeout(tm); ringWaiter = null; if (errOff) errOff(); resolve({ ok, reason: reason || null, sec: Math.max(1, Math.round((Date.now() - t0) / 1000)) }); };
       ringWaiter = () => fin(true);
+      const onErr = (ev) => { const why = ev && ev.detail && ev.detail.reason; fin(false, why === "nosub" || why === "disabled" || why === "ratelimit" ? why : "error"); };
+      sig.addEventListener("push-test-error", onErr); errOff = () => sig.removeEventListener("push-test-error", onErr);
       poll = setInterval(async () => { const l = await readLastPush(); if (l && l.ts >= t0 && (l.t === "call-ring")) fin(true); }, 1000);
       const tm = setTimeout(() => fin(false), limit);
       if (!sig.pushTestRing()) fin(false);
@@ -1696,7 +1699,7 @@ const DeviceCheck = (() => {
       const r = await runRingTest(15000);
       testBtn.disabled = false;
       if (r.ok) res.textContent = nc.testOk.replace("{n}", String(r.sec));
-      else { res.textContent = r.reason === "noserver" ? nc.testNoServer : nc.testFail; res.dataset.failed = "1"; }
+      else { res.textContent = r.reason === "noserver" ? nc.testNoServer : r.reason === "nosub" ? nc.testNoSub : r.reason === "disabled" ? nc.testDisabled : r.reason === "ratelimit" ? nc.testRate : nc.testFail; res.dataset.failed = "1"; }
       refresh();
     });
     refresh();
