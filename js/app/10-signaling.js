@@ -1370,7 +1370,9 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     if (Array.isArray(g.banned) && g.banned.includes(from)) return; // исключён админом — вернуть его может только сам админ вручную
     if (g.members.length >= groupMemberLimit(g.members.map((m) => m.id).concat(from))) return;
     ensureContactEntry(from, payload.requesterName || null);
-    checkJoinRequest(g, from, payload).then((ok) => {
+    if (!payload.exp && !payload.ap && !payload.sg) { // обычная ссылка без срока: синхронно
+      if (g.joinApproval) groupQueueJoin(g, from, payload.requesterName); else addGroupMember(payload.groupId, from);
+    } else checkJoinRequest(g, from, payload).then((ok) => {
       if (!ok) return;
       if (payload._needApproval) groupQueueJoin(g, from, payload.requesterName);
       else addGroupMember(payload.groupId, from);

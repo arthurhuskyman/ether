@@ -1443,7 +1443,7 @@ window.__LANG_DICTS["en"] = {
     "channel.err.limit": "Limit reached",
     "channel.err.rate": "Too many requests, try later",
     "channel.err.exists": "Channel already exists",
-    "channel.err.other": "Channel error",
+    "channel.err.unknown": "Channel error",
     "channel.subscribers": "{n} subscribers",
     "channel.private": "Private",
     "channel.public": "Public",

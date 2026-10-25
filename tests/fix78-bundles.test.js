@@ -41,12 +41,15 @@ test("порядок бандлов в index.html = HTML_ORDER, все файл�
 
 test("порядок выполнения сохранён: бандлы в порядке прежних <script>, кроме задокументированного переноса discovery.js", () => {
   const original = ["js/i18n.js", "js/signaling-codec.js", "js/crypto-helper.js", "js/secure-store.js", "js/icons.js", "js/rich.js", "js/vendor/ml-kem768.js", "js/ratchet.js", "js/linkauth.js", "js/signaling-client.js", "js/serverlist.js", "js/discovery.js", "js/callquality.js", "js/webrtc.js", "js/file-limits.js", "js/bigfile.js", "js/emoji-data.js"];
+  const V80 = ["js/groupkeys.js", "js/groupadmin.js", "js/channels.js", "js/search.js"]; // V.80: новые модули стоят сразу после ratchet.js
   const flat = BUNDLES.flatMap((b) => b.files);
+  assert.deepEqual(flat.slice(flat.indexOf("js/ratchet.js") + 1, flat.indexOf("js/ratchet.js") + 5), V80);
+  flat.splice(flat.indexOf("js/ratchet.js") + 1, 4);
   const expected = [...original.filter((f) => f !== "js/discovery.js"), "js/discovery.js"];
   assert.deepEqual(flat.slice(0, expected.length), expected);
   const rest = flat.slice(expected.length);
   assert.ok(rest[0] === "js/app/01-core-store.js" || rest[1] === "js/app/01-core-store.js");
-  const iApp = flat.indexOf("js/app/14-backup-boot.js");
+  const iApp = flat.indexOf("js/app/17-search.js"); // V.80: после 14-backup-boot идут 15-channels, 16-groupadmin, 17-search
   assert.deepEqual(flat.slice(iApp + 1, iApp + 9), ["js/stickers.js", "js/group-call.js", "js/rooms.js", "js/localai.js", "js/devicecheck.js", "js/devicecert.js", "js/devicelink.js", "js/devices.js"]);
   assert.deepEqual(flat.slice(-3), ["js/skins/sakura.js", "js/features.js", "js/features2.js"]);
 });

@@ -1443,7 +1443,7 @@ window.__LANG_DICTS["ru"] = {
     "channel.err.limit": "Достигнут лимит",
     "channel.err.rate": "Слишком много запросов, попробуйте позже",
     "channel.err.exists": "Такой канал уже есть",
-    "channel.err.other": "Ошибка канала",
+    "channel.err.unknown": "Ошибка канала",
     "channel.subscribers": "Подписчиков: {n}",
     "channel.private": "Закрытый",
     "channel.public": "Открытый",
