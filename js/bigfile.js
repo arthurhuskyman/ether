@@ -519,7 +519,7 @@
         const st = await this._ensureStore(s);
         await st.write(start, payload);
         for (let u = f.index; u < f.index + n; u++) bmSet(s.got, u);
-        s.gotUnits += n; s.pendingBytes -= L; s.rx += L; s.written += L; s.sinceCommit += L;
+        s.updatedAt = this.now(); s.gotUnits += n; s.pendingBytes -= L; s.rx += L; s.written += L; s.sinceCommit += L;
         this._prog(s, "in", doneBytes(s.gotUnits, s.size), s.gotUnits === s.total);
         if (s.rx - s.ackSent >= this.lim.ackEvery) this._ack(s); else if (!s.ackTimer) s.ackTimer = setTimeout(() => { s.ackTimer = null; this._ack(s); }, 80);
         if (s.gotUnits === s.total) await this._complete(s);
@@ -616,7 +616,7 @@
       const j = this.out.get(m.id);
       if (!j || j.peer !== peer || j.dead) { this._send(peer, { kind: "file-cancel", id: m.id, reason: "unknown" }); return; }
       if (j.state === "hashing" || j.state === "done") return;
-      if (j.state === "paused") { this._send(peer, { kind: "file-pause", id: j.id }); return; }
+      if (j.state === "paused" && !j.remote) { this._send(peer, { kind: "file-pause", id: j.id }); return; } // пауза поставлена здесь — не раздаём; пауза от получателя снимается его же file-resume
       if (!Number.isInteger(m.ep) || !Array.isArray(m.ranges) || m.ranges.length > this.lim.maxRanges) return;
       const ranges = [];
       for (const r of m.ranges) {
@@ -768,8 +768,7 @@
         }
       }
       for (const s of [...this.sin.values()]) {
-        if (t - s.updatedAt > this.lim.ttlMs && s.written === 0) this._dropIn(s, "failed", "expired");
-        else if (s.written > 0) s.updatedAt = t;
+        if (t - s.updatedAt > this.lim.ttlMs) this._dropIn(s, "failed", "expired");
       }
       this._pumpQueue();
       if (!this.sin.size && !this.out.size && this.timer) { clearInterval(this.timer); this.timer = null; }

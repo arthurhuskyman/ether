@@ -1490,7 +1490,10 @@ function isValidEnvelope(env) {
     const str = (s) => typeof s === "string" && s.length > 0 && s.length <= 100;
     if (!h || typeof h !== "object" || !Array.isArray(h.d) || h.d.length !== 2 || !str(h.d[0]) || !str(h.d[1])) return false;
     if (!Number.isInteger(h.pn) || !Number.isInteger(h.n) || h.pn < 0 || h.n < 0 || h.pn > 1e9 || h.n > 1e9) return false;
-    if (h.p != null && (typeof h.p !== "object" || JSON.stringify(h.p).length > 400)) return false;
+    // p: prekey-заголовок; с PQ-стартом (p.k — шифртекст ML-KEM-768 в base64, ровно 1452 символа) он крупнее, потолок 2000 символов JSON
+    if (h.p != null && (typeof h.p !== "object" || JSON.stringify(h.p).length > 2000)) return false;
+    if (h.p != null && h.p.k != null && !(typeof h.p.k === "string" && h.p.k.length === 1452 && /^[A-Za-z0-9+/]+={0,2}$/.test(h.p.k))) return false;
+    if (h.c != null && !(Number.isInteger(h.c) && h.c >= 0 && h.c <= 255)) return false;
     return true;
   }
   return typeof env.iv === "string" && env.iv.length < 200;
@@ -1770,12 +1773,19 @@ function cleanEnvelope(env) {
     const h = env.h, nh = { d: [h.d[0], h.d[1]], pn: h.pn, n: h.n };
     if (h.i != null) { let l = 1e9; try { l = JSON.stringify(h.i).length; } catch (e) {} if (l > 400) return null; nh.i = h.i; }
     if (h.p != null) nh.p = h.p;
+    if (h.c != null) nh.c = h.c; // биты возможностей v3 (под AEAD получателя)
     out.v = 2; out.h = nh; out.ct = env.ct;
   } else {
     out.iv = env.iv; out.ct = env.ct;
     if (typeof env.v === "number" || typeof env.v === "string") out.v = typeof env.v === "string" ? env.v.slice(0, 8) : env.v;
   }
   if (typeof env.rc === "number" || typeof env.rc === "boolean") out.rc = env.rc;
+  // Флаги AAD (a: 1|3), подсказка ac и маска возможностей cp: раньше отбрасывались, из-за чего AAD v2 до получателя не доходил (feature "pq1")
+  if (env.v === 2 && env.h !== undefined) {
+    if (env.a === 1 || env.a === 3) out.a = env.a;
+    if (env.ac === 1) out.ac = 1;
+    if (Number.isInteger(env.cp) && env.cp >= 0 && env.cp <= 255) out.cp = env.cp;
+  }
   if (typeof env.e2 === "number" || typeof env.e2 === "boolean") out.e2 = env.e2; // «я умею конверты v2 с AAD» (как rc для Double Ratchet)
   return out;
 }

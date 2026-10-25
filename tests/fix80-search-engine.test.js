@@ -81,7 +81,7 @@ test("100k сообщений: сборка и поиск укладываютс
   const ix = S.create(); const t0 = Date.now();
   await ix.build([{ id: "big", name: "big", messages: msgs }], { sliceMs: 10 });
   const tb = Date.now() - t0;
-  const t1 = Date.now(); const r1 = ix.search("уникальное"), r2 = ix.search("встреч отчёт"), r3 = ix.search('"привет мир"', { limit: 20 }), r4 = ix.search("type:links"), r5 = ix.search("пр");
+  const t1 = Date.now(); const r1 = ix.search("уникальное"), r2 = ix.search("встреч отчёт", { limit: 500 }), r3 = ix.search('"привет мир"', { limit: 20 }), r4 = ix.search("type:links"), r5 = ix.search("пр");
   const ts = (Date.now() - t1) / 5;
   assert.deepEqual(ids(r1), ["m54321"]); assert.ok(r2.length > 100, "r2=" + r2.length); assert.equal(r3.length, 20, "r3"); assert.equal(r5.length, 50, "r5=" + r5.length);
   assert.ok(tb < 15000, "build ms=" + tb); assert.ok(ts < 400, "avg search ms=" + ts);
