@@ -25,6 +25,25 @@ const GC = {
   wired: false,
 };
 
+// Адаптивный предел участников: 6, но слабое устройство / слабый исходящий канал -> меньше (см. EtherCallQuality.groupLimit)
+function gcallLimit() {
+  const CQ = window.EtherCallQuality; if (!CQ) return GCALL_MAX;
+  let up = 0, n = 0;
+  for (const id of GC.peers.keys()) { const l = mesh && mesh.get(id); const a = l && l._lastSample && l._lastSample.availBps; if (a > 0) { up += a; n++; } }
+  return Math.min(GCALL_MAX, CQ.groupLimit({ max: GCALL_MAX, cores: (navigator && navigator.hardwareConcurrency) || 0, uplinkBps: n && n === GC.peers.size ? up : 0 }));
+}
+// Бюджет исходящего видео: делим канал между получателями; больше 4 видео-получателей -> видео выключается, остаётся звук.
+function gcallApplyBudget() {
+  const CQ = window.EtherCallQuality; if (!CQ || !GC.gid) return;
+  let up = 0, n = 0;
+  for (const id of GC.peers.keys()) { const l = mesh && mesh.get(id); const a = l && l._lastSample && l._lastSample.availBps; if (a > 0) { up += a; n++; } }
+  const plan = CQ.groupVideoPlan({ peers: GC.peers.size, uplinkBps: n && n === GC.peers.size ? Math.max(500000, Math.min(up, 6000000)) : 2500000 });
+  const budget = GC.video && plan.video ? plan.perPeerBps : (GC.video ? 0 : null);
+  for (const id of GC.peers.keys()) { const l = mesh && mesh.get(id); if (l && typeof l.setVideoBudget === "function" && l._videoBudget !== budget && budget !== null) l.setVideoBudget(budget); }
+  if (GC.video && !plan.video && !GC._capNoticed) { GC._capNoticed = true; try { toast(T("gcall.audioOnlyMany")); } catch (e) {} }
+  if (plan.video) GC._capNoticed = false;
+}
+
 function gcallBusy() { return !!GC.gid; }
 function gcallGroup(gid) { const g = state.contacts.get(gid); return g && isGroup(g) ? g : null; }
 function gcallIsMember(g, id) { return !!(g && Array.isArray(g.members) && g.members.some((m) => m.id === id)); }
@@ -101,13 +120,15 @@ function gcallEnter(gid) {
 // Подключить свои треки к линку участника и зарегистрировать его
 function gcallRegisterPeer(id, hasVideo, muted) {
   const g = gcallGroup(GC.gid); if (!g || !gcallIsMember(g, id)) return false;
-  if (!GC.peers.has(id) && GC.peers.size + 1 >= GCALL_MAX) { gcallSend(id, { t: "full" }); return false; }
+  if (!GC.peers.has(id) && GC.peers.size + 1 >= gcallLimit()) { gcallSend(id, { t: "full" }); return false; }
   const p = GC.peers.get(id) || { name: gcallMemberName(g, id), stream: null, hasVideo: false, muted: false };
   if (hasVideo != null) p.hasVideo = !!hasVideo;
   if (muted != null) p.muted = !!muted;
   GC.peers.set(id, p);
   const l = mesh.get(id);
   if (l && GC.stream && typeof l.addGroupTracks === "function") l.addGroupTracks(GC.stream);
+  if (l && typeof l.startQuality === "function") { try { l.startQuality(); } catch (e) {} }
+  try { gcallApplyBudget(); } catch (e) {}
   GC.everConnected = true;
   gcallRenderScreen();
   return true;
@@ -236,6 +257,7 @@ async function gcallToggleCameraInner() {
     const vt = vs.getVideoTracks()[0]; if (!vt) return;
     GC.stream.addTrack(vt); GC.video = true;
     for (const id of GC.peers.keys()) { const l = mesh.get(id); if (l && l.addGroupTracks) l.addGroupTracks(GC.stream); }
+    try { gcallApplyBudget(); } catch (e) {}
   }
   gcallBroadcast({ t: "state", muted: GC.muted, video: GC.video });
   gcallRenderScreen();
@@ -248,7 +270,7 @@ function leaveGroupCall(opts) {
   const dur = Date.now() - GC.startedAt;
   const hadPeers = GC.everConnected;
   gcallBroadcast({ t: "leave" });
-  for (const id of GC.peers.keys()) { const l = mesh && mesh.get(id); if (l && l.removeGroupTracks) l.removeGroupTracks(); }
+  for (const id of GC.peers.keys()) { const l = mesh && mesh.get(id); if (l && l.stopQuality) { try { l.stopQuality(); l._videoBudget = null; } catch (e) {} } if (l && l.removeGroupTracks) l.removeGroupTracks(); }
   if (GC.stream) { try { GC.stream.getTracks().forEach((t) => { try { t.stop(); } catch (e) {} }); } catch (e) {} }
   clearInterval(GC.timer); GC.timer = null;
   GC.gid = null; GC.stream = null; GC.peers = new Map(); GC.sentJoin = new Set(); GC.joined = new Set(); GC.video = false; GC.muted = false;
@@ -262,7 +284,9 @@ function leaveGroupCall(opts) {
   }
 }
 
+let __gcTick = 0;
 function gcallTick() {
+  if (++__gcTick % 4 === 0) { try { gcallApplyBudget(); } catch (e) {} }
   const el = document.getElementById("gcall-timer");
   if (el) el.textContent = formatClock(Date.now() - GC.startedAt);
 }

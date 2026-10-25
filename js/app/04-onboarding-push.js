@@ -377,7 +377,7 @@ function startApp() {
     // очередь отправки (P1.14): что именно зависло и почему. Настройки
     // остаются на расстоянии одного тапа через нижнюю вкладку Settings.
     const nav = $("#nav-conn-indicator");
-    if (nav) nav.addEventListener("click", () => { if (state._replaced) reclaimSignaling(); else openOutboxSheet(); });
+    if (nav) nav.addEventListener("click", () => { if (state._replaced) reclaimSignaling(); else if (state._serversDown) srvOpenSheet(); else openOutboxSheet(); });
   }, "wireNavConnIndicator");
   sc(wireConnectScreen, "wireConnectScreen");
   sc(wireQrButtons, "wireQrButtons");
@@ -447,6 +447,8 @@ function startApp() {
     const sp = $("#settings-presence"); if (sp) sp.checked = Store.presenceVisible;
     try { refreshDiscoveryUI(); } catch (e) {}
     const snn = $("#settings-notifications"); if (snn) snn.checked = Store.notificationsEnabled;
+    const shi = $("#settings-hide-ip"); if (shi) shi.checked = Store.hideIpInCalls;
+    const scr = $("#settings-call-report"); if (scr) scr.checked = Store.callReport;
     const shn = $("#settings-hide-notif"); if (shn) shn.checked = Store.hideNotifContent;
     const slp = $("#settings-link-previews"); if (slp) slp.value = Store.linkPreviewMode;
     const ste = $("#settings-translate-endpoint"); if (ste) ste.value = Store.translateEndpoint;
@@ -505,6 +507,7 @@ function startApp() {
   safeCall(wireLinkCallUi, "wireLinkCallUi");
   if (deferredWires.length) setTimeout(() => { for (const [fn, name] of deferredWires.splice(0)) safeCall(fn, name); __fastBoot = false; }, 0);
   try { startOutboxRetryLoop(); } catch (e) {}
+  try { startServerLoops(); } catch (e) { etherLog("error", "[startApp] startServerLoops:", String(e)); }
   try { setInterval(sweepExpiredMessages, 30000); sweepExpiredMessages(); } catch (e) {}
   // Проверяем раз в 30с + сразу при старте (не ждём первого тика) — так
   // отложенное сообщение, время которого уже прошло пока приложение было
@@ -906,6 +909,7 @@ function wireServiceWorker() {
       }
     }
     if (data.type === "answer-call") { try { answerFromNotification(data); } catch (e) { etherLog("warn", "[answer] " + String(e)); } }
+    if (data.type === "update-rejected") { try { Integrity.onUpdateRejected(data); } catch (e) {} }
     if (data.type === "ring-received") { try { if (typeof notifCheckOnRing === "function") notifCheckOnRing(data); } catch (e) {} }
     if (data.type === "push-subscription-changed") {
       ensurePushSubscription().catch(() => {});

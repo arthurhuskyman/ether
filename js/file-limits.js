@@ -25,5 +25,15 @@
     return (receivedBytesSoFar + chunkLen) > maxExpectedB64;
   }
 
-  return { MAX_FILE_SIZE, isValidFileMetaSize, chunkExceedsBudget };
+  // V.80: большие файлы по прямому P2P (двоичный протокол filebin1, js/bigfile.js). Офлайн-ящик и группы остаются малыми (MAX_FILE_SIZE / 1 МБ).
+  const P2P_MAX_FILE_SIZE = 4 * 1024 * 1024 * 1024; // 4 ГиБ — потолок прямой передачи (настраиваемая константа; проверяется и у получателя против лживого meta)
+  const BIG_MEMORY_CAP = 64 * 1024 * 1024; // запасной вариант «только в памяти» (нет OPFS/IndexedDB) — не больше 64 МиБ
+  const BIG_RESUME_TTL_MS = 24 * 3600 * 1000; // сколько живёт недокачанная передача (докачка после перезапуска приложения)
+
+  // Размер из file-meta большого файла (bin:1): целое число байт в пределах [1; P2P_MAX_FILE_SIZE].
+  function isValidBigFileMetaSize(size, max) {
+    return Number.isInteger(size) && size > 0 && size <= (max || P2P_MAX_FILE_SIZE);
+  }
+
+  return { MAX_FILE_SIZE, isValidFileMetaSize, chunkExceedsBudget, P2P_MAX_FILE_SIZE, BIG_MEMORY_CAP, BIG_RESUME_TTL_MS, isValidBigFileMetaSize };
 });

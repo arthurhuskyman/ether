@@ -3,7 +3,7 @@
 // API-ключ только у себя в переменных окружения. Пока список не
 // загружен — ничего не создаётся, ждём window.__etherIceReady.
 
-const DEFAULT_SIGNALING_FALLBACK = "wss://ether-1-baqy.onrender.com";
+const DEFAULT_SIGNALING_FALLBACK = (() => { try { const c = window.__ETHER_CONFIG__; return c && c.servers && c.servers[0] && c.servers[0].url || "wss://ether-1-baqy.onrender.com"; } catch (e) { return "wss://ether-1-baqy.onrender.com"; } })();
 
 // Публичные STUN на случай, если наш /ice недоступен. TURN в этом
 // режиме нет — пробиться через симметричный NAT не получится, но
@@ -67,8 +67,9 @@ function getMyId() {
 
 function signalingUrlForIce() {
   let url = "";
+  try { if (typeof window.__etherActiveUrl === "function") url = String(window.__etherActiveUrl() || "").trim(); } catch (e) {} // активный сервер из списка (multi-server)
   try {
-    url = (localStorage.getItem("ether.signalingUrl") || "").trim();
+    if (!url) url = (localStorage.getItem("ether.signalingUrl") || "").trim();
   } catch (e) {}
   if (!url) url = DEFAULT_SIGNALING_FALLBACK;
   return url.replace(/^wss:\/\//i, "https://").replace(/^ws:\/\//i, "http://");
@@ -199,7 +200,7 @@ window.__etherIceReady = (async () => {
 // на подключение на порядок меньше. На первом соединении это значение
 // вообще не используется (SDP уходит сразу, trickle ICE досылает
 // кандидатов по мере появления).
-const ICE_GATHER_TIMEOUT_MS = 2500;
+const ICE_GATHER_TIMEOUT_MS = 1800; // trickle ICE шлёт остальных кандидатов отдельно, так что долгое ожидание полного набора не нужно
 // 60 секунд вместо 20: iOS/iPadOS замораживает setInterval в фоне, и
 // при возврате _lastPongAt мог показывать возраст 40+ секунд — связь
 // рвалась, хотя была жива. 60 секунд позволяют пережить короткий
@@ -237,6 +238,77 @@ const AUTH_PASS_KINDS = new Set(["auth", "ping", "pong", "sdp", "call-state"]);
 
 // Пул заранее собранных ICE-кандидатов — это отдельные TURN-allocation на каждый линк. При сотне контактов пул 2 на каждом давал
 // десятки лишних allocation (бесплатный TURN режет их по логину). Теперь пул есть только у нескольких одновременно «тёплых» линков.
+const __liveLinks = new Set();
+function hideIpEnabled() { try { return localStorage.getItem("ether.hideIpInCalls") === "1"; } catch (e) { return false; } }
+
+// ---- Надёжность установки: RTT до TURN, подогрев ICE, быстрый ICE-restart при смене сети ----
+const turnRtt = {}; // url -> мс (-1 = не отвечает)
+let turnRttAt = 0, turnRttBusy = false;
+// Замеряем TURN через уже существующую проверку (relay-кандидат), не чаще раза в 10 минут; порядок серверов обновляется.
+async function measureTurnRtt(force) {
+  if (turnRttBusy || (!force && Date.now() - turnRttAt < 10 * 60 * 1000)) return null;
+  const CQ = window.EtherCallQuality;
+  if (!CQ || !ICE_SERVERS.length) return null;
+  turnRttBusy = true;
+  try {
+    const jobs = [];
+    for (const srv of ICE_SERVERS) for (const u of [].concat(srv.urls || [])) {
+      if (!/^turns?:/i.test(u) || !srv.username || /^turns:|transport=tcp/i.test(u)) continue; // замеряем UDP-адреса: они и идут в обычный режим
+      jobs.push(etherTurnCheckOne(u, srv.username, srv.credential, 3000).then((r) => { turnRtt[u] = r.relay ? r.relayMs : -1; }));
+    }
+    if (!jobs.length) return null;
+    await Promise.all(jobs);
+    turnRttAt = Date.now();
+    ICE_SERVERS = CQ.sortIceByRtt(ICE_SERVERS, turnRtt);
+    if (window.etherLog) window.etherLog("info", "[webrtc] RTT до TURN:", JSON.stringify(turnRtt));
+    return turnRtt;
+  } catch (e) { return null; } finally { turnRttBusy = false; }
+}
+// Экран звонка открылся: подогреваем сбор кандидатов (STUN/TURN allocation, DNS) на 8 с, обновляем /ice и замеры TURN.
+let __prewarmAt = 0;
+function prewarmCallIce() {
+  try {
+    maybeRefreshIceServers();
+    if (typeof RTCPeerConnection === "undefined" || Date.now() - __prewarmAt < 20000) return false;
+    __prewarmAt = Date.now();
+    const CQ = window.EtherCallQuality;
+    const cfg = CQ ? CQ.rtcConfigFor({ hideIp: hideIpEnabled(), iceServers: ICE_SERVERS.length ? ICE_SERVERS : FALLBACK_ICE, poolSize: 2 }) : { iceServers: ICE_SERVERS, iceCandidatePoolSize: 2 };
+    if (cfg.iceTransportPolicy !== "relay") cfg.iceCandidatePoolSize = 2;
+    const pc = new RTCPeerConnection(cfg);
+    setTimeout(() => { try { pc.close(); } catch (e) {} }, 8000);
+    setTimeout(() => { measureTurnRtt(false); }, 1500);
+    return true;
+  } catch (e) { return false; }
+}
+window.prewarmCallIce = prewarmCallIce;
+// Смена сети (Wi-Fi <-> LTE, возврат связи): не ждём таймауты ICE (до 7-10 с), сразу перезапускаем ICE на линках с активным медиа.
+let __netTimer = null;
+function onNetworkChange(why) {
+  clearTimeout(__netTimer);
+  __netTimer = setTimeout(() => {
+    for (const l of Array.from(__liveLinks)) {
+      try {
+        if (l._closed || !(l.status === "connected" || l.status === "in-call")) continue;
+        const media = l.localAudioTrack || (l._gSenders && l._gSenders.size);
+        if (!media) continue;
+        if (Date.now() - (l._lastNetRestart || 0) < 3000) continue;
+        l._lastNetRestart = Date.now();
+        l._log("info", "[webrtc]", l.id.slice(0, 10) + "…", "смена сети (" + why + ") -> быстрый ICE restart");
+        l.reInvite();
+      } catch (e) {}
+    }
+  }, 700);
+}
+try {
+  if (typeof window !== "undefined" && window.addEventListener) {
+    window.addEventListener("online", () => onNetworkChange("online"));
+    const nc = typeof navigator !== "undefined" && navigator.connection;
+    if (nc && nc.addEventListener) {
+      let lastType = nc.type + "|" + nc.effectiveType;
+      nc.addEventListener("change", () => { const t = nc.type + "|" + nc.effectiveType; if (t !== lastType) { lastType = t; onNetworkChange("connection"); } });
+    }
+  }
+} catch (e) {}
 const ICE_POOL_LINKS_MAX = 3;
 const __icePooledLinks = new Set();
 class PeerLink extends EventTarget {
@@ -277,9 +349,16 @@ class PeerLink extends EventTarget {
     const effectiveIceServers = ICE_SERVERS.length > 0 ? (udpOnly.length ? udpOnly : ICE_SERVERS) : FALLBACK_ICE;
     const relayServers = relayOnlyAttempt(id) ? relayCapableServers() : [];
     this._relayOnly = relayServers.length > 0;
-    this.pc = new RTCPeerConnection(this._relayOnly
+    // «Скрывать мой IP в звонках» (Настройки): только TURN-relay, IP не уходит собеседнику (ценой задержки и качества).
+    this._hideIp = hideIpEnabled();
+    const CQ = window.EtherCallQuality;
+    if (this._hideIp && CQ) this._relayOnly = true;
+    this.pc = new RTCPeerConnection(this._hideIp && CQ
+      ? CQ.rtcConfigFor({ hideIp: true, iceServers: ICE_SERVERS })
+      : this._relayOnly
       ? { iceServers: relayServers, iceTransportPolicy: "relay" }
       : { iceServers: effectiveIceServers, iceCandidatePoolSize: (__icePooledLinks.size < ICE_POOL_LINKS_MAX && (__icePooledLinks.add(this), true)) ? 2 : 0 });
+    __liveLinks.add(this);
     // Пул кандидатов: каждый его элемент — отдельная заранее открытая TURN-allocation (при пуле 10 это десятки allocation на один
     // линк). Бесплатный TURN режет их число на логин и после этого «выдаёт» allocation, но данные не пересылает (↑N ↓0). Кнопка
     // «Проверить TURN» без пула проходила, а реальные линки с пулом 8–10 — нет, поэтому пул минимален (в relay-only — без пула).
@@ -537,6 +616,8 @@ class PeerLink extends EventTarget {
         sender.__ethTuned = sig;
       } catch (err) { /* не все браузеры позволяют менять параметры — не критично */ }
     }
+    // перезапись кодировок не должна сбрасывать ограничения адаптации/группового бюджета
+    try { if (this._videoBudget != null || (this._qc && this._qc.level > 0)) await this._applyQualityPlan(this._qc ? this._qc.plan() : null); } catch (e) {}
   }
 
   async _logPairs(reason) {
@@ -596,24 +677,26 @@ class PeerLink extends EventTarget {
   }
 
   _bindDataChannel() {
+    try { this.dc.binaryType = "arraybuffer"; } catch (e) {} // V.80: бинарные кадры больших файлов (filebin1)
     this.dc.addEventListener("open", () => {
       this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "dataChannel open");
       if (this.status !== "in-call") this._setStatus("connected");
       this.dispatchEvent(new CustomEvent("dc-open")); // канал данных реально готов (статус connected приходит раньше) — отсюда начинается проверка подлинности
       clearInterval(this._pingTimer);
       this._lastPongAt = Date.now();
+      this.send({ kind: "ping", t: Date.now(), rc: 1, e2: 1, fb: 1 }); // сразу, а не через 5 с: так быстрее выясняются возможности пира (filebin1)
       this._pingTimer = setInterval(() => {
         if (this._closed) return;
         if (this._lastPongAt && Date.now() - this._lastPongAt > HEARTBEAT_TIMEOUT_MS) {
           // После заморозки таймеров (iOS) первый «просроченный» тик ещё не доказывает смерть линка: ответы могли лежать в очереди.
           // Шлём ping и даём один дополнительный интервал; если за него не пришло ничего — только тогда рвём.
-          if (!this._staleGrace) { this._staleGrace = true; this.send({ kind: "ping", t: Date.now(), rc: 1, e2: 1 }); return; }
+          if (!this._staleGrace) { this._staleGrace = true; this.send({ kind: "ping", t: Date.now(), rc: 1, e2: 1, fb: 1 }); return; }
           this._log("warn", "[webrtc]", this.id.slice(0, 10) + "…", "no pong for " + Math.round((Date.now() - this._lastPongAt) / 1000) + "s — closing");
           this._setStatus("disconnected");
           return;
         }
         this._staleGrace = false;
-        this.send({ kind: "ping", t: Date.now(), rc: 1, e2: 1 });
+        this.send({ kind: "ping", t: Date.now(), rc: 1, e2: 1, fb: 1 });
       }, 5000);
       // Трек мог быть добавлен ДО того, как канал открылся — тогда
       // negotiationneeded сработал вхолостую (событие одноразовое) и
@@ -632,6 +715,11 @@ class PeerLink extends EventTarget {
       this._log("warn", "[webrtc]", this.id.slice(0, 10) + "…", "dataChannel error", String(ev));
     });
     this.dc.addEventListener("message", (ev) => {
+      if (typeof ev.data !== "string") { // V.80: двоичный кадр большого файла — мимо JSON, прямо в обработчик приложения
+        this._lastPongAt = Date.now(); this._staleGrace = false;
+        if (this.onBinary) { try { this.onBinary(ev.data); } catch (e) { this._log("warn", "[webrtc] onBinary:", String(e)); } }
+        return;
+      }
       let payload;
       try { payload = JSON.parse(ev.data); } catch (e) { return; }
       if (!payload) return;
@@ -645,8 +733,13 @@ class PeerLink extends EventTarget {
         this.peerEnv2 = true; // собеседник умеет офлайн-конверты v2 (AES-GCM с AAD «отправитель|получатель»)
         this.dispatchEvent(new CustomEvent("caps", { detail: { e2: true } }));
       }
-      if (payload.kind === "ping") { this.send({ kind: "pong", t: payload.t, rc: 1, e2: 1 }); return; }
+      if ((payload.kind === "ping" || payload.kind === "pong") && payload.fb && !this.peerFileBin) {
+        this.peerFileBin = true; // собеседник умеет бинарные кадры больших файлов (filebin1)
+        this.dispatchEvent(new CustomEvent("caps", { detail: { fb: true } }));
+      }
+      if (payload.kind === "ping") { this.send({ kind: "pong", t: payload.t, rc: 1, e2: 1, fb: 1 }); return; }
       if (payload.kind === "pong") { this._lastPongAt = Date.now(); return; }
+      if (payload.kind === "call-quality") { this.dispatchEvent(new CustomEvent("remote-quality", { detail: { audioOnly: !!payload.audioOnly } })); return; }
       if (payload.kind === "sdp") {
         this._handleRemoteSdp(payload).catch((e) => this._log("warn", "[webrtc] пересогласование:", String(e)));
       } else {
@@ -690,6 +783,30 @@ class PeerLink extends EventTarget {
     for (const c of list) {
       this.pc.addIceCandidate(c).catch((e) => this._log("warn", "[webrtc] flush addIceCandidate:", String(e)));
     }
+  }
+  // V.80 filebin1: бинарная отправка и backpressure для EtherBigFile.Hub (js/bigfile.js). Тот же шлюз аутентификации, что у send().
+  sendBinary(buf) {
+    if (this.authGate === "closed" || this.authGate === "pending") return false;
+    if (this.dc && this.dc.readyState === "open") { try { this.dc.send(buf); return true; } catch (e) { return false; } }
+    return false;
+  }
+  bigTransport() {
+    return {
+      isOpen: () => !!(this.dc && this.dc.readyState === "open" && this.authGate !== "closed" && this.authGate !== "pending" && !this._closed),
+      sendJson: (p) => this.send(p),
+      sendBinary: (b) => this.sendBinary(b),
+      bufferedAmount: () => (this.dc ? this.dc.bufferedAmount : 0),
+      // Ждём, пока буфер канала опустится до low (событие bufferedamountlow + страховочный опрос); false — канал закрылся или таймаут.
+      whenLow: (low, timeoutMs) => new Promise((res) => {
+        const dc = this.dc; if (!dc || dc.readyState !== "open") return res(false);
+        if (dc.bufferedAmount <= low) return res(true);
+        const t0 = Date.now(); let poll, fin = false;
+        const done = (v) => { if (fin) return; fin = true; clearInterval(poll); try { dc.removeEventListener("bufferedamountlow", on); dc.removeEventListener("close", off); } catch (e) {} res(v); };
+        const on = () => done(true), off = () => done(false);
+        try { dc.bufferedAmountLowThreshold = low; dc.addEventListener("bufferedamountlow", on); dc.addEventListener("close", off); } catch (e) {}
+        poll = setInterval(() => { if (dc.readyState !== "open") done(false); else if (dc.bufferedAmount <= low) done(true); else if (Date.now() - t0 > timeoutMs) done(false); }, 100);
+      }),
+    };
   }
   // Отправка файла кусками поверх обычного send() — с учётом bufferedAmount,
   // чтобы не захлебнуть канал на больших вложениях. Живой P2P пробуется
@@ -736,7 +853,7 @@ class PeerLink extends EventTarget {
       this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "offer ready, candidates:", this._iceCandidates.length);
       return {
         t: "offer", n: this.localName, r: roomTag, x: crypto.randomUUID(), ...(this._relayOnly ? { rl: 1 } : {}),
-        d: { type: this.pc.localDescription.type, sdp: this.pc.localDescription.sdp },
+        d: { type: this.pc.localDescription.type, sdp: this._wireSdp(this.pc.localDescription.sdp) },
       };
     } catch (e) {
       if (this._closed || this.pc.signalingState === "closed") return null;
@@ -762,7 +879,7 @@ class PeerLink extends EventTarget {
       if (this._closed || this.pc.signalingState === "closed") return null;
       return {
         t: "answer", n: this.localName, x: crypto.randomUUID(),
-        d: { type: this.pc.localDescription.type, sdp: this.pc.localDescription.sdp },
+        d: { type: this.pc.localDescription.type, sdp: this._wireSdp(this.pc.localDescription.sdp) },
       };
     } catch (e) {
       if (this._closed || this.pc.signalingState === "closed") return null;
@@ -856,7 +973,7 @@ class PeerLink extends EventTarget {
         this._log("info", "[webrtc]", this.id.slice(0, 10) + "…", "негоциация перехвачена встречным offer во время ICE-gathering — не отправляем");
         return;
       }
-      const offerSdp = this.pc.localDescription.sdp;
+      const offerSdp = this._wireSdp(this.pc.localDescription.sdp);
       const ok = this.send({ kind: "sdp", sdpType: "offer", sdp: offerSdp });
       if (!ok && !this._closed) {
         // Критично: setLocalDescription(offer) уже перевёл signalingState в
@@ -949,7 +1066,7 @@ class PeerLink extends EventTarget {
       // отката состояния. Окно узкое (в начале функции уже есть проверка
       // _closed), но не нулевое.
       if (this._closed || !this.pc.localDescription) return;
-      this.send({ kind: "sdp", sdpType: "answer", sdp: this.pc.localDescription.sdp });
+      this.send({ kind: "sdp", sdpType: "answer", sdp: this._wireSdp(this.pc.localDescription.sdp) });
     } else if (payload.sdpType === "answer") {
       await this.pc.setRemoteDescription({ type: "answer", sdp: payload.sdp });
       this._flushPendingRemoteCandidates();
@@ -1060,10 +1177,111 @@ class PeerLink extends EventTarget {
         await free.sender.replaceTrack(track);
         try { free.sender.setStreams(stream); } catch (e) {}
         if (free.direction !== "sendrecv") free.direction = "sendrecv";
+        if (kind === "video") this._applyCodecPrefs(free);
         return free.sender;
       } catch (e) { /* не вышло — обычный addTrack ниже */ }
     }
-    return this.pc.addTrack(track, stream);
+    const snd = this.pc.addTrack(track, stream);
+    if (kind === "video") { try { this._applyCodecPrefs(this.pc.getTransceivers().find((t) => t.sender === snd)); } catch (e) {} }
+    return snd;
+  }
+
+  // ---- Качество звонка (см. js/callquality.js) ----
+  // SDP, который уходит собеседнику: Opus с FEC/DTX/mono и битрейтом по классу сети. Любой сбой -> исходная строка.
+  _wireSdp(sdp) {
+    try {
+      const CQ = window.EtherCallQuality;
+      return CQ ? CQ.tuneOpusSdp(sdp, { netClass: this._netClass || "good" }) : sdp;
+    } catch (e) { return sdp; }
+  }
+  // Порядок видеокодеков (iOS -> H.264, и т.д.); полный список остаётся, так что откат на любой общий кодек работает.
+  _applyCodecPrefs(tr) {
+    try {
+      const CQ = window.EtherCallQuality;
+      if (!CQ || !tr || typeof tr.setCodecPreferences !== "function" || typeof RTCRtpReceiver === "undefined" || !RTCRtpReceiver.getCapabilities) return false;
+      if (tr.__ethCodecs) return true;
+      const caps = RTCRtpReceiver.getCapabilities("video");
+      if (!caps || !caps.codecs || !caps.codecs.length) return false;
+      const ua = (typeof navigator !== "undefined" && navigator.userAgent) || "";
+      const env = { ios: /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1), android: /Android/i.test(ua), cores: (typeof navigator !== "undefined" && navigator.hardwareConcurrency) || 0 };
+      tr.setCodecPreferences(CQ.orderVideoCodecs(caps.codecs, env));
+      tr.__ethCodecs = true;
+      return true;
+    } catch (e) { return false; }
+  }
+  // Видео-отправители: 1:1 (localVideoTrack) и групповые (_gSenders)
+  _videoSenders() {
+    try { return this.pc.getSenders().filter((s) => s.track && s.track.kind === "video"); } catch (e) { return []; }
+  }
+  // Базовый битрейт видео (бюджет группы); контроллер масштабирует его по лестнице.
+  setVideoBudget(bps) {
+    this._videoBudget = bps;
+    if (this._qc) this._qc.setBase(bps);
+    this._applyQualityPlan(this._qc ? this._qc.plan() : null, true);
+  }
+  async _applyQualityPlan(plan, force) {
+    if (!plan) { if (this._videoBudget == null) return; plan = this._videoBudget === 0 ? { video: null, audioOnly: true, opusBitrate: null } : { video: { maxBitrate: this._videoBudget }, audioOnly: false, opusBitrate: null }; }
+    if (this._videoBudget === 0) plan = Object.assign({}, plan, { audioOnly: true, video: null });
+    for (const sender of this._videoSenders()) {
+      try {
+        const p = sender.getParameters();
+        if (!p.encodings || !p.encodings.length) p.encodings = [{}];
+        const e = p.encodings[0];
+        if (plan.audioOnly) { e.active = false; }
+        else if (plan.video) {
+          e.active = true; e.maxBitrate = plan.video.maxBitrate;
+          if (plan.video.maxFramerate) e.maxFramerate = plan.video.maxFramerate;
+          if (plan.video.scaleResolutionDownBy && !(this._screenSharing && sender.track === this.localVideoTrack)) e.scaleResolutionDownBy = plan.video.scaleResolutionDownBy;
+        }
+        await sender.setParameters(p);
+      } catch (err) { /* не все браузеры позволяют */ }
+    }
+    if (plan.opusBitrate) {
+      for (const sender of this.pc.getSenders()) {
+        if (!sender.track || sender.track.kind !== "audio") continue;
+        try { const p = sender.getParameters(); if (p.encodings && p.encodings[0]) { p.encodings[0].maxBitrate = plan.opusBitrate; await sender.setParameters(p); } } catch (err) {}
+      }
+    }
+  }
+  // Цикл адаптации: раз в 2 с getStats -> контроллер -> параметры отправителей. opts: { onChange(plan), report }
+  startQuality(opts) {
+    const CQ = window.EtherCallQuality;
+    if (!CQ || this._closed || this._qTimer) return false;
+    const o = opts || {};
+    this._qc = CQ.createController({ baseVideoBps: this._videoBudget || VIDEO_MAX_BITRATE, hasVideo: !!this._videoSenders().length });
+    this._qPrev = null; this._qBusy = false; this._qReport = o.report || null;
+    this._qTimer = setInterval(async () => {
+      if (this._closed) { this.stopQuality(); return; }
+      if (this._qBusy) return;
+      this._qBusy = true;
+      try {
+        const st = await this.pc.getStats();
+        const smp = CQ.extractSample(st, this._qPrev);
+        const firstTick = !this._qPrev;
+        this._qPrev = smp.raw;
+        if (firstTick) return;
+        this._qc.setHasVideo(this._videoSenders().length > 0);
+        const plan = this._qc.step(smp);
+        this._lastSample = Object.assign({}, smp, { level: plan.level });
+        this._netClass = plan.netClass;
+        if (this._qReport) CQ.reportAdd(this._qReport, this._lastSample);
+        if (plan.changed) {
+          await this._applyQualityPlan(plan);
+          const wasAudioOnly = this._qAudioOnly === true;
+          this._qAudioOnly = plan.audioOnly;
+          if (plan.audioOnly !== wasAudioOnly) this.send({ kind: "call-quality", audioOnly: plan.audioOnly });
+          this.dispatchEvent(new CustomEvent("quality", { detail: { level: plan.level, audioOnly: plan.audioOnly, restored: plan.reason === "restored", reason: plan.reason, netClass: plan.netClass, sample: this._lastSample } }));
+          if (o.onChange) { try { o.onChange(plan); } catch (e) {} }
+        }
+      } catch (e) { /* getStats недоступен — пропускаем тик */ }
+      finally { this._qBusy = false; }
+    }, CQ.TICK_MS);
+    return true;
+  }
+  stopQuality() {
+    if (this._qTimer) { clearInterval(this._qTimer); this._qTimer = null; }
+    this._qc = null; this._qPrev = null;
+    if (this._qAudioOnly) { this._qAudioOnly = false; }
   }
 
   async _ensureLocalVideo(facingMode) {
@@ -1422,8 +1640,10 @@ async startCall(withVideo) {
 
   close() {
     __icePooledLinks.delete(this);
+    __liveLinks.delete(this);
     if (this._closed) return;
     this._closed = true;
+    try { this.stopQuality(); } catch (e) {}
     clearInterval(this._pingTimer);
     if (this._muteRecheckTimer) { clearInterval(this._muteRecheckTimer); this._muteRecheckTimer = null; }
     if (this._muteStopTimer) { clearTimeout(this._muteStopTimer); this._muteStopTimer = null; }

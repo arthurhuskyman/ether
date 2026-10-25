@@ -11,6 +11,7 @@ const SHELL_FILES = [
   "./css/skins.css",
   "./js/languages-meta.js",
   "./js/lang/en.js",
+  "./config.js",
   "./js/bundle.core.js",
   "./js/bundle.app.js",
   "./js/bundle.features.js",
@@ -23,6 +24,7 @@ const SHELL_FILES = [
   "./js/vendor/qrcode-generator.js",
   "./js/vendor/qrcode-generator-utf8.js",
   "./js/vendor/jsQR.js",
+  "./js/release-key.js",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/logo-256.png",
@@ -41,11 +43,64 @@ const SHELL_FILES = [
   "./sounds/call-noanswer.mp3"
 ];
 
+// ---------- V.80: подписанные релизы (docs/RELEASING.md) ----------
+// Ключ настроен (js/release-key.js: window.RELEASE_PUBKEY != null) -> новая версия ставится, только если подпись release-manifest.json верна
+// и хэш каждого файла оболочки совпал; иначе install падает, остаётся старая версия и кэш, страница получает «update-rejected».
+// Ключ не настроен -> поведение как раньше (ничего не проверяется). Ключ закрепляется при первой установке с ним (ether-meta/__relkey.json):
+// следующая версия с другим ключом или без ключа отклоняется (смена ключа — только осознанным действием владельца, см. RELEASING.md).
+function installShell(cache, policy) {
+  const get = (url) => fetch(url, { cache: "reload" }).then((res) => { if (!res.ok) throw new Error("shell fetch failed: " + url + " " + res.status); return res; });
+  if (!policy) return Promise.all(SHELL_FILES.map((url) => get(url).then((res) => cache.put(url, res))));
+  return Promise.all(SHELL_FILES.map((url) => get(url).then((res) => policy.check(url, res.clone()).then(() => [url, res]))))
+    .then((list) => Promise.all(list.map((x) => cache.put(x[0], x[1]))))
+    .then(() => policy.commit());
+}
+function rejectRelease(why) { const e = new Error("release rejected: " + why); e.releaseRejected = true; return e; }
+function notifyRejected(reason) {
+  return self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => { for (const c of list) { try { c.postMessage({ type: "update-rejected", reason: String(reason).slice(0, 200) }); } catch (e) {} } }).catch(() => {});
+}
+function relHex(buf) { return Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, "0")).join(""); }
+function relB64u(str) { const t = String(str).replace(/-/g, "+").replace(/_/g, "/"), b = atob(t + "=".repeat((4 - (t.length % 4)) % 4)), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; }
+function relValidKey(k) { return !!k && typeof k === "object" && k.kty === "EC" && k.crv === "P-256" && typeof k.x === "string" && typeof k.y === "string"; }
+function relBundledKey() {
+  try {
+    if (typeof importScripts !== "function") return null;
+    self.window = self; importScripts("./js/release-key.js");
+    return relValidKey(self.RELEASE_PUBKEY) ? { kty: "EC", crv: "P-256", x: self.RELEASE_PUBKEY.x, y: self.RELEASE_PUBKEY.y } : null;
+  } catch (e) { return null; }
+}
+function releasePolicy() {
+  return metaGet("./__relkey.json").then((pinned) => {
+    const bundled = relBundledKey();
+    if (!bundled && !relValidKey(pinned)) return null; // подпись нигде не настроена — как раньше
+    if (!bundled) throw rejectRelease("signing key removed");
+    if (relValidKey(pinned) && (pinned.x !== bundled.x || pinned.y !== bundled.y)) throw rejectRelease("signing key changed");
+    const jwk = bundled;
+    return Promise.all([fetch("./release-manifest.json", { cache: "reload" }), fetch("./release-manifest.sig.json", { cache: "reload" })]).then((rs) => {
+      if (!rs[0].ok || !rs[1].ok) throw rejectRelease("manifest or signature missing");
+      return Promise.all([rs[0].arrayBuffer(), rs[1].json()]);
+    }).then((mm) => crypto.subtle.importKey("jwk", jwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"])
+      .then((key) => crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, key, relB64u(mm[1] && mm[1].sig), mm[0]))
+      .then((ok) => {
+        if (!ok) throw rejectRelease("bad signature");
+        const m = JSON.parse(new TextDecoder().decode(mm[0]));
+        if (!m || m.v !== 1 || !m.files) throw rejectRelease("bad manifest");
+        return {
+          check: (url, res) => res.arrayBuffer().then((buf) => crypto.subtle.digest("SHA-256", buf)).then((d) => {
+            const rel = new URL(url, self.location.href).pathname.replace(new URL("./", self.location.href).pathname, "") || "index.html";
+            const name = rel;
+            if (m.files[name] !== relHex(d)) throw rejectRelease("hash mismatch: " + name);
+          }),
+          commit: () => metaPut("./__relkey.json", jwk),
+        };
+      })); // сеть/WebCrypto упали -> install просто не удался (fail-closed, повтор позже), без ложного «не прошло подпись»
+  });
+}
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_VERSION).then((cache) =>
-      Promise.all(SHELL_FILES.map((url) => fetch(url, { cache: "reload" }).then((res) => { if (!res.ok) throw new Error("shell fetch failed: " + url + " " + res.status); return cache.put(url, res); })))
-    )
+    releasePolicy().then((policy) => caches.open(CACHE_VERSION).then((cache) => installShell(cache, policy)))
+      .catch((e) => (e && e.releaseRejected ? notifyRejected(e.message).then(() => { throw e; }) : Promise.reject(e)))
   );
   // ВАЖНО: skipWaiting() убран. Новый SW ждёт в состоянии "waiting",
   // пока страница не пришлёт ему SKIP_WAITING. Это даёт контроль:

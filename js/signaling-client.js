@@ -111,8 +111,9 @@ class SignalingClient extends EventTarget {
     if (this._retryTimer) { clearTimeout(this._retryTimer); this._retryTimer = null; }
     let ws;
     try { ws = new WebSocket(this.url); }
-    catch (e) { this._scheduleRetry(); return; }
+    catch (e) { this.dispatchEvent(new CustomEvent("connect-failed", { detail: { url: this.url } })); this._scheduleRetry(); return; }
     this.ws = ws;
+    const startedAt = Date.now(); let opened = false; // multi-server: сообщаем о неудачной попытке подключения (connect-failed) и замеряем время рукопожатия
     // Бесплатный Render «засыпает» без обращений, и холодный старт держит рукопожатие десятки секунд;
     // на мобильной сети зависшее рукопожатие тоже бывает. Не ждём вечно: через CONNECT_TIMEOUT_MS
     // пробуем заново (новое TCP/TLS-соединение часто проходит сразу), а через SLOW_CONNECT_MS
@@ -125,13 +126,14 @@ class SignalingClient extends EventTarget {
       this._retryDelay = 300;
       try { ws.close(); } catch (e) {}
       // close-событие у зависшего сокета может прийти не сразу — не ждём его
-      if (this.ws === ws) { this.ws = null; this.connected = false; this._scheduleRetry(); }
+      if (this.ws === ws) { this.ws = null; this.connected = false; this.dispatchEvent(new CustomEvent("connect-failed", { detail: { url: this.url } })); this._scheduleRetry(); }
     }, CONNECT_TIMEOUT_MS);
 
     ws.addEventListener("open", () => {
       if (this.ws !== ws) return;
       clearTimeout(this._connectTimer); clearTimeout(this._slowTimer);
       this._retryDelay = 1000;
+      opened = true; this.connectMs = Date.now() - startedAt;
       this.connected = true;
       this._lastPongAt = Date.now();
       if (this.guest) { this.dispatchEvent(new CustomEvent("connected")); return; }
@@ -180,6 +182,7 @@ class SignalingClient extends EventTarget {
         const users = (Array.isArray(msg.online) ? msg.online : []).map(normalizeRosterEntry).filter(Boolean);
         etherLog("info", "[signaling] зарегистрирован, онлайн:", users.length);
         this.dispatchEvent(new CustomEvent("online-list", { detail: { users } }));
+        this.dispatchEvent(new CustomEvent("registered", { detail: { claimed: this.claimed, connectMs: this.connectMs || 0 } }));
         // Обнаружение по хэшу телефона/почты: соль HMAC и признак «моя запись опубликована» (только если сервер объявил feature "discovery")
         this.discoverySalt = this.features.includes("discovery") && typeof msg.discoverySalt === "string" && /^[0-9a-zA-Z_-]{16,200}$/.test(msg.discoverySalt) ? msg.discoverySalt : "";
         this.discoveryPublished = msg.discoveryPublished === true;
@@ -273,6 +276,7 @@ class SignalingClient extends EventTarget {
       this.ws = null;
       this.connected = false;
       this.registered = false;
+      if (!opened) this.dispatchEvent(new CustomEvent("connect-failed", { detail: { url: this.url } }));
       etherLog("info", "[signaling] соединение закрыто, переподключаюсь…");
       this.dispatchEvent(new CustomEvent("disconnected"));
       this._scheduleRetry();

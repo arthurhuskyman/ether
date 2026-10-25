@@ -2929,3 +2929,6 @@ html.guest-call #content { display: none !important; }
 @media (min-width: 700px) { #answer-screen, #guest-call { max-width: 420px; max-height: min(860px, 94dvh); margin: auto; left: 0; right: 0; top: 0; bottom: 0; } }
 .notifcheck-actions { display: flex; flex-direction: column; flex-wrap: wrap; gap: 8px; align-items: stretch; }
 .notifcheck-actions .btn-primary, .notifcheck-actions .btn-secondary { width: 100%; max-width: 100%; white-space: normal; }
+.server-row .server-head { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.server-row .server-url { word-break: break-all; }
+.server-row .server-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }

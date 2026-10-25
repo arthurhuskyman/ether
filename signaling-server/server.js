@@ -669,6 +669,8 @@ const httpServer = http.createServer(async (req, res) => {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Link-T, X-Link-U");
 
   const url = req.url || "";
+  // /health и /info — публичные, без секретов: клиент с ЛЮБОГО origin (зеркала приложения) может мерить RTT и выбирать сервер (js/serverlist.js)
+  if (url === "/health" || url === "/" || url === "/info") { res.setHeader("Access-Control-Allow-Origin", "*"); res.setHeader("Cache-Control", "no-store"); }
   if (url === "/push-ack") { handlePushAck(req, res, clientIp(req)); return; }
   if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
 
@@ -753,6 +755,11 @@ const httpServer = http.createServer(async (req, res) => {
     return;
   }
 
+  if (req.method === "GET" && url === "/info") {
+    res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+    res.end(JSON.stringify({ name: "ether-relay", version: SERVER_VERSION, features: SERVER_FEATURES, push: PUSH_ENABLED, time: Date.now() }));
+    return;
+  }
   if (req.method === "GET" && (url === "/" || url === "/health")) {
     res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
     res.end("The Messenger signaling relay OK\n");
@@ -1537,6 +1544,7 @@ function devicesCtx() {
     mailboxKeys: (prefix) => Array.from(mailbox.keys()).filter((k) => k.startsWith(prefix)),
     mailboxDropBox: (k) => { const b = mailbox.get(k); if (b) for (const m of Array.from(b.keys())) mailboxRemove(k, m); scheduleMailboxSave(); } };
 }
+let SERVER_VERSION = "0"; try { SERVER_VERSION = String(require("./package.json").version || "0"); } catch (e) {}
 const SERVER_FEATURES = ["ratchet2", "prekeys", "watch", "claim", "env2", "devicelink", "devlist", "devmail", "devsync", "devpush", "devnotify", "alias"].concat(DISCOVERY_ENABLED ? ["discovery"] : []);
 
 // ---------- Prekey-пакеты для начала Double Ratchet (3DH/4DH) ----------

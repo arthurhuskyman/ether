@@ -328,6 +328,7 @@ function openCallScreen(id, phase, opts) {
   // одновременно заняли бы по половине места.
   const contentEl = $("#content"); if (contentEl) contentEl.classList.add("hidden");
   const miniBar = $("#mini-call-bar"); if (miniBar) miniBar.classList.add("hidden");
+  try { if (typeof prewarmCallIce === "function") prewarmCallIce(); } catch (e) {}
   if (state.callId !== id) {
     state._callUserAccepted = false;
     state._callAcceptInFlight = false;
@@ -799,6 +800,7 @@ function startCallTimer() {
   paintCallTimer(started);
   callTimerDisplayInterval = setInterval(() => { if (!state.callId) { clearInterval(callTimerDisplayInterval); callTimerDisplayInterval = null; return; } paintCallTimer(started); }, 250);
   state._callDeadSeconds = 0;
+  try { callQualityStart(); } catch (e) {}
   let qualityTick = 0;
   callTimerInterval = setInterval(() => {
     const clock = formatClock(Date.now() - started);
@@ -820,6 +822,62 @@ function startCallTimer() {
   }, 1000);
 }
 let __lastCallQualityRtt = null;
+// Адаптивное качество 1:1 (js/callquality.js): цикл в PeerLink раз в 2 с; здесь только подписка на события, плашки и отчёт.
+let __cqLink = null, __cqReport = null;
+function callQualityStart() {
+  const CQ = window.EtherCallQuality, link = state.callId && mesh.get(state.callId);
+  if (!CQ || !link || typeof link.startQuality !== "function") return;
+  if (__cqLink === link && link._qTimer) return;
+  __cqLink = link;
+  __cqReport = Store.callReport ? CQ.createReport() : null;
+  if (!link.__cqWired) {
+    link.__cqWired = true;
+    link.addEventListener("quality", (ev) => {
+      if (link !== __cqLink) return;
+      const d = ev.detail || {};
+      if (d.audioOnly) setCallNotice("quality", T("call.quality.audioOnly"));
+      else if (d.restored && !d.audioOnly) setCallNotice("quality", d.level === 0 ? null : T("call.quality.reduced"));
+      else if (d.level > 0) setCallNotice("quality", T("call.quality.reduced"));
+      else setCallNotice("quality", null);
+      if (d.audioOnly) toast(T("call.quality.audioOnly"));
+      else if (d.restored && d.level === 0) toast(T("call.quality.restored"));
+    });
+    link.addEventListener("remote-quality", (ev) => {
+      if (link !== __cqLink) return;
+      setCallNotice("rquality", ev.detail && ev.detail.audioOnly ? T("call.quality.remoteAudioOnly") : null);
+    });
+    link.addEventListener("ice-connection-state", (ev) => {
+      const s = ev.detail && ev.detail.state;
+      if (__cqReport && link === __cqLink && (s === "disconnected" || s === "failed")) __cqReport.reconnects++;
+    });
+  }
+  link.startQuality({ report: __cqReport });
+}
+function callQualityStop() {
+  const link = __cqLink, rep = __cqReport; __cqLink = null; __cqReport = null;
+  setCallNotice("quality", null); setCallNotice("rquality", null);
+  if (link && typeof link.stopQuality === "function") link.stopQuality();
+  if (!rep || !window.EtherCallQuality) return;
+  const CQ = window.EtherCallQuality, sum = CQ.summarizeReport(rep);
+  if (sum.verdict === "unknown") return;
+  window.__lastCallReport = { json: CQ.reportToJson(rep), summary: sum };
+  try { localStorage.setItem("ether.lastCallReport", window.__lastCallReport.json); } catch (e) {}
+  toast(callReportText(sum));
+}
+// Простыми словами: «Звук отличный. Задержка 40 мс, потерь 0%.»
+function callReportText(sum) {
+  let t = T("callreport.v." + sum.verdict) + ". " + T("callreport.detail", { rtt: sum.rttMedianMs == null ? "?" : sum.rttMedianMs, loss: sum.lossAvgPct });
+  if (sum.audioOnlyUsed) t += " " + T("callreport.audioOnlyUsed");
+  else if (sum.videoDegraded) t += " " + T("callreport.videoReduced");
+  if (sum.path === "relay") t += " " + T("callreport.relay");
+  return t;
+}
+function exportCallReport() {
+  let json = window.__lastCallReport && window.__lastCallReport.json;
+  if (!json) { try { json = localStorage.getItem("ether.lastCallReport"); } catch (e) {} }
+  if (!json) { toast(T("callreport.none")); return; }
+  downloadBlob(new Blob([json], { type: "application/json" }), "ether-call-report.json");
+}
 // Следим, идёт ли реально звук в обе стороны (раз в 3 с вместе с индикатором качества). Само по себе это только диагностика —
 // «соединение есть, а звука нет» теперь видно в журнале: сколько байт ушло/пришло и на каком этапе остановилось.
 // Если входящий звук молчит 9 секунд, один раз пробуем перезапустить ICE.
@@ -945,6 +1003,7 @@ function closeCallScreen(reason, opts) {
   const voicemailFor = rec && !(opts && opts.localError) && rec.direction === "out" && (["declined", "busy", "missed", "failed"].includes(reason) || (reason === "cancelled" && opts && opts.noAnswer)) && !rec.answeredAt ? rec.contactId : null;
   if (voicemailFor) setTimeout(() => offerVoicemail(voicemailFor), 700);
   clearInterval(callTimerInterval); callTimerInterval = null;
+  try { callQualityStop(); } catch (e) {}
   const qIcon = $("#call-quality-icon"); if (qIcon) qIcon.classList.add("hidden");
   state._callDeadSeconds = 0;
   state._callAcceptInFlight = false;

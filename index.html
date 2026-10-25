@@ -440,7 +440,9 @@
           <button type="button" id="save-signaling-btn" class="btn-secondary settings-btn-full" data-i18n="settings.save">Save and connect</button>
           <span id="signaling-status-text" class="fine muted"></span>
         </div>
+        <button type="button" id="servers-open-btn" class="settings-row link-row" aria-haspopup="dialog"><span data-i18n="servers.open">Servers</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
         <button type="button" id="self-host-info-btn" class="settings-row link-row"><span data-i18n="settings.selfHost">Host your own server</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
+        <button type="button" id="settings-security-btn" class="settings-row link-row" aria-haspopup="dialog" aria-label="Security centre" data-i18n-aria="security.open"><span data-i18n="security.title">Security</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
         <label class="settings-row"><span data-i18n="settings.discoverable">Show me in the "Online now" list</span><input id="settings-discoverable" type="checkbox" class="switch" /></label>
       </div>
       <div class="settings-group flat-content" data-settings-category="privacy">
@@ -463,6 +465,11 @@
         <label data-settings-adv class="settings-row"><span data-i18n="settings.requireVerified">Calls only with verified contacts</span><input id="settings-require-verified" type="checkbox" class="switch" /></label>
         <p data-settings-adv class="fine muted settings-hint" data-i18n="settings.requireVerified.hint">Before calling (or answering) a contact you have not verified with a safety number or QR, the app will ask you to verify first. A changed key always blocks calls until confirmed.</p>
         <button type="button" id="notifcheck-btn" class="settings-row link-row"><span>Notification check</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
+        <label class="settings-row"><span data-i18n="settings.hideIpInCalls">Hide my IP in calls</span><input id="settings-hide-ip" type="checkbox" class="switch" /></label>
+        <p class="fine muted settings-hint" data-i18n="settings.hideIpInCalls.hint">Calls go only through a relay server, so the other side never sees your IP address. Tradeoff: lower quality and more delay. Applies to new connections.</p>
+        <label data-settings-adv class="settings-row"><span data-i18n="settings.callReport">Call quality report</span><input id="settings-call-report" type="checkbox" class="switch" /></label>
+        <p data-settings-adv class="fine muted settings-hint" data-i18n="settings.callReport.hint">After a call, shows a short summary of how it went. Data stays on this device; you can export it as JSON.</p>
+        <button data-settings-adv type="button" id="settings-call-report-export" class="settings-row link-row"><span data-i18n="settings.callReport.export">Export last call report</span></button>
         <label class="settings-row"><span data-i18n="settings.hideNotifContent">Hide message content</span><input id="settings-hide-notif" type="checkbox" class="switch" /></label>
         <p class="fine muted settings-hint" data-i18n="settings.hideNotifContent.hint">Notifications show only the sender's name, not the message text.</p>
         <label data-settings-adv class="settings-row"><span data-i18n="settings.linkPreviews">Link previews</span>
@@ -984,6 +991,16 @@
   </div>
 </div>
 
+<div id="security-sheet" class="sheet hidden" role="dialog" aria-modal="true" aria-labelledby="security-sheet-title">
+  <div class="sheet-backdrop"></div>
+  <div class="sheet-panel glass-content">
+    <div class="sheet-handle"></div>
+    <h3 id="security-sheet-title" class="sheet-title" data-i18n="security.title">Security</h3>
+    <div id="security-body" class="security-body"></div>
+    <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="security-sheet" data-i18n="sys.cancel">Cancel</button>
+  </div>
+</div>
+
 <div id="summary-sheet" class="sheet hidden" role="dialog" aria-modal="true" aria-labelledby="summary-sheet-title">
   <div class="sheet-backdrop"></div>
   <div class="sheet-panel glass-content summary-panel">
@@ -1458,6 +1475,36 @@
   </div>
 </div>
 
+<div id="servers-sheet" class="sheet hidden" role="dialog" aria-modal="true" aria-labelledby="servers-sheet-title">
+  <div class="sheet-backdrop"></div>
+  <div class="sheet-panel glass-content">
+    <div class="sheet-handle"></div>
+    <h2 id="servers-sheet-title" data-i18n="servers.title">Servers</h2>
+    <p class="fine muted" data-i18n="servers.explain">The app talks to a relay server to find your contacts and hold messages while they are offline. Several servers make it harder to block: if one stops working, the app switches to the next. Servers never read message content.</p>
+    <div id="servers-down" class="hidden settings-row column" role="alert">
+      <span data-i18n="servers.down.banner">No server is reachable right now. You can still connect with a code or QR.</span>
+      <button type="button" id="servers-offline-mode-btn" class="btn-secondary settings-btn-full" data-i18n="servers.offlineMode">No-server mode (code / QR)</button>
+    </div>
+    <div id="servers-list" class="settings-group flat-content" role="list" aria-live="polite"></div>
+    <div class="settings-row column">
+      <input id="servers-add-input" type="text" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" data-i18n-ph="servers.addPh" placeholder="wss://my-server.example.com" aria-label="Server address" data-i18n-aria="servers.addPh" />
+      <button type="button" id="servers-add-btn" class="btn-secondary settings-btn-full" data-i18n="servers.add">Add</button>
+      <button type="button" id="servers-check-btn" class="btn-secondary settings-btn-full" data-i18n="servers.check">Check</button>
+    </div>
+    <label class="settings-row"><span data-i18n="servers.share">Tell contacts my servers</span><input id="servers-share" type="checkbox" class="switch" /></label>
+    <p class="fine muted settings-hint" data-i18n="servers.share.hint">Invites, QR codes and contact cards carry up to 3 server addresses, so friends can reach you if your main server is blocked. Turn off to keep them private.</p>
+    <div class="settings-row column">
+      <span class="settings-group-title" data-i18n="servers.import.title">Import a signed list</span>
+      <input id="servers-import-url" type="url" inputmode="url" autocomplete="off" placeholder="https://…/servers.json" aria-label="Signed list address" />
+      <button type="button" id="servers-import-url-btn" class="btn-secondary settings-btn-full" data-i18n="servers.import.fromUrl">Load from address</button>
+      <button type="button" id="servers-import-file-btn" class="btn-secondary settings-btn-full" data-i18n="servers.import.fromFile">Load from file</button>
+      <input id="servers-import-file" type="file" accept="application/json,.json" style="display:none;" />
+      <div id="servers-import-out" class="column" aria-live="polite"></div>
+    </div>
+    <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="servers-sheet" data-i18n="sys.close">Close</button>
+  </div>
+</div>
+
 <div id="self-host-sheet" class="sheet hidden">
   <div class="sheet-backdrop"></div>
   <div class="sheet-panel glass-content">
@@ -1630,6 +1677,8 @@
 <script src="js/vendor/qrcode-generator.js"></script>
 <script src="js/vendor/qrcode-generator-utf8.js"></script>
 <script src="js/vendor/jsQR.js"></script>
+<script src="config.js"></script>
+<script src="js/release-key.js"></script>
 <!-- js/bundle.*.js — генерируются: node tools/build-bundles.js (см. README «Сборка бандлов») -->
 <script src="js/bundle.core.js"></script>
 <script src="js/bundle.app.js"></script>

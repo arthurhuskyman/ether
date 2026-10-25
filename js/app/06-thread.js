@@ -466,7 +466,7 @@ if (m.replyTo) {
         ev.stopPropagation();
         const cardId = addBtn.getAttribute("data-add-contact-id");
         const cardName = addBtn.getAttribute("data-add-contact-name") || "";
-        if (cardId) addContactFromCard(cardId, cardName);
+        if (cardId) addContactFromCard(cardId, cardName, ServerList.decodeHints(addBtn.getAttribute("data-add-contact-srv") || "", { allowLocal: srvAllowLocal() }));
         return;
       }
       // Тап по цитате ответа — прокрутка к оригинальному сообщению, а

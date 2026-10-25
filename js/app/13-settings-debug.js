@@ -301,6 +301,8 @@ function wireSettingsScreen() {
   if (selfHostBtn) selfHostBtn.addEventListener("click", () => {
     const sheet = $("#self-host-sheet"); if (sheet) sheet.classList.remove("hidden");
   });
+  // ---- Серверы: список, статус, добавление, приоритет, подписанный список (js/serverlist.js) ----
+  wireServersSheet();
   // killer-features-backlog 0.5 — Dead Man's Switch настройки.
   const dmEnabledEl = $("#settings-deadman-enabled");
   if (dmEnabledEl) dmEnabledEl.addEventListener("change", (e) => {
@@ -354,6 +356,12 @@ function wireSettingsScreen() {
       if (!state.callId) initSignaling();
     }
   });
+  const hideIpEl = $("#settings-hide-ip");
+  if (hideIpEl) hideIpEl.addEventListener("change", (e) => { Store.hideIpInCalls = e.target.checked; });
+  const callReportEl = $("#settings-call-report");
+  if (callReportEl) callReportEl.addEventListener("change", (e) => { Store.callReport = e.target.checked; });
+  const callReportExp = $("#settings-call-report-export");
+  if (callReportExp) callReportExp.addEventListener("click", () => exportCallReport());
   const hideNotifEl = $("#settings-hide-notif");
   if (hideNotifEl) hideNotifEl.addEventListener("change", (e) => { Store.hideNotifContent = e.target.checked; });
   const myStatusEl = $("#settings-my-status");
@@ -390,6 +398,7 @@ function wireSettingsScreen() {
   if (save) save.addEventListener("click", () => {
     const el = $("#settings-signaling-url");
     if (el) Store.signalingUrl = el.value.trim();
+    try { const f = serverEntries()[0]; if (f) getFailover().force(f.url); } catch (e) {} // новый адрес в поле «Сервер» — первый в списке
     initSignaling(); toast(T("toast.saved"));
   });
   const disc = $("#settings-discoverable");
@@ -1176,7 +1185,7 @@ function wireDebugScreen() {
     try { Ratchet.resetAll(); } catch (e) {}
     try { heldDeliveries = []; persistHeld(); envelopeCache.clear(); } catch (e) {}
     state.contacts.clear(); state.callLog = []; state.currentCallRecord = null;
-    state.lastSeen = {}; state.drafts = {}; state.scheduledMessages = []; state.folders = [];
+    state.lastSeen = {}; state.drafts = Object.create(null); state.scheduledMessages = []; state.folders = [];
     // Если в момент сброса был в полёте дебаунс-таймер persistContacts()
     // (см. persistContactsNow выше) — он бы минут через 0.2с воскресил
     // только что обнулённый список из устаревшего __contactsPersistPending.
@@ -1401,3 +1410,129 @@ function buildWebRtcText() {
   return lines.join("\n");
 }
 
+
+// =====================================================================
+// Шторка «Серверы» (Настройки -> Дополнительно)
+// =====================================================================
+function srvOpenSheet() {
+  const sh = $("#servers-sheet"); if (!sh) return;
+  const cb = $("#servers-share"); if (cb) { try { cb.checked = localStorage.getItem(ServerList.KEYS.share) !== "0"; } catch (e) { cb.checked = true; } }
+  sh.classList.remove("hidden");
+  srvRenderSheet();
+  srvProbeAll({ noSwitch: true }).catch(() => {});
+}
+function srvRenderSheet() {
+  const box = $("#servers-list"); if (!box) return;
+  const entries = serverEntries(), active = effectiveSignalingUrl();
+  const down = $("#servers-down"); if (down) down.classList.toggle("hidden", !(state._serversDown && !(signaling && signaling.connected)));
+  box.innerHTML = "";
+  entries.forEach((e, i) => {
+    const pr = __srvProbe[e.url], isActive = e.url === active;
+    const online = isActive && signaling && signaling.connected;
+    const kind = online ? "online" : (pr ? (pr.ok ? "online" : "off") : "connecting");
+    const rtt = pr && pr.ok ? pr.rtt + " ms" : (pr ? T("servers.status.down") : "…");
+    const row = document.createElement("div");
+    row.className = "settings-row column server-row";
+    row.setAttribute("data-url", e.url);
+    row.innerHTML = `<div class="server-head"><span class="status-dot ${kind}" role="img" aria-label="${escapeHtml(T(kind === "online" ? "servers.status.ok" : kind === "off" ? "servers.status.down" : "servers.status.unknown"))}"></span> <strong>${escapeHtml(e.label)}</strong>${isActive ? ` <span class="fine muted">${escapeHtml(T("servers.active"))}</span>` : ""} <span class="fine muted server-rtt">${escapeHtml(rtt)}</span></div>
+      <div class="fine muted server-url">${escapeHtml(e.url)}</div>
+      <div class="server-actions">${i > 0 ? `<button type="button" class="btn-tertiary" data-srv-act="primary" aria-label="${escapeHtml(T("servers.aria.primary", { name: e.label }))}">${escapeHtml(T("servers.makePrimary"))}</button>` : `<span class="fine muted">${escapeHtml(T("servers.primary"))}</span>`}
+      ${entries.length > 1 ? `<button type="button" class="btn-tertiary destructive" data-srv-act="remove" aria-label="${escapeHtml(T("servers.aria.remove", { name: e.label }))}">${escapeHtml(T("servers.remove"))}</button>` : ""}</div>`;
+    box.appendChild(row);
+  });
+}
+function srvSaveUserList(list) { return ServerList.saveUser(localStorage, list); }
+function srvAddServer(raw, label) {
+  const url = ServerList.normalizeUrl(raw);
+  if (!url) { toast(T("servers.bad")); return false; }
+  if (serverEntries().some((e) => e.url === url)) { toast(T("servers.dup")); return false; }
+  const user = ServerList.loadUser(localStorage);
+  if (serverEntries().length >= ServerList.MAX_SERVERS) { toast(T("servers.limit")); return false; }
+  user.push({ url, label: ServerList.cleanLabel(label, url), addedAt: Date.now() });
+  srvSaveUserList(user);
+  return true;
+}
+// Старое поле «Сервер» (ether.signalingUrl) переносим в список, оставляя встроенные серверы выключенными (приватность самохостера не меняется)
+function srvAbsorbLegacy() {
+  let legacy = ""; try { legacy = (Store.signalingUrl || "").trim(); } catch (e) {}
+  if (!legacy) return true;
+  const n = ServerList.normalizeUrl(legacy);
+  if (!n) { toast(T("servers.legacyKeep")); return false; }
+  const user = ServerList.loadUser(localStorage);
+  if (!user.some((u) => u.url === n)) user.unshift({ url: n, label: ServerList.cleanLabel("", n), addedAt: Date.now() });
+  srvSaveUserList(user);
+  const off = srvJson(ServerList.KEYS.off, []);
+  for (const d of srvDefaults()) if (!off.includes(d.url)) off.push(d.url);
+  srvSetJson(ServerList.KEYS.off, off);
+  Store.signalingUrl = "";
+  return true;
+}
+function srvSetPrimary(url) {
+  if (!srvAbsorbLegacy()) return;
+  const entries = serverEntries(), e = entries.find((x) => x.url === url); if (!e) return;
+  const user = ServerList.loadUser(localStorage).filter((u) => u.url !== url);
+  user.unshift({ url, label: e.label, addedAt: e.addedAt || Date.now() });
+  srvSaveUserList(user);
+  getFailover().force(url);
+  initSignaling();
+}
+function srvRemoveServer(url) {
+  if (serverEntries().length <= 1) { toast(T("servers.keepOne")); return; }
+  if (!srvAbsorbLegacy()) return;
+  const user = ServerList.loadUser(localStorage), had = user.some((u) => u.url === url);
+  srvSaveUserList(user.filter((u) => u.url !== url));
+  if (!had || srvDefaults().some((d) => d.url === url)) { const off = srvJson(ServerList.KEYS.off, []); if (!off.includes(url)) { off.push(url); srvSetJson(ServerList.KEYS.off, off); } }
+  const wasActive = effectiveSignalingUrl() === url;
+  if (wasActive) { getFailover().force(serverEntries()[0].url); initSignaling(); }
+}
+async function srvImportText(text, sourceLabel) {
+  const out = $("#servers-import-out"); if (!out) return;
+  out.innerHTML = "";
+  let obj; try { obj = JSON.parse(text); } catch (e) { out.textContent = T("servers.import.bad"); return; }
+  let v; try { v = await ServerList.verifySigned(obj, window.RELEASE_PUBKEY); } catch (e) { v = { ok: false, reason: "bad-format" }; }
+  if (!v.parsed) { out.textContent = T("servers.import.bad"); return; }
+  const head = document.createElement("p"); head.className = "fine";
+  head.textContent = T(v.ok ? "servers.import.verified" : v.reason === "bad-sig" ? "servers.import.badSig" : "servers.import.unverified");
+  out.appendChild(head);
+  for (const s of v.parsed.servers) {
+    const r = document.createElement("div"); r.className = "settings-row server-row";
+    r.innerHTML = `<span class="fine"><strong>${escapeHtml(s.label)}</strong> ${escapeHtml(s.url)}</span><button type="button" class="btn-tertiary" data-srv-import-add="${escapeHtml(s.url)}" data-label="${escapeHtml(s.label)}" aria-label="${escapeHtml(T("servers.aria.add", { name: s.label }))}">${escapeHtml(T("servers.add"))}</button>`;
+    out.appendChild(r);
+  }
+  if (v.ok) { // подпись верна: можно применить весь список разом (он обновляется сам при следующих подписанных версиях)
+    const b = document.createElement("button"); b.type = "button"; b.className = "btn-secondary settings-btn-full"; b.textContent = T("servers.import.apply");
+    b.addEventListener("click", () => { srvSetJson(ServerList.KEYS.signed, { ts: v.parsed.ts, list: v.parsed.servers }); srvRenderSheet(); toast(T("servers.import.applied")); });
+    out.appendChild(b);
+  }
+}
+function wireServersSheet() {
+  const open = $("#servers-open-btn"); if (open) open.addEventListener("click", srvOpenSheet);
+  const list = $("#servers-list");
+  if (list) list.addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-srv-act]"); if (!b) return;
+    const row = b.closest(".server-row"), url = row && row.getAttribute("data-url"); if (!url) return;
+    if (b.getAttribute("data-srv-act") === "primary") srvSetPrimary(url); else srvRemoveServer(url);
+    srvRenderSheet();
+  });
+  const addBtn = $("#servers-add-btn"), addIn = $("#servers-add-input");
+  const doAdd = () => { if (addIn && srvAddServer(addIn.value, "")) { addIn.value = ""; srvRenderSheet(); srvProbeAll({ noSwitch: true }).catch(() => {}); } };
+  if (addBtn) addBtn.addEventListener("click", doAdd);
+  if (addIn) addIn.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); doAdd(); } });
+  const chk = $("#servers-check-btn");
+  if (chk) chk.addEventListener("click", async () => {
+    chk.disabled = true; const old = chk.textContent; chk.textContent = T("servers.checking");
+    try { await srvProbeAll(); } catch (e) {} finally { chk.disabled = false; chk.textContent = old; srvRenderSheet(); }
+  });
+  const share = $("#servers-share"); if (share) share.addEventListener("change", () => { try { localStorage.setItem(ServerList.KEYS.share, share.checked ? "1" : "0"); } catch (e) {} });
+  const file = $("#servers-import-file");
+  if (file) file.addEventListener("change", async () => { const f = file.files && file.files[0]; if (!f) return; try { await srvImportText(await f.text()); } catch (e) { const o = $("#servers-import-out"); if (o) o.textContent = T("servers.import.bad"); } file.value = ""; });
+  const fileBtn = $("#servers-import-file-btn"); if (fileBtn && file) fileBtn.addEventListener("click", () => file.click());
+  const urlBtn = $("#servers-import-url-btn"), urlIn = $("#servers-import-url");
+  if (urlBtn && urlIn) urlBtn.addEventListener("click", async () => {
+    const u = urlIn.value.trim(); if (!/^https:\/\//i.test(u) && !(srvAllowLocal() && /^http:\/\/(localhost|127\.0\.0\.1)/i.test(u))) { const o = $("#servers-import-out"); if (o) o.textContent = T("servers.import.bad"); return; }
+    try { const r = await fetch(u, { cache: "no-store" }); if (!r.ok) throw new Error("http"); await srvImportText(await r.text()); } catch (e) { const o = $("#servers-import-out"); if (o) o.textContent = T("servers.import.failed"); }
+  });
+  const out = $("#servers-import-out");
+  if (out) out.addEventListener("click", (ev) => { const b = ev.target.closest("[data-srv-import-add]"); if (!b) return; if (srvAddServer(b.getAttribute("data-srv-import-add"), b.getAttribute("data-label"))) { b.disabled = true; srvRenderSheet(); } });
+  const off = $("#servers-offline-mode-btn"); if (off) off.addEventListener("click", srvOpenOfflineMode);
+}

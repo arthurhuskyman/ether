@@ -25,7 +25,7 @@ function updateSignalingStatusUI(kind, text) {
 function refreshSignalingStatusText() {
   if (!effectiveSignalingUrl()) { updateSignalingStatusUI("off", "—"); return; }
   if (signaling && signaling.connected) { updateSignalingStatusUI("online", T("status.online")); return; }
-  updateSignalingStatusUI("off", T("status.offline"));
+  updateSignalingStatusUI("off", T(state._serversDown ? "servers.allDown" : "status.offline"));
 }
 // Потерян claim-токен (нет резервной копии): id занят «чужим» устройством. Два безопасных выхода: подождать, пока закрепление
 // истечёт (сервер освобождает id через CLAIM_TTL_HOURS после последнего появления владельца), либо создать НОВЫЙ случайный id.
@@ -53,6 +53,191 @@ function regenerateMyId() {
   initSignaling();
   try { renderTab(); } catch (e) {}
 }
+// =====================================================================
+// Несколько серверов (js/serverlist.js): список, автофейловер, «домашние» серверы контактов, короткие сессии на чужих серверах
+// =====================================================================
+const SRV_PROBE_INTERVAL_MS = 5 * 60 * 1000, SRV_DRAIN_INTERVAL_MS = 5 * 60 * 1000;
+window.__etherActiveUrl = effectiveSignalingUrl; // js/webrtc.js берёт адрес /ice у активного сервера
+function srvJson(key, dflt) { try { const v = JSON.parse(localStorage.getItem(key)); return v == null ? dflt : v; } catch (e) { return dflt; } }
+function srvSetJson(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) {} }
+function srvAllowLocal() { try { return location.hostname === "localhost" || location.hostname === "127.0.0.1"; } catch (e) { return false; } }
+function srvDefaults() {
+  const d = ServerList.configDefaults(window.__ETHER_CONFIG__);
+  return d.length ? d : [{ url: DEFAULT_SIGNALING_URL, label: "Ether", addedAt: 0 }];
+}
+// Полный список по приоритету: поле «Сервер» (если задано — это единственный путь, как раньше) -> свои -> подписанные -> встроенные.
+function serverEntries() {
+  let legacy = ""; try { legacy = (Store.signalingUrl || "").trim(); } catch (e) {}
+  const defaults = srvDefaults();
+  const signed = srvJson(ServerList.KEYS.signed, null);
+  const disabled = srvJson(ServerList.KEYS.off, []).concat(legacy ? defaults.map((d) => d.url) : []);
+  return ServerList.merge({ legacy: legacy ? { url: legacy, label: legacy.replace(/^[a-z]+:\/\//i, "") } : null, user: ServerList.loadUser(localStorage), signed: legacy ? [] : (signed && Array.isArray(signed.list) ? signed.list : []), defaults, disabled });
+}
+let __failover = null;
+function getFailover() {
+  if (!__failover) __failover = ServerList.createFailover({ servers: () => serverEntries(), storage: localStorage, onSwitch: srvOnSwitch });
+  return __failover;
+}
+let __srvProbe = {}, __srvFailStreak = 0;
+function srvOnSwitch(to, from, reason) {
+  etherLog("warn", "[servers] переключение " + from + " -> " + to + " (" + reason + ")");
+  const label = (serverEntries().find((e) => e.url === to) || {}).label || to;
+  setTimeout(() => {
+    if (reason === "slow" && state.callId) return; // во время звонка соединение не трогаем
+    try { toast(T("servers.switched", { name: label })); } catch (e) {}
+    initSignaling();
+    setTimeout(() => { srvDrainSecondary(true).catch(() => {}); }, 4000);
+  }, 0);
+}
+// Мои «домашние» серверы для приглашений (≤3, https/wss, без путей); пусто, если пользователь на единственном встроенном или отключил рассылку.
+function srvMyHints() {
+  try {
+    if (localStorage.getItem(ServerList.KEYS.share) === "0") return [];
+    return ServerList.ownHints(serverEntries(), effectiveSignalingUrl(), srvDefaults(), { allowLocal: srvAllowLocal() });
+  } catch (e) { return []; }
+}
+function srvHintsWire() { return ServerList.encodeHints(srvMyHints()); }
+function srvLearn(contactId, urls) {
+  const c = state.contacts.get(contactId); if (!c) return;
+  const n = ServerList.normalizeHints(urls, { allowLocal: srvAllowLocal() }); if (!n.length) return;
+  if (JSON.stringify(c.servers || []) !== JSON.stringify(n)) { c.servers = n; persistContacts(); }
+}
+// Серверы получателя, отличные от активного, куда стоит доставить конверт сами
+function srvRemoteTargets(contact) {
+  if (!contact || !Array.isArray(contact.servers) || !contact.servers.length) return [];
+  const active = effectiveSignalingUrl();
+  return contact.servers.filter((u) => !ServerList.sameServer(u, active)).slice(0, 3);
+}
+function srvOutboxHasRemote() {
+  for (const e of outbox.values()) { const c = state.contacts.get(e.to); if (c && srvRemoteTargets(c).length) return true; }
+  return false;
+}
+// Короткая зарегистрированная сессия на другом сервере. onDeliver подключается до старта, чтобы не потерять конверты из ящика.
+function srvOpenSession(url, onDeliver) {
+  return new Promise((resolve, reject) => {
+    let s = null, done = false;
+    const fin = (err) => { if (done) return; done = true; clearTimeout(t); if (err) { try { s.stop(); } catch (e) {} reject(err); } else resolve(s); };
+    const t = setTimeout(() => fin(new Error("timeout")), 9000);
+    claimProof().catch(() => "").then((proof) => {
+      if (done) return;
+      s = new SignalingClient(url, Store.myId, { name: Store.name, visible: false, publicKey: Store.myPublicKeyJwk });
+      s.claim = proof || undefined;
+      if (onDeliver) s.addEventListener("deliver", (ev) => onDeliver(ev.detail, s));
+      s.addEventListener("registered", () => fin(null));
+      s.addEventListener("register-error", () => fin(new Error("register-error")));
+      s.addEventListener("connect-failed", () => fin(new Error("connect-failed")));
+      s.start();
+    });
+  });
+}
+// Доставка уже зашифрованного конверта на серверы получателя по порядку; возвращает url, принявший конверт, или "".
+async function srvRemoteDeliver(urls, to, msgId, envelope, kind) {
+  for (const url of urls) {
+    let s = null;
+    try {
+      s = await srvOpenSession(url);
+      const ok = await new Promise((res) => {
+        const t = setTimeout(() => res(false), 8000);
+        s.addEventListener("deliver-ack", (ev) => { if (ev.detail.msgId === msgId) { clearTimeout(t); res(!ev.detail.error); } });
+        if (!s.deliver(to, msgId, envelope, Store.myPublicKeyJwk, kind)) { clearTimeout(t); res(false); }
+      });
+      if (ok) return url;
+    } catch (e) { etherLog("info", "[servers] доставка через " + url + " не удалась: " + String(e && e.message || e)); }
+    finally { if (s) { try { s.stop(); } catch (e) {} } }
+  }
+  return "";
+}
+// Забрать ящики своих запасных серверов (тех, что рекламируются в srv), кроме активного
+let __drainBusy = false;
+async function srvDrainSecondary(force) {
+  if (__drainBusy || !Store.myId || !Store.myPublicKeyJwk) return 0;
+  if (document.hidden && !force) return 0;
+  try { if (typeof Devices !== "undefined" && Devices.isCompanion()) return 0; } catch (e) {}
+  const active = effectiveSignalingUrl();
+  const urls = srvMyHints().filter((u) => !ServerList.sameServer(u, active)).slice(0, 2);
+  if (!urls.length) return 0;
+  __drainBusy = true; let got = 0;
+  try {
+    for (const url of urls) {
+      const pending = []; let last = Date.now(), s = null;
+      try {
+        s = await srvOpenSession(url, (detail, sess) => { got++; last = Date.now(); pending.push(handleDeliver(Object.assign({}, detail, { ackVia: sess }), false).catch(() => {})); });
+        const t0 = Date.now();
+        while (Date.now() - last < 1200 && Date.now() - t0 < 8000) await new Promise((r) => setTimeout(r, 200));
+        await Promise.all(pending);
+      } catch (e) { etherLog("info", "[servers] ящик " + url + " недоступен: " + String(e && e.message || e)); }
+      finally { if (s) { try { s.stop(); } catch (e) {} } }
+    }
+  } finally { __drainBusy = false; }
+  return got;
+}
+async function srvProbeAll(opts) {
+  const entries = serverEntries();
+  const res = await ServerList.probeAll(entries.map((e) => e.url), { fetch: window.fetch.bind(window), timeoutMs: 6000 });
+  __srvProbe = Object.assign({}, res, { __at: Date.now() });
+  if (!(opts && opts.noSwitch) && !state.callId && entries.length > 1) getFailover().reportProbes(res);
+  try { if (typeof srvRenderSheet === "function") srvRenderSheet(); } catch (e) {}
+  return res;
+}
+// Подписанный список из корня приложения (servers.json): применяется сам только при успешной проверке подписи и ts не старее сохранённого
+async function srvRefreshSigned(urlOverride, opts) {
+  const o = opts || {};
+  let obj = o.obj;
+  if (!obj) {
+    const r = await fetch(urlOverride || ("servers.json?t=" + Date.now()), { cache: "no-store" }); // «?t=» обходит кэш service worker
+    if (!r.ok) throw new Error("http-" + r.status);
+    obj = await r.json();
+  }
+  const v = await ServerList.verifySigned(obj, window.RELEASE_PUBKEY);
+  if (v.ok && o.apply !== false) {
+    const cur = srvJson(ServerList.KEYS.signed, null);
+    if (!cur || !(cur.ts > v.parsed.ts)) srvSetJson(ServerList.KEYS.signed, { ts: v.parsed.ts, list: v.parsed.servers });
+  }
+  return v;
+}
+let __srvTimersOn = false;
+function startServerLoops() {
+  if (__srvTimersOn) return; __srvTimersOn = true;
+  setTimeout(() => { if (serverEntries().length > 1) srvProbeAll().catch(() => {}); srvRefreshSigned().catch(() => {}); }, 6000);
+  setInterval(() => { if (!document.hidden && serverEntries().length > 1) srvProbeAll().catch(() => {}); }, SRV_PROBE_INTERVAL_MS);
+  setTimeout(() => { srvDrainSecondary(true).catch(() => {}); }, 5000);
+  setInterval(() => { srvDrainSecondary(false).catch(() => {}); }, SRV_DRAIN_INTERVAL_MS);
+}
+// Фейловер для боевого клиента: подключение не удалось / сервер отклонил регистрацию -> счётчик; успешная регистрация -> сброс
+function wireServerFailover(sig) {
+  const fo = getFailover(), subs = [];
+  const on = (type, fn) => { const w = (ev) => { try { fn(ev); } catch (e) { etherLog("error", "[servers:" + type + "]", String(e)); } }; sig.addEventListener(type, w); subs.push([type, w]); };
+  on("connect-failed", () => {
+    __srvFailStreak++;
+    const r = fo.reportFailure(sig.url);
+    if (!r.switched && __srvFailStreak >= 3) srvShowDown();
+  });
+  on("registered", (ev) => {
+    __srvFailStreak = 0; state._serversDown = false;
+    fo.reportSuccess(sig.url, sig.connectMs);
+    const seen = srvJson(ServerList.KEYS.seen, []);
+    if (!seen.includes(sig.url)) {
+      seen.push(sig.url); srvSetJson(ServerList.KEYS.seen, seen.slice(-20));
+      if (seen.length > 1) { try { toast(T("servers.firstClaim")); } catch (e) {} } // на новом сервере наш id закрепляется впервые
+    }
+  });
+  on("register-error", (ev) => {
+    if (ev.detail && ev.detail.error === "id-claimed" && serverEntries().length > 1) {
+      for (let i = 0; i < 3; i++) if (fo.reportFailure(sig.url).switched) break;
+    }
+  });
+  return () => { for (const [t, w] of subs) sig.removeEventListener(t, w); };
+}
+function srvShowDown() {
+  state._serversDown = true;
+  try { updateSignalingStatusUI("off", T("servers.allDown")); } catch (e) {}
+}
+// Режим без сервера: вкладка «Связь» с ручным подключением по коду/QR
+function srvOpenOfflineMode() {
+  const sh = $("#servers-sheet"); if (sh) sh.classList.add("hidden");
+  state.tab = "connect"; state.chatId = null; renderTab();
+  setTimeout(() => { const sec = $("#manual-section"), b = $("#toggle-manual-btn"); if (sec && b && sec.classList.contains("hidden")) b.click(); }, 60);
+}
 let __lastReclaimAt = 0;
 let __replacedHits = [];
 function reclaimSignaling() {
@@ -76,7 +261,7 @@ function initSignaling() {
   sig.watchIds = watchedContactIds;
   idMigWireSignaling(sig); // миграция id v1 -> v2: алиас старого id и запуск миграции после регистрации
   if (typeof Devices !== "undefined") Devices.wireSignaling(sig); // companion-режим и публикация списка устройств (js/devices.js)
-  signalingCleanup = wireSignalingEvents(sig);
+  { const c1 = wireSignalingEvents(sig), c2 = wireServerFailover(sig); signalingCleanup = () => { c1(); c2(); }; }
   sig.addEventListener("slow-connect", () => { if (!sig.connected) updateSignalingStatusUI("connecting", T("status.waking")); });
   // Доказательство владения id (claim) считается асинхронно (SHA-256); результат кешируется, поэтому повторные подключения стартуют синхронно.
   const cached = claimProofCached();
@@ -154,6 +339,25 @@ async function handleIncomingAnswer(from, packet) {
   }
 }
 
+// Сервер принял конверт (deliver-ack или доставка на сервер получателя): отметить serverAcked и убрать из очереди.
+// Для групповых сообщений entry.to — id участника, а не группы, сообщение лежит в списке ГРУППЫ под contentId — резолвим так же, как markMessageAck.
+function outboxMarkServerAcked(msgId, entry) {
+  const groupId = entry.payload && entry.payload.groupId;
+  const contentId = entry.payload && entry.payload.id;
+  if (groupId && contentId) {
+    const g = state.contacts.get(groupId);
+    const m = g && g.messages.find((x) => x.id === contentId && x.from === "me");
+    if (m) { m.serverAcked = true; persistContacts(); }
+  } else {
+    const c = state.contacts.get(entry.to);
+    if (c) {
+      const m = c.messages.find((x) => x.id === msgId && x.from === "me");
+      if (m) { m.serverAcked = true; persistContacts(); }
+    }
+  }
+  outbox.delete(msgId);
+  persistOutbox();
+}
 function wireSignalingEvents(sig) {
   const on = (type, fn) => {
     const wrapped = (ev) => {
@@ -245,7 +449,7 @@ function wireSignalingEvents(sig) {
     toast(T("toast.registerRateLimited"));
   }));
   subs.push(on("disconnected", () => {
-    updateSignalingStatusUI("off", T("status.offline"));
+    updateSignalingStatusUI("off", T(state._serversDown ? "servers.allDown" : "status.offline"));
     for (const c of state.contacts.values()) if (c.managed) {
       if (c.online) { state.lastSeen[c.id] = Date.now(); persistLastSeen(); }
       c.online = false;
@@ -467,29 +671,8 @@ function wireSignalingEvents(sig) {
       markMessageAck(entry.to, msgId, "failed");
       return;
     }
-    // Тот же баг, что был в flushOutboxItem (см. markMessageAck) — для
-    // ГРУППОВЫХ сообщений entry.to это id участника, а не группы, и
-    // сообщение лежит в списке ГРУППЫ под другим (contentId) id.
-    // Поиск по entry.to никогда не находил совпадение для групп —
-    // serverAcked так и оставался false навсегда. Сейчас это не даёт
-    // видимых симптомов (resumeUnsentMessages явно пропускает группы),
-    // но это скрытая мина на будущее — резолвим группу так же, как
-    // markMessageAck, а не оставляем расхождение.
-    const groupId = entry.payload && entry.payload.groupId;
-    const contentId = entry.payload && entry.payload.id;
-    if (groupId && contentId) {
-      const g = state.contacts.get(groupId);
-      const m = g && g.messages.find((x) => x.id === contentId && x.from === "me");
-      if (m) { m.serverAcked = true; persistContacts(); }
-    } else {
-      const c = state.contacts.get(entry.to);
-      if (c) {
-        const m = c.messages.find((x) => x.id === msgId && x.from === "me");
-        if (m) { m.serverAcked = true; persistContacts(); }
-      }
-    }
-    outbox.delete(msgId);
-    persistOutbox();
+    if (entry.needRemote && !entry.remoteAcked) return; // получатель живёт на других серверах: запись остаётся, пока их сервер не примет конверт
+    outboxMarkServerAcked(msgId, entry);
   }));
 subs.push(on("deliver", (ev) => handleDeliver(ev.detail, false)));
   return () => { for (const s of subs) sig.removeEventListener(s.type, s.wrapped); };
@@ -695,7 +878,7 @@ const deliverInFlight = new Set();
 async function handleDeliver(detail, replay) {
   const { msgId, envelope, fromPublicKey, kind, fromDev } = detail;
   const from = canonPeer(detail.from); // контакт уже переименован по уведомлению id-migrate, а сообщение пришло ещё со старым id
-  const ackBox = () => { if (!replay && signaling) signaling.mailboxAck(msgId); };
+  const ackBox = () => { if (replay) return; const s = detail.ackVia || signaling; if (s) s.mailboxAck(msgId); }; // ackVia: короткая сессия на запасном сервере
   const dKey = from + "|" + msgId;
   const sender = state.contacts.get(from);
   if (sender && sender.blocked) {
@@ -952,6 +1135,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
         if (!m || typeof m !== "object" || typeof m.id !== "string" || !m.id || m.id.length > 128 || seenIds.has(m.id)) return;
         seenIds.add(m.id);
         const cm = { id: m.id, name: typeof m.name === "string" ? m.name.slice(0, 40) : "" };
+        if (m.id === from && typeof m.srv === "string") { const hs = ServerList.decodeHints(m.srv, { allowLocal: srvAllowLocal() }); if (hs.length) try { srvLearn(from, hs); } catch (e) {} } // свои серверы отправитель сообщает сам
         if (m.role === "admin" || m.role === "member") cm.role = m.role;
         clean.push(cm);
       }
@@ -1118,7 +1302,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     const c = ensureContactEntry(from, null);
     if (c.messages.some((m) => m.id === payload.id)) return;
     const isOpen = state.chatId === from;
-    const rec = { id: payload.id, from: "them", text: "", ts: safeMsgTs(payload.ts), readAckSent: false, deliveryId: envelopeMsgId, contactCard: { id: payload.contactId, name: payload.contactName || "" } };
+    const rec = { id: payload.id, from: "them", text: "", ts: safeMsgTs(payload.ts), readAckSent: false, deliveryId: envelopeMsgId, contactCard: { id: payload.contactId, name: payload.contactName || "", servers: ServerList.decodeHints(payload.srv, { allowLocal: srvAllowLocal() }) } };
     if (payload.forwarded) { rec.forwarded = true; if (typeof payload.fwdFrom === "string" && payload.fwdFrom) rec.forwardedFrom = payload.fwdFrom.slice(0, 40); }
     c.messages.push(rec); trimMessages(c); c.lastActivity = Date.now();
     persistContacts();

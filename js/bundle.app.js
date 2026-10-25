@@ -229,8 +229,12 @@ const INCOMING_PUSH_CALL_TIMEOUT_MS = CALL_PUSH_TIMEOUT_MS - 5000; // экран
 const DEFAULT_CALL_VOLUME = 1;
 const LEGACY_CALL_VOLUME = 0.3333; // прежний умолчательный (не выбранный пользователем) уровень — считаем «не выбирал»
 
+// Активный сервер: автомат фейловера (js/serverlist.js, getFailover() в 10-signaling.js) -> поле «Сервер» -> встроенный по умолчанию.
+// Для пользователя с одним сервером результат тот же, что и раньше.
 function effectiveSignalingUrl() {
-  return (Store.signalingUrl || DEFAULT_SIGNALING_URL).trim();
+  let u = "";
+  try { if (typeof getFailover === "function") u = getFailover().current(); } catch (e) {}
+  return (u || Store.signalingUrl || DEFAULT_SIGNALING_URL).trim();
 }
 
 // =====================================================================
@@ -342,7 +346,7 @@ const CRITICAL_LS_KEYS = [
   "ether.readable", "ether.fxInit", "ether.requireVerifiedCalls", "ether.localAi", "ether.localAiLang", "ether.stories", "ether.quietOn", "ether.quietFrom", "ether.quietTo", "ether.wpColor1", "ether.wpColor2", "ether.chatWallpaper", "ether.voiceSpeed", "ether.deadManEnabled", "ether.deadManThresholdDays", "ether.deadManContactId", "ether.deadManLastSentAt",
   "ether.panicShakeEnabled", "ether.fx", "ether.sigKey", "ether.fx.aurora", "ether.keyInfo",
   "ether.claimToken", "ether.phoneDiscover", "ether.phoneDiscoverName", "ether.idMig",
-  "ether.fx.campfires", "ether.receiptsEnabled", "ether.lastSeenVisible", "ether.presenceVisible", "ether.myStatus",
+  "ether.servers", "ether.serversOff", "ether.srvShare", "ether.fx.campfires", "ether.receiptsEnabled", "ether.lastSeenVisible", "ether.presenceVisible", "ether.myStatus",
 ];
 
 // Резервная копия ключей в IndexedDB берёт значения «как лежат на диске» (при включённом шифровании — шифртекст), а не расшифрованные из памяти
@@ -577,6 +581,11 @@ const Store = {
   // чтобы содержимое мелькало на экране блокировки.
   get hideNotifContent() { return localStorage.getItem("ether.hideNotifContent") === "1"; },
   set hideNotifContent(v) { localStorage.setItem("ether.hideNotifContent", v ? "1" : "0"); },
+  // Звонки: только TURN-relay (скрывает IP от собеседника) и опциональный отчёт о качестве (по умолчанию выключены)
+  get hideIpInCalls() { return localStorage.getItem("ether.hideIpInCalls") === "1"; },
+  set hideIpInCalls(v) { localStorage.setItem("ether.hideIpInCalls", v ? "1" : "0"); },
+  get callReport() { return localStorage.getItem("ether.callReport") === "1"; },
+  set callReport(v) { localStorage.setItem("ether.callReport", v ? "1" : "0"); },
   get chatWallpaper() { return localStorage.getItem("ether.chatWallpaper") || "none"; },
   set chatWallpaper(v) { localStorage.setItem("ether.chatWallpaper", v); scheduleIDBBackup(); },
   get wallpaperColor1() { const v = localStorage.getItem("ether.wpColor1"); return /^#[0-9a-f]{6}$/i.test(v || "") ? v : "#6d5dfc"; },
@@ -634,7 +643,7 @@ const state = {
   chatSearchQuery: "",
   contactsSearchQuery: "",
   lastSeen: {},
-  drafts: {},
+  drafts: Object.create(null),
   scheduledMessages: [],
   folders: [], // раздел 4 роадмапа: кастомные папки чатов {id, name, contactIds[]}
   typingTimers: new Map(),
@@ -1091,7 +1100,7 @@ function extractFirstUrl(text) {
 }
 function signalingHttpBase() {
   let url = "";
-  try { url = (Store.signalingUrl || "").trim(); } catch (e) {}
+  try { url = effectiveSignalingUrl(); } catch (e) {}
   if (!url) url = DEFAULT_SIGNALING_URL;
   return url.replace(/^wss:\/\//i, "https://").replace(/^ws:\/\//i, "http://").replace(/\/+$/, "");
 }
@@ -2306,7 +2315,7 @@ function startApp() {
     // очередь отправки (P1.14): что именно зависло и почему. Настройки
     // остаются на расстоянии одного тапа через нижнюю вкладку Settings.
     const nav = $("#nav-conn-indicator");
-    if (nav) nav.addEventListener("click", () => { if (state._replaced) reclaimSignaling(); else openOutboxSheet(); });
+    if (nav) nav.addEventListener("click", () => { if (state._replaced) reclaimSignaling(); else if (state._serversDown) srvOpenSheet(); else openOutboxSheet(); });
   }, "wireNavConnIndicator");
   sc(wireConnectScreen, "wireConnectScreen");
   sc(wireQrButtons, "wireQrButtons");
@@ -2376,6 +2385,8 @@ function startApp() {
     const sp = $("#settings-presence"); if (sp) sp.checked = Store.presenceVisible;
     try { refreshDiscoveryUI(); } catch (e) {}
     const snn = $("#settings-notifications"); if (snn) snn.checked = Store.notificationsEnabled;
+    const shi = $("#settings-hide-ip"); if (shi) shi.checked = Store.hideIpInCalls;
+    const scr = $("#settings-call-report"); if (scr) scr.checked = Store.callReport;
     const shn = $("#settings-hide-notif"); if (shn) shn.checked = Store.hideNotifContent;
     const slp = $("#settings-link-previews"); if (slp) slp.value = Store.linkPreviewMode;
     const ste = $("#settings-translate-endpoint"); if (ste) ste.value = Store.translateEndpoint;
@@ -2434,6 +2445,7 @@ function startApp() {
   safeCall(wireLinkCallUi, "wireLinkCallUi");
   if (deferredWires.length) setTimeout(() => { for (const [fn, name] of deferredWires.splice(0)) safeCall(fn, name); __fastBoot = false; }, 0);
   try { startOutboxRetryLoop(); } catch (e) {}
+  try { startServerLoops(); } catch (e) { etherLog("error", "[startApp] startServerLoops:", String(e)); }
   try { setInterval(sweepExpiredMessages, 30000); sweepExpiredMessages(); } catch (e) {}
   // Проверяем раз в 30с + сразу при старте (не ждём первого тика) — так
   // отложенное сообщение, время которого уже прошло пока приложение было
@@ -2835,6 +2847,7 @@ function wireServiceWorker() {
       }
     }
     if (data.type === "answer-call") { try { answerFromNotification(data); } catch (e) { etherLog("warn", "[answer] " + String(e)); } }
+    if (data.type === "update-rejected") { try { Integrity.onUpdateRejected(data); } catch (e) {} }
     if (data.type === "ring-received") { try { if (typeof notifCheckOnRing === "function") notifCheckOnRing(data); } catch (e) {} }
     if (data.type === "push-subscription-changed") {
       ensurePushSubscription().catch(() => {});
@@ -3186,6 +3199,7 @@ function loadContacts() {
       archived: !!c.archived, muted: !!c.muted, muteUntil: c.muteUntil || null, blocked: !!c.blocked, vibrateOnly: !!c.vibrateOnly,
       pinned: !!c.pinned, pinnedMessageId: c.pinnedMessageId || null,
       pinOrder: typeof c.pinOrder === "number" ? c.pinOrder : null,
+      servers: Array.isArray(c.servers) ? ServerList.normalizeHints(c.servers, { allowLocal: srvAllowLocal() }) : undefined, // домашние серверы контакта (srv)
       // Группы — без этих полей запись после перезагрузки превращается в
       // битый обычный контакт (isGroup(c) === false, участников нет).
       isGroup: !!c.isGroup, room: c.room || undefined,
@@ -3359,6 +3373,7 @@ function persistContacts() {
     archived: c.archived, muted: c.muted, muteUntil: c.muteUntil || undefined, blocked: c.blocked, vibrateOnly: c.vibrateOnly || undefined,
     pinned: c.pinned || undefined, pinnedMessageId: c.pinnedMessageId || undefined,
     pinOrder: typeof c.pinOrder === "number" ? c.pinOrder : undefined,
+    servers: Array.isArray(c.servers) && c.servers.length ? c.servers.slice(0, 3) : undefined,
     isGroup: c.isGroup || undefined, room: c.isGroup && c.room || undefined,
     members: c.isGroup ? c.members : undefined,
     nameLocal: c.nameLocal || undefined,
@@ -3393,7 +3408,8 @@ function persistContacts() {
 }
 function loadLastSeen() { try { state.lastSeen = JSON.parse(Store.lastSeenJson) || {}; } catch (e) { state.lastSeen = {}; } if (typeof state.lastSeen !== "object") state.lastSeen = {}; }
 function persistLastSeen() { try { Store.lastSeenJson = JSON.stringify(state.lastSeen); } catch (e) { handlePersistError(e, "lastSeen"); } }
-function loadDrafts() { try { state.drafts = JSON.parse(Store.draftsJson) || {}; } catch (e) { state.drafts = {}; } if (typeof state.drafts !== "object") state.drafts = {}; }
+// черновики по id контакта: объект БЕЗ прототипа — чужой id вроде "constructor"/"__proto__" иначе возвращал бы функцию как «черновик» и ронял список чатов
+function loadDrafts() { let o = null; try { o = JSON.parse(Store.draftsJson); } catch (e) {} state.drafts = Object.assign(Object.create(null), o && typeof o === "object" && !Array.isArray(o) ? o : {}); }
 function persistDrafts() { try { Store.draftsJson = JSON.stringify(state.drafts); } catch (e) { handlePersistError(e, "drafts"); } }
 // "Отправить позже" — каждая запись { id, contactId, isGroup, text, replyTo, sendAt }.
 // sendAt — абсолютный ms-timestamp, поэтому «приложение было закрыто
@@ -3866,6 +3882,8 @@ function formatChatListTime(ts) {
 function myAddLink() {
   const u = new URL(location.href); u.search = "";
   u.hash = "add=" + encodeURIComponent(Store.myId) + "&name=" + encodeURIComponent(Store.name || "");
+  const srv = srvHintsWire(); // домашние серверы (https-origin через запятую); старые клиенты параметр игнорируют
+  if (srv) u.hash += "&srv=" + encodeURIComponent(srv);
   return u.toString();
 }
 async function shareMyInviteLink() {
@@ -3876,14 +3894,17 @@ async function shareMyInviteLink() {
 function handleAddLinkFromLocation() {
   const m = (location.hash || "").match(/(?:^#|&)add=([^&]+)/);
   if (!m) return false;
-  let id = "", name = "";
-  try { id = decodeURIComponent(m[1]); const n = location.hash.match(/&name=([^&]*)/); name = n ? decodeURIComponent(n[1]) : ""; } catch (e) { return false; }
+  let id = "", name = "", servers = [];
+  try {
+    id = decodeURIComponent(m[1]); const n = location.hash.match(/&name=([^&]*)/); name = n ? decodeURIComponent(n[1]) : "";
+    const sv = location.hash.match(/&srv=([^&]*)/); if (sv) servers = ServerList.decodeHints(decodeURIComponent(sv[1]), { allowLocal: srvAllowLocal() });
+  } catch (e) { return false; }
   try { history.replaceState(null, "", location.pathname); } catch (e) {}
   if (!id || id === Store.myId) return true;
   name = name.slice(0, 40);
   // чужая ссылка не должна молча добавлять контакт — спрашиваем подтверждение
   Promise.resolve().then(() => confirmSheet(T("confirm.addContactLink", { name: name || id })))
-    .then((ok) => { if (ok) addContactFromCard(id, name); })
+    .then((ok) => { if (ok) addContactFromCard(id, name, servers); })
     .catch(() => {});
   return true;
 }
@@ -5133,7 +5154,7 @@ if (m.replyTo) {
         ev.stopPropagation();
         const cardId = addBtn.getAttribute("data-add-contact-id");
         const cardName = addBtn.getAttribute("data-add-contact-name") || "";
-        if (cardId) addContactFromCard(cardId, cardName);
+        if (cardId) addContactFromCard(cardId, cardName, ServerList.decodeHints(addBtn.getAttribute("data-add-contact-srv") || "", { allowLocal: srvAllowLocal() }));
         return;
       }
       // Тап по цитате ответа — прокрутка к оригинальному сообщению, а
@@ -6647,17 +6668,18 @@ function contactCardBubbleHtml(card) {
   const already = state.contacts.has(card.id);
   const btn = already
     ? `<span class="contact-card-already">${escapeHtml(T("toast.alreadyAdded"))}</span>`
-    : `<button type="button" class="contact-card-add-btn" data-add-contact-id="${escapeHtml(card.id)}" data-add-contact-name="${escapeHtml(name)}">${escapeHtml(T("chat.contactCard.add"))}</button>`;
+    : `<button type="button" class="contact-card-add-btn" data-add-contact-id="${escapeHtml(card.id)}" data-add-contact-name="${escapeHtml(name)}" data-add-contact-srv="${escapeHtml(ServerList.encodeHints(card.servers || []))}">${escapeHtml(T("chat.contactCard.add"))}</button>`;
   return `<div class="contact-card-bubble">
     <div class="avatar avatar-sm" style="background:${avatarGradient(name)}">${escapeHtml(initials(name))}</div>
     <div class="contact-card-info"><div class="contact-card-name">${escapeHtml(name)}</div>${btn}</div>
   </div>`;
 }
-function addContactFromCard(id, name) {
+function addContactFromCard(id, name, servers) {
   if (id === Store.myId) { toast(T("toast.ownId")); return; }
   if (state.contacts.has(id)) { toast(T("toast.alreadyAdded")); renderChatThread(); return; }
   if (recentlyDeletedIds.delete(id)) persistRecentlyDeleted(); // осознанное повторное добавление снимает блокировку из deleteContact
   ensureContactEntry(id, name);
+  if (Array.isArray(servers) && servers.length) srvLearn(id, servers);
   persistContacts();
   toast(T("toast.contactAdded"));
   if (onlineSet.has(id)) scheduleAutoConnect(id);
@@ -8222,9 +8244,14 @@ function broadcastGroupRoster(g) {
 // приложения — своего сервер-бэкапа контактов/групп у приложения нет),
 // НИЧЕГО не пересылало ему ростер заново, пока кто-то не совершит новое
 // действие в группе. Группа просто не появлялась у него снова.
+// В ростере группы своя запись несёт srv (мои домашние серверы); чужие записи не трогаем — чужие серверы я не раскрываю
+function srvRosterMembers(members) {
+  const srv = srvHintsWire(); if (!srv) return members;
+  return members.map((m) => (m && m.id === Store.myId ? Object.assign({}, m, { srv }) : m));
+}
 function sendGroupRosterTo(g, memberId) {
   { const bc = state.contacts.get(memberId); if (bc && bc.blocked) return; }
-  const payload = { kind: "group-invite", id: crypto.randomUUID(), groupId: g.id, groupName: g.name, members: g.members, groupAvatar: g.avatar || undefined, groupDescription: g.description || undefined };
+  const payload = { kind: "group-invite", id: crypto.randomUUID(), groupId: g.id, groupName: g.name, members: srvRosterMembers(g.members), groupAvatar: g.avatar || undefined, groupDescription: g.description || undefined };
   if (g.createdBy) payload.createdBy = g.createdBy; // B5: создатель едет в ростере — иначе получатель новой группы делал создателем/админом того, кто прислал (любого участника при авто-досылке)
   if (g.rosterVer > 0) payload.ver = g.rosterVer;
   if (typeof idMigGroupPayloadFor === "function") idMigGroupPayloadFor(payload, memberId); // контакту, знающему меня под старым id, ростер уходит с прежним id
@@ -8433,6 +8460,7 @@ function buildGroupInviteCode(groupId) {
   qs.set("ref", Store.myId);
   qs.set("rn", Store.name || "");
   qs.set("gn", g.name || "");
+  const srv = srvHintsWire(); if (srv) qs.set("srv", srv);
   return "ether://group?" + qs.toString();
 }
 function parseGroupInviteCode(text) {
@@ -8441,7 +8469,10 @@ function parseGroupInviteCode(text) {
     const qs = new URLSearchParams(text.slice(text.indexOf("?")));
     const groupId = qs.get("gid"), refId = qs.get("ref");
     if (!groupId || !refId) return null;
-    return { groupId, refId, refName: qs.get("rn") || "", groupName: qs.get("gn") || "" };
+    const r = { groupId, refId, refName: qs.get("rn") || "", groupName: qs.get("gn") || "" };
+    const servers = ServerList.decodeHints(qs.get("srv") || "", { allowLocal: srvAllowLocal() });
+    if (servers.length) r.servers = servers;
+    return r;
   } catch (e) { return null; }
 }
 async function joinGroupViaInvite(text) {
@@ -8453,6 +8484,7 @@ async function joinGroupViaInvite(text) {
   if (existing && existing.isGroup) { toast(T("toast.groupAlreadyJoined")); return false; }
   if (recentlyDeletedIds.delete(refId)) persistRecentlyDeleted(); // осознанное повторное добавление снимает блокировку из deleteContact
   ensureContactEntry(refId, refName || null);
+  if (parsed.servers && parsed.servers.length) srvLearn(refId, parsed.servers);
   persistContacts();
   if (onlineSet.has(refId)) scheduleAutoConnect(refId);
   else attemptConnectViaRelay(refId).catch(() => {});
@@ -8491,7 +8523,7 @@ async function forwardContact(fromContactId, toContactId) {
   toast(T("toast.contactForwarded"));
   const payload = inGroup
     ? { kind: "chat", id: msgId, ts, text: rec.text, forwarded: true }
-    : { kind: "contact-card", id: msgId, ts, contactId: shared.id, contactName: shared.name || "" };
+    : { kind: "contact-card", id: msgId, ts, contactId: shared.id, contactName: shared.name || "", srv: ServerList.encodeHints(shared.servers || []) || undefined };
   if (rec.ttl) payload.ttl = rec.ttl;
   if (inGroup) await dispatchRich(to, payload, msgId);
   else await trySendOrQueue(to, msgId, payload);
@@ -8681,6 +8713,7 @@ async function forwardMessage(msgId, fromContactId, toContactId) {
       kind: "contact-card", id: msgId2, ts,
       contactId: m.contactCard.id,
       contactName: m.contactCard.name || "",
+      srv: ServerList.encodeHints(m.contactCard.servers || []) || undefined,
       forwarded: true,
     };
     if (rec.forwardedFrom) payload.fwdFrom = rec.forwardedFrom;
@@ -9042,7 +9075,24 @@ async function flushOutboxItem(msgId) {
     if (typeof Devices !== "undefined") { try { devCopies = await Devices.copiesFor(contact, entry.payload); } catch (e) { etherLog("warn", "[devices] copies:", String(e)); } }
     const sent = signaling && (devCopies && devCopies.length ? signaling.deliverMulti(entry.to, entry.msgId, envelope, Store.myPublicKeyJwk, kind, devCopies) : signaling.deliver(entry.to, entry.msgId, envelope, Store.myPublicKeyJwk, kind));
     if (sent && typeof Devices !== "undefined") Devices.syncSent(contact, entry.payload).catch(() => {}); // зеркалим отправленное на другие устройства аккаунта
-    if (!sent) markMessageAck(entry.to, msgId, "failed");
+    // Домашние серверы получателя (srv): если активный сервер не среди них или не принял — кладём конверт (тот же, уже зашифрованный) на них по порядку
+    const remoteUrls = srvRemoteTargets(contact);
+    const needRemote = remoteUrls.length > 0 && (!sent || !contact.servers.some((u) => ServerList.sameServer(u, effectiveSignalingUrl())));
+    if (needRemote) {
+      entry.needRemote = true;
+      if (!entry._remoteBusy) {
+        entry._remoteBusy = true;
+        srvRemoteDeliver(remoteUrls, entry.to, entry.msgId, envelope, kind).then((url) => {
+          entry._remoteBusy = false;
+          if (url) {
+            entry.remoteAcked = true;
+            if (outbox.get(msgId) === entry) outboxMarkServerAcked(msgId, entry);
+            if (kind === "chat" || kind === "file") markMessageAck(entry.to, msgId, "sent");
+          } else if (!sent) markMessageAck(entry.to, msgId, "failed");
+        }).catch(() => { entry._remoteBusy = false; });
+      }
+    }
+    if (!sent) { if (!needRemote) markMessageAck(entry.to, msgId, "failed"); }
     else if (kind === "chat" || kind === "file") {
       // Раньше здесь стояло только `kind === "chat"` — для kind
       // === "file" (голосовые и любые вложения, ушедшие офлайн-путём
@@ -9057,7 +9107,7 @@ async function flushOutboxItem(msgId) {
   } catch (e) { etherLog("error", "[crypto] encrypt:", String(e)); markMessageAck(entry.to, msgId, "failed"); }
 }
 async function flushOutbox() {
-  if (!signaling || !signaling.connected) return;
+  if ((!signaling || !signaling.connected) && !srvOutboxHasRemote()) return; // без активного сервера можно доставить через серверы получателя
   const ids = Array.from(outbox.keys());
   for (const id of ids) await flushOutboxItem(id);
   pruneOutbox();
@@ -9352,7 +9402,7 @@ function updateSignalingStatusUI(kind, text) {
 function refreshSignalingStatusText() {
   if (!effectiveSignalingUrl()) { updateSignalingStatusUI("off", "—"); return; }
   if (signaling && signaling.connected) { updateSignalingStatusUI("online", T("status.online")); return; }
-  updateSignalingStatusUI("off", T("status.offline"));
+  updateSignalingStatusUI("off", T(state._serversDown ? "servers.allDown" : "status.offline"));
 }
 // Потерян claim-токен (нет резервной копии): id занят «чужим» устройством. Два безопасных выхода: подождать, пока закрепление
 // истечёт (сервер освобождает id через CLAIM_TTL_HOURS после последнего появления владельца), либо создать НОВЫЙ случайный id.
@@ -9380,6 +9430,191 @@ function regenerateMyId() {
   initSignaling();
   try { renderTab(); } catch (e) {}
 }
+// =====================================================================
+// Несколько серверов (js/serverlist.js): список, автофейловер, «домашние» серверы контактов, короткие сессии на чужих серверах
+// =====================================================================
+const SRV_PROBE_INTERVAL_MS = 5 * 60 * 1000, SRV_DRAIN_INTERVAL_MS = 5 * 60 * 1000;
+window.__etherActiveUrl = effectiveSignalingUrl; // js/webrtc.js берёт адрес /ice у активного сервера
+function srvJson(key, dflt) { try { const v = JSON.parse(localStorage.getItem(key)); return v == null ? dflt : v; } catch (e) { return dflt; } }
+function srvSetJson(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) {} }
+function srvAllowLocal() { try { return location.hostname === "localhost" || location.hostname === "127.0.0.1"; } catch (e) { return false; } }
+function srvDefaults() {
+  const d = ServerList.configDefaults(window.__ETHER_CONFIG__);
+  return d.length ? d : [{ url: DEFAULT_SIGNALING_URL, label: "Ether", addedAt: 0 }];
+}
+// Полный список по приоритету: поле «Сервер» (если задано — это единственный путь, как раньше) -> свои -> подписанные -> встроенные.
+function serverEntries() {
+  let legacy = ""; try { legacy = (Store.signalingUrl || "").trim(); } catch (e) {}
+  const defaults = srvDefaults();
+  const signed = srvJson(ServerList.KEYS.signed, null);
+  const disabled = srvJson(ServerList.KEYS.off, []).concat(legacy ? defaults.map((d) => d.url) : []);
+  return ServerList.merge({ legacy: legacy ? { url: legacy, label: legacy.replace(/^[a-z]+:\/\//i, "") } : null, user: ServerList.loadUser(localStorage), signed: legacy ? [] : (signed && Array.isArray(signed.list) ? signed.list : []), defaults, disabled });
+}
+let __failover = null;
+function getFailover() {
+  if (!__failover) __failover = ServerList.createFailover({ servers: () => serverEntries(), storage: localStorage, onSwitch: srvOnSwitch });
+  return __failover;
+}
+let __srvProbe = {}, __srvFailStreak = 0;
+function srvOnSwitch(to, from, reason) {
+  etherLog("warn", "[servers] переключение " + from + " -> " + to + " (" + reason + ")");
+  const label = (serverEntries().find((e) => e.url === to) || {}).label || to;
+  setTimeout(() => {
+    if (reason === "slow" && state.callId) return; // во время звонка соединение не трогаем
+    try { toast(T("servers.switched", { name: label })); } catch (e) {}
+    initSignaling();
+    setTimeout(() => { srvDrainSecondary(true).catch(() => {}); }, 4000);
+  }, 0);
+}
+// Мои «домашние» серверы для приглашений (≤3, https/wss, без путей); пусто, если пользователь на единственном встроенном или отключил рассылку.
+function srvMyHints() {
+  try {
+    if (localStorage.getItem(ServerList.KEYS.share) === "0") return [];
+    return ServerList.ownHints(serverEntries(), effectiveSignalingUrl(), srvDefaults(), { allowLocal: srvAllowLocal() });
+  } catch (e) { return []; }
+}
+function srvHintsWire() { return ServerList.encodeHints(srvMyHints()); }
+function srvLearn(contactId, urls) {
+  const c = state.contacts.get(contactId); if (!c) return;
+  const n = ServerList.normalizeHints(urls, { allowLocal: srvAllowLocal() }); if (!n.length) return;
+  if (JSON.stringify(c.servers || []) !== JSON.stringify(n)) { c.servers = n; persistContacts(); }
+}
+// Серверы получателя, отличные от активного, куда стоит доставить конверт сами
+function srvRemoteTargets(contact) {
+  if (!contact || !Array.isArray(contact.servers) || !contact.servers.length) return [];
+  const active = effectiveSignalingUrl();
+  return contact.servers.filter((u) => !ServerList.sameServer(u, active)).slice(0, 3);
+}
+function srvOutboxHasRemote() {
+  for (const e of outbox.values()) { const c = state.contacts.get(e.to); if (c && srvRemoteTargets(c).length) return true; }
+  return false;
+}
+// Короткая зарегистрированная сессия на другом сервере. onDeliver подключается до старта, чтобы не потерять конверты из ящика.
+function srvOpenSession(url, onDeliver) {
+  return new Promise((resolve, reject) => {
+    let s = null, done = false;
+    const fin = (err) => { if (done) return; done = true; clearTimeout(t); if (err) { try { s.stop(); } catch (e) {} reject(err); } else resolve(s); };
+    const t = setTimeout(() => fin(new Error("timeout")), 9000);
+    claimProof().catch(() => "").then((proof) => {
+      if (done) return;
+      s = new SignalingClient(url, Store.myId, { name: Store.name, visible: false, publicKey: Store.myPublicKeyJwk });
+      s.claim = proof || undefined;
+      if (onDeliver) s.addEventListener("deliver", (ev) => onDeliver(ev.detail, s));
+      s.addEventListener("registered", () => fin(null));
+      s.addEventListener("register-error", () => fin(new Error("register-error")));
+      s.addEventListener("connect-failed", () => fin(new Error("connect-failed")));
+      s.start();
+    });
+  });
+}
+// Доставка уже зашифрованного конверта на серверы получателя по порядку; возвращает url, принявший конверт, или "".
+async function srvRemoteDeliver(urls, to, msgId, envelope, kind) {
+  for (const url of urls) {
+    let s = null;
+    try {
+      s = await srvOpenSession(url);
+      const ok = await new Promise((res) => {
+        const t = setTimeout(() => res(false), 8000);
+        s.addEventListener("deliver-ack", (ev) => { if (ev.detail.msgId === msgId) { clearTimeout(t); res(!ev.detail.error); } });
+        if (!s.deliver(to, msgId, envelope, Store.myPublicKeyJwk, kind)) { clearTimeout(t); res(false); }
+      });
+      if (ok) return url;
+    } catch (e) { etherLog("info", "[servers] доставка через " + url + " не удалась: " + String(e && e.message || e)); }
+    finally { if (s) { try { s.stop(); } catch (e) {} } }
+  }
+  return "";
+}
+// Забрать ящики своих запасных серверов (тех, что рекламируются в srv), кроме активного
+let __drainBusy = false;
+async function srvDrainSecondary(force) {
+  if (__drainBusy || !Store.myId || !Store.myPublicKeyJwk) return 0;
+  if (document.hidden && !force) return 0;
+  try { if (typeof Devices !== "undefined" && Devices.isCompanion()) return 0; } catch (e) {}
+  const active = effectiveSignalingUrl();
+  const urls = srvMyHints().filter((u) => !ServerList.sameServer(u, active)).slice(0, 2);
+  if (!urls.length) return 0;
+  __drainBusy = true; let got = 0;
+  try {
+    for (const url of urls) {
+      const pending = []; let last = Date.now(), s = null;
+      try {
+        s = await srvOpenSession(url, (detail, sess) => { got++; last = Date.now(); pending.push(handleDeliver(Object.assign({}, detail, { ackVia: sess }), false).catch(() => {})); });
+        const t0 = Date.now();
+        while (Date.now() - last < 1200 && Date.now() - t0 < 8000) await new Promise((r) => setTimeout(r, 200));
+        await Promise.all(pending);
+      } catch (e) { etherLog("info", "[servers] ящик " + url + " недоступен: " + String(e && e.message || e)); }
+      finally { if (s) { try { s.stop(); } catch (e) {} } }
+    }
+  } finally { __drainBusy = false; }
+  return got;
+}
+async function srvProbeAll(opts) {
+  const entries = serverEntries();
+  const res = await ServerList.probeAll(entries.map((e) => e.url), { fetch: window.fetch.bind(window), timeoutMs: 6000 });
+  __srvProbe = Object.assign({}, res, { __at: Date.now() });
+  if (!(opts && opts.noSwitch) && !state.callId && entries.length > 1) getFailover().reportProbes(res);
+  try { if (typeof srvRenderSheet === "function") srvRenderSheet(); } catch (e) {}
+  return res;
+}
+// Подписанный список из корня приложения (servers.json): применяется сам только при успешной проверке подписи и ts не старее сохранённого
+async function srvRefreshSigned(urlOverride, opts) {
+  const o = opts || {};
+  let obj = o.obj;
+  if (!obj) {
+    const r = await fetch(urlOverride || ("servers.json?t=" + Date.now()), { cache: "no-store" }); // «?t=» обходит кэш service worker
+    if (!r.ok) throw new Error("http-" + r.status);
+    obj = await r.json();
+  }
+  const v = await ServerList.verifySigned(obj, window.RELEASE_PUBKEY);
+  if (v.ok && o.apply !== false) {
+    const cur = srvJson(ServerList.KEYS.signed, null);
+    if (!cur || !(cur.ts > v.parsed.ts)) srvSetJson(ServerList.KEYS.signed, { ts: v.parsed.ts, list: v.parsed.servers });
+  }
+  return v;
+}
+let __srvTimersOn = false;
+function startServerLoops() {
+  if (__srvTimersOn) return; __srvTimersOn = true;
+  setTimeout(() => { if (serverEntries().length > 1) srvProbeAll().catch(() => {}); srvRefreshSigned().catch(() => {}); }, 6000);
+  setInterval(() => { if (!document.hidden && serverEntries().length > 1) srvProbeAll().catch(() => {}); }, SRV_PROBE_INTERVAL_MS);
+  setTimeout(() => { srvDrainSecondary(true).catch(() => {}); }, 5000);
+  setInterval(() => { srvDrainSecondary(false).catch(() => {}); }, SRV_DRAIN_INTERVAL_MS);
+}
+// Фейловер для боевого клиента: подключение не удалось / сервер отклонил регистрацию -> счётчик; успешная регистрация -> сброс
+function wireServerFailover(sig) {
+  const fo = getFailover(), subs = [];
+  const on = (type, fn) => { const w = (ev) => { try { fn(ev); } catch (e) { etherLog("error", "[servers:" + type + "]", String(e)); } }; sig.addEventListener(type, w); subs.push([type, w]); };
+  on("connect-failed", () => {
+    __srvFailStreak++;
+    const r = fo.reportFailure(sig.url);
+    if (!r.switched && __srvFailStreak >= 3) srvShowDown();
+  });
+  on("registered", (ev) => {
+    __srvFailStreak = 0; state._serversDown = false;
+    fo.reportSuccess(sig.url, sig.connectMs);
+    const seen = srvJson(ServerList.KEYS.seen, []);
+    if (!seen.includes(sig.url)) {
+      seen.push(sig.url); srvSetJson(ServerList.KEYS.seen, seen.slice(-20));
+      if (seen.length > 1) { try { toast(T("servers.firstClaim")); } catch (e) {} } // на новом сервере наш id закрепляется впервые
+    }
+  });
+  on("register-error", (ev) => {
+    if (ev.detail && ev.detail.error === "id-claimed" && serverEntries().length > 1) {
+      for (let i = 0; i < 3; i++) if (fo.reportFailure(sig.url).switched) break;
+    }
+  });
+  return () => { for (const [t, w] of subs) sig.removeEventListener(t, w); };
+}
+function srvShowDown() {
+  state._serversDown = true;
+  try { updateSignalingStatusUI("off", T("servers.allDown")); } catch (e) {}
+}
+// Режим без сервера: вкладка «Связь» с ручным подключением по коду/QR
+function srvOpenOfflineMode() {
+  const sh = $("#servers-sheet"); if (sh) sh.classList.add("hidden");
+  state.tab = "connect"; state.chatId = null; renderTab();
+  setTimeout(() => { const sec = $("#manual-section"), b = $("#toggle-manual-btn"); if (sec && b && sec.classList.contains("hidden")) b.click(); }, 60);
+}
 let __lastReclaimAt = 0;
 let __replacedHits = [];
 function reclaimSignaling() {
@@ -9403,7 +9638,7 @@ function initSignaling() {
   sig.watchIds = watchedContactIds;
   idMigWireSignaling(sig); // миграция id v1 -> v2: алиас старого id и запуск миграции после регистрации
   if (typeof Devices !== "undefined") Devices.wireSignaling(sig); // companion-режим и публикация списка устройств (js/devices.js)
-  signalingCleanup = wireSignalingEvents(sig);
+  { const c1 = wireSignalingEvents(sig), c2 = wireServerFailover(sig); signalingCleanup = () => { c1(); c2(); }; }
   sig.addEventListener("slow-connect", () => { if (!sig.connected) updateSignalingStatusUI("connecting", T("status.waking")); });
   // Доказательство владения id (claim) считается асинхронно (SHA-256); результат кешируется, поэтому повторные подключения стартуют синхронно.
   const cached = claimProofCached();
@@ -9481,6 +9716,25 @@ async function handleIncomingAnswer(from, packet) {
   }
 }
 
+// Сервер принял конверт (deliver-ack или доставка на сервер получателя): отметить serverAcked и убрать из очереди.
+// Для групповых сообщений entry.to — id участника, а не группы, сообщение лежит в списке ГРУППЫ под contentId — резолвим так же, как markMessageAck.
+function outboxMarkServerAcked(msgId, entry) {
+  const groupId = entry.payload && entry.payload.groupId;
+  const contentId = entry.payload && entry.payload.id;
+  if (groupId && contentId) {
+    const g = state.contacts.get(groupId);
+    const m = g && g.messages.find((x) => x.id === contentId && x.from === "me");
+    if (m) { m.serverAcked = true; persistContacts(); }
+  } else {
+    const c = state.contacts.get(entry.to);
+    if (c) {
+      const m = c.messages.find((x) => x.id === msgId && x.from === "me");
+      if (m) { m.serverAcked = true; persistContacts(); }
+    }
+  }
+  outbox.delete(msgId);
+  persistOutbox();
+}
 function wireSignalingEvents(sig) {
   const on = (type, fn) => {
     const wrapped = (ev) => {
@@ -9572,7 +9826,7 @@ function wireSignalingEvents(sig) {
     toast(T("toast.registerRateLimited"));
   }));
   subs.push(on("disconnected", () => {
-    updateSignalingStatusUI("off", T("status.offline"));
+    updateSignalingStatusUI("off", T(state._serversDown ? "servers.allDown" : "status.offline"));
     for (const c of state.contacts.values()) if (c.managed) {
       if (c.online) { state.lastSeen[c.id] = Date.now(); persistLastSeen(); }
       c.online = false;
@@ -9794,29 +10048,8 @@ function wireSignalingEvents(sig) {
       markMessageAck(entry.to, msgId, "failed");
       return;
     }
-    // Тот же баг, что был в flushOutboxItem (см. markMessageAck) — для
-    // ГРУППОВЫХ сообщений entry.to это id участника, а не группы, и
-    // сообщение лежит в списке ГРУППЫ под другим (contentId) id.
-    // Поиск по entry.to никогда не находил совпадение для групп —
-    // serverAcked так и оставался false навсегда. Сейчас это не даёт
-    // видимых симптомов (resumeUnsentMessages явно пропускает группы),
-    // но это скрытая мина на будущее — резолвим группу так же, как
-    // markMessageAck, а не оставляем расхождение.
-    const groupId = entry.payload && entry.payload.groupId;
-    const contentId = entry.payload && entry.payload.id;
-    if (groupId && contentId) {
-      const g = state.contacts.get(groupId);
-      const m = g && g.messages.find((x) => x.id === contentId && x.from === "me");
-      if (m) { m.serverAcked = true; persistContacts(); }
-    } else {
-      const c = state.contacts.get(entry.to);
-      if (c) {
-        const m = c.messages.find((x) => x.id === msgId && x.from === "me");
-        if (m) { m.serverAcked = true; persistContacts(); }
-      }
-    }
-    outbox.delete(msgId);
-    persistOutbox();
+    if (entry.needRemote && !entry.remoteAcked) return; // получатель живёт на других серверах: запись остаётся, пока их сервер не примет конверт
+    outboxMarkServerAcked(msgId, entry);
   }));
 subs.push(on("deliver", (ev) => handleDeliver(ev.detail, false)));
   return () => { for (const s of subs) sig.removeEventListener(s.type, s.wrapped); };
@@ -10022,7 +10255,7 @@ const deliverInFlight = new Set();
 async function handleDeliver(detail, replay) {
   const { msgId, envelope, fromPublicKey, kind, fromDev } = detail;
   const from = canonPeer(detail.from); // контакт уже переименован по уведомлению id-migrate, а сообщение пришло ещё со старым id
-  const ackBox = () => { if (!replay && signaling) signaling.mailboxAck(msgId); };
+  const ackBox = () => { if (replay) return; const s = detail.ackVia || signaling; if (s) s.mailboxAck(msgId); }; // ackVia: короткая сессия на запасном сервере
   const dKey = from + "|" + msgId;
   const sender = state.contacts.get(from);
   if (sender && sender.blocked) {
@@ -10279,6 +10512,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
         if (!m || typeof m !== "object" || typeof m.id !== "string" || !m.id || m.id.length > 128 || seenIds.has(m.id)) return;
         seenIds.add(m.id);
         const cm = { id: m.id, name: typeof m.name === "string" ? m.name.slice(0, 40) : "" };
+        if (m.id === from && typeof m.srv === "string") { const hs = ServerList.decodeHints(m.srv, { allowLocal: srvAllowLocal() }); if (hs.length) try { srvLearn(from, hs); } catch (e) {} } // свои серверы отправитель сообщает сам
         if (m.role === "admin" || m.role === "member") cm.role = m.role;
         clean.push(cm);
       }
@@ -10445,7 +10679,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     const c = ensureContactEntry(from, null);
     if (c.messages.some((m) => m.id === payload.id)) return;
     const isOpen = state.chatId === from;
-    const rec = { id: payload.id, from: "them", text: "", ts: safeMsgTs(payload.ts), readAckSent: false, deliveryId: envelopeMsgId, contactCard: { id: payload.contactId, name: payload.contactName || "" } };
+    const rec = { id: payload.id, from: "them", text: "", ts: safeMsgTs(payload.ts), readAckSent: false, deliveryId: envelopeMsgId, contactCard: { id: payload.contactId, name: payload.contactName || "", servers: ServerList.decodeHints(payload.srv, { allowLocal: srvAllowLocal() }) } };
     if (payload.forwarded) { rec.forwarded = true; if (typeof payload.fwdFrom === "string" && payload.fwdFrom) rec.forwardedFrom = payload.fwdFrom.slice(0, 40); }
     c.messages.push(rec); trimMessages(c); c.lastActivity = Date.now();
     persistContacts();
@@ -10997,7 +11231,10 @@ async function idMigDeriveNewIdentity(raw, opts) {
 // в группу (см. openGroupInviteSheet), которая кодирует не "свой" код.
 function renderQrToCanvas(canvas, payload) {
   if (!canvas || typeof qrcode !== "function") return;
-  if (!payload) payload = "ether://add?id=" + encodeURIComponent(Store.myId) + "&name=" + encodeURIComponent(Store.name || "");
+  if (!payload) {
+    payload = "ether://add?id=" + encodeURIComponent(Store.myId) + "&name=" + encodeURIComponent(Store.name || "");
+    const srv = srvHintsWire(); if (srv) payload += "&srv=" + encodeURIComponent(srv); // домашние серверы; старые клиенты параметр игнорируют
+  }
   const qr = qrcode(0, "M"); // typeNumber 0 = автоподбор размера под данные
   qr.addData(payload);
   qr.make();
@@ -11021,7 +11258,10 @@ function parseQrAddPayload(text) {
     const qs = new URLSearchParams(text.slice(text.indexOf("?")));
     const id = qs.get("id");
     if (!id) return null;
-    return { id, name: qs.get("name") || "" };
+    const r = { id, name: qs.get("name") || "" };
+    const servers = ServerList.decodeHints(qs.get("srv") || "", { allowLocal: srvAllowLocal() });
+    if (servers.length) r.servers = servers;
+    return r;
   } catch (e) { return null; }
 }
 let qrScanStream = null, qrScanRafId = null, qrScanCanvas = null, qrScanVerifyMode = false, qrScanSigilMode = false, qrScanToken = 0;
@@ -11084,7 +11324,7 @@ async function startQrScan() {
           if (parsed) {
             stopQrScan();
             if (sheet) sheet.classList.add("hidden");
-            addContactFromCard(parsed.id, parsed.name);
+            addContactFromCard(parsed.id, parsed.name, parsed.servers);
             return;
           }
           // Invite-ссылка в группу (раздел 8/18) — та же камера сканирует
@@ -13099,6 +13339,7 @@ function openCallScreen(id, phase, opts) {
   // одновременно заняли бы по половине места.
   const contentEl = $("#content"); if (contentEl) contentEl.classList.add("hidden");
   const miniBar = $("#mini-call-bar"); if (miniBar) miniBar.classList.add("hidden");
+  try { if (typeof prewarmCallIce === "function") prewarmCallIce(); } catch (e) {}
   if (state.callId !== id) {
     state._callUserAccepted = false;
     state._callAcceptInFlight = false;
@@ -13570,6 +13811,7 @@ function startCallTimer() {
   paintCallTimer(started);
   callTimerDisplayInterval = setInterval(() => { if (!state.callId) { clearInterval(callTimerDisplayInterval); callTimerDisplayInterval = null; return; } paintCallTimer(started); }, 250);
   state._callDeadSeconds = 0;
+  try { callQualityStart(); } catch (e) {}
   let qualityTick = 0;
   callTimerInterval = setInterval(() => {
     const clock = formatClock(Date.now() - started);
@@ -13591,6 +13833,62 @@ function startCallTimer() {
   }, 1000);
 }
 let __lastCallQualityRtt = null;
+// Адаптивное качество 1:1 (js/callquality.js): цикл в PeerLink раз в 2 с; здесь только подписка на события, плашки и отчёт.
+let __cqLink = null, __cqReport = null;
+function callQualityStart() {
+  const CQ = window.EtherCallQuality, link = state.callId && mesh.get(state.callId);
+  if (!CQ || !link || typeof link.startQuality !== "function") return;
+  if (__cqLink === link && link._qTimer) return;
+  __cqLink = link;
+  __cqReport = Store.callReport ? CQ.createReport() : null;
+  if (!link.__cqWired) {
+    link.__cqWired = true;
+    link.addEventListener("quality", (ev) => {
+      if (link !== __cqLink) return;
+      const d = ev.detail || {};
+      if (d.audioOnly) setCallNotice("quality", T("call.quality.audioOnly"));
+      else if (d.restored && !d.audioOnly) setCallNotice("quality", d.level === 0 ? null : T("call.quality.reduced"));
+      else if (d.level > 0) setCallNotice("quality", T("call.quality.reduced"));
+      else setCallNotice("quality", null);
+      if (d.audioOnly) toast(T("call.quality.audioOnly"));
+      else if (d.restored && d.level === 0) toast(T("call.quality.restored"));
+    });
+    link.addEventListener("remote-quality", (ev) => {
+      if (link !== __cqLink) return;
+      setCallNotice("rquality", ev.detail && ev.detail.audioOnly ? T("call.quality.remoteAudioOnly") : null);
+    });
+    link.addEventListener("ice-connection-state", (ev) => {
+      const s = ev.detail && ev.detail.state;
+      if (__cqReport && link === __cqLink && (s === "disconnected" || s === "failed")) __cqReport.reconnects++;
+    });
+  }
+  link.startQuality({ report: __cqReport });
+}
+function callQualityStop() {
+  const link = __cqLink, rep = __cqReport; __cqLink = null; __cqReport = null;
+  setCallNotice("quality", null); setCallNotice("rquality", null);
+  if (link && typeof link.stopQuality === "function") link.stopQuality();
+  if (!rep || !window.EtherCallQuality) return;
+  const CQ = window.EtherCallQuality, sum = CQ.summarizeReport(rep);
+  if (sum.verdict === "unknown") return;
+  window.__lastCallReport = { json: CQ.reportToJson(rep), summary: sum };
+  try { localStorage.setItem("ether.lastCallReport", window.__lastCallReport.json); } catch (e) {}
+  toast(callReportText(sum));
+}
+// Простыми словами: «Звук отличный. Задержка 40 мс, потерь 0%.»
+function callReportText(sum) {
+  let t = T("callreport.v." + sum.verdict) + ". " + T("callreport.detail", { rtt: sum.rttMedianMs == null ? "?" : sum.rttMedianMs, loss: sum.lossAvgPct });
+  if (sum.audioOnlyUsed) t += " " + T("callreport.audioOnlyUsed");
+  else if (sum.videoDegraded) t += " " + T("callreport.videoReduced");
+  if (sum.path === "relay") t += " " + T("callreport.relay");
+  return t;
+}
+function exportCallReport() {
+  let json = window.__lastCallReport && window.__lastCallReport.json;
+  if (!json) { try { json = localStorage.getItem("ether.lastCallReport"); } catch (e) {} }
+  if (!json) { toast(T("callreport.none")); return; }
+  downloadBlob(new Blob([json], { type: "application/json" }), "ether-call-report.json");
+}
 // Следим, идёт ли реально звук в обе стороны (раз в 3 с вместе с индикатором качества). Само по себе это только диагностика —
 // «соединение есть, а звука нет» теперь видно в журнале: сколько байт ушло/пришло и на каком этапе остановилось.
 // Если входящий звук молчит 9 секунд, один раз пробуем перезапустить ICE.
@@ -13716,6 +14014,7 @@ function closeCallScreen(reason, opts) {
   const voicemailFor = rec && !(opts && opts.localError) && rec.direction === "out" && (["declined", "busy", "missed", "failed"].includes(reason) || (reason === "cancelled" && opts && opts.noAnswer)) && !rec.answeredAt ? rec.contactId : null;
   if (voicemailFor) setTimeout(() => offerVoicemail(voicemailFor), 700);
   clearInterval(callTimerInterval); callTimerInterval = null;
+  try { callQualityStop(); } catch (e) {}
   const qIcon = $("#call-quality-icon"); if (qIcon) qIcon.classList.add("hidden");
   state._callDeadSeconds = 0;
   state._callAcceptInFlight = false;
@@ -15078,6 +15377,8 @@ function wireSettingsScreen() {
   if (selfHostBtn) selfHostBtn.addEventListener("click", () => {
     const sheet = $("#self-host-sheet"); if (sheet) sheet.classList.remove("hidden");
   });
+  // ---- Серверы: список, статус, добавление, приоритет, подписанный список (js/serverlist.js) ----
+  wireServersSheet();
   // killer-features-backlog 0.5 — Dead Man's Switch настройки.
   const dmEnabledEl = $("#settings-deadman-enabled");
   if (dmEnabledEl) dmEnabledEl.addEventListener("change", (e) => {
@@ -15131,6 +15432,12 @@ function wireSettingsScreen() {
       if (!state.callId) initSignaling();
     }
   });
+  const hideIpEl = $("#settings-hide-ip");
+  if (hideIpEl) hideIpEl.addEventListener("change", (e) => { Store.hideIpInCalls = e.target.checked; });
+  const callReportEl = $("#settings-call-report");
+  if (callReportEl) callReportEl.addEventListener("change", (e) => { Store.callReport = e.target.checked; });
+  const callReportExp = $("#settings-call-report-export");
+  if (callReportExp) callReportExp.addEventListener("click", () => exportCallReport());
   const hideNotifEl = $("#settings-hide-notif");
   if (hideNotifEl) hideNotifEl.addEventListener("change", (e) => { Store.hideNotifContent = e.target.checked; });
   const myStatusEl = $("#settings-my-status");
@@ -15167,6 +15474,7 @@ function wireSettingsScreen() {
   if (save) save.addEventListener("click", () => {
     const el = $("#settings-signaling-url");
     if (el) Store.signalingUrl = el.value.trim();
+    try { const f = serverEntries()[0]; if (f) getFailover().force(f.url); } catch (e) {} // новый адрес в поле «Сервер» — первый в списке
     initSignaling(); toast(T("toast.saved"));
   });
   const disc = $("#settings-discoverable");
@@ -15953,7 +16261,7 @@ function wireDebugScreen() {
     try { Ratchet.resetAll(); } catch (e) {}
     try { heldDeliveries = []; persistHeld(); envelopeCache.clear(); } catch (e) {}
     state.contacts.clear(); state.callLog = []; state.currentCallRecord = null;
-    state.lastSeen = {}; state.drafts = {}; state.scheduledMessages = []; state.folders = [];
+    state.lastSeen = {}; state.drafts = Object.create(null); state.scheduledMessages = []; state.folders = [];
     // Если в момент сброса был в полёте дебаунс-таймер persistContacts()
     // (см. persistContactsNow выше) — он бы минут через 0.2с воскресил
     // только что обнулённый список из устаревшего __contactsPersistPending.
@@ -16176,6 +16484,133 @@ function buildWebRtcText() {
     lines.push("");
   }
   return lines.join("\n");
+}
+
+
+// =====================================================================
+// Шторка «Серверы» (Настройки -> Дополнительно)
+// =====================================================================
+function srvOpenSheet() {
+  const sh = $("#servers-sheet"); if (!sh) return;
+  const cb = $("#servers-share"); if (cb) { try { cb.checked = localStorage.getItem(ServerList.KEYS.share) !== "0"; } catch (e) { cb.checked = true; } }
+  sh.classList.remove("hidden");
+  srvRenderSheet();
+  srvProbeAll({ noSwitch: true }).catch(() => {});
+}
+function srvRenderSheet() {
+  const box = $("#servers-list"); if (!box) return;
+  const entries = serverEntries(), active = effectiveSignalingUrl();
+  const down = $("#servers-down"); if (down) down.classList.toggle("hidden", !(state._serversDown && !(signaling && signaling.connected)));
+  box.innerHTML = "";
+  entries.forEach((e, i) => {
+    const pr = __srvProbe[e.url], isActive = e.url === active;
+    const online = isActive && signaling && signaling.connected;
+    const kind = online ? "online" : (pr ? (pr.ok ? "online" : "off") : "connecting");
+    const rtt = pr && pr.ok ? pr.rtt + " ms" : (pr ? T("servers.status.down") : "…");
+    const row = document.createElement("div");
+    row.className = "settings-row column server-row";
+    row.setAttribute("data-url", e.url);
+    row.innerHTML = `<div class="server-head"><span class="status-dot ${kind}" role="img" aria-label="${escapeHtml(T(kind === "online" ? "servers.status.ok" : kind === "off" ? "servers.status.down" : "servers.status.unknown"))}"></span> <strong>${escapeHtml(e.label)}</strong>${isActive ? ` <span class="fine muted">${escapeHtml(T("servers.active"))}</span>` : ""} <span class="fine muted server-rtt">${escapeHtml(rtt)}</span></div>
+      <div class="fine muted server-url">${escapeHtml(e.url)}</div>
+      <div class="server-actions">${i > 0 ? `<button type="button" class="btn-tertiary" data-srv-act="primary" aria-label="${escapeHtml(T("servers.aria.primary", { name: e.label }))}">${escapeHtml(T("servers.makePrimary"))}</button>` : `<span class="fine muted">${escapeHtml(T("servers.primary"))}</span>`}
+      ${entries.length > 1 ? `<button type="button" class="btn-tertiary destructive" data-srv-act="remove" aria-label="${escapeHtml(T("servers.aria.remove", { name: e.label }))}">${escapeHtml(T("servers.remove"))}</button>` : ""}</div>`;
+    box.appendChild(row);
+  });
+}
+function srvSaveUserList(list) { return ServerList.saveUser(localStorage, list); }
+function srvAddServer(raw, label) {
+  const url = ServerList.normalizeUrl(raw);
+  if (!url) { toast(T("servers.bad")); return false; }
+  if (serverEntries().some((e) => e.url === url)) { toast(T("servers.dup")); return false; }
+  const user = ServerList.loadUser(localStorage);
+  if (serverEntries().length >= ServerList.MAX_SERVERS) { toast(T("servers.limit")); return false; }
+  user.push({ url, label: ServerList.cleanLabel(label, url), addedAt: Date.now() });
+  srvSaveUserList(user);
+  return true;
+}
+// Старое поле «Сервер» (ether.signalingUrl) переносим в список, оставляя встроенные серверы выключенными (приватность самохостера не меняется)
+function srvAbsorbLegacy() {
+  let legacy = ""; try { legacy = (Store.signalingUrl || "").trim(); } catch (e) {}
+  if (!legacy) return true;
+  const n = ServerList.normalizeUrl(legacy);
+  if (!n) { toast(T("servers.legacyKeep")); return false; }
+  const user = ServerList.loadUser(localStorage);
+  if (!user.some((u) => u.url === n)) user.unshift({ url: n, label: ServerList.cleanLabel("", n), addedAt: Date.now() });
+  srvSaveUserList(user);
+  const off = srvJson(ServerList.KEYS.off, []);
+  for (const d of srvDefaults()) if (!off.includes(d.url)) off.push(d.url);
+  srvSetJson(ServerList.KEYS.off, off);
+  Store.signalingUrl = "";
+  return true;
+}
+function srvSetPrimary(url) {
+  if (!srvAbsorbLegacy()) return;
+  const entries = serverEntries(), e = entries.find((x) => x.url === url); if (!e) return;
+  const user = ServerList.loadUser(localStorage).filter((u) => u.url !== url);
+  user.unshift({ url, label: e.label, addedAt: e.addedAt || Date.now() });
+  srvSaveUserList(user);
+  getFailover().force(url);
+  initSignaling();
+}
+function srvRemoveServer(url) {
+  if (serverEntries().length <= 1) { toast(T("servers.keepOne")); return; }
+  if (!srvAbsorbLegacy()) return;
+  const user = ServerList.loadUser(localStorage), had = user.some((u) => u.url === url);
+  srvSaveUserList(user.filter((u) => u.url !== url));
+  if (!had || srvDefaults().some((d) => d.url === url)) { const off = srvJson(ServerList.KEYS.off, []); if (!off.includes(url)) { off.push(url); srvSetJson(ServerList.KEYS.off, off); } }
+  const wasActive = effectiveSignalingUrl() === url;
+  if (wasActive) { getFailover().force(serverEntries()[0].url); initSignaling(); }
+}
+async function srvImportText(text, sourceLabel) {
+  const out = $("#servers-import-out"); if (!out) return;
+  out.innerHTML = "";
+  let obj; try { obj = JSON.parse(text); } catch (e) { out.textContent = T("servers.import.bad"); return; }
+  let v; try { v = await ServerList.verifySigned(obj, window.RELEASE_PUBKEY); } catch (e) { v = { ok: false, reason: "bad-format" }; }
+  if (!v.parsed) { out.textContent = T("servers.import.bad"); return; }
+  const head = document.createElement("p"); head.className = "fine";
+  head.textContent = T(v.ok ? "servers.import.verified" : v.reason === "bad-sig" ? "servers.import.badSig" : "servers.import.unverified");
+  out.appendChild(head);
+  for (const s of v.parsed.servers) {
+    const r = document.createElement("div"); r.className = "settings-row server-row";
+    r.innerHTML = `<span class="fine"><strong>${escapeHtml(s.label)}</strong> ${escapeHtml(s.url)}</span><button type="button" class="btn-tertiary" data-srv-import-add="${escapeHtml(s.url)}" data-label="${escapeHtml(s.label)}" aria-label="${escapeHtml(T("servers.aria.add", { name: s.label }))}">${escapeHtml(T("servers.add"))}</button>`;
+    out.appendChild(r);
+  }
+  if (v.ok) { // подпись верна: можно применить весь список разом (он обновляется сам при следующих подписанных версиях)
+    const b = document.createElement("button"); b.type = "button"; b.className = "btn-secondary settings-btn-full"; b.textContent = T("servers.import.apply");
+    b.addEventListener("click", () => { srvSetJson(ServerList.KEYS.signed, { ts: v.parsed.ts, list: v.parsed.servers }); srvRenderSheet(); toast(T("servers.import.applied")); });
+    out.appendChild(b);
+  }
+}
+function wireServersSheet() {
+  const open = $("#servers-open-btn"); if (open) open.addEventListener("click", srvOpenSheet);
+  const list = $("#servers-list");
+  if (list) list.addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-srv-act]"); if (!b) return;
+    const row = b.closest(".server-row"), url = row && row.getAttribute("data-url"); if (!url) return;
+    if (b.getAttribute("data-srv-act") === "primary") srvSetPrimary(url); else srvRemoveServer(url);
+    srvRenderSheet();
+  });
+  const addBtn = $("#servers-add-btn"), addIn = $("#servers-add-input");
+  const doAdd = () => { if (addIn && srvAddServer(addIn.value, "")) { addIn.value = ""; srvRenderSheet(); srvProbeAll({ noSwitch: true }).catch(() => {}); } };
+  if (addBtn) addBtn.addEventListener("click", doAdd);
+  if (addIn) addIn.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); doAdd(); } });
+  const chk = $("#servers-check-btn");
+  if (chk) chk.addEventListener("click", async () => {
+    chk.disabled = true; const old = chk.textContent; chk.textContent = T("servers.checking");
+    try { await srvProbeAll(); } catch (e) {} finally { chk.disabled = false; chk.textContent = old; srvRenderSheet(); }
+  });
+  const share = $("#servers-share"); if (share) share.addEventListener("change", () => { try { localStorage.setItem(ServerList.KEYS.share, share.checked ? "1" : "0"); } catch (e) {} });
+  const file = $("#servers-import-file");
+  if (file) file.addEventListener("change", async () => { const f = file.files && file.files[0]; if (!f) return; try { await srvImportText(await f.text()); } catch (e) { const o = $("#servers-import-out"); if (o) o.textContent = T("servers.import.bad"); } file.value = ""; });
+  const fileBtn = $("#servers-import-file-btn"); if (fileBtn && file) fileBtn.addEventListener("click", () => file.click());
+  const urlBtn = $("#servers-import-url-btn"), urlIn = $("#servers-import-url");
+  if (urlBtn && urlIn) urlBtn.addEventListener("click", async () => {
+    const u = urlIn.value.trim(); if (!/^https:\/\//i.test(u) && !(srvAllowLocal() && /^http:\/\/(localhost|127\.0\.0\.1)/i.test(u))) { const o = $("#servers-import-out"); if (o) o.textContent = T("servers.import.bad"); return; }
+    try { const r = await fetch(u, { cache: "no-store" }); if (!r.ok) throw new Error("http"); await srvImportText(await r.text()); } catch (e) { const o = $("#servers-import-out"); if (o) o.textContent = T("servers.import.failed"); }
+  });
+  const out = $("#servers-import-out");
+  if (out) out.addEventListener("click", (ev) => { const b = ev.target.closest("[data-srv-import-add]"); if (!b) return; if (srvAddServer(b.getAttribute("data-srv-import-add"), b.getAttribute("data-label"))) { b.disabled = true; srvRenderSheet(); } });
+  const off = $("#servers-offline-mode-btn"); if (off) off.addEventListener("click", srvOpenOfflineMode);
 }
 ;
 /* ==== js/app/14-backup-boot.js ==== */

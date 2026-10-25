@@ -12,7 +12,10 @@
 // в группу (см. openGroupInviteSheet), которая кодирует не "свой" код.
 function renderQrToCanvas(canvas, payload) {
   if (!canvas || typeof qrcode !== "function") return;
-  if (!payload) payload = "ether://add?id=" + encodeURIComponent(Store.myId) + "&name=" + encodeURIComponent(Store.name || "");
+  if (!payload) {
+    payload = "ether://add?id=" + encodeURIComponent(Store.myId) + "&name=" + encodeURIComponent(Store.name || "");
+    const srv = srvHintsWire(); if (srv) payload += "&srv=" + encodeURIComponent(srv); // домашние серверы; старые клиенты параметр игнорируют
+  }
   const qr = qrcode(0, "M"); // typeNumber 0 = автоподбор размера под данные
   qr.addData(payload);
   qr.make();
@@ -36,7 +39,10 @@ function parseQrAddPayload(text) {
     const qs = new URLSearchParams(text.slice(text.indexOf("?")));
     const id = qs.get("id");
     if (!id) return null;
-    return { id, name: qs.get("name") || "" };
+    const r = { id, name: qs.get("name") || "" };
+    const servers = ServerList.decodeHints(qs.get("srv") || "", { allowLocal: srvAllowLocal() });
+    if (servers.length) r.servers = servers;
+    return r;
   } catch (e) { return null; }
 }
 let qrScanStream = null, qrScanRafId = null, qrScanCanvas = null, qrScanVerifyMode = false, qrScanSigilMode = false, qrScanToken = 0;
@@ -99,7 +105,7 @@ async function startQrScan() {
           if (parsed) {
             stopQrScan();
             if (sheet) sheet.classList.add("hidden");
-            addContactFromCard(parsed.id, parsed.name);
+            addContactFromCard(parsed.id, parsed.name, parsed.servers);
             return;
           }
           // Invite-ссылка в группу (раздел 8/18) — та же камера сканирует

@@ -29,6 +29,7 @@ const SignalingCodec = (() => {
     return new Uint8Array(out);
   }
 
+  const MAX_DECODED = 256 * 1024; // SDP с кандидатами — единицы КБ
   async function gunzip(bytes) {
     if (typeof DecompressionStream === "undefined") return bytes;
     try {
@@ -37,9 +38,21 @@ const SignalingCodec = (() => {
       // запись/закрытие не ждём напрямую, но их ошибку гасим: на битом gzip она иначе всплывает как unhandled rejection
       writer.write(bytes).catch(() => {});
       writer.close().catch(() => {});
-      const out = await new Response(ds.readable).arrayBuffer();
-      return new Uint8Array(out);
+      // потоковое чтение с потолком: gzip-«бомба» (≈1000:1) из короткого кода не должна раздуваться в десятки МБ
+      const reader = ds.readable.getReader(), chunks = [];
+      let total = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.length;
+        if (total > MAX_DECODED) { reader.cancel().catch(() => {}); throw new RangeError("decoded too large"); }
+        chunks.push(value);
+      }
+      const out = new Uint8Array(total); let off = 0;
+      for (const c of chunks) { out.set(c, off); off += c.length; }
+      return out;
     } catch (e) {
+      if (e instanceof RangeError) throw new Error("toast.badInviteCode");
       // Данные не были сжаты (старый браузер на другом конце) — вернуть как есть.
       return bytes;
     }
@@ -92,7 +105,7 @@ const SignalingCodec = (() => {
   function extractCodeFromLocation() {
     const hash = location.hash || "";
     const match = hash.match(/c=([^&]+)/);
-    if (match) return decodeURIComponent(match[1]);
+    if (match) { try { return decodeURIComponent(match[1]); } catch (e) { return null; } } // битый %-escape в чужой ссылке не должен ронять старт
     return null;
   }
 

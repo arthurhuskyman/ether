@@ -45,6 +45,7 @@ function loadContacts() {
       archived: !!c.archived, muted: !!c.muted, muteUntil: c.muteUntil || null, blocked: !!c.blocked, vibrateOnly: !!c.vibrateOnly,
       pinned: !!c.pinned, pinnedMessageId: c.pinnedMessageId || null,
       pinOrder: typeof c.pinOrder === "number" ? c.pinOrder : null,
+      servers: Array.isArray(c.servers) ? ServerList.normalizeHints(c.servers, { allowLocal: srvAllowLocal() }) : undefined, // домашние серверы контакта (srv)
       // Группы — без этих полей запись после перезагрузки превращается в
       // битый обычный контакт (isGroup(c) === false, участников нет).
       isGroup: !!c.isGroup, room: c.room || undefined,
@@ -218,6 +219,7 @@ function persistContacts() {
     archived: c.archived, muted: c.muted, muteUntil: c.muteUntil || undefined, blocked: c.blocked, vibrateOnly: c.vibrateOnly || undefined,
     pinned: c.pinned || undefined, pinnedMessageId: c.pinnedMessageId || undefined,
     pinOrder: typeof c.pinOrder === "number" ? c.pinOrder : undefined,
+    servers: Array.isArray(c.servers) && c.servers.length ? c.servers.slice(0, 3) : undefined,
     isGroup: c.isGroup || undefined, room: c.isGroup && c.room || undefined,
     members: c.isGroup ? c.members : undefined,
     nameLocal: c.nameLocal || undefined,
@@ -252,7 +254,8 @@ function persistContacts() {
 }
 function loadLastSeen() { try { state.lastSeen = JSON.parse(Store.lastSeenJson) || {}; } catch (e) { state.lastSeen = {}; } if (typeof state.lastSeen !== "object") state.lastSeen = {}; }
 function persistLastSeen() { try { Store.lastSeenJson = JSON.stringify(state.lastSeen); } catch (e) { handlePersistError(e, "lastSeen"); } }
-function loadDrafts() { try { state.drafts = JSON.parse(Store.draftsJson) || {}; } catch (e) { state.drafts = {}; } if (typeof state.drafts !== "object") state.drafts = {}; }
+// черновики по id контакта: объект БЕЗ прототипа — чужой id вроде "constructor"/"__proto__" иначе возвращал бы функцию как «черновик» и ронял список чатов
+function loadDrafts() { let o = null; try { o = JSON.parse(Store.draftsJson); } catch (e) {} state.drafts = Object.assign(Object.create(null), o && typeof o === "object" && !Array.isArray(o) ? o : {}); }
 function persistDrafts() { try { Store.draftsJson = JSON.stringify(state.drafts); } catch (e) { handlePersistError(e, "drafts"); } }
 // "Отправить позже" — каждая запись { id, contactId, isGroup, text, replyTo, sendAt }.
 // sendAt — абсолютный ms-timestamp, поэтому «приложение было закрыто
@@ -725,6 +728,8 @@ function formatChatListTime(ts) {
 function myAddLink() {
   const u = new URL(location.href); u.search = "";
   u.hash = "add=" + encodeURIComponent(Store.myId) + "&name=" + encodeURIComponent(Store.name || "");
+  const srv = srvHintsWire(); // домашние серверы (https-origin через запятую); старые клиенты параметр игнорируют
+  if (srv) u.hash += "&srv=" + encodeURIComponent(srv);
   return u.toString();
 }
 async function shareMyInviteLink() {
@@ -735,14 +740,17 @@ async function shareMyInviteLink() {
 function handleAddLinkFromLocation() {
   const m = (location.hash || "").match(/(?:^#|&)add=([^&]+)/);
   if (!m) return false;
-  let id = "", name = "";
-  try { id = decodeURIComponent(m[1]); const n = location.hash.match(/&name=([^&]*)/); name = n ? decodeURIComponent(n[1]) : ""; } catch (e) { return false; }
+  let id = "", name = "", servers = [];
+  try {
+    id = decodeURIComponent(m[1]); const n = location.hash.match(/&name=([^&]*)/); name = n ? decodeURIComponent(n[1]) : "";
+    const sv = location.hash.match(/&srv=([^&]*)/); if (sv) servers = ServerList.decodeHints(decodeURIComponent(sv[1]), { allowLocal: srvAllowLocal() });
+  } catch (e) { return false; }
   try { history.replaceState(null, "", location.pathname); } catch (e) {}
   if (!id || id === Store.myId) return true;
   name = name.slice(0, 40);
   // чужая ссылка не должна молча добавлять контакт — спрашиваем подтверждение
   Promise.resolve().then(() => confirmSheet(T("confirm.addContactLink", { name: name || id })))
-    .then((ok) => { if (ok) addContactFromCard(id, name); })
+    .then((ok) => { if (ok) addContactFromCard(id, name, servers); })
     .catch(() => {});
   return true;
 }

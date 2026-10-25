@@ -909,17 +909,18 @@ function contactCardBubbleHtml(card) {
   const already = state.contacts.has(card.id);
   const btn = already
     ? `<span class="contact-card-already">${escapeHtml(T("toast.alreadyAdded"))}</span>`
-    : `<button type="button" class="contact-card-add-btn" data-add-contact-id="${escapeHtml(card.id)}" data-add-contact-name="${escapeHtml(name)}">${escapeHtml(T("chat.contactCard.add"))}</button>`;
+    : `<button type="button" class="contact-card-add-btn" data-add-contact-id="${escapeHtml(card.id)}" data-add-contact-name="${escapeHtml(name)}" data-add-contact-srv="${escapeHtml(ServerList.encodeHints(card.servers || []))}">${escapeHtml(T("chat.contactCard.add"))}</button>`;
   return `<div class="contact-card-bubble">
     <div class="avatar avatar-sm" style="background:${avatarGradient(name)}">${escapeHtml(initials(name))}</div>
     <div class="contact-card-info"><div class="contact-card-name">${escapeHtml(name)}</div>${btn}</div>
   </div>`;
 }
-function addContactFromCard(id, name) {
+function addContactFromCard(id, name, servers) {
   if (id === Store.myId) { toast(T("toast.ownId")); return; }
   if (state.contacts.has(id)) { toast(T("toast.alreadyAdded")); renderChatThread(); return; }
   if (recentlyDeletedIds.delete(id)) persistRecentlyDeleted(); // осознанное повторное добавление снимает блокировку из deleteContact
   ensureContactEntry(id, name);
+  if (Array.isArray(servers) && servers.length) srvLearn(id, servers);
   persistContacts();
   toast(T("toast.contactAdded"));
   if (onlineSet.has(id)) scheduleAutoConnect(id);

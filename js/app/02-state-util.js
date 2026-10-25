@@ -32,7 +32,7 @@ const state = {
   chatSearchQuery: "",
   contactsSearchQuery: "",
   lastSeen: {},
-  drafts: {},
+  drafts: Object.create(null),
   scheduledMessages: [],
   folders: [], // раздел 4 роадмапа: кастомные папки чатов {id, name, contactIds[]}
   typingTimers: new Map(),
@@ -489,7 +489,7 @@ function extractFirstUrl(text) {
 }
 function signalingHttpBase() {
   let url = "";
-  try { url = (Store.signalingUrl || "").trim(); } catch (e) {}
+  try { url = effectiveSignalingUrl(); } catch (e) {}
   if (!url) url = DEFAULT_SIGNALING_URL;
   return url.replace(/^wss:\/\//i, "https://").replace(/^ws:\/\//i, "http://").replace(/\/+$/, "");
 }

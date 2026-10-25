@@ -40,6 +40,37 @@ jobs:
         run: node --test --test-concurrency=2 --test-timeout=180000 *.test.js
         working-directory: tests
 
+  release:
+    name: Signed release pipeline
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Pipeline works with a throwaway key pair (proves keygen -> manifest -> sign -> verify)
+        run: |
+          T="$(mktemp -d)"
+          node tools/release-keygen.js --private "$T/priv.pem" --pub-file "$T/release-key.js"
+          node tools/release-manifest.js --out "$T/release-manifest.json"
+          node tools/release-sign.js --manifest "$T/release-manifest.json" --key "$T/priv.pem"
+          node tools/release-verify.js --manifest "$T/release-manifest.json" --pub "$T/release-key.js"
+          node tools/release-keygen.js --private "$T/other.pem" --pub-file "$T/other-key.js"
+          if node tools/release-verify.js --manifest "$T/release-manifest.json" --pub "$T/other-key.js"; then echo "verify accepted a foreign key"; exit 1; fi
+      - name: Committed release-manifest.json is not stale (skipped when no manifest is committed)
+        run: node tools/release-manifest.js --check
+      - name: Committed signature verifies with js/release-key.js (skipped until a real key is configured)
+        run: |
+          if [ -f release-manifest.sig.json ] && node -e "process.exit(require('./tools/release-lib').readPubKey('js/release-key.js') ? 0 : 1)"; then
+            node tools/release-verify.js
+          else
+            echo "no committed signature or release key is still the placeholder: skipped"
+          fi
+      - name: Release tool tests
+        run: |
+          cd tests && npm ci && node --test release-signing.test.js
+
   server:
     name: Server tests
     runs-on: ubuntu-latest

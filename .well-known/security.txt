@@ -1,0 +1,7 @@
+# ВНИМАНИЕ, TODO(владелец): этот файл содержит ЗАГЛУШКИ и не должен считаться рабочим каналом связи.
+# Перед публикацией подставьте реальный контакт и обновите Expires (RFC 9116: не более года вперёд), затем перегенерируйте
+# release-manifest.json. Домен .invalid зарезервирован и никогда не существует — письма на него не уйдут никуда.
+Contact: mailto:TODO-OWNER-SET-REAL-CONTACT@example.invalid
+Expires: 2026-12-31T23:59:59Z
+Preferred-Languages: ru, en
+Policy: https://github.com/arthurhuskyman/ether/blob/main/SECURITY.md

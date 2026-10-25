@@ -100,9 +100,14 @@ function broadcastGroupRoster(g) {
 // приложения — своего сервер-бэкапа контактов/групп у приложения нет),
 // НИЧЕГО не пересылало ему ростер заново, пока кто-то не совершит новое
 // действие в группе. Группа просто не появлялась у него снова.
+// В ростере группы своя запись несёт srv (мои домашние серверы); чужие записи не трогаем — чужие серверы я не раскрываю
+function srvRosterMembers(members) {
+  const srv = srvHintsWire(); if (!srv) return members;
+  return members.map((m) => (m && m.id === Store.myId ? Object.assign({}, m, { srv }) : m));
+}
 function sendGroupRosterTo(g, memberId) {
   { const bc = state.contacts.get(memberId); if (bc && bc.blocked) return; }
-  const payload = { kind: "group-invite", id: crypto.randomUUID(), groupId: g.id, groupName: g.name, members: g.members, groupAvatar: g.avatar || undefined, groupDescription: g.description || undefined };
+  const payload = { kind: "group-invite", id: crypto.randomUUID(), groupId: g.id, groupName: g.name, members: srvRosterMembers(g.members), groupAvatar: g.avatar || undefined, groupDescription: g.description || undefined };
   if (g.createdBy) payload.createdBy = g.createdBy; // B5: создатель едет в ростере — иначе получатель новой группы делал создателем/админом того, кто прислал (любого участника при авто-досылке)
   if (g.rosterVer > 0) payload.ver = g.rosterVer;
   if (typeof idMigGroupPayloadFor === "function") idMigGroupPayloadFor(payload, memberId); // контакту, знающему меня под старым id, ростер уходит с прежним id
@@ -311,6 +316,7 @@ function buildGroupInviteCode(groupId) {
   qs.set("ref", Store.myId);
   qs.set("rn", Store.name || "");
   qs.set("gn", g.name || "");
+  const srv = srvHintsWire(); if (srv) qs.set("srv", srv);
   return "ether://group?" + qs.toString();
 }
 function parseGroupInviteCode(text) {
@@ -319,7 +325,10 @@ function parseGroupInviteCode(text) {
     const qs = new URLSearchParams(text.slice(text.indexOf("?")));
     const groupId = qs.get("gid"), refId = qs.get("ref");
     if (!groupId || !refId) return null;
-    return { groupId, refId, refName: qs.get("rn") || "", groupName: qs.get("gn") || "" };
+    const r = { groupId, refId, refName: qs.get("rn") || "", groupName: qs.get("gn") || "" };
+    const servers = ServerList.decodeHints(qs.get("srv") || "", { allowLocal: srvAllowLocal() });
+    if (servers.length) r.servers = servers;
+    return r;
   } catch (e) { return null; }
 }
 async function joinGroupViaInvite(text) {
@@ -331,6 +340,7 @@ async function joinGroupViaInvite(text) {
   if (existing && existing.isGroup) { toast(T("toast.groupAlreadyJoined")); return false; }
   if (recentlyDeletedIds.delete(refId)) persistRecentlyDeleted(); // осознанное повторное добавление снимает блокировку из deleteContact
   ensureContactEntry(refId, refName || null);
+  if (parsed.servers && parsed.servers.length) srvLearn(refId, parsed.servers);
   persistContacts();
   if (onlineSet.has(refId)) scheduleAutoConnect(refId);
   else attemptConnectViaRelay(refId).catch(() => {});
@@ -369,7 +379,7 @@ async function forwardContact(fromContactId, toContactId) {
   toast(T("toast.contactForwarded"));
   const payload = inGroup
     ? { kind: "chat", id: msgId, ts, text: rec.text, forwarded: true }
-    : { kind: "contact-card", id: msgId, ts, contactId: shared.id, contactName: shared.name || "" };
+    : { kind: "contact-card", id: msgId, ts, contactId: shared.id, contactName: shared.name || "", srv: ServerList.encodeHints(shared.servers || []) || undefined };
   if (rec.ttl) payload.ttl = rec.ttl;
   if (inGroup) await dispatchRich(to, payload, msgId);
   else await trySendOrQueue(to, msgId, payload);
@@ -559,6 +569,7 @@ async function forwardMessage(msgId, fromContactId, toContactId) {
       kind: "contact-card", id: msgId2, ts,
       contactId: m.contactCard.id,
       contactName: m.contactCard.name || "",
+      srv: ServerList.encodeHints(m.contactCard.servers || []) || undefined,
       forwarded: true,
     };
     if (rec.forwardedFrom) payload.fwdFrom = rec.forwardedFrom;
@@ -920,7 +931,24 @@ async function flushOutboxItem(msgId) {
     if (typeof Devices !== "undefined") { try { devCopies = await Devices.copiesFor(contact, entry.payload); } catch (e) { etherLog("warn", "[devices] copies:", String(e)); } }
     const sent = signaling && (devCopies && devCopies.length ? signaling.deliverMulti(entry.to, entry.msgId, envelope, Store.myPublicKeyJwk, kind, devCopies) : signaling.deliver(entry.to, entry.msgId, envelope, Store.myPublicKeyJwk, kind));
     if (sent && typeof Devices !== "undefined") Devices.syncSent(contact, entry.payload).catch(() => {}); // зеркалим отправленное на другие устройства аккаунта
-    if (!sent) markMessageAck(entry.to, msgId, "failed");
+    // Домашние серверы получателя (srv): если активный сервер не среди них или не принял — кладём конверт (тот же, уже зашифрованный) на них по порядку
+    const remoteUrls = srvRemoteTargets(contact);
+    const needRemote = remoteUrls.length > 0 && (!sent || !contact.servers.some((u) => ServerList.sameServer(u, effectiveSignalingUrl())));
+    if (needRemote) {
+      entry.needRemote = true;
+      if (!entry._remoteBusy) {
+        entry._remoteBusy = true;
+        srvRemoteDeliver(remoteUrls, entry.to, entry.msgId, envelope, kind).then((url) => {
+          entry._remoteBusy = false;
+          if (url) {
+            entry.remoteAcked = true;
+            if (outbox.get(msgId) === entry) outboxMarkServerAcked(msgId, entry);
+            if (kind === "chat" || kind === "file") markMessageAck(entry.to, msgId, "sent");
+          } else if (!sent) markMessageAck(entry.to, msgId, "failed");
+        }).catch(() => { entry._remoteBusy = false; });
+      }
+    }
+    if (!sent) { if (!needRemote) markMessageAck(entry.to, msgId, "failed"); }
     else if (kind === "chat" || kind === "file") {
       // Раньше здесь стояло только `kind === "chat"` — для kind
       // === "file" (голосовые и любые вложения, ушедшие офлайн-путём
@@ -935,7 +963,7 @@ async function flushOutboxItem(msgId) {
   } catch (e) { etherLog("error", "[crypto] encrypt:", String(e)); markMessageAck(entry.to, msgId, "failed"); }
 }
 async function flushOutbox() {
-  if (!signaling || !signaling.connected) return;
+  if ((!signaling || !signaling.connected) && !srvOutboxHasRemote()) return; // без активного сервера можно доставить через серверы получателя
   const ids = Array.from(outbox.keys());
   for (const id of ids) await flushOutboxItem(id);
   pruneOutbox();

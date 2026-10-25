@@ -136,8 +136,12 @@ const INCOMING_PUSH_CALL_TIMEOUT_MS = CALL_PUSH_TIMEOUT_MS - 5000; // экран
 const DEFAULT_CALL_VOLUME = 1;
 const LEGACY_CALL_VOLUME = 0.3333; // прежний умолчательный (не выбранный пользователем) уровень — считаем «не выбирал»
 
+// Активный сервер: автомат фейловера (js/serverlist.js, getFailover() в 10-signaling.js) -> поле «Сервер» -> встроенный по умолчанию.
+// Для пользователя с одним сервером результат тот же, что и раньше.
 function effectiveSignalingUrl() {
-  return (Store.signalingUrl || DEFAULT_SIGNALING_URL).trim();
+  let u = "";
+  try { if (typeof getFailover === "function") u = getFailover().current(); } catch (e) {}
+  return (u || Store.signalingUrl || DEFAULT_SIGNALING_URL).trim();
 }
 
 // =====================================================================
@@ -249,7 +253,7 @@ const CRITICAL_LS_KEYS = [
   "ether.readable", "ether.fxInit", "ether.requireVerifiedCalls", "ether.localAi", "ether.localAiLang", "ether.stories", "ether.quietOn", "ether.quietFrom", "ether.quietTo", "ether.wpColor1", "ether.wpColor2", "ether.chatWallpaper", "ether.voiceSpeed", "ether.deadManEnabled", "ether.deadManThresholdDays", "ether.deadManContactId", "ether.deadManLastSentAt",
   "ether.panicShakeEnabled", "ether.fx", "ether.sigKey", "ether.fx.aurora", "ether.keyInfo",
   "ether.claimToken", "ether.phoneDiscover", "ether.phoneDiscoverName", "ether.idMig",
-  "ether.fx.campfires", "ether.receiptsEnabled", "ether.lastSeenVisible", "ether.presenceVisible", "ether.myStatus",
+  "ether.servers", "ether.serversOff", "ether.srvShare", "ether.fx.campfires", "ether.receiptsEnabled", "ether.lastSeenVisible", "ether.presenceVisible", "ether.myStatus",
 ];
 
 // Резервная копия ключей в IndexedDB берёт значения «как лежат на диске» (при включённом шифровании — шифртекст), а не расшифрованные из памяти
@@ -484,6 +488,11 @@ const Store = {
   // чтобы содержимое мелькало на экране блокировки.
   get hideNotifContent() { return localStorage.getItem("ether.hideNotifContent") === "1"; },
   set hideNotifContent(v) { localStorage.setItem("ether.hideNotifContent", v ? "1" : "0"); },
+  // Звонки: только TURN-relay (скрывает IP от собеседника) и опциональный отчёт о качестве (по умолчанию выключены)
+  get hideIpInCalls() { return localStorage.getItem("ether.hideIpInCalls") === "1"; },
+  set hideIpInCalls(v) { localStorage.setItem("ether.hideIpInCalls", v ? "1" : "0"); },
+  get callReport() { return localStorage.getItem("ether.callReport") === "1"; },
+  set callReport(v) { localStorage.setItem("ether.callReport", v ? "1" : "0"); },
   get chatWallpaper() { return localStorage.getItem("ether.chatWallpaper") || "none"; },
   set chatWallpaper(v) { localStorage.setItem("ether.chatWallpaper", v); scheduleIDBBackup(); },
   get wallpaperColor1() { const v = localStorage.getItem("ether.wpColor1"); return /^#[0-9a-f]{6}$/i.test(v || "") ? v : "#6d5dfc"; },
