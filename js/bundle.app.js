@@ -4531,9 +4531,7 @@ function openGroupInfo(groupId) {
       row.className = "forward-row";
       const isMe = m.id === Store.myId;
       const memberIsAdmin = isGroupAdmin(g, m.id);
-      // V.80: если в «Дополнительно» есть «Удалить» (с причиной) — второй кнопки удаления в строке не показываем.
-      let advKick = false; try { advKick = !isMe && typeof GroupAdmin !== "undefined" && !g.isChannel && GroupAdmin.rank(g, Store.myId) >= 1 && GroupAdmin.can(g, Store.myId, { op: "kick", target: m.id }); } catch (e) {}
-      const canRemove = myIsAdmin && !isMe && !advKick;
+      const canRemove = myIsAdmin && !isMe;
       const roleBadge = memberIsAdmin ? `<span class="group-role-badge">${escapeHtml(T("group.admin"))}</span>` : "";
       row.innerHTML = `<div class="avatar avatar-sm" style="background:${avatarGradient(m.name)}">${escapeHtml(initials(m.name))}</div><span class="forward-name">${escapeHtml(m.name)}${isMe ? " " + escapeHtml(T("group.you")) : ""}</span>${roleBadge}`;
       if (myIsAdmin && !isMe && g.createdBy !== m.id) {

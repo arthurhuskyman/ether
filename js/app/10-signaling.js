@@ -1382,6 +1382,8 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     handleIdMigrateNotice(from, payload).catch((e) => etherLog("warn", "[idmig] notice:", String(e)));
   } else if (kind === "rc-reset") {
     handleRatchetResetRequest(from);
+  } else if (kind === "miniapp") { // состояние мини-приложения от собеседника (js/miniapps.js)
+    if (window.EtherMiniApps) { try { EtherMiniApps.receive(from, payload); } catch (e) {} }
   } else if (kind === "heartbeat") {
     // killer-features-backlog 0.5 — "мягкий" Dead Man's Switch: "я жив",
     // отправляется из checkDeadManSwitch() при каждом запуске отправителя.

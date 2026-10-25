@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Checklist</title>
+<style>
+:root{color-scheme:light dark;--bg:#fff;--fg:#1c1c1e;--mut:#8e8e93;--line:#d1d1d6;--acc:#0a84ff}
+@media (prefers-color-scheme:dark){:root{--bg:#1c1c1e;--fg:#f2f2f7;--line:#3a3a3c}}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.4 system-ui,sans-serif}
+body{padding:12px}#f{display:flex;gap:8px;margin-bottom:8px}
+input[type=text]{flex:1;min-width:0;font:inherit;padding:10px;border:1px solid var(--line);border-radius:10px;background:transparent;color:inherit}
+button{font:inherit;padding:10px 14px;border:0;border-radius:10px;background:var(--acc);color:#fff}
+ul{list-style:none;margin:0;padding:0}li{display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid var(--line)}
+li.done span{text-decoration:line-through;color:var(--mut)}li span{flex:1;word-break:break-word}
+li button{background:transparent;color:var(--mut);padding:4px 8px}input[type=checkbox]{width:22px;height:22px}
+#empty{color:var(--mut);text-align:center;padding:16px}
+</style></head><body>
+<div id="f"><input id="t" type="text" maxlength="120" autocomplete="off"><button id="add" type="button"></button></div>
+<ul id="l"></ul><div id="empty"></div>
+<script src="../sdk.js"></script><script src="app.js"></script>
+</body></html>

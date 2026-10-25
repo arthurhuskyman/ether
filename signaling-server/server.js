@@ -678,6 +678,7 @@ const httpServer = http.createServer(async (req, res) => {
   if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
 
   if (url.startsWith("/link/") && await require("./devicelink").handle(req, res, clientIp(req))) return; // перенос на новое устройство (docs/MULTIDEVICE.md)
+  if (federation.enabled && url.startsWith("/federation/") && await federation.handle(req, res)) return; // ЭКСПЕРИМЕНТАЛЬНО, по умолчанию выключено (federation.js)
   if (req.method === "GET" && (url === "/ice" || url.startsWith("/ice?"))) {
     const ip = clientIp(req);
     if (!rateLimitOk(ip)) {
@@ -1552,7 +1553,16 @@ function devicesCtx() {
     mailboxDropBox: (k) => { const b = mailbox.get(k); if (b) for (const m of Array.from(b.keys())) mailboxRemove(k, m); scheduleMailboxSave(); } };
 }
 let SERVER_VERSION = "0"; try { SERVER_VERSION = String(require("./package.json").version || "0"); } catch (e) {}
-const SERVER_FEATURES = ["ratchet2", "prekeys", "watch", "claim", "env2", "devicelink", "devlist", "devmail", "devsync", "devpush", "devnotify", "alias", "channels", "gdeliver", "sk1", "pq1"].concat(DISCOVERY_ENABLED ? ["discovery"] : []);
+// Федерация ретрансляторов (fed0, ЭКСПЕРИМЕНТАЛЬНО, FEDERATION_ENABLED=1): подписанная пересылка непрозрачных конвертов пирам с закреплёнными ключами. Выключена -> код не участвует.
+const federation = require("./federation").create({
+  isValidEnvelope, cleanEnvelope, cleanKind, validPeerId,
+  deliverLocal(to, p) {
+    mailboxPut(to, p.msgId, { ...p, ts: Date.now() }); scheduleMailboxSave();
+    const target = clients.get(to);
+    if (target && target.ws.readyState === WebSocket.OPEN) safeSend(target.ws, { type: "deliver", ...p, queued: false });
+  },
+});
+const SERVER_FEATURES = ["ratchet2", "prekeys", "watch", "claim", "env2", "devicelink", "devlist", "devmail", "devsync", "devpush", "devnotify", "alias", "channels", "gdeliver", "sk1", "pq1"].concat(DISCOVERY_ENABLED ? ["discovery"] : [], federation.enabled ? ["fed0"] : []);
 
 // ---------- Каналы и групповая доставка Sender Keys (channels.js, gdeliver.js) ----------
 const channelsMod = require("./channels").create({
@@ -2022,6 +2032,14 @@ wss.on("connection", (ws, req) => {
       // Отсекаем сразу.
       const sid = aliasSender(myId, msg.as); // от имени старого id (алиас) - для контактов, которые ещё не перешли на новый
       msg.to = aliasResolve(msg.to); // адресат со старым id алиаса -> новый id (ящик, push и доставка - на новый)
+      if (federation.enabled && federation.isRemote(msg.to)) { // "id@пир": подписанная пересылка конверта на другой ретранслятор (федерация fed0)
+        if (!wsRateLimitPairOk(myId, msg.to, DELIVER_RATE_LIMIT_PER_MIN) || !wsRateLimitOk(deliverTotalHits, myId, DELIVER_TOTAL_LIMIT_PER_MIN)) return;
+        const fenv = isValidEnvelope(msg.envelope) ? cleanEnvelope(msg.envelope) : null;
+        if (!fenv || (msg.fromPublicKey != null && (typeof msg.fromPublicKey !== "object" || Array.isArray(msg.fromPublicKey) || JSON.stringify(msg.fromPublicKey).length > 1024))) { safeSend(ws, { type: "deliver-ack", msgId: msg.msgId, error: "invalid-envelope" }); return; }
+        federation.forward({ from: sid, to: msg.to, msgId: msg.msgId, envelope: fenv, fromPublicKey: msg.fromPublicKey || null, kind: cleanKind(msg.kind) })
+          .then((r) => safeSend(ws, r.ok ? { type: "deliver-ack", msgId: msg.msgId } : { type: "deliver-ack", msgId: msg.msgId, error: r.error }));
+        return;
+      }
       if (msg.to === myId && !((msg.kind === "sync-sent" || msg.kind === "sync-op") && Array.isArray(msg.copies))) return;
       if (!wsRateLimitPairOk(myId, msg.to, DELIVER_RATE_LIMIT_PER_MIN)) return;
       if (!wsRateLimitOk(deliverTotalHits, myId, DELIVER_TOTAL_LIMIT_PER_MIN)) return; // общий потолок на отправителя независимо от получателей

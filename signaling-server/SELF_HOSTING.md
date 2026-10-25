@@ -71,6 +71,16 @@ npm start
 - Тонкая настройка серии: `RING_INTERVAL_MS` (5000), `RING_MAX` (6), `RING_HOLD_MS` (45000), `RING_ONLINE_GRACE_MS` (4000), `RING_PAIR_MS` (20000, 1 звонок на пару), `RING_RECIPIENT_PER_MIN` (3), `PUSH_TEST_PER_MIN` (3).
 - Звонок по ссылке: `LINKCALL_TTL_MS` (600000), `LINKCALL_MAX_MS` (7200000), `LINKCALL_MAX_PER_ID` (3), `LINKCALL_MAX_ROOMS` (5000), `LINKCALL_CREATE_PER_MIN` (6), `LINKCALL_JOIN_ROOM_PER_MIN` (20), `LINKCALL_JOIN_CODE_PER_MIN` (5).
 
+## Федерация ретрансляторов (fed0, ЭКСПЕРИМЕНТАЛЬНО, по умолчанию выключена)
+
+Подписанная пересылка непрозрачных E2E-конвертов между вашими серверами; формат и ограничения — `signaling-server/federation.js`, `docs/PROTOCOL-V1.md` (§12). Это заготовка, а не готовая федерация:
+нет обнаружения пиров, присутствия, prekey, каналов, групп, файлов и push через границу серверов; нет очереди повторов (недоступный пир = ошибка в `deliver-ack`).
+
+- `FEDERATION_ENABLED=1`, `FEDERATION_NAME=alpha` (`[a-z0-9.-]`, имя этого сервера в адресах `id@alpha`).
+- `FEDERATION_PEERS='[{"name":"beta","url":"https://beta.example","pub":"<поле pub из GET https://beta.example/federation/identity>"}]'` — пиры и их **закреплённые** ключи Ed25519 (сверяйте отпечаток `fp` по другому каналу).
+- `FEDERATION_KEY_FILE` (по умолчанию `DATA_DIR/.ether-federation-key.json`, права 0600, создаётся при первом запуске), `FEDERATION_RATE_PER_MIN` (600), `FEDERATION_TIMEOUT_MS` (5000), `FEDERATION_MAX_BODY`.
+- Пир, чьим ключом подписаны запросы, может назвать своего пользователя как угодно: личность подтверждают только E2E-ключи контактов в клиенте.
+
 ## Подключение приложения к своему серверу
 
 В Мессенджере: Settings → Signaling server → вставьте `wss://ваш-домен` → «Save and connect». Это уже существующая настройка (`Store.signalingUrl`) — весь смысл этого документа в том, чтобы разворачивание сервера было таким же простым, как сама настройка.

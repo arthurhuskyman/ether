@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Dice</title>
+<style>
+:root{color-scheme:light dark;--bg:#fff;--fg:#1c1c1e;--mut:#8e8e93;--line:#d1d1d6;--acc:#0a84ff}
+@media (prefers-color-scheme:dark){:root{--bg:#1c1c1e;--fg:#f2f2f7;--line:#3a3a3c}}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.4 system-ui,sans-serif}
+body{padding:16px;text-align:center}#die{font-size:72px;line-height:1.2;margin:8px 0;min-height:88px}
+.row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:8px 0}
+button{font:inherit;padding:10px 16px;border:0;border-radius:10px;background:var(--acc);color:#fff}button.alt{background:transparent;color:var(--acc);border:1px solid var(--line)}
+#hist{color:var(--mut);font-size:14px;min-height:20px}
+</style></head><body>
+<div id="die" aria-live="polite">🎲</div>
+<div class="row" id="sides"></div>
+<div class="row"><button id="roll" type="button"></button><button id="send" class="alt" type="button" disabled></button></div>
+<div id="hist"></div>
+<script src="../sdk.js"></script><script src="app.js"></script>
+</body></html>
