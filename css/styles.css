@@ -1138,20 +1138,20 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
 
 /* длинные сообщения: градиент на большой площади выглядит дёшево — плоская заливка (класс ставит рендер) */
 .bubble-row.mine .bubble.bubble-long { background: var(--accent-bg); }
-.bubble-time { display: block; font-size: var(--t-meta); opacity: 0.75; margin-top: 3px; text-align: end; color: inherit; letter-spacing: var(--tr-loose); }
+.bubble-time { display: block; font-size: var(--t-meta); opacity: 1; margin-top: 3px; text-align: end; color: inherit; letter-spacing: var(--tr-loose); }
 .bubble-row.theirs .bubble-time { color: var(--ink-2); opacity: 1; }
-.bubble-edited { font-size: var(--t-meta); opacity: 0.7; margin-inline-start: 4px; }
+.bubble-edited { font-size: var(--t-meta); opacity: 1; margin-inline-start: 4px; }
 .bubble-ttl { font-size: var(--t-meta); opacity: 0.75; margin-inline-end: 2px; }
 .bubble-favorite { color: #ffcc33; display: inline-flex; margin-inline-end: 2px; vertical-align: middle; }
 .bubble-sender { font-size: var(--fs-xs); font-weight: 700; color: var(--accent); margin-bottom: 2px; }
-.bubble-reply { padding: 6px 10px; margin: -2px 0 6px; border-inline-start: 3px solid currentColor; border-radius: 8px; background: rgba(255, 255, 255, 0.08); font-size: var(--fs-xs); opacity: 0.85; }
+.bubble-reply { padding: 6px 10px; margin: -2px 0 6px; border-inline-start: 3px solid currentColor; border-radius: 8px; background: rgba(255, 255, 255, 0.08); font-size: var(--fs-xs); opacity: 1; }
 .bubble-reply-author { font-weight: 600; font-size: 0.6875rem; }
 .bubble-reply-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .bubble-forwarded { font-size: 0.625rem; opacity: 0.75; font-style: italic; margin-bottom: 3px; }
 /* Перевод сообщения (раздел 5 роадмапа) — под оригиналом, визуально
    отделён тонкой чертой, не подменяет исходный текст. */
 .bubble-translation { margin-top: 5px; padding-top: 5px; border-top: 1px dashed var(--line-1); font-style: italic; opacity: 0.88; }
-.bubble-translation-label { font-size: 0.625rem; font-style: normal; opacity: 0.65; margin-inline-end: 4px; }
+.bubble-translation-label { font-size: 0.625rem; font-style: normal; opacity: 1; margin-inline-end: 4px; }
 .bubble-reactions { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; margin-bottom: -2px; }
 .bubble-reaction-chip { background: rgba(255, 255, 255, 0.18); border-radius: 12px; padding: 2px 6px; font-size: var(--fs-xs); }
 .bubble-row.theirs .bubble-reaction-chip { background: var(--input-bg); }
@@ -1245,7 +1245,7 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
 .link-preview-text { padding: 8px 10px; }
 .link-preview-title { font-size: var(--fs-sm); font-weight: 600; line-height: 1.3; margin-bottom: 2px; }
 .link-preview-desc { font-size: var(--fs-xs); opacity: 0.8; line-height: 1.3; max-height: 2.6em; overflow: hidden; }
-.link-preview-site { font-size: 0.6875rem; opacity: 0.6; margin-top: 3px; text-transform: uppercase; letter-spacing: 0.02em; }
+.link-preview-site { font-size: 0.6875rem; opacity: 1; margin-top: 3px; text-transform: uppercase; letter-spacing: 0.02em; }
 
 .contact-card-bubble { display: flex; align-items: center; gap: 10px; padding: 4px 2px; min-width: min(180px, 100%); }
 .contact-card-info { display: flex; flex-direction: column; gap: 4px; }
@@ -1314,7 +1314,7 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
 .bubble-row.mine .voice-play-btn { background: #fff; color: var(--accent); }
 .bubble-row.mine .voice-progress { background: rgba(255,255,255,0.3); }
 .bubble-row.mine .voice-progress-fill { background: #fff; }
-.voice-duration { font-size: 0.6875rem; opacity: 0.75; min-width: 34px; text-align: end; }
+.voice-duration { font-size: 0.6875rem; opacity: 1; min-width: 34px; text-align: end; }
 /* Раздел 7 роадмапа — живая волна ПРИ ПРОСЛУШИВАНИИ (не при записи, та
    уже была — см. .voice-recording-wave выше). Разметка статична (5 пустых
    span), высота/прозрачность каждого — инлайн-стили из JS
@@ -1384,7 +1384,7 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
   border-radius: 12px;
   max-width: 80%;
 }
-.system-message-time { opacity: 0.65; margin-inline-start: 6px; }
+.system-message-time { opacity: 1; margin-inline-start: 6px; }
 
 .edit-banner { display: flex; align-items: center; gap: var(--sp-2); padding: 6px 12px; border-radius: var(--radius-m) var(--radius-m) 0 0; border-bottom: none; color: var(--accent); font-size: var(--fs-sm); flex-shrink: 0; }
 .edit-banner-text { flex: 1; }
@@ -1430,6 +1430,8 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
   color: var(--ink-0);
 }
 #chat-input::placeholder { color: var(--ink-3); }
+/* V.80: placeholder любого поля без своего правила — токен подписей, а не серый #757575 браузера (≈3:1 на тёмных панелях) */
+input::placeholder, textarea::placeholder { color: var(--ink-3); opacity: 1; }
 
 .send-btn {
   width: 40px; height: 40px; border-radius: 50%; border: none;
@@ -1614,7 +1616,7 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
   color: rgba(255, 255, 255, 0.75);
   margin: 0 auto clamp(4px, 1.4dvh, 14px);
 }
-.call-bottom-area { display: flex; flex-direction: column; align-items: center; position: relative; z-index: 2; padding-bottom: 4px; }
+.call-bottom-area { align-self: stretch; width: 100%; display: flex; flex-direction: column; align-items: center; position: relative; z-index: 2; padding-bottom: 4px; }
 .call-volume svg { flex-shrink: 0; opacity: 0.8; }
 .call-notice { max-width: min(92%, 320px); margin: 0; padding: 6px 12px; border: 1px solid rgba(255, 214, 102, 0.55); border-radius: 16px; background: rgba(255, 196, 60, 0.18); color: #fff; font: inherit; font-size: var(--fs-sm); line-height: 1.3; text-align: center; overflow-wrap: anywhere; cursor: pointer; }
 .call-notice.hidden, .call-sound-fix.hidden { display: none; }
@@ -1637,7 +1639,7 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
   position: relative;
   z-index: 2;
   flex-wrap: nowrap;
-  width: 100%; max-width: 100%;
+  width: 100%; max-width: 100%; align-self: stretch;
 }
 .call-btn {
   position: relative;
@@ -1660,7 +1662,7 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
 }
 .call-btn svg {
   /* 5 кнопок в ряд на 320 px: круг ужимается вместе с рядом, а не вылезает за край */
-  width: min(54px, 100%); height: auto; aspect-ratio: 1; padding: 28%;
+  width: min(54px, 100%); height: auto; aspect-ratio: 1; padding: clamp(9px, 28%, 15px);
   border-radius: 50%; box-sizing: border-box;
   background: rgba(255, 255, 255, 0.16);
   color: #fff;
@@ -1670,6 +1672,7 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
   pointer-events: none;
 }
 .call-btn:active svg { transform: scale(0.95); }
+#call-controls-incoming { gap: 14px; }
 .call-btn.hangup svg { background: var(--danger-bg); color: #fff; }
 .call-btn.accept svg { background: var(--success-bg); color: #fff; }
 
@@ -1688,7 +1691,7 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
    масса меньше, чем у геометрически простых иконок, и при стандартном
    отступе она выглядела мелкой "точкой" в круге — уменьшаем отступ
    только для этой кнопки, иконка становится заметно крупнее. */
-#call-mute-btn svg { padding: 19%; }
+#call-mute-btn svg { padding: clamp(7px, 19%, 11px); }
 
 .sheet { position: fixed; inset: 0; z-index: var(--z-sheet); display: flex; align-items: flex-end; }
 .sheet-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.45); }
@@ -1786,7 +1789,7 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
 }
 .panic-shake-banner.hidden { display: none; }
 .panic-shake-banner button {
-  background: rgba(255, 255, 255, 0.2); color: #fff; border: none; border-radius: 12px;
+  background: rgba(0, 0, 0, 0.28); color: #fff; border: none; border-radius: 12px;
   padding: 6px 12px; font-size: var(--fs-sm); font-weight: 600; flex: none; cursor: pointer;
 }
 
@@ -2355,8 +2358,10 @@ html[data-search-tab="debug"] #search-dock [data-search-tab="debug"] { display: 
 
 /* ---- «Переслано»: контрастная метка в любых сообщениях ---- */
 .bubble-row.mine .bubble-forwarded { background: rgba(255, 255, 255, 0.96); color: #3b2bb5; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25); }
-.bubble-row.theirs .bubble-forwarded { background: var(--accent-lo, #6a4de0); color: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25); }
-html[data-scheme="light"] .bubble-row.theirs .bubble-forwarded { background: #5a3fd1; color: #fff; }
+/* V.80: плашка «Переслано» у чужого пузыря берёт цвет текста самого пузыря (он читаем на любом скине) и подкрашивает фон на 12%,
+   а не белый текст на --accent-lo: у светлых акцентов тёмных схем (неон, сакура, мультяшный…) белое на светлом не читалось. */
+.bubble-row.theirs .bubble-forwarded { background: rgba(127, 127, 127, 0.18); background: color-mix(in srgb, currentColor 12%, transparent); color: inherit; box-shadow: none; border: 1px solid color-mix(in srgb, currentColor 28%, transparent); }
+html[data-scheme="light"] .bubble-row.theirs .bubble-forwarded { background: rgba(127, 127, 127, 0.18); background: color-mix(in srgb, currentColor 12%, transparent); color: inherit; }
 .bubble-forwarded { font-size: 0.71875rem; font-weight: 700; padding: 3px 10px 3px 8px; margin-bottom: 6px; }
 .bubble-forwarded::before { content: "↪"; font-weight: 800; }
 .file-media-wrap .file-media-slot, .voice-bubble, .file-bubble-doc, .contact-card-bubble { margin-top: 0; }
@@ -2468,7 +2473,7 @@ html[data-readable="1"] .chat-row-preview-text, html[data-readable="1"] .setting
 .bubble-row.mine .voice-wave-bars i.on { color: #fff; }
 .voice-wave .voice-progress-fill { display: none; }
 .bubble-row.mine .voice-progress.voice-wave { background: transparent; }
-.voice-speed-btn { flex: none; min-width: 34px; height: 24px; padding: 0 6px; border-radius: 12px; border: 1px solid currentColor; background: transparent; color: inherit; font-size: 0.6875rem; font-weight: 600; opacity: .75; cursor: pointer; }
+.voice-speed-btn { flex: none; min-width: 34px; height: 24px; padding: 0 6px; border-radius: 12px; border: 1px solid currentColor; background: transparent; color: inherit; font-size: 0.6875rem; font-weight: 600; opacity: 1; cursor: pointer; }
 .voice-speed-btn:active { transform: scale(.94); }
 #voice-recording-bar.is-paused .voice-recording-dot { animation: none; opacity: .4; }
 #voice-recording-bar.is-paused .voice-recording-wave span { animation: none !important; transform: scaleY(.35) !important; opacity: .4 !important; }
@@ -2490,9 +2495,9 @@ html[data-readable="1"] .chat-row-preview-text, html[data-readable="1"] .setting
 .poll-opt.is-mine { border-color: var(--accent); }
 .poll-opt-mark { width: 16px; display: inline-flex; color: var(--accent); }
 .poll-opt-text { flex: 1; }
-.poll-opt-count { font-size: var(--t-meta, 0.75rem); opacity: .8; min-width: 32px; text-align: end; }
-.poll-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 8px; font-size: var(--t-meta, 0.75rem); opacity: .85; }
-.poll-close-btn { background: none; border: 0; color: var(--accent); font: inherit; font-size: var(--t-meta, 0.75rem); cursor: pointer; padding: 4px 0; }
+.poll-opt-count { font-size: var(--t-meta, 0.75rem); opacity: 1; min-width: 32px; text-align: end; }
+.poll-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 8px; font-size: var(--t-meta, 0.75rem); opacity: 1; }
+.poll-close-btn { background: none; border: 0; color: inherit; text-decoration: underline; text-underline-offset: 2px; font: inherit; font-size: var(--t-meta, 0.75rem); cursor: pointer; padding: 4px 0; }
 .poll-closed { font-weight: 600; }
 .board-cols { display: flex; gap: 6px; overflow-x: hidden; padding-bottom: 4px; max-width: 100%; -webkit-overflow-scrolling: touch; }
 .board-col { flex: 1 1 0; min-width: 0; background: color-mix(in srgb, currentColor 7%, transparent); border-radius: var(--radius-s, 8px); padding: 6px; display: flex; flex-direction: column; gap: 6px; }
