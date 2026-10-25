@@ -25,7 +25,7 @@ test.after(async () => { await closeAll(); for (const p of procs) { try { p.kill
 const until = async (fn, ms = 10000) => { const end = Date.now() + ms; while (Date.now() < end) { if (fn()) return true; await new Promise((r) => setTimeout(r, 50)); } return false; };
 const sv = (...u) => JSON.stringify(u.map((url) => ({ url, label: url.slice(5), addedAt: 1 })));
 async function boot(id, name, storage) {
-  const a = createApp({ realWebSocket: true, storage: { "ether.name": name, "ether.myId": id, "ether.lang": "en", ...storage } });
+  const a = createApp({ realWebSocket: true, storage: { "ether.name": name, "ether.myId": id, "ether.lang": "en", "ether.serversOff": JSON.stringify(["wss://ether-1-baqy.onrender.com"]), ...storage } });
   await a.ready;
   for (let i = 0; i < 100 && !a.run(`typeof __appStarted !== "undefined" && __appStarted`); i++) await new Promise((r) => setTimeout(r, 50));
   return a;
@@ -82,7 +82,6 @@ test("A на S2, получатель B слушает только S1: конв
   send(A, "bob2-id", "m-2", chat("c-2", "на сервер получателя"));
   assert.ok(await until(() => has(B, "alice2-id", "c-2"), 15000), "B получил живьём от S1");
   assert.ok(await until(() => A.run(`outbox.size === 0`), 15000), "после подтверждения сервером получателя запись снята");
-  assert.ok(A.run(`state.contacts.get("bob2-id").messages.length === 0`) || true);
   S1.proc.kill(); S2.proc.kill();
 });
 

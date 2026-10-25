@@ -4546,14 +4546,14 @@ class MeshManager extends EventTarget {
     idbCache.set(factory, p); return p;
   }
   class IdbMetaDb {
-    constructor(factory) { this.f = factory || G.indexedDB; }
+    constructor(factory, keyRange) { this.f = factory || G.indexedDB; this.KR = keyRange || G.IDBKeyRange; }
     async _s(mode) { const db = await idbOpen(this.f); const tx = db.transaction("meta", mode); return [tx.objectStore("meta"), tx]; }
     async get(k) { const [s] = await this._s("readonly"); return reqP(s.get(k)); }
     async set(k, v) { const [s, tx] = await this._s("readwrite"); s.put(v, k); await txDone(tx); }
     async del(k) { const [s, tx] = await this._s("readwrite"); s.delete(k); await txDone(tx); }
     async list(prefix) {
       const [s] = await this._s("readonly");
-      const range = G.IDBKeyRange ? G.IDBKeyRange.bound(prefix, prefix + "￿") : undefined;
+      const range = this.KR ? this.KR.bound(prefix, prefix + "\uffff") : undefined;
       const keys = await reqP(s.getAllKeys(range)), vals = await reqP(s.getAll(range));
       return keys.map((k, i) => [k, vals[i]]);
     }
@@ -4578,7 +4578,7 @@ class MeshManager extends EventTarget {
   class IdbStore {
     static async open(s, o) {
       const f = (o && o.idb) || G.indexedDB; if (!f) throw new Error("no idb");
-      const st = new IdbStore(); st.kind = "idb"; st.id = s.id; st.f = f; st.db = await idbOpen(f); st.useBlob = typeof G.Blob === "function"; return st;
+      const st = new IdbStore(); st.kind = "idb"; st.id = s.id; st.f = f; st.db = await idbOpen(f); st.useBlob = typeof G.Blob === "function"; st.KR = (o && o.keyRange) || G.IDBKeyRange; return st;
     }
     constructor() { this.durable = true; this.resumable = true; }
     commitDue() { return false; }
@@ -4593,12 +4593,12 @@ class MeshManager extends EventTarget {
       }
     }
     async flush() {}
-    _range() { return G.IDBKeyRange.bound([this.id, 0], [this.id, Infinity]); }
+    _range() { return this.KR.bound([this.id, 0], [this.id, Infinity]); }
     async _batches(cb) {
       let lower = [this.id, -1], open = true;
       while (true) {
         const tx = this.db.transaction("chunks", "readonly"), os = tx.objectStore("chunks");
-        const range = G.IDBKeyRange.bound(lower, [this.id, Infinity], open, false);
+        const range = this.KR.bound(lower, [this.id, Infinity], open, false);
         const recs = await reqP(os.getAll(range, 64));
         if (!recs.length) return;
         await cb(recs);
@@ -4617,7 +4617,7 @@ class MeshManager extends EventTarget {
       return new G.ReadableStream({
         async pull(ctrl) {
           const tx = self.db.transaction("chunks", "readonly");
-          const recs = await reqP(tx.objectStore("chunks").getAll(G.IDBKeyRange.bound(lower, [self.id, Infinity], true, false), 16));
+          const recs = await reqP(tx.objectStore("chunks").getAll(self.KR.bound(lower, [self.id, Infinity], true, false), 16));
           if (!recs.length) { ctrl.close(); return; }
           for (const r of recs) ctrl.enqueue(new Uint8Array(typeof r.d.arrayBuffer === "function" ? await r.d.arrayBuffer() : r.d));
           lower = [self.id, recs[recs.length - 1].i];

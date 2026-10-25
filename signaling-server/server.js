@@ -647,7 +647,10 @@ async function getLinkPreview(targetUrl) {
 // одной переменной на оба назначения не хватает: либо CORS сломается
 // (браузер не примет origin с путём), либо push будет открывать не ту
 // страницу. Поэтому — две отдельные переменные.
-const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "*";
+// ALLOWED_ORIGIN: один origin, "*" или список через запятую (приложение + зеркала на других доменах, docs/MIRRORS.md); список -> отражаем origin запроса, если он в списке.
+const ALLOWED_ORIGIN_RAW = process.env.ALLOWED_ORIGIN || "*";
+const ALLOWED_ORIGIN_LIST = ALLOWED_ORIGIN_RAW.split(",").map((x) => x.trim().replace(/\/+$/, "")).filter(Boolean);
+const ALLOWED_ORIGIN = ALLOWED_ORIGIN_LIST[0] || "*";
 if (ALLOWED_ORIGIN === "*") {
   console.warn("[ice] ALLOWED_ORIGIN не задан — /ice отдаёт TURN-credentials любому источнику. " +
     "Перед публичным релизом задайте ALLOWED_ORIGIN=https://ваш-домен в переменных окружения.");
@@ -663,7 +666,7 @@ if (ALLOWED_ORIGIN === "*") {
 const APP_BASE_URL = (process.env.APP_BASE_URL || (ALLOWED_ORIGIN !== "*" ? ALLOWED_ORIGIN : "") || "https://arthurhuskyman.github.io/ether").replace(/\/+$/, "");
 const APP_ORIGIN = APP_BASE_URL;
 const httpServer = http.createServer(async (req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
+  { const ro = req.headers.origin; res.setHeader("Access-Control-Allow-Origin", ALLOWED_ORIGIN_LIST.length > 1 && ro && ALLOWED_ORIGIN_LIST.includes(ro) ? ro : ALLOWED_ORIGIN); }
   res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Link-T, X-Link-U");
@@ -1693,7 +1696,7 @@ function readJsonBody(req, res, max, cb) {
   req.on("end", () => { if (dead) return; let o = null; try { o = JSON.parse(Buffer.concat(chunks).toString("utf8")); } catch (e) {} cb(o); });
   req.on("error", () => {});
 }
-const PUSH_ACK_ORIGINS = new Set([APP_BASE_URL, ALLOWED_ORIGIN, ...String(process.env.PUSH_ACK_ORIGINS || "").split(",")].map((s) => { try { return s && s !== "*" ? new URL(s.trim()).origin : ""; } catch (e) { return ""; } }).filter(Boolean));
+const PUSH_ACK_ORIGINS = new Set([APP_BASE_URL, ...ALLOWED_ORIGIN_LIST, ...String(process.env.PUSH_ACK_ORIGINS || "").split(",")].map((s) => { try { return s && s !== "*" ? new URL(s.trim()).origin : ""; } catch (e) { return ""; } }).filter(Boolean));
 // POST /push-ack {callId, seq, ackToken}: service worker подтверждает, что push показан → звонящему call-ringing (один раз)
 function handlePushAck(req, res, ip) {
   const origin = req.headers.origin;

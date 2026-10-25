@@ -239,6 +239,7 @@ function deleteMessageLocal(contactId, msgId, batch) {
   purgeUnsentForMessage(msgId);
   if (m && (m.file || (m.sticker && m.sticker.custom))) {
     IDB.del("file:" + msgId).catch(() => {});
+    if (m.file && m.file.big && typeof bigDiscard === "function") bigDiscard(msgId); // V.80: данные большого файла в хранилище движка
     const url = fileBlobUrlCache.get(msgId);
     if (url) { URL.revokeObjectURL(url); fileBlobUrlCache.delete(msgId); }
     // удалённое голосовое не должно продолжать играть из кэша аудио-элементов

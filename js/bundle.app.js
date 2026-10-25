@@ -4747,7 +4747,7 @@ function chatRenderSig(c, q, list) {
   for (const m of (list || c.messages)) {
     h += "\n" + m.id + ":" + (m.rv || 0) + (m.ack || "") + (m.edited ? "e" : "") + (m.deleted ? "d" : "") + (m.favorite ? "f" : "") + (m.ttl || "") + (m.forwarded ? "w" : "") + ":" + (m.text || "")
       + (m.translation ? m.translation.text : "") + (m.reactions ? JSON.stringify(m.reactions) : "") + (m.poll && typeof EtherRich !== "undefined" && EtherRich.isClosed(m) ? "pc" : "")
-      + (m.file ? [m.file.pending ? 1 : 0, m.file.failed ? 1 : 0, m.file.progress || "", m.file.w || ""].join("") : "") + (m.replyTo ? "r" : "")
+      + (m.file ? [m.file.pending ? 1 : 0, m.file.failed ? 1 : 0, m.file.progress || "", m.file.w || "", m.file.bstate || ""].join("") : "") + (m.replyTo ? "r" : "")
       + (m.contactCard ? (state.contacts.has(m.contactCard.id) ? "+" : "-") : ""); // B6: «Добавить» → «Уже добавлен» зависит от contacts, а не от самого сообщения
   }
   return h;
@@ -5998,6 +5998,7 @@ function deleteMessageLocal(contactId, msgId, batch) {
   purgeUnsentForMessage(msgId);
   if (m && (m.file || (m.sticker && m.sticker.custom))) {
     IDB.del("file:" + msgId).catch(() => {});
+    if (m.file && m.file.big && typeof bigDiscard === "function") bigDiscard(msgId); // V.80: данные большого файла в хранилище движка
     const url = fileBlobUrlCache.get(msgId);
     if (url) { URL.revokeObjectURL(url); fileBlobUrlCache.delete(msgId); }
     // удалённое голосовое не должно продолжать играть из кэша аудио-элементов
@@ -6786,7 +6787,8 @@ function fileKindFromMime(mime) {
 function formatFileSize(bytes) {
   if (bytes < 1024) return bytes + " B";
   if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + " KB";
-  return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+  return (bytes / (1024 * 1024 * 1024)).toFixed(2) + " GB";
 }
 const fileBlobUrlCache = new Map(); // msgId -> object URL, чтобы не пересоздавать при каждом ре-рендере
 const FILE_BLOB_URL_CACHE_MAX = 300; // выше, чем у превью ссылок: если "on-screen" картинка/видео ссылается на blob URL, а мы его отзовём — она сломается, поэтому вытесняем осторожнее и только при реальном избытке
@@ -6951,18 +6953,23 @@ async function sendFileMessage(contactId, file, opts) {
   // где size > 0) молча его отбрасывал. Симметрично отклоняем уже
   // здесь, с понятным сообщением, а не тихим расхождением.
   if (file.size === 0) { toast(T("toast.fileEmpty")); return; }
-  if (file.size > MAX_FILE_SIZE_INPUT) { toast(T("toast.fileTooLarge", { size: formatFileSize(MAX_FILE_SIZE_INPUT) })); return; }
+  // V.80: в личном чате файлы больше офлайн-потолка (2 МБ) идут по прямому P2P бинарным протоколом, до P2P_MAX_FILE_SIZE (4 ГБ); группы — как раньше
+  const bigOk = !inGroup && file.size > MAX_FILE_SIZE && file.size <= EtherFileLimits.P2P_MAX_FILE_SIZE && !!bigHubGet();
+  if (file.size > MAX_FILE_SIZE_INPUT && !bigOk) { toast(T("toast.fileTooLarge", { size: formatFileSize(!inGroup && typeof EtherBigFile !== "undefined" ? EtherFileLimits.P2P_MAX_FILE_SIZE : MAX_FILE_SIZE_INPUT) })); return; }
   // Целевой потолок того, что реально уходит — 2МБ. Если исходник
   // больше и это изображение — пробуем сжать автоматически, вместо
   // того чтобы сразу отказывать. Итоговый Blob подменяет исходный
   // file для всего остального пути (P2P/офлайн-очередь его не
   // различают — им важен только размер и содержимое).
   if (file.size > sizeCap) {
-    const compressed = await compressImageToTarget(file, sizeCap);
+    const compressed = file.size <= MAX_FILE_SIZE_INPUT ? await compressImageToTarget(file, sizeCap) : null;
     if (compressed) {
       const origName = file.name || "photo.jpg";
       const newName = origName.replace(/\.[^.]+$/, "") + ".jpg";
       file = new File([compressed], newName, { type: "image/jpeg" });
+    } else if (bigOk) {
+      await sendBigFile(contactId, file, { caption });
+      return;
     } else {
       toast(T("toast.fileTooLarge", { size: formatFileSize(sizeCap) }));
       return;
@@ -7429,6 +7436,16 @@ function sweepIncomingFileBuffers() {
   }
 }
 function handleFilePayload(from, payload) {
+  { // V.80: двоичный протокол больших файлов (filebin1) — отдельный движок; старый JSON/base64-путь ниже не затронут
+    const hub = payload && payload.kind !== "file-chunk" && payload.kind !== "file-done" && typeof EtherBigFile !== "undefined" ? bigHubGet() : null;
+    if (hub && hub.isBigMessage(payload)) {
+      const link = mesh && mesh.get(from);
+      if (link && payload.kind === "file-meta") link.peerFileBin = true; // бинарный file-meta уже доказывает поддержку
+      bigEnsureBound(from, link);
+      hub.handleJson(from, payload).catch((e) => etherLog("warn", "[bigfile] handle:", String(e)));
+      return;
+    }
+  }
   if (payload.kind === "file-meta") {
     // Без верхней границы недобросовестный/сбойный пир мог прислать много
     // мелких file-meta и никогда не прислать file-done — Map росла бы
@@ -7528,6 +7545,12 @@ async function finishIncomingFile(msgId, buf, from) {
   if (rec) {
     rec.file.pending = false;
     persistContacts();
+    notifyIncomingFileDone(from, c, rec);
+  }
+}
+// Общий хвост приёма файла (малого и большого): перерисовка/уведомление/звук/бейдж.
+function notifyIncomingFileDone(from, c, rec) {
+  if (rec) {
     const isOpen = state.chatId === from;
     if (isOpen) { renderChatThread(); playMessageSound(from); vibrate([80, 40, 80]); }
     else {
@@ -7542,6 +7565,220 @@ async function finishIncomingFile(msgId, buf, from) {
     // раньше здесь отправлялось безусловно, даже если человек листал старую переписку.
     updateAppBadge();
   }
+}
+// =====================================================================
+// V.80: большие файлы по прямому P2P (до 4 ГБ). Движок — EtherBigFile.Hub (js/bigfile.js): двоичные кадры по DataChannel,
+// запись на диск получателя (OPFS → IndexedDB → память ≤ 64 МБ), SHA-256, докачка, пауза/отмена. Здесь — только склейка с приложением:
+// привязка транспорта к P2P-ссылкам, сообщения в ленте, прогресс/скорость/ETA, кнопки. Малые файлы (≤ 2 МБ) идут прежним путём.
+let bigHub = null, bigTimer = null;
+const bigBound = new Map(); // peer -> link, к которому привязан транспорт
+const bigSpeed = new Map(); // id -> { t, b, rate }
+const bigConnectTry = new Map(); // peer -> время последней попытки подключения
+function bigHubGet() {
+  if (bigHub) return bigHub;
+  if (typeof EtherBigFile === "undefined" || typeof indexedDB === "undefined" || !indexedDB) return null;
+  try { bigHub = new EtherBigFile.Hub({ metaDb: new EtherBigFile.IdbMetaDb(), onEvent: bigOnEvent, onMeta: bigOnMeta }); } catch (e) { bigHub = null; return null; }
+  bigHub.init().then(() => { bigSweepOrphans(); bigEnsureTimer(); }).catch((e) => etherLog("warn", "[bigfile] init:", String(e)));
+  return bigHub;
+}
+function bigEnsureTimer() { if (!bigTimer) bigTimer = setInterval(bigSync, 1500); }
+function bigFind(id, peer) {
+  const c = state.contacts.get(peer);
+  return { c, rec: c && c.messages.find((m) => m.id === id) };
+}
+function bigClock(sec) {
+  sec = Math.max(0, Math.round(sec));
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+  return h ? h + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0") : m + ":" + String(s).padStart(2, "0");
+}
+function bigRate(id, done) {
+  const now = Date.now(); let s = bigSpeed.get(id);
+  if (!s) { bigSpeed.set(id, { t: now, b: done, rate: 0 }); return 0; }
+  const dt = now - s.t;
+  if (dt >= 500) { const inst = Math.max(0, (done - s.b) * 1000 / dt); s.rate = s.rate ? s.rate * 0.7 + inst * 0.3 : inst; s.t = now; s.b = done; }
+  return s.rate;
+}
+function bigStatusText(f, id) {
+  const st = f.bstate || (f.incoming ? "receiving" : "sending");
+  let t = T("chat.big." + (st === "paused" && f.bremote ? "pausedRemote" : st));
+  if (st === "hashing" || st === "sending" || st === "receiving" || st === "verifying") {
+    const pct = Math.floor((f.progress || 0) * 100);
+    if (st !== "verifying") t += " " + pct + "%";
+    const s = bigSpeed.get(id);
+    if ((st === "sending" || st === "receiving") && s && s.rate > 0) {
+      t += " · " + formatFileSize(s.rate) + "/s";
+      const left = (f.size - (f.bdone || 0)) / s.rate; if (Number.isFinite(left)) t += " · " + T("chat.big.eta", { time: bigClock(left) });
+    }
+  }
+  return t;
+}
+function bigBubbleHtml(msgId, f) {
+  const st = f.bstate || (f.incoming ? "receiving" : "sending");
+  const pct = Math.max(0, Math.min(100, (f.progress || 0) * 100));
+  const canPause = st === "sending" || st === "receiving" || st === "queued" || st === "waiting" || st === "handshake";
+  const pauseBtn = st === "paused" ? `<button type="button" class="big-btn" data-big-act="resume">${escapeHtml(T("chat.big.resume"))}</button>` : (canPause ? `<button type="button" class="big-btn" data-big-act="pause">${escapeHtml(T("chat.big.pause"))}</button>` : "");
+  return `<div class="file-bubble file-bubble-pending file-bubble-big" data-msg-id="${escapeHtml(msgId)}" data-bstate="${escapeHtml(st)}">
+    <div class="big-head"><span class="big-name">${escapeHtml(f.name || "file")}</span><span class="big-size">${escapeHtml(formatFileSize(f.size || 0))}</span></div>
+    <div class="file-progress big-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(pct)}" aria-label="${escapeHtml(T("chat.big.progressLabel"))}"><div class="file-progress-fill" style="width:${pct.toFixed(1)}%"></div></div>
+    <div class="big-status">${escapeHtml(bigStatusText(f, msgId))}</div>
+    <div class="big-actions">${pauseBtn}<button type="button" class="big-btn big-btn-cancel" data-big-act="cancel">${escapeHtml(T("chat.big.cancel"))}</button></div>
+  </div>`;
+}
+// Живое обновление пузыря без перерисовки ленты (прогресс приходит ≤ 5 раз в секунду — движок троттлит).
+function bigPaint(id, f) {
+  const el = document.querySelector(`.file-bubble-big[data-msg-id="${CSS.escape(id)}"]`); if (!el) return;
+  const pct = Math.max(0, Math.min(100, (f.progress || 0) * 100));
+  const fill = el.querySelector(".file-progress-fill"); if (fill) fill.style.width = pct.toFixed(1) + "%";
+  const bar = el.querySelector(".big-progress"); if (bar) bar.setAttribute("aria-valuenow", String(Math.round(pct)));
+  const stEl = el.querySelector(".big-status"); if (stEl) stEl.textContent = bigStatusText(f, id);
+}
+function bigRerender(peer) { if (state.chatId === peer) { try { renderChatThreadInner(); } catch (e) {} } if (state.tab === "chats") { try { renderChatsList(); } catch (e) {} } }
+function bigMarkFailed(rec, peer, reason) {
+  const f = rec.file; f.pending = false; f.failed = true; f.failReason = reason || null; delete f.bstate;
+  if (rec.from === "me") rec.ack = "failed";
+  bigSpeed.delete(rec.id); persistContacts(); bigRerender(peer);
+}
+function bigFailToast(reason, dir) {
+  if (reason === "hash") toast(T("toast.bigCorrupted"));
+  else if (reason === "quota" || reason === "storage") toast(T("toast.bigNoSpace"));
+  else if (reason === "peer-old") toast(T("toast.bigPeerOld"));
+  else if (reason !== "local" && reason !== "user") toast(T(dir === "in" ? "toast.bigFailed" : "toast.fileSendFailed"));
+}
+function bigOnEvent(ev) {
+  const { c, rec } = bigFind(ev.id, ev.peer);
+  if (!rec || !rec.file) return;
+  const f = rec.file;
+  if (ev.type === "progress") {
+    f.bdone = ev.done; f.size = f.size || ev.size; f.progress = ev.size ? ev.done / ev.size : 0; if (ev.state) f.bstate = ev.state === "active" ? (ev.dir === "in" ? "receiving" : "sending") : ev.state;
+    bigRate(ev.id, ev.done); bigPaint(ev.id, f); return;
+  }
+  if (ev.type === "state") {
+    if (ev.state === "failed" || ev.state === "cancelled") {
+      const reason = ev.state === "cancelled" && (ev.reason === "local" || ev.reason === "user") ? "local" : (ev.reason || ev.state);
+      if (f.failReason === "peer-old") { bigRerender(ev.peer); return; }
+      bigMarkFailed(rec, ev.peer, reason); bigFailToast(reason, ev.dir); return;
+    }
+    let st = ev.state; if (st === "active") st = ev.reason === "link" ? "waiting" : "receiving";
+    if (ev.dir === "out" && st === "queued" && ev.reason === "busy") st = "queued";
+    f.bstate = st; f.bremote = ev.state === "paused" && ev.reason === "remote"; if (ev.size) f.bdone = ev.done || f.bdone || 0;
+    if (st === "sending" || st === "receiving") bigRate(ev.id, f.bdone || 0);
+    persistContacts(); bigRerender(ev.peer); return;
+  }
+  if (ev.type === "done") {
+    bigSpeed.delete(ev.id);
+    const finish = () => {
+      f.pending = false; f.progress = 1; f.bdone = f.size; delete f.bstate; delete f.failed;
+      if (ev.dir === "out") rec.ack = "sent"; else f.bigStore = ev.store;
+      persistContacts();
+      if (ev.dir === "in") notifyIncomingFileDone(ev.peer, c, rec); else bigRerender(ev.peer);
+    };
+    if (ev.dir === "in" && ev.store === "memory" && ev.getBlob) ev.getBlob().then((b) => IDB.set("file:" + ev.id, b)).then(finish, () => bigMarkFailed(rec, ev.peer, "storage"));
+    else finish();
+  }
+}
+// Приём file-meta (bin:1): создаём (или оживляем) сообщение в ленте. false — отказать (заблокирован, чужой id).
+function bigOnMeta(peer, meta) {
+  const c0 = state.contacts.get(peer);
+  if (c0 && c0.blocked && !isGroup(c0)) return false;
+  for (const [oid, oc] of state.contacts) if (oid !== peer && oc.messages && oc.messages.some((m) => m.id === meta.id && m.file)) return false;
+  const c = ensureContactEntry(peer, null);
+  const prev = c.messages.find((m) => m.id === meta.id);
+  if (prev) {
+    if (prev.from !== "them" || !prev.file) return false;
+    prev.file.pending = true; prev.file.failed = false; prev.file.big = true; prev.file.incoming = true; prev.file.bstate = "receiving"; persistContacts(); bigRerender(peer); return true;
+  }
+  const e = meta.extra || {};
+  const rec = { id: meta.id, from: "them", text: "", ts: Date.now(), readAckSent: false,
+    file: { name: meta.name, mime: meta.mime, size: meta.size, kind: fileKindFromMime(meta.mime), duration: safeDuration(e.duration), wave: sanitizeWave(e.wave), pending: true, big: true, incoming: true, bstate: "receiving", progress: 0, bdone: 0 } };
+  if (safeTtl(e.ttl)) rec.ttl = safeTtl(e.ttl);
+  if (e.forwarded) { rec.forwarded = true; if (typeof e.fwdFrom === "string" && e.fwdFrom) rec.forwardedFrom = e.fwdFrom.slice(0, 40); }
+  if (typeof e.caption === "string" && e.caption) rec.file.caption = e.caption.slice(0, 200);
+  if (!rec.ttl && c.disappearingTimer) rec.ttl = c.disappearingTimer;
+  c.messages.push(rec); trimMessages(c); c.lastActivity = Date.now(); persistContacts();
+  bigRerender(peer);
+  bigEnsureTimer();
+  return true;
+}
+function bigEnsureBound(peer, link) {
+  const hub = bigHubGet(); link = link || (mesh && mesh.get(peer)); if (!hub || !link) return false;
+  link.onBinary = (ab) => { if (bigHub) bigHub.handleBinary(peer, ab); };
+  if (bigBound.get(peer) !== link) {
+    if (bigBound.has(peer)) hub.unbind(peer);
+    hub.bind(peer, link.bigTransport()); bigBound.set(peer, link);
+  }
+  bigEnsureTimer();
+  return true;
+}
+// Раз в 1.5 с: привязать транспорт к живым ссылкам с общими передачами, отвязать от умерших, подключиться к собеседнику, если он нужен.
+function bigSync() {
+  const hub = bigHub; if (!hub) return;
+  const peers = new Set();
+  for (const s of hub.sin.values()) peers.add(s.peer);
+  for (const j of hub.out.values()) peers.add(j.peer);
+  if (!peers.size && !bigBound.size) { clearInterval(bigTimer); bigTimer = null; return; }
+  const now = Date.now();
+  for (const peer of new Set([...peers, ...bigBound.keys()])) {
+    const link = mesh ? mesh.get(peer) : null;
+    const usable = !!(link && (link.status === "connected" || link.status === "in-call") && link.dc && link.dc.readyState === "open" && link.authGate !== "closed" && link.authGate !== "pending");
+    if (usable && !link._bigSeen) link._bigSeen = now;
+    if (usable && link.peerFileBin) { if (bigBound.get(peer) !== link) bigEnsureBound(peer, link); continue; }
+    if (bigBound.has(peer)) { hub.unbind(peer); bigBound.delete(peer); }
+    if (usable) { if (now - link._bigSeen > 6000) bigPeerOld(peer); continue; } // пинг с fb приходит сразу после открытия канала; нет за 6 с — старый клиент
+    if (peers.has(peer) && now - (bigConnectTry.get(peer) || 0) > 20000) { bigConnectTry.set(peer, now); try { scheduleAutoConnect(peer); } catch (e) {} }
+  }
+}
+function bigPeerOld(peer) {
+  for (const j of [...bigHub.out.values()]) if (j.peer === peer) {
+    const { rec } = bigFind(j.id, peer); if (rec && rec.file) rec.file.failReason = "peer-old";
+    bigHub.cancel(j.id); if (rec && rec.file) bigMarkFailed(rec, peer, "peer-old");
+    bigFailToast("peer-old", "out");
+  }
+}
+// После перезапуска: сообщения «в процессе», которых больше нет в движке (просрочены, удалены), помечаем недошедшими; остальным даём актуальное состояние.
+function bigSweepOrphans() {
+  const hub = bigHub; if (!hub) return;
+  let changed = false;
+  for (const c of state.contacts.values()) for (const m of c.messages || []) {
+    if (!m.file || !m.file.big || !m.file.pending) continue;
+    const info = hub.info(m.id);
+    if (!info) { m.file.pending = false; m.file.failed = true; if (m.from === "me") m.ack = "failed"; changed = true; }
+    else { m.file.bstate = info.state === "active" ? "receiving" : info.state; m.file.bdone = info.done; m.file.progress = info.size ? info.done / info.size : 0; changed = true; }
+  }
+  if (changed) { persistContacts(); if (state.chatId) bigRerender(state.chatId); }
+}
+function bigDiscard(msgId) { const hub = bigHubGet(); if (hub) hub.discard(msgId).catch(() => {}); bigSpeed.delete(msgId); }
+// Отправка большого файла: сообщение сразу в ленте; хэширование, очередь «до появления собеседника в сети» и сама передача — в движке.
+async function sendBigFile(contactId, file, opts) {
+  const hub = bigHubGet(); const c = state.contacts.get(contactId); if (!hub || !c) return;
+  const caption = opts && opts.caption ? opts.caption : "";
+  const msgId = crypto.randomUUID(), ts = Date.now();
+  const mime = file.type || "application/octet-stream";
+  const rec = { id: msgId, from: "me", text: "", ts, ack: "sent", serverAcked: false,
+    file: { name: file.name || "file", mime, size: file.size, kind: "file", pending: true, big: true, own: true, bstate: "hashing", progress: 0, bdone: 0 } };
+  if (caption) rec.file.caption = caption;
+  if (c.disappearingTimer) rec.ttl = c.disappearingTimer;
+  c.messages.push(rec); trimMessages(c); c.lastActivity = ts; persistContacts();
+  if (state.chatId === contactId) { renderChatThreadInner(); const wrap = $("#chat-messages"); if (wrap) wrap.scrollTop = wrap.scrollHeight; }
+  if (state.tab === "chats") renderChatsList();
+  const link = mesh && mesh.get(contactId);
+  if (!(link && (link.status === "connected" || link.status === "in-call"))) { try { scheduleAutoConnect(contactId); } catch (e) {} }
+  bigEnsureTimer();
+  try {
+    await hub.enqueueSend(contactId, file, { id: msgId, name: rec.file.name, mime, extra: { caption: caption || undefined, ttl: rec.ttl } });
+  } catch (e) { bigMarkFailed(rec, contactId, "read"); toast(T("toast.fileSendFailed")); }
+}
+if (typeof document !== "undefined" && document.addEventListener) {
+  // Кнопки пузыря передачи: ловим на захвате, чтобы тап не открывал меню сообщения.
+  document.addEventListener("click", (ev) => {
+    const btn = ev.target && ev.target.closest ? ev.target.closest("[data-big-act]") : null; if (!btn) return;
+    ev.preventDefault(); ev.stopPropagation();
+    const bubble = btn.closest("[data-msg-id]"), id = bubble && bubble.getAttribute("data-msg-id"), act = btn.getAttribute("data-big-act");
+    const hub = bigHubGet(); if (!id || !hub) return;
+    if (act === "pause") hub.pause(id); else if (act === "resume") hub.resume(id);
+    else if (act === "cancel") {
+      if (!hub.cancel(id)) { for (const c of state.contacts.values()) { const m = c.messages.find((x) => x.id === id); if (m && m.file) bigMarkFailed(m, c.id, "local"); } }
+    }
+  }, true);
 }
 // =====================================================================
 // Полноэкранный просмотр медиа / меню для ссылок — открываются по
@@ -7627,7 +7864,8 @@ function toggleVoicePlaybackFor(bubbleEl) {
 }
 async function getFileBlobUrl(msgId) {
   if (fileBlobUrlCache.has(msgId)) return fileBlobUrlCache.get(msgId);
-  const blob = await IDB.get("file:" + msgId);
+  let blob = await IDB.get("file:" + msgId);
+  if (!blob) { const hub = bigHubGet(); if (hub) { try { blob = await hub.getBlob(msgId); } catch (e) {} } } // V.80: большой файл лежит в OPFS/IndexedDB-хранилище движка
   if (!blob) return null;
   const url = URL.createObjectURL(blob);
   fileBlobUrlCache.set(msgId, url);
@@ -7664,6 +7902,10 @@ function rememberMediaSize(msgId, w, h) {
   }
 }
 function fileBubbleHtml(msgId, fileInfo) {
+  if (fileInfo.pending && fileInfo.big) return bigBubbleHtml(msgId, fileInfo);
+  if (fileInfo.big && fileInfo.own && !fileInfo.pending && !fileInfo.failed) { // отправленный большой файл: копии в приложении нет (файл остаётся на устройстве)
+    return `<div class="file-bubble file-bubble-doc file-bubble-own" data-msg-id="${escapeHtml(msgId)}"><span class="file-doc-icon"><svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm8 1.5V8h4.5L14 3.5zM7 12h10v1.5H7V12zm0 4h10v1.5H7V16zm0-8h5v1.5H7V8z"/></svg></span><span class="file-doc-info"><span class="file-doc-name">${escapeHtml(fileInfo.name || "file")}</span><span class="file-doc-size">${escapeHtml(formatFileSize(fileInfo.size || 0))} · ${escapeHtml(T("chat.big.sentDirect"))}</span></span></div>${fileInfo.caption ? `<div class="file-caption">${escapeHtml(fileInfo.caption)}</div>` : ""}`;
+  }
   if (fileInfo.pending) {
     // Если известен точный прогресс (живая P2P-передача даёт его через
     // onProgress в sendFile) — показываем честный процент. Если нет
@@ -8068,6 +8310,7 @@ function cleanupExpiredFileBlobs(removedMessages) {
   for (const m of removedMessages) {
     if (!m.file && !(m.sticker && m.sticker.custom)) continue; // B14: блобы своих стикеров (sticker.custom) тоже лежат в IDB под file:<id>
     IDB.del("file:" + m.id).catch(() => {});
+    if (m.file && m.file.big) bigDiscard(m.id); // V.80: данные большого файла в хранилище движка
     const url = fileBlobUrlCache.get(m.id);
     if (url) { URL.revokeObjectURL(url); fileBlobUrlCache.delete(m.id); }
     const cached = voiceAudioCache.get(m.id);
