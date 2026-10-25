@@ -799,6 +799,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     // V.80: ключ устройства + расшифровка хранилища в память ДО startApp(). Экран «Входящий звонок» (быстрый путь V.79) рисуем сразу, не дожидаясь
     // расшифровки: ему нужны только открытые ether.name/myId и индекс имён ether.cnames; полные контакты подтянутся после старта.
     const secInit = SecureStore.init().catch(() => "none");
+    // Язык (ether.lang) и подписи не зашифрованы: переводим ДО быстрого экрана «Входящий звонок», иначе он рисуется английскими подписями
+    try { I18N.init(); } catch (e) {}
+    try { applyStaticTranslations(); } catch (e) {}
     try { if (/^#answer=/.test(location.hash) && Store.name && Store.myId) answerBootFromLocation(); } catch (e) {}
     const secState = await secInit;
     if (secState === "keylost") { try { I18N.init(); applyStaticTranslations(); } catch (e) {} showStorageRecovery(); clearTimeout(bootWatchdog); return; }
