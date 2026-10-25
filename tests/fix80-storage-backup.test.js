@@ -41,11 +41,11 @@ test("экспорт с паролем: файл зашифрован парол
 test("экспорт без пароля — явная открытая копия: предупреждение показано, файл содержит расшифрованные данные, соль/проверка PIN не экспортируются", async () => {
   const a = await boot(); await seed(a);
   await a.run(`SecureStore.enable("123456")`);
-  a.run(`window.__toasts = []; const _t = toast; window.toast = (m) => { window.__toasts.push(m); return _t(m); };`);
+  a.run(`window.__toasts = []; toast = (m) => { window.__toasts.push(m); };`);
   const file = await doExport(a, "skip");
   assert.match(file["ether.contacts"], /ЭКСПОРТ-СЕКРЕТ/, "в явном открытом файле — данные читаемы (поэтому предупреждение)");
   assert.ok(!Object.keys(file).some((k) => k.startsWith("ether.sec.")), "соль/проверка PIN не утекают в копию");
-  assert.ok(a.run(`window.__toasts`).some((m) => /НЕ зашифрована/.test(m)), "предупреждение об открытой копии");
+  assert.ok(a.run(`window.__toasts`).some((m) => /НЕ\sзашифрована/.test(m)), "предупреждение об открытой копии");
   a.close();
 });
 
@@ -70,5 +70,6 @@ test("зеркало IndexedDB (scheduleIDBBackup): восстановление
   const b = await boot({ indexedDB: idb, storage: { "ether.name": "", "ether.myId": "" } }); // localStorage пуст, IDB и ключ целы
   await sleep(100);
   assert.equal(b.run(`SecureStore.mode()`), "device");
+  assert.match(b.window.localStorage.getItem("ether.contacts") || "", /ЭКСПОРТ-СЕКРЕТ/, "контакты вернулись из зеркала (шифртекст) и открылись ключом устройства");
   b.close();
 });

@@ -1552,7 +1552,7 @@ function devicesCtx() {
     mailboxDropBox: (k) => { const b = mailbox.get(k); if (b) for (const m of Array.from(b.keys())) mailboxRemove(k, m); scheduleMailboxSave(); } };
 }
 let SERVER_VERSION = "0"; try { SERVER_VERSION = String(require("./package.json").version || "0"); } catch (e) {}
-const SERVER_FEATURES = ["ratchet2", "prekeys", "watch", "claim", "env2", "devicelink", "devlist", "devmail", "devsync", "devpush", "devnotify", "alias", "channels", "gdeliver", "sk1"].concat(DISCOVERY_ENABLED ? ["discovery"] : []);
+const SERVER_FEATURES = ["ratchet2", "prekeys", "watch", "claim", "env2", "devicelink", "devlist", "devmail", "devsync", "devpush", "devnotify", "alias", "channels", "gdeliver", "sk1", "pq1"].concat(DISCOVERY_ENABLED ? ["discovery"] : []);
 
 // ---------- Каналы и групповая доставка Sender Keys (channels.js, gdeliver.js) ----------
 const channelsMod = require("./channels").create({
@@ -2111,13 +2111,15 @@ wss.on("connection", (ws, req) => {
       if (!wsRateLimitOk(prekeyUploadHits, myId, 20)) return;
       const spk = msg.spk, opks = Array.isArray(msg.opks) ? msg.opks : [];
       if (spk != null && !(spk && validPrekeyId(spk.id) && validPrekeyPub(spk.pub) && (spk.sig == null || (typeof spk.sig === "string" && spk.sig.length <= 200)))) { safeSend(ws, { type: "prekey-stored", error: "invalid" }); return; }
+      // Расширение v3 (PQ): sig2 (подпись личности над id/ключом/caps/KEM), c (маска возможностей 0..255), kem (ML-KEM-768, 1184 байта = 1580 символов base64). Всё или ничего.
+      if (spk && (spk.c != null || spk.kem != null || spk.sig2 != null) && !(Number.isInteger(spk.c) && spk.c >= 0 && spk.c <= 255 && typeof spk.sig2 === "string" && spk.sig2.length <= 200 && typeof spk.kem === "string" && spk.kem.length === 1580 && /^[A-Za-z0-9+/]+={0,2}$/.test(spk.kem))) { safeSend(ws, { type: "prekey-stored", error: "invalid" }); return; }
       if (opks.length > PREKEY_MAX_UPLOAD || !opks.every((o) => o && validPrekeyId(o.id) && validPrekeyPub(o.pub))) { safeSend(ws, { type: "prekey-stored", error: "invalid" }); return; }
       let e = prekeys.get(myId);
       if (!e) {
         if (prekeys.size >= PREKEYS_MAX) prekeys.delete(prekeys.keys().next().value); // потолок по числу id: вытесняем самый старый
         e = { spk: null, opks: new Map(), ts: Date.now() }; prekeys.set(myId, e);
       }
-      if (spk) e.spk = { id: spk.id, pub: spk.pub, ...(typeof spk.sig === "string" && spk.sig.length <= 200 ? { sig: spk.sig } : {}) };
+      if (spk) e.spk = { id: spk.id, pub: spk.pub, ...(typeof spk.sig === "string" && spk.sig.length <= 200 ? { sig: spk.sig } : {}), ...(typeof spk.kem === "string" ? { sig2: spk.sig2, c: spk.c, kem: spk.kem } : {}) };
       for (const o of opks) e.opks.set(o.id, o.pub);
       while (e.opks.size > PREKEY_MAX_OPKS) e.opks.delete(e.opks.keys().next().value);
       e.ts = Date.now();

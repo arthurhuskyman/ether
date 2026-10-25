@@ -738,6 +738,7 @@ async function shareMyInviteLink() {
   copyText(url, T("toast.linkCopied"));
 }
 function handleAddLinkFromLocation() {
+  if (/(?:^#|&)ch=/.test(location.hash || "")) { const h = location.hash; try { history.replaceState(null, "", location.pathname); } catch (e) {} channelOpenLink(h); return true; }
   const m = (location.hash || "").match(/(?:^#|&)add=([^&]+)/);
   if (!m) return false;
   let id = "", name = "", servers = [];
@@ -985,7 +986,7 @@ function renderChatsList() {
     // а не текстовым символом ● справа от имени. У групп точку не
     // показываем — там статус не про presence одного человека.
     const showDot = !isGroup(c) && c.managed && !c.isSelf; // self-chat не "онлайн"/"офлайн" — у него просто нет такого понятия
-    const statusDot = showDot ? `<span class="avatar-status-dot ${contactStatusClass(c)}"></span>` : "";
+    const statusDot = showDot ? `<span class="avatar-status-dot ${contactStatusClass(c)}"></span>` : (c.isChannel ? `<span class="avatar-channel-badge" aria-hidden="true">${CH_MEGAPHONE_SVG}</span>` : "");
     const timeLabel = last ? escapeHtml(formatChatListTime(last.ts)) : "";
     // Ручка drag-to-reorder (раздел 4) — только у закреплённых чатов, и
     // только когда их больше одного (тащить единственный закреплённый чат
@@ -1239,6 +1240,7 @@ function openContactCard(contactId) {
 }
 function openGroupInfo(groupId) {
   const g = state.contacts.get(groupId); if (!g || !isGroup(g)) return;
+  if (g.isChannel) { openChannelInfo(g); return; }
   state.activeGroupContext = groupId;
   const avatarBtn = $("#group-info-avatar-btn");
   if (avatarBtn) {
@@ -1290,6 +1292,7 @@ function openGroupInfo(groupId) {
   // участнику без прав added бы не смог обработать join-request, который
   // придёт в ответ на его же ссылку.
   const inviteLinkBtnEl = $("#group-info-invite-link-btn"); if (inviteLinkBtnEl) inviteLinkBtnEl.classList.toggle("hidden", !myIsAdmin);
+  try { renderGroupAdminPanel(g); } catch (e) {}
   const sheet = $("#group-info-sheet"); if (sheet) sheet.classList.remove("hidden");
 }
 // Раздел 8 роадмапа — "права группы": единственное право, которое есть
@@ -1505,6 +1508,12 @@ function wireContactCard() {
     c.blocked = !c.blocked; persistContacts(); renderContactCard();
     if (c.blocked && !isGroup(c)) { try { clearAutoConnectTimer(c.id); } catch (e) {} try { mesh.remove(c.id); } catch (e) {} } // заблокированному не держим P2P-канал
     toast(c.blocked ? T("toast.blocked") : T("toast.unblocked"));
+  });
+  const resetProt = $("#contact-resetprot-btn");
+  if (resetProt) resetProt.addEventListener("click", () => {
+    const c = state.contacts.get(state.contactCardId); if (!c || isGroup(c)) return;
+    if (typeof confirm === "function" && !confirm(T("chat.contact.resetProtectionConfirm"))) return;
+    resetContactProtection(c.id); toast(T("sys.ratchetReset"));
   });
   const exportBtn = $("#contact-export-btn");
   if (exportBtn) exportBtn.addEventListener("click", () => exportChat(state.contactCardId));

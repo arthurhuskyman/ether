@@ -391,6 +391,8 @@ function startApp() {
   sc(wireCallScreen, "wireCallScreen");
   sc(wireSettingsScreen, "wireSettingsScreen");
   sc(wireGlobalSearch, "wireGlobalSearch");
+  sc(channelsWireUi, "channelsWireUi");
+  sc(searchWireUi, "searchWireUi");
   sc(wireEscCloseAnySheet, "wireEscCloseAnySheet");
   sc(wireSheetFocusManagement, "wireSheetFocusManagement");
   sc(wireDebugScreen, "wireDebugScreen");

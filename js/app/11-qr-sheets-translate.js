@@ -110,6 +110,7 @@ async function startQrScan() {
           }
           // Invite-ссылка в группу (раздел 8/18) — та же камера сканирует
           // и её, не только обычный add-код; см. parseGroupInviteCode.
+          if (/(?:^|[#&?])ch=[a-z0-9]{12,32}\.[0-9a-f]{26}/.test(result.data) && Channels.parseLink(result.data)) { stopQrScan(); if (sheet) sheet.classList.add("hidden"); channelSubscribeFromLink(result.data); return; }
           if (parseGroupInviteCode(result.data)) {
             stopQrScan();
             if (sheet) sheet.classList.add("hidden");
@@ -323,6 +324,7 @@ function wireConnectScreen() {
     const nameVal = $("#add-contact-name").value.trim();
     const raw = $("#add-contact-value").value.trim();
     if (!raw) { toast(T("toast.emptyId")); return; }
+    if (/(?:^|[#&?])ch=[a-z0-9]{12,32}\.[0-9a-f]{26}/.test(raw) && Channels.parseLink(raw)) { channelSubscribeFromLink(raw); $("#add-contact-value").value = ""; return; }
     if (raw.indexOf("ether://group?") === 0) {
       await joinGroupViaInvite(raw);
       $("#add-contact-name").value = ""; $("#add-contact-value").value = "";
@@ -1004,6 +1006,7 @@ function updateMultiSelectBanner() {
 // оригиналу.
 function togglePinnedMessage(contactId, msgId) {
   const c = state.contacts.get(contactId); if (!c) return;
+  if (c.isGroup && !c.isChannel && !c.pinLocal) { groupAdminPin(c, msgId); return; } // в группе закрепляют по роли, у всех
   c.pinnedMessageId = c.pinnedMessageId === msgId ? null : msgId;
   persistContacts();
   if (state.chatId === contactId) renderChatThread();

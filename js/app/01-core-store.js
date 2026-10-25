@@ -249,11 +249,12 @@ const IDB = (() => {
       try {
         const db = await open();
         const raw = await new Promise((res) => { const r = db.transaction(STORE, "readonly").objectStore(STORE).get(k); r.onsuccess = () => res(r.result); r.onerror = () => res(undefined); });
-        const plain = (raw instanceof Blob) || (typeof raw === "string" && SEALED_TEXT_KEYS.has(k) && raw.indexOf("enc") !== 0);
+        const isBlobLike = !!raw && typeof raw === "object" && !raw.__enc && typeof raw.arrayBuffer === "function";
+        const plain = isBlobLike || (typeof raw === "string" && SEALED_TEXT_KEYS.has(k) && raw.indexOf("enc") !== 0);
         if (!plain) continue;
-        await set(k, raw);
+        await set(k, isBlobLike && !(raw instanceof Blob) ? new Blob([raw], { type: raw.type || "" }) : raw);
         const back = await get(k); // проверка: читается обратно
-        if (back instanceof Blob ? back.size === raw.size : back === raw) n++;
+        if (isBlobLike ? !!back && back.size === raw.size : back === raw) n++;
         else await set(k, raw, { plain: true }); // не читается — возвращаем как было (данные не теряем)
       } catch (e) {}
     }

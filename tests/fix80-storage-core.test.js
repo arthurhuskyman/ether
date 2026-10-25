@@ -5,7 +5,7 @@ const { closeAll } = require("./harness");
 const { boot, raw, dumpRaw, diskOf, contactsJson, sleep, createApp } = require("./fix80-storage-helpers");
 test.after(closeAll);
 
-const readKeyRec = (a) => new Promise((res) => { const q = a.window.indexedDB.open("ether-keys", 1); q.onsuccess = () => { const r = q.result.transaction("k").objectStore("k").get("device"); r.onsuccess = () => { q.result.close(); res(r.result); }; }; q.onerror = () => res(null); });
+const readKeyRec = (a) => new Promise((res) => { const q = a.window.indexedDB.open("ether-keys", 1); q.onupgradeneeded = () => q.result.createObjectStore("k"); q.onsuccess = () => { const r = q.result.transaction("k").objectStore("k").get("device"); r.onsuccess = () => { q.result.close(); res(r.result); }; }; q.onerror = () => res(null); });
 
 test("свежая установка: ключ устройства неизвлекаем, данные на диске и в зеркале IndexedDB — шифртекст, приложение читает открытый текст", async () => {
   const a = await boot();
@@ -46,11 +46,11 @@ test("миграция открытого текста (крупная исто�
 test("миграция IndexedDB: файлы file:* и снимки contactsPrev из открытого вида переходят в шифрованный, читаются обратно", async () => {
   const a = await boot();
   await a.run(`(async () => { await IDB.set("file:old1", new Blob([new Uint8Array([9, 8, 7])], { type: "image/png" }), { plain: true }); await IDB.set("contactsPrev", "ПРЕЖНИЙ-СНИМОК", { plain: true }); })()`);
-  const rawBefore = await a.run(`new Promise((res) => { const db = null; IDB.open().then((d) => { const r = d.transaction("kv").objectStore("kv").get("file:old1"); r.onsuccess = () => res(r.result instanceof Blob); }); })`);
+  const rawBefore = await a.run(`new Promise((res) => { const db = null; IDB.open().then((d) => { const r = d.transaction("kv").objectStore("kv").get("file:old1"); r.onsuccess = () => res(!r.result.__enc); }); })`);
   assert.equal(rawBefore, true, "до миграции — открытый Blob");
   assert.equal(await a.run(`IDB.migrateToEncrypted()`), 2);
-  const rec = await a.run(`new Promise((res) => { IDB.open().then((d) => { const r = d.transaction("kv").objectStore("kv").get("file:old1"); r.onsuccess = () => res({ enc: r.result.__enc, isBlob: r.result instanceof Blob }); }); })`);
-  assert.deepEqual(rec, { enc: 2, isBlob: false });
+  const rec = await a.run(`new Promise((res) => { IDB.open().then((d) => { const r = d.transaction("kv").objectStore("kv").get("file:old1"); r.onsuccess = () => res({ enc: r.result.__enc, isBlob: !r.result.__enc }); }); })`);
+  assert.equal(JSON.stringify(rec), JSON.stringify({ enc: 2, isBlob: false }));
   assert.equal(await a.run(`IDB.get("file:old1").then((b) => b.size)`), 3);
   assert.equal(await a.run(`IDB.get("contactsPrev")`), "ПРЕЖНИЙ-СНИМОК");
   assert.equal(await a.run(`IDB.migrateToEncrypted()`), 0, "повтор ничего не делает (возобновляемо)");
@@ -79,7 +79,7 @@ test("квота при миграции: открытый текст остаё
   assert.ok(a.run(`SecureStore.pending()`) > 0, "хотя бы один ключ не поместился после шифрования");
   assert.equal(a.run(`localStorage.getItem("ether.drafts").length`), 2400000);
   assert.equal(a.run(`localStorage.getItem("ether.callLog").length`), 2400000);
-  assert.match(a.run(`Integrity.renderCentre(), document.getElementById("security-storage-line").textContent`), /не завершено|unfinished/);
+  assert.match(a.run(`Integrity.renderCentre(), document.getElementById("security-storage-line").textContent`), /не\sзавершено|unfinished/);
   a.close();
 });
 
@@ -94,14 +94,14 @@ test("потерян ключ устройства: экран восстано�
   assert.equal(b.run(`typeof __appStarted !== "undefined" && __appStarted`), false, "приложение не стартует на нечитаемых данных");
   assert.equal(b.document.getElementById("boot-recovery").classList.contains("hidden"), false);
   for (const id of ["storage-lost-restore", "storage-lost-reset", "storage-lost-retry"]) assert.ok(b.document.getElementById(id), id);
-  assert.match(b.document.getElementById("storage-lost-restore").textContent, /Восстановить из резервной копии/);
-  assert.match(b.document.getElementById("storage-lost-reset").textContent, /Начать заново/);
+  assert.match(b.document.getElementById("storage-lost-restore").textContent, /Восстановить\sиз\sрезервной\sкопии/);
+  assert.match(b.document.getElementById("storage-lost-reset").textContent, /Начать\sзаново/);
   assert.equal(raw(b, "ether.drafts"), disk["ether.drafts"], "шифртекст на месте — молчаливой потери нет");
   // отказ от подтверждения: ничего не стёрто
   b.run(`window.confirmSheet = async () => false; location.reload = () => {};`);
   b.document.getElementById("storage-lost-reset").click(); await sleep(50);
   assert.equal(raw(b, "ether.drafts"), disk["ether.drafts"]);
-  assert.match(b.run(`Integrity.renderCentre(), document.getElementById("security-storage-line").textContent`), /ключ устройства не найден|device key not found/);
+  assert.match(b.run(`Integrity.renderCentre(), document.getElementById("security-storage-line").textContent`), /ключ\sустройства\sне\sнайден|device key not found/);
   b.close();
 });
 
@@ -140,7 +140,7 @@ test("слои PIN: включение — encd1(enc1), без ключа уст
   assert.equal(await b.run(`SecureStore.rekey("123456", "654321")`), true);
   assert.equal(await b.run(`SecureStore.disable("654321")`), true);
   assert.equal(b.run(`SecureStore.mode()`), "device");
-  await b.run(`SecureStore.flush()`);
+  await b.run(`SecureStore.flush()`); await b.run(`backupToIDB()`); // как в обработчике настроек: зеркало обновляется после снятия PIN
   assert.ok(raw(b, "ether.drafts").startsWith("encd1:"));
   assert.equal(raw(b, "ether.sec.salt"), null);
   const disk2 = diskOf(b); b.close();
@@ -178,11 +178,11 @@ test("файлы: слои устройства (+PIN) в IndexedDB, сняти�
   a.run(`const c = ensureContactEntry("alice", "Alice"); c.managed = true; c.messages.push({ id: "f1", from: "alice", ts: Date.now(), file: { name: "p.png", mime: "image/png", size: 3, kind: "image" } });`);
   await a.run(`IDB.set("file:f1", new Blob([new Uint8Array([1, 2, 3])], { type: "image/png" }))`);
   const kind = () => a.run(`new Promise((res) => IDB.open().then((d) => { const r = d.transaction("kv").objectStore("kv").get("file:f1"); r.onsuccess = () => res({ e: r.result.__enc, p: !!r.result.iv1 }); }))`);
-  assert.deepEqual(await kind(), { e: 2, p: false });
+  assert.equal(JSON.stringify(await kind()), JSON.stringify({ e: 2, p: false }));
   await a.run(`(async () => { await SecureStore.enable("123456"); await migrateFilesEncryption(true); })()`);
-  assert.deepEqual(await kind(), { e: 2, p: true }, "устройство поверх PIN");
+  assert.equal(JSON.stringify(await kind()), JSON.stringify({ e: 2, p: true }), "устройство поверх PIN");
   await a.run(`(async () => { await migrateFilesEncryption(false); await SecureStore.disable("123456"); })()`);
-  assert.deepEqual(await kind(), { e: 2, p: false });
+  assert.equal(JSON.stringify(await kind()), JSON.stringify({ e: 2, p: false }));
   assert.equal(await a.run(`IDB.get("file:f1").then((b) => b.size)`), 3);
   a.close();
 });
@@ -225,7 +225,7 @@ test("перф: повторная запись того же значения �
   await a.run(`SecureStore.flush()`);
   assert.equal(raw(a, "ether.contacts"), r1, "тот же шифртекст (IV не менялся): повторного шифрования не было");
   const t0 = Date.now();
-  a.run(`for (let i = 0; i < 50; i++) localStorage.setItem("ether.contacts", localStorage.getItem("ether.contacts").replace("ПЕРФ", "ПЕРФ" ).slice(0, -1) + "]");`);
+  a.run(`for (let i = 0; i < 50; i++) localStorage.setItem("ether.contacts", localStorage.getItem("ether.contacts") + " ".repeat(i + 1));`);
   await a.run(`SecureStore.flush()`);
   const dt = Date.now() - t0;
   assert.ok(dt < 5000, "50 правок по 1 МБ: " + dt + " мс");

@@ -723,9 +723,10 @@ function renderGlobalSearchResults(rawQuery) {
     });
   const settingsMatches = settingsCategoryMatches.concat(settingsRowMatches).slice(0, 6);
 
+  const idxRows = typeof searchGlobalRows === "function" ? searchGlobalRows(rawQuery) : null;
   const sections = [
     { key: "chats", titleKey: "search.global.sectionChats", rows: chatMatches.map((c) => globalSearchRowHtml("chat", c.id, avatarCircleHtml(c, "avatar-sm"), highlightRaw(escapeHtml(c.name || ""), q), "")) },
-    { key: "messages", titleKey: "search.global.sectionMessages", rows: messageMatches.map((m) => globalSearchRowHtml("message", m.contact.id, avatarCircleHtml(m.contact, "avatar-sm"), escapeHtml(m.contact.name || ""), highlightRaw(escapeHtml(truncate(m.text, 60)), q))) },
+    { key: "messages", titleKey: "search.global.sectionMessages", rows: idxRows || messageMatches.map((m) => globalSearchRowHtml("message", m.contact.id, avatarCircleHtml(m.contact, "avatar-sm"), escapeHtml(m.contact.name || ""), highlightRaw(escapeHtml(truncate(m.text, 60)), q))) },
     { key: "contacts", titleKey: "search.global.sectionContacts", rows: contactMatches.map((c) => globalSearchRowHtml("contact", c.id, avatarCircleHtml(c, "avatar-sm"), highlightRaw(escapeHtml(c.name || ""), q), "")) },
     { key: "calls", titleKey: "search.global.sectionCalls", rows: callMatches.map((r) => globalSearchRowHtml("call", r.contactId, avatarCircleHtml(state.contacts.get(r.contactId), "avatar-sm"), highlightRaw(escapeHtml(r.name), q), "")) },
     { key: "settings", titleKey: "search.global.sectionSettings", rows: settingsMatches.map((m) => globalSearchRowHtml(m.type === "category" ? "settings-category" : "settings-row", m.id, "", highlightRaw(escapeHtml(m.label), q), "")) },
@@ -848,6 +849,7 @@ function wireGlobalSearch() {
         state.chatId = id;
         state.contactCardId = null;
         renderTab();
+        if (kind === "message" && row.dataset.msg) setTimeout(() => searchJumpTo(id, row.dataset.msg), 60);
       } else if (kind === "contact") {
         if (!id || !state.contacts.has(id)) { closeGlobalSearch(); return; }
         closeGlobalSearch();

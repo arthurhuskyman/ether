@@ -329,7 +329,7 @@ const SecureStore = (() => {
   // Короткие строки (снимок «contactsPrev» в IndexedDB)
   async function sealText(text) { return (key || devKey) ? sealWith(key, devKey, "idb-text", text) : text; }
   async function openText(v) { if (!isEnc(v)) return v; try { return (await openWith(key, devKey, "idb-text", v)).v; } catch (e) { return null; } }
-  const mode = () => (isOn() ? "pin" : status === "device" ? "device" : status);
+  const mode = () => (status === "keylost" || status === "shredded" ? status : isOn() ? "pin" : status === "device" ? "device" : status);
   return { sealText, openText, KEYS, MIN_PIN, isOn, isActive, enable, disable, unlock, rekey, verify, flush, sealBlob, openBlob, rawGet, rawSet, rawDel,
     init, shred, mode, pending, retryMigration: migrateAll, sealing: () => !!(key || devKey), hasDevice: () => !!devKey, DPREFIX };
 })();

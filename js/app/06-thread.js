@@ -158,6 +158,7 @@ function renderChatThreadInner() {
   // (с подсказкой), а не узнаёт о запрете только по тосту после попытки
   // отправить — так понятнее сразу, не трогая поле вообще.
   const writeBlocked = isGroup(c) && !isGroupWriteAllowed(c, Store.myId);
+  try { channelUpdateChrome(c); } catch (e) {}
   const chatInputEl = $("#chat-input");
   if (chatInputEl) {
     chatInputEl.disabled = writeBlocked;
@@ -365,7 +366,7 @@ function renderChatThreadInner() {
     // композитинг (20+ blur-слоёв).
     inner.className = "bubble" + (m.mentionMe ? " bubble-mentioned" : "") + (m.sticker ? " bubble-sticker" : "");
     inner.setAttribute("data-msg-id", m.id); // для прокрутки к оригиналу по тапу на цитате ответа
-    const body = m.sticker && window.EtherStickers && EtherStickers.bubbleHtml ? EtherStickers.bubbleHtml(m) : m.file ? fileBubbleHtml(m.id, m.file) : m.poll ? pollBubbleHtml(c, m) : m.board ? boardBubbleHtml(m) : m.note ? noteBubbleHtml(m) : (m.contactCard ? contactCardBubbleHtml(m.contactCard) : linkifyAndHighlight(m.text, q));
+    const body = m.sticker && window.EtherStickers && EtherStickers.bubbleHtml ? EtherStickers.bubbleHtml(m) : m.chMedia ? channelMediaHtml(m) : m.file ? fileBubbleHtml(m.id, m.file) : m.poll ? pollBubbleHtml(c, m) : m.board ? boardBubbleHtml(m) : m.note ? noteBubbleHtml(m) : (m.contactCard ? contactCardBubbleHtml(m.contactCard) : linkifyAndHighlight(m.text, q));
     const isFirstOfGroupBlock = !prevMsg || prevMsg.fromId !== m.fromId || prevMsg.from !== "them";
     const senderLabel = (isGroup(c) && m.from === "them" && m.fromId && isFirstOfGroupBlock)
       ? `<div class="bubble-sender">${escapeHtml(m.fromName || T("sys.someone"))}</div>` : "";
@@ -844,6 +845,7 @@ function cmdkBuildItems(q) {
   try { for (const sk of Skins.LIST) all.push({ g: T("cmdk.actions"), label: T("cmdk.skin", { name: Skins.name(sk.id) }), icon: "palette", fn: () => Skins.set(sk.id) }); } catch (e) {}
   for (const cat of SETTINGS_CATEGORIES) all.push({ g: T("cmdk.settings"), label: T(cat.labelKey), icon: cat.icon, fn: () => { go("settings")(); openSettingsCategory(cat.id); } });
   const res = q ? all.filter((it) => it.label.toLowerCase().includes(q)) : all.filter((it) => it.g !== T("cmdk.settings")).slice(0, 12);
+  if (q && typeof searchPaletteItems === "function") { try { return res.slice(0, 25).concat(searchPaletteItems(q)); } catch (e) {} }
   return res.slice(0, 30);
 }
 function cmdkRender() {

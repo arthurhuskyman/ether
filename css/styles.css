@@ -2948,3 +2948,16 @@ html.guest-call #content { display: none !important; }
 .file-bubble-big .big-btn-cancel { color: var(--danger, #d93025); }
 .file-bubble-own .file-doc-size { opacity: 0.75; }
 @media (prefers-reduced-motion: reduce) { .file-bubble-big .file-progress-fill { transition: none; } }
+
+/* V.80 channels */
+.avatar-channel-badge { position: absolute; right: -2px; bottom: -2px; width: 18px; height: 18px; border-radius: 50%; background: var(--accent, #4a7cff); color: #fff; display: inline-flex; align-items: center; justify-content: center; border: 2px solid var(--bg, #fff); }
+.avatar-channel-badge svg { width: 11px; height: 11px; }
+.channel-banner { margin: 6px 12px; padding: 8px 12px; border-radius: 10px; background: color-mix(in srgb, var(--danger, #d33) 14%, transparent); color: var(--text, inherit); font-size: 0.85rem; }
+.channel-media { display: block; max-width: min(100%, 320px); border-radius: 12px; margin-bottom: 4px; }
+.gs-filters { padding: 4px 0 8px; }
+.gs-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.gs-chip { min-height: 36px; padding: 0 12px; border-radius: 18px; border: 1px solid var(--border, #ccc); background: transparent; color: inherit; }
+.gs-chip[aria-pressed="true"] { background: var(--accent, #4a7cff); color: #fff; border-color: transparent; }
+.global-search-row-subtitle mark { background: color-mix(in srgb, var(--accent, #4a7cff) 28%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
+.group-admin-panel, #gadm-invite-opts { margin: 8px 0; }
+.group-admin-panel summary, #gadm-invite-opts summary, #channel-info-sheet summary, #new-channel-sheet summary, .gs-filters summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }

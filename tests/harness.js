@@ -135,7 +135,9 @@ function createApp(opts = {}) {
   // Доступ к лексическим (const/let/function) именам скриптов — через тот же контекст.
   const run = (code) => new vm.Script(code, { filename: "test-eval.js" }).runInContext(ctx);
   const app = { dom, window: dom.window, document: dom.window.document, run, errors, fetchLog, close() { /* окно закрывается в closeAll() в конце файла — иначе отложенные таймеры падают на уже закрытом window */ } };
-  app.ready = new Promise((r) => { const done = () => setTimeout(r, 400); if (dom.window.document.readyState === "complete") done(); else dom.window.addEventListener("load", done); });
+  app.ready = new Promise((r) => { // V.80: boot ждёт SecureStore.init() (ключ устройства + расшифровка в память) — «готово» только после него, иначе тесты действуют до startApp
+  const settle = async () => { try { for (let i = 0; i < 300 && app.run(`typeof SecureStore !== "undefined" && SecureStore.mode()`) === "init"; i++) await new Promise((x) => setTimeout(x, 20)); } catch (e) {} await new Promise((x) => setTimeout(x, 150)); r(); };
+  const done = () => setTimeout(settle, 400); if (dom.window.document.readyState === "complete") done(); else dom.window.addEventListener("load", done); });
   APPS.push(dom); READY.push(app.ready);
   return app;
 }

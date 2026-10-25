@@ -40,7 +40,7 @@ test("порядок бандлов в index.html = HTML_ORDER, все файл�
 });
 
 test("порядок выполнения сохранён: бандлы в порядке прежних <script>, кроме задокументированного переноса discovery.js", () => {
-  const original = ["js/i18n.js", "js/signaling-codec.js", "js/crypto-helper.js", "js/secure-store.js", "js/icons.js", "js/rich.js", "js/ratchet.js", "js/linkauth.js", "js/signaling-client.js", "js/serverlist.js", "js/discovery.js", "js/callquality.js", "js/webrtc.js", "js/file-limits.js", "js/bigfile.js", "js/emoji-data.js"];
+  const original = ["js/i18n.js", "js/signaling-codec.js", "js/crypto-helper.js", "js/secure-store.js", "js/icons.js", "js/rich.js", "js/vendor/ml-kem768.js", "js/ratchet.js", "js/linkauth.js", "js/signaling-client.js", "js/serverlist.js", "js/discovery.js", "js/callquality.js", "js/webrtc.js", "js/file-limits.js", "js/bigfile.js", "js/emoji-data.js"];
   const flat = BUNDLES.flatMap((b) => b.files);
   const expected = [...original.filter((f) => f !== "js/discovery.js"), "js/discovery.js"];
   assert.deepEqual(flat.slice(0, expected.length), expected);

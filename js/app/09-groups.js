@@ -120,7 +120,9 @@ function sendGroupRosterTo(g, memberId) {
 }
 async function sendGroupMessage(groupId, text, replyTo) {
   const g = state.contacts.get(groupId); if (!g || !g.isGroup) return false;
+  if (g.isChannel) return channelSendPost(g, text, replyTo);
   if (!isGroupWriteAllowed(g, Store.myId)) { toast(T("toast.groupWriteRestricted")); return false; }
+  { const wait = groupSlowCheck(g); if (wait > 0) { toast(T("toast.groupSlow", { n: Math.ceil(wait / 1000) })); return false; } groupSlowNoteSent(g); }
   text = applyEmojiAutoReplace(text);
   // Симметрично sendChatMessage — иначе длинное сообщение, отправленное
   // программно (retry, вставка через JS), а не через <input maxlength>
@@ -332,6 +334,7 @@ function parseGroupInviteCode(text) {
     const groupId = qs.get("gid"), refId = qs.get("ref");
     if (!groupId || !refId) return null;
     const r = { groupId, refId, refName: qs.get("rn") || "", groupName: qs.get("gn") || "" };
+    if (qs.get("exp") != null) { r.exp = Number(qs.get("exp")) || 0; r.ap = qs.get("ap") === "1"; r.sg = qs.get("sg") || ""; }
     const servers = ServerList.decodeHints(qs.get("srv") || "", { allowLocal: srvAllowLocal() });
     if (servers.length) r.servers = servers;
     return r;
@@ -341,6 +344,7 @@ async function joinGroupViaInvite(text) {
   const parsed = parseGroupInviteCode(text);
   if (!parsed) { toast(T("toast.badInviteCode")); return false; }
   const { groupId, refId, refName, groupName } = parsed;
+  if (parsed.exp && Date.now() > parsed.exp) { toast(T("toast.inviteExpired")); return false; }
   if (refId === Store.myId) { toast(T("toast.ownId")); return false; }
   const existing = state.contacts.get(groupId);
   if (existing && existing.isGroup) { toast(T("toast.groupAlreadyJoined")); return false; }
@@ -352,7 +356,7 @@ async function joinGroupViaInvite(text) {
   else attemptConnectViaRelay(refId).catch(() => {});
   const refC = state.contacts.get(refId);
   if (!refC) return false;
-  await trySendOrQueue(refC, crypto.randomUUID(), { kind: "group-join-request", groupId, groupName, requesterName: Store.name || "" });
+  await trySendOrQueue(refC, crypto.randomUUID(), { kind: "group-join-request", groupId, groupName, requesterName: Store.name || "", ...(parsed.sg ? { exp: parsed.exp, ap: parsed.ap ? 1 : 0, sg: parsed.sg } : {}) });
   toast(T("toast.groupJoinRequested", { name: groupName || T("group.defaultName") }));
   return true;
 }
@@ -360,6 +364,7 @@ function openGroupInviteSheet(groupId) {
   const code = buildGroupInviteCode(groupId); if (!code) return;
   const out = $("#group-invite-code-out"); if (out) out.textContent = code;
   renderQrToCanvas($("#group-invite-qr-canvas"), code);
+  try { state.activeGroupContext = groupId; gaInviteControls(groupId); } catch (e) {}
   const sheet = $("#group-invite-sheet"); if (sheet) sheet.classList.remove("hidden");
 }
 
@@ -698,7 +703,7 @@ async function encryptForContact(contact, msgId, payload, forceV1) {
   const serverOk = !!(signaling && Array.isArray(signaling.features) && signaling.features.includes("ratchet2"));
   if (contact.rc && serverOk && !forceV1 && !(typeof Devices !== "undefined" && Devices.isCompanion())) {
     try {
-      envelope = await Ratchet.encrypt({ contactId: contact.id, myId: myIdFor(contact.id), myPrivJwk: Store.myPrivateKeyJwk, theirPubJwk: contact.publicKey, getBundle: () => fetchPrekeyBundle(contact.id) }, payload);
+      envelope = await Ratchet.encrypt({ contactId: contact.id, myId: myIdFor(contact.id), myPrivJwk: Store.myPrivateKeyJwk, theirPubJwk: contact.publicKey, getBundle: () => fetchPrekeyBundle(contact.id), v3Ok: !!(signaling && Array.isArray(signaling.features) && signaling.features.includes("pq1")) }, payload);
     } catch (e) { etherLog("warn", "[ratchet] шифрование не удалось, отправляю прежним способом:", String(e)); }
   }
   if (!envelope) {
@@ -1217,6 +1222,7 @@ async function toggleReaction(contactId, msgId, emoji) {
   persistContacts();
   try { announceToScreenReader(T(remove ? "a11y.reactionRemoved" : "a11y.reactionAdded", { emoji })); } catch (e) {}
   if (state.chatId === contactId) renderChatThread();
+  if (c.isChannel) return; // в канале реакции личные (у подписчиков нет канала обратной связи к владельцу)
   const actionId = crypto.randomUUID();
   const payload = { kind: "reaction", id: msgId, emoji, remove, ts: Date.now() };
   await dispatchRich(c, payload);

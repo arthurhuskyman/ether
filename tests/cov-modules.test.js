@@ -217,14 +217,14 @@ test("SecureStore: граничные ветки (короткий PIN, повт
     const o = {};
     const err = async (f) => { try { await f(); return null; } catch (e) { return e.message; } };
     o.short = await err(() => SecureStore.enable("123")); o.rekeyOff = await SecureStore.rekey("1", "2"); o.disableOff = await SecureStore.disable("x"); o.unlockOff = await SecureStore.unlock("x");
-    o.plainText = await SecureStore.sealText("abc"); o.openNonStr = await SecureStore.openText(5); o.openPlain = await SecureStore.openText("zz");
-    o.blobOff = (await SecureStore.sealBlob(new Blob(["q"]))) instanceof Blob; o.openBlobNull = await SecureStore.openBlob(null);
+    o.plainText = await SecureStore.openText(await SecureStore.sealText("abc")); /* V.80: без PIN sealText шифрует ключом устройства (раньше возвращал "abc" как есть) — проверяем круговой путь */ o.openNonStr = await SecureStore.openText(5); o.openPlain = await SecureStore.openText("zz");
+    o.blobOff = !((await SecureStore.sealBlob(new Blob(["q"]))) instanceof Blob); /* V.80: без PIN файл тоже запечатывается ключом устройства */ o.openBlobNull = await SecureStore.openBlob(null);
     await SecureStore.enable("123456");
     o.active = SecureStore.isActive(); o.on = SecureStore.isOn();
-    const sealed = await SecureStore.sealText("secret"); o.sealedPrefix = sealed.startsWith("enc1:"); o.opened = await SecureStore.openText(sealed); o.openBad = await SecureStore.openText("enc1:AAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+    const sealed = await SecureStore.sealText("secret"); o.sealedPrefix = sealed.startsWith("encd1:"); o.opened = await SecureStore.openText(sealed); o.openBad = await SecureStore.openText("enc1:AAAAAAAAAAAAAAAAAAAAAAAAAAAA");
     o.rekeyShort = await err(() => SecureStore.rekey("123456", "1")); o.rekeyWrong = await SecureStore.rekey("000000", "654321"); /* ключ в памяти — PIN не проверяется */ o.rekeyOk = await SecureStore.rekey("123456", "654321");
     o.openedAfterRekey = await SecureStore.openText(await SecureStore.sealText("again"));
-    const sb = await SecureStore.sealBlob(new Blob(["hello"], { type: "text/plain" })); o.sealedBlob = sb.__enc === 1; const ob = await SecureStore.openBlob(sb); o.blobBack = await ob.text(); o.blobType = ob.type;
+    const sb = await SecureStore.sealBlob(new Blob(["hello"], { type: "text/plain" })); o.sealedBlob = sb.__enc === 2; /* устройство поверх PIN */ const ob = await SecureStore.openBlob(sb); o.blobBack = await ob.text(); o.blobType = ob.type;
     o.blobCorrupt = await SecureStore.openBlob({ __enc: 1, iv: new Uint8Array(12).buffer, data: new ArrayBuffer(20) }); o.plainPassthrough = await SecureStore.openBlob({ x: 1 }) !== null;
     o.sealNonBlob = await SecureStore.sealBlob("str");
     o.wrongPin = await SecureStore.verify("000000"); o.okPin = !!(await SecureStore.verify("654321")); o.noMeta = await SecureStore.verify("1");
@@ -243,16 +243,16 @@ test("SecureStore: отключение в запертом состоянии �
   const a = await boot();
   await a.run(`(async () => { localStorage.setItem("ether.contacts", JSON.stringify([{id:"z"}])); await SecureStore.enable("111111"); await SecureStore.flush(); })()`);
   const snap = J(a.run(`(() => { const o = {}; for (const k of SecureStore.KEYS.concat(["ether.sec.on","ether.sec.salt","ether.sec.check"])) { const v = SecureStore.rawGet(k); if (v !== null) o[k] = v; } return o; })()`));
-  assert.ok(snap["ether.contacts"].startsWith("enc1:"));
+  assert.ok(snap["ether.contacts"].startsWith("encd1:")); // V.80: снаружи слой ключа устройства
   // новое окно с теми же данными на диске: хранилище «заперто» (key нет)
-  const b = createApp({ storage: { ...snap, "ether.name": "T", "ether.myId": "me-test-id", "ether.lang": "en" } }); await b.ready;
+  const b = createApp({ indexedDB: a.window.indexedDB, storage: { ...snap, "ether.name": "T", "ether.myId": "me-test-id", "ether.lang": "en" } }); await b.ready; // тот же профиль = тот же ключ устройства
   assert.equal(b.run(`SecureStore.isOn()`), true); assert.equal(b.run(`SecureStore.isActive()`), false);
   b.window.__o = null;
   await b.run(`(async () => { const o = {}; o.wrong = await SecureStore.disable("000000"); o.right = await SecureStore.disable("111111"); o.on = SecureStore.isOn(); o.contacts = localStorage.getItem("ether.contacts"); window.__o = o; })()`);
   const o = J(b.window.__o);
   assert.equal(o.wrong, false); assert.equal(o.right, true); assert.equal(o.on, false); assert.equal(o.contacts, JSON.stringify([{ id: "z" }]));
   // повреждённый шифртекст: unlock бросает secure-corrupt
-  const c = createApp({ storage: { ...snap, "ether.contacts": "enc1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "ether.name": "T", "ether.myId": "me-test-id", "ether.lang": "en" } }); await c.ready;
+  const c = createApp({ indexedDB: a.window.indexedDB, storage: { ...snap, "ether.contacts": "enc1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "ether.name": "T", "ether.myId": "me-test-id", "ether.lang": "en" } }); await c.ready;
   c.window.__o = null;
   await c.run(`(async () => { try { await SecureStore.unlock("111111"); window.__o = "ok"; } catch (e) { window.__o = e.message; } })()`);
   assert.equal(c.window.__o, "secure-corrupt");

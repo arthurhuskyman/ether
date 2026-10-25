@@ -460,6 +460,7 @@ function wireSignalingEvents(sig) {
     if (state.tab === "chats") renderChatsList();
     if (state.tab === "connect") renderOnlineRosterList();
   }));
+  try { channelsWire(sig, on, subs); } catch (e) { etherLog("warn", "[channels] wire:", String(e)); }
   subs.push(on("call-ringing", (ev) => { callRingingFromServer(ev.detail); })); // V.79 (протокол C): push доставлен, у собеседника звонит
   subs.push(on("linkcall-signal", (ev) => { linkCallOnSignal(sig, ev.detail); })); // V.79 (протокол E): сигналы link-call проходят через шлюз
   for (const lt of ["linkcall-created", "linkcall-joined", "linkcall-error", "linkcall-guest", "linkcall-end", "linkcall-allowed", "linkcall-denied"]) subs.push(on(lt, (ev) => { linkCallOnServer(sig, lt, ev.detail); }));
@@ -836,6 +837,23 @@ function pushSystemNote(c, key, params) {
 const RC_RESYNC_MIN_MS = 10 * 60 * 1000, RC_RESET_HANDLE_MIN_MS = 5 * 60 * 1000, RC_RESEND_MAX = 30;
 const rcResyncReqAt = new Map(), rcResetHandledAt = new Map();
 function isRatchetLostError(e) { return /ratchet: (no session|auth failed|unknown prekey|unknown one-time prekey)/.test(String(e)); }
+function isDowngradeError(e) { return /ratchet: downgrade/.test(String(e)); }
+// Ratchet сообщает о подозрительном понижении защиты: заметка в чате не чаще раза в час на контакт и код. Чат не блокируется.
+const ratchetWarnAt = new Map();
+function noteRatchetWarn(id, code) {
+  const c = state.contacts.get(id); if (!c || c.isGroup) return;
+  const k = id + "|" + code, now = Date.now();
+  if (now - (ratchetWarnAt.get(k) || 0) < 3600 * 1000) return;
+  ratchetWarnAt.set(k, now);
+  pushSystemNote(c, code === "pq-missing" ? "sys.ratchetPqMissing" : "sys.ratchetDowngrade");
+}
+try { Ratchet.onWarn(noteRatchetWarn); } catch (e) {}
+// Явное «сбросить защиту»: человек решил (например, собеседник переустановил приложение). Забывает «липкие» уровни и сессии этого контакта.
+function resetContactProtection(id) {
+  try { Ratchet.resetTrust(id); } catch (e) {}
+  for (const [mid, en] of outbox) if (en.to === id) envelopeCache.delete(mid);
+  const c = state.contacts.get(id); if (c) pushSystemNote(c, "sys.ratchetReset");
+}
 function isBenignDupError(e) { return /ratchet: (duplicate or old message|replayed initial)/.test(String(e)); }
 // Получатель: не смог открыть ratchet-конверт — просим отправителя начать сессию заново. Не чаще раза в RC_RESYNC_MIN_MS на контакт.
 function requestRatchetResync(from) {
@@ -934,6 +952,7 @@ async function handleDeliver(detail, replay) {
     } catch (e) {
       etherLog("error", "[crypto] decrypt failed:", String(e));
       seenDeliverIds.delete(dKey);
+      if (isDowngradeError(e)) { ackBox(); return; } // слабый начальный конверт отвергнут, заметка уже показана; не зацикливаем доставку и не просим пересинхронизацию
       if (isBenignDupError(e)) { // уже расшифрованный ранее конверт (память дедупликации потеряна) — просто подтверждаем
         markSeenMsg(from, msgId); ackBox();
         if (kind === "chat") sendAckBatch(from, [msgId], "delivered");
@@ -999,6 +1018,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     if (groupId && (!isGroup(c) || !c.members.some((m) => m.id === from))) return;
     if (typeof payload.text !== "string") return;
     if (groupId && c.writeRestricted && !isGroupAdmin(c, from)) return;
+    if (groupId && !c.isChannel && !groupSlowAccept(c, from)) return; // медленный режим проверяет получатель, не только интерфейс отправителя
     if (c.messages.some((m) => m.id === payload.id)) return;
     const routeId = groupId || from;
     const isOpen = state.chatId === routeId;
@@ -1139,7 +1159,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
         seenIds.add(m.id);
         const cm = { id: m.id, name: typeof m.name === "string" ? m.name.slice(0, 40) : "" };
         if (m.id === from && typeof m.srv === "string") { const hs = ServerList.decodeHints(m.srv, { allowLocal: srvAllowLocal() }); if (hs.length) try { srvLearn(from, hs); } catch (e) {} } // свои серверы отправитель сообщает сам
-        if (m.role === "admin" || m.role === "member") cm.role = m.role;
+        if (m.role === "admin" || m.role === "member" || m.role === "moderator") cm.role = m.role;
         clean.push(cm);
       }
       payload.members = clean;
@@ -1219,7 +1239,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
         g.members = g.members.filter((m) => m.id !== from);
       } else {
       if (inVer !== null && inVer > localVer) g.rosterVer = inVer;
-      g.members = payload.members;
+      g.members = GroupAdmin.sanitizeRoster(g, payload.members, from);
       // исключённых нами (banned) старый/параллельный ростер другого админа не возвращает, пока их не добавил админ вручную
       if (Array.isArray(g.banned) && g.banned.length && isGroupAdmin(g, Store.myId)) g.members = g.members.filter((m) => !g.banned.includes(m.id));
       if (payload.groupName) g.name = payload.groupName;
@@ -1332,6 +1352,8 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     persistContacts();
     if (state.chatId === from) renderChatThread();
     if (state.tab === "chats") renderChatsList();
+  } else if (kind === "group-admin") {
+    handleGroupAdmin(from, payload).catch((e) => etherLog("warn", "[group-admin]", String(e)));
   } else if (kind === "gk-dist") {
     handleGkDist(from, payload);
   } else if (kind === "gk-req") {
@@ -1348,7 +1370,11 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     if (Array.isArray(g.banned) && g.banned.includes(from)) return; // исключён админом — вернуть его может только сам админ вручную
     if (g.members.length >= groupMemberLimit(g.members.map((m) => m.id).concat(from))) return;
     ensureContactEntry(from, payload.requesterName || null);
-    addGroupMember(payload.groupId, from);
+    checkJoinRequest(g, from, payload).then((ok) => {
+      if (!ok) return;
+      if (payload._needApproval) groupQueueJoin(g, from, payload.requesterName);
+      else addGroupMember(payload.groupId, from);
+    }).catch(() => {});
     try { if (typeof fxReferralInviterHit === "function") fxReferralInviterHit(from); } catch (e) {}
   } else if (kind === "id-migrate") {
     handleIdMigrateNotice(from, payload).catch((e) => etherLog("warn", "[idmig] notice:", String(e)));
