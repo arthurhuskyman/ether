@@ -13,7 +13,7 @@ const vm = require("vm");
 const ROOT = path.resolve(__dirname, "..");
 
 const appFiles = fs.readdirSync(path.join(ROOT, "js/app")).filter((f) => f.endsWith(".js")).sort().map((f) => "js/app/" + f);
-const SKINS = ["cartoon", "comic", "watercolor", "neon", "steampunk", "gothic", "clay", "lego", "wood", "glass", "chalk", "newyear", "sakura"].map((s) => "js/skins/" + s + ".js");
+const SKINS = ["cartoon", "comic", "watercolor", "neon", "steampunk", "gothic", "clay", "lego", "wood", "glass", "chalk", "newyear", "sakura", "vampire", "hacker", "pixel", "vaporwave", "ocean", "galaxy", "western", "sumie", "artdeco", "kawaii", "pirate", "medieval", "jungle", "arctic", "halloween", "retro", "newspaper", "blueprint"].map((s) => "js/skins/" + s + ".js");
 
 // Порядок = порядок прежних <script src> в index.html (кроме vendor и discovery, см. README «Сборка бандлов»):
 // vendor-библиотеки (qrcode/jsQR) остаются отдельными тегами и теперь стоят ПЕРЕД core — они независимы;
@@ -22,7 +22,7 @@ const SKINS = ["cartoon", "comic", "watercolor", "neon", "steampunk", "gothic", 
 const BUNDLES = [
   { out: "js/bundle.core.js", strict: false, files: ["js/i18n.js", "js/signaling-codec.js", "js/crypto-helper.js", "js/secure-store.js", "js/icons.js", "js/rich.js", "js/vendor/ml-kem768.js", "js/ratchet.js", "js/groupkeys.js", "js/groupadmin.js", "js/channels.js", "js/search.js", "js/linkauth.js", "js/signaling-client.js", "js/serverlist.js", "js/callquality.js", "js/webrtc.js", "js/file-limits.js", "js/bigfile.js", "js/emoji-data.js"] },
   { out: "js/bundle.app.js", strict: true, files: ["js/discovery.js", ...appFiles] },
-  { out: "js/bundle.features.js", strict: false, files: ["js/stickers.js", "js/group-call.js", "js/rooms.js", "js/localai.js", "js/devicecheck.js", "js/devicecert.js", "js/devicelink.js", "js/devices.js", "js/integrity.js", "js/skins.js", ...SKINS] },
+  { out: "js/bundle.features.js", strict: false, files: ["js/stickers.js", "js/group-call.js", "js/rooms.js", "js/localai.js", "js/devicecheck.js", "js/devicecert.js", "js/devicelink.js", "js/devices.js", "js/miniapps.js", "js/integrity.js", "js/skins.js", ...SKINS] },
   { out: "js/bundle.fx.js", strict: true, files: ["js/features.js", "js/features2.js"] },
 ];
 // Порядок <script src> в index.html после сборки (бандлы + оставшиеся отдельные файлы).

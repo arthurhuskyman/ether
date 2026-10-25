@@ -1,0 +1,69 @@
+/* ============================ 8-БИТ (pixel) — аркадная палитра, квадратные формы, жирные рамки и жёсткие тени ============================ */
+html[data-skin="pixel"] {
+  --sk-font: ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace; --sk-head: ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace; --sk-tracking: 0;
+  --sk-bw: 3px; --sk-bs: solid; --sk-radius: 0px; --sk-bubble-r: 0px; --sk-tail: 0px; --sk-btn-r: 0px; --sk-field-r: 0px;
+  --sk-blur: none; --sk-blur-px: 0px; --sk-press-scale: 1; --sk-press-x: 2px; --sk-press-y: 2px;
+  --r-sm: 0px; --r-md: 0px; --r-lg: 0px; --r-xl: 6px;
+}
+html[data-skin="pixel"][data-scheme="light"] {
+  --bg-0: #e4f0d2; --bg-1: #edf6de; --bg-2: #f6fbea; --bg-3: #e4ebd9;
+  --line-1: rgba(27,51,23,0.63); --line-2: rgba(27,51,23,1);
+  --ink-0: #1b3317; --ink-1: rgba(27,51,23,0.94); --ink-2: rgba(27,51,23,0.8); --ink-3: rgba(27,51,23,0.7);
+  --accent: #236b23; --accent-hi: #4f894f; --accent-lo: #236b23; --accent-ghost: rgba(35,107,35,0.15); --text-link: #236b23;
+  --accent-bg: #1f6020; --on-accent: #ffffff;
+  --bubble-mine-bg: #1f6020; --bubble-mine-ink: #ffffff;
+  --bubble-theirs-bg: #f6fbea; --bubble-theirs-ink: #1b3317;
+  --card-bg: none; --card-base: #f6fbea; --card-border: rgba(27,51,23,0.9); --card-shadow: 4px 4px 0 rgba(27,51,23,.85);
+  --select-popup-bg: #f6fbea; --select-popup-ink: #1b3317; --input-bg: #eff7e0; --input-border: #73836b; --glass-border: rgba(27,51,23,0.9);
+  --sk-line: rgba(27,51,23,0.9); --sk-line-mine: rgba(27,51,23,0.9); --sk-line-theirs: rgba(27,51,23,0.9);
+  --sk-panel: #f6fbea; --sk-field: #eff7e0;
+  --sk-shadow: 4px 4px 0 rgba(27,51,23,.85); --sk-bubble-shadow: 3px 3px 0 rgba(27,51,23,.7); --sk-shadow-press: none;
+  --sk-btn-bg: #1f6020; --sk-btn-ink: #ffffff; --sk-panel-press: #e4ebd9;
+  --sk-bg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Cpath d='M0 0h8v8H0zM8 8h8v8H8z' fill='rgba(27,51,23,.045)'/%3E%3C/svg%3E"), #e4f0d2;
+}
+html[data-skin="pixel"][data-scheme="dark"] {
+  --bg-0: #1a1033; --bg-1: #221640; --bg-2: #2a1b4d; --bg-3: #44365f;
+  --line-1: rgba(255,248,225,0.63); --line-2: rgba(255,248,225,1);
+  --ink-0: #fff8e1; --ink-1: rgba(255,248,225,0.94); --ink-2: rgba(255,248,225,0.8); --ink-3: rgba(255,248,225,0.68);
+  --accent: #ffd23f; --accent-hi: #ffdb65; --accent-lo: #846d20; --accent-ghost: rgba(255,210,63,0.15); --text-link: #ffd23f;
+  --accent-bg: #ffd23f; --on-accent: #1a1033;
+  --bubble-mine-bg: #ae1b42; --bubble-mine-ink: #ffffff;
+  --bubble-theirs-bg: #3b2870; --bubble-theirs-ink: #fff8e1;
+  --card-bg: none; --card-base: #2a1b4d; --card-border: rgba(255,248,225,0.9); --card-shadow: 4px 4px 0 #000;
+  --select-popup-bg: #2a1b4d; --select-popup-ink: #fff8e1; --input-bg: #241743; --input-border: #9f959e; --glass-border: rgba(255,248,225,0.9);
+  --sk-line: rgba(255,248,225,0.9); --sk-line-mine: rgba(255,248,225,0.9); --sk-line-theirs: rgba(255,248,225,0.9);
+  --sk-panel: #2a1b4d; --sk-field: #241743;
+  --sk-shadow: 4px 4px 0 #000; --sk-bubble-shadow: 3px 3px 0 #000; --sk-shadow-press: none;
+  --sk-btn-bg: #ffd23f; --sk-btn-ink: #1a1033; --sk-panel-press: #44365f;
+  --sk-bg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Cpath d='M0 0h8v8H0zM8 8h8v8H8z' fill='rgba(255,248,225,.035)'/%3E%3C/svg%3E"), #1a1033;
+}
+html[data-skin="pixel"] #nav-bar.glass { margin: 0; border-radius: 0; border-width: 0; border-block-end-width: 3px; box-shadow: none; }
+html[data-skin="pixel"] #tab-bar.glass { margin: 0; border-radius: 0; border-width: 0; border-block-start-width: 3px; box-shadow: none; }
+html[data-skin="pixel"] #chat-form.glass { margin: 0; border-radius: 0; border-width: 0; border-block-start-width: 3px; box-shadow: none; }
+html[data-skin="pixel"] :is(h1, h2, h3, #nav-title, #chat-peer-name, .settings-category-header-title, .sheet-panel h2, .btn-primary, .btn-secondary, .tab-btn) { font-family: var(--sk-head); font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+html[data-skin="pixel"] .ico { stroke-linecap: square; stroke-linejoin: miter; stroke-width: 2.6; }
+html[data-skin="pixel"] .ico-fill { stroke: none; }
+html[data-skin="pixel"] #tab-bar .tab-btn { border-radius: 0px; transition: color .2s, background .2s; }
+html[data-skin="pixel"] #tab-bar .tab-btn.active { background: var(--accent-ghost); }
+html[data-skin="pixel"] .sheet-panel { border-bottom: 0; }
+html[data-skin="pixel"] .sheet-backdrop { background: rgba(0,0,0,.42); }
+html[data-skin="pixel"] :is(.chat-row, .settings-row, .settings-category-row, .sheet-action, .forward-row, .board-col, .contact-gallery-item, .bubble) { -webkit-backdrop-filter: none; backdrop-filter: none; }
+html[data-skin="pixel"] .chat-row { margin: 3px 0; }
+html[data-skin="pixel"] .bubble { padding: 9px 14px 7px; }
+html[data-skin="pixel"] :is(.avatar, .avatar-xl) { border-radius: 0; }
+html[data-skin="pixel"] .send-btn { border-radius: 0; }
+html[data-skin="pixel"] :is(.search-input, #chat-input, .settings-select, .rich-input) { border-color: var(--input-border); }
+html[data-skin="pixel"] :is(.search-input, #chat-input, .settings-select, .rich-input):focus { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+html[data-skin="pixel"] :is(#chat-input, .search-input)::placeholder { color: var(--ink-3); }
+html[data-skin="pixel"] :is(.chip, .chat-filter-chip, .theme-seg, .theme-seg button) { border-radius: 0; }
+html[data-skin="pixel"] .theme-seg button { white-space: normal; }
+html[data-skin="pixel"] .theme-seg button.active { background: var(--sk-btn-bg); color: var(--sk-btn-ink); }
+html[data-skin="pixel"] :is(.unread-badge, .tab-badge) { background: var(--accent-bg); color: var(--on-accent); text-shadow: none; }
+html[data-skin="pixel"] .voice-play-btn { background: var(--accent-bg); color: var(--on-accent); }
+html[data-skin="pixel"][data-scheme="light"] .bubble-row.mine .voice-play-btn { background: var(--bubble-mine-ink); color: #1f6020; }
+html[data-skin="pixel"][data-scheme="dark"] .bubble-row.mine .voice-play-btn { background: var(--bubble-mine-ink); color: #ae1b42; }
+html[data-skin="pixel"] .bubble-row.theirs .bubble-forwarded { background: var(--accent-lo); color: #fff; }
+html[data-skin="pixel"] #composer-menu-sheet .composer-menu-item { background: var(--sk-panel); font-weight: 600; }
+html[data-skin="pixel"] .bubble { border-width: 3px; }
+html[data-skin="pixel"] .chat-row, html[data-skin="pixel"] .settings-row, html[data-skin="pixel"] .sheet-panel { border-width: 3px; }
+html[data-skin="pixel"] .sk-pix { width: var(--s); height: var(--s); background: currentColor; }

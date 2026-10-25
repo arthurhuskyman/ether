@@ -8,7 +8,7 @@ test.after(closeAll);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const ROOT = path.join(__dirname, "..");
 const css = [fs.readFileSync(path.join(ROOT, "css", "skins.css"), "utf8")].concat(fs.readdirSync(path.join(ROOT, "css", "skins")).sort().map((f) => fs.readFileSync(path.join(ROOT, "css", "skins", f), "utf8"))).join("\n");
-const IDS = ["glass", "neon", "clay", "sakura", "cartoon", "comic", "watercolor", "steampunk", "gothic", "lego", "wood", "chalk", "newyear"]; // порядок = Skins.LIST без default; первые четыре + default — главная пятёрка
+const IDS = ["glass", "neon", "clay", "sakura", "cartoon", "comic", "watercolor", "steampunk", "gothic", "lego", "wood", "chalk", "newyear", "vampire", "hacker", "pixel", "vaporwave", "ocean", "galaxy", "western", "sumie", "artdeco", "kawaii", "pirate", "medieval", "jungle", "arctic", "halloween", "retro", "newspaper", "blueprint"]; // порядок = Skins.LIST без default; первые четыре + default — главная пятёрка
 const MAIN = ["default", "glass", "neon", "clay", "sakura"];
 async function booted(storage) {
   const a = createApp({ storage: Object.assign({ "ether.name": "T", "ether.myId": "me-test-id", "ether.lang": "ru" }, storage || {}) });
@@ -29,7 +29,7 @@ const hexOf = (v) => { const m = /#([0-9a-fA-F]{6})\b/.exec(v || ""); return m ?
 const lum = (hex) => { const c = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
 const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
 
-test("скины: у каждого из 13 есть светлая и тёмная палитра с полным набором переменных", () => {
+test("скины: у каждого из 31 есть светлая и тёмная палитра с полным набором переменных", () => {
   const b = blocks();
   for (const id of IDS) for (const sc of ["light", "dark"]) {
     const d = b[id] && b[id][sc]; assert.ok(d, `${id}/${sc}: блок палитры`);
@@ -79,7 +79,7 @@ test("скины: сохранённый скин применяется при 
   d.querySelector("#skin-more-btn").click();
   assert.equal(d.getElementById("skin-sheet").classList.contains("hidden"), false, "«…» открывает шторку");
   const sheet = Array.from(d.querySelectorAll("#skin-sheet-grid .skin-card"));
-  assert.equal(sheet.length, 14, "в шторке все 14");
+  assert.equal(sheet.length, 32, "в шторке все 32");
   assert.ok(sheet.find((c) => c.dataset.skin === "neon").classList.contains("active"), "текущий отмечен");
   sheet.find((c) => c.dataset.skin === "gothic").click();
   assert.equal(a.run(`Skins.get()`), "gothic");
@@ -103,9 +103,9 @@ test("скины: названия есть в en и ru, файлы подклю
   assert.match(sw, /\.\/css\/skins\.css/); assert.ok(require("./src-helper").wiredInHtmlAndSw("js/skins.js").sw);
 });
 
-test("скины: в списке 14 скинов, главная пятёрка по умолчанию, sakura зарегистрирован", async () => {
+test("скины: в списке 32 скина, главная пятёрка по умолчанию, sakura зарегистрирован", async () => {
   const a = await booted();
-  assert.equal(a.run(`Skins.LIST.length`), 14);
+  assert.equal(a.run(`Skins.LIST.length`), 32);
   assert.deepEqual(JSON.parse(a.run(`JSON.stringify(Skins.MAIN)`)), MAIN);
   assert.deepEqual(JSON.parse(a.run(`JSON.stringify(Skins.LIST.map((s) => s.id))`)), ["default", ...IDS]);
   const sp = a.run(`(() => { Skins.set("sakura"); const s = Skins.spec(); return JSON.stringify({ icons: !!s.icons && Object.keys(s.icons).length > 5, sound: Object.keys(s.sound || {}).sort(), haptic: !!s.haptic, deco: typeof s.deco }); })()`);
@@ -138,7 +138,7 @@ test("скины: файлы sakura на месте, подключены в ind
     assert.ok(w.html, "index.html " + id);
     assert.ok(w.sw, "sw.js " + id);
   }
-  assert.equal(fs.readdirSync(path.join(ROOT, "css", "skins")).length, 14 - 1, "13 css-файлов скинов (у обычного вида своего нет)");
+  assert.equal(fs.readdirSync(path.join(ROOT, "css", "skins")).length, 32 - 1, "31 css-файл скинов (у обычного вида своего нет)");
 });
 
 // Сетка выбора скина одинакова во ВСЕХ скинах: раскладку (сетка, ширина, отступы, поля, шрифт, display) задаёт только css/styles.css,

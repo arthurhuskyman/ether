@@ -1,0 +1,69 @@
+/* ============================ РЕТРО 70-х (retro) — тёплый оранж и бирюза, лучи-«санберст», полосатые тени пузырей и толстые шрифты ============================ */
+html[data-skin="retro"] {
+  --sk-font: -apple-system, "SF Pro Text", ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; --sk-head: "Cooper Black", "Hoefler Text", Rockwell, "Palatino Linotype", Georgia, serif; --sk-tracking: 0;
+  --sk-bw: 3px; --sk-bs: solid; --sk-radius: 20px; --sk-bubble-r: 22px; --sk-tail: 6px; --sk-btn-r: 16px; --sk-field-r: 20px;
+  --sk-blur: none; --sk-blur-px: 0px; --sk-press-scale: 0.96;
+  --r-sm: 14px; --r-md: 18px; --r-lg: 20px; --r-xl: 26px;
+}
+html[data-skin="retro"][data-scheme="light"] {
+  --bg-0: #f6e7c8; --bg-1: #fbedd1; --bg-2: #fff3da; --bg-3: #efe2ca;
+  --line-1: rgba(59,35,20,0.24499999999999997); --line-2: rgba(59,35,20,0.45499999999999996);
+  --ink-0: #3b2314; --ink-1: rgba(59,35,20,0.94); --ink-2: rgba(59,35,20,0.8); --ink-3: rgba(59,35,20,0.7);
+  --accent: #963a08; --accent-hi: #ab6139; --accent-lo: #963a08; --accent-ghost: rgba(150,58,8,0.15); --text-link: #963a08;
+  --accent-bg: #1f6f62; --on-accent: #ffffff;
+  --bubble-mine-bg: linear-gradient(160deg,#a8400c,#8f360a); --bubble-mine-ink: #ffffff;
+  --bubble-theirs-bg: #fff3da; --bubble-theirs-ink: #3b2314;
+  --card-bg: none; --card-base: #fff3da; --card-border: rgba(59,35,20,0.35); --card-shadow: 3px 3px 0 rgba(59,35,20,.5);
+  --select-popup-bg: #fff3da; --select-popup-ink: #3b2314; --input-bg: #fbeed3; --input-border: #897663; --glass-border: rgba(59,35,20,0.35);
+  --sk-line: rgba(59,35,20,0.35); --sk-line-mine: transparent; --sk-line-theirs: rgba(59,35,20,0.35);
+  --sk-panel: #fff3da; --sk-field: #fbeed3;
+  --sk-shadow: 3px 3px 0 rgba(59,35,20,.5); --sk-bubble-shadow: 0 4px 0 -1px #e9a23b, 0 8px 0 -2px #2f8f80; --sk-shadow-press: none;
+  --sk-btn-bg: #1f6f62; --sk-btn-ink: #ffffff; --sk-panel-press: #efe2ca;
+  --sk-bg: repeating-conic-gradient(from 0deg at 50% 118%, rgba(233,162,59,.18) 0deg 6deg, transparent 6deg 12deg), #f6e7c8;
+}
+html[data-skin="retro"][data-scheme="dark"] {
+  --bg-0: #2a1a10; --bg-1: #342015; --bg-2: #3d261a; --bg-3: #543d2f;
+  --line-1: rgba(242,163,58,0.24499999999999997); --line-2: rgba(242,163,58,0.45499999999999996);
+  --ink-0: #fbe9c8; --ink-1: rgba(251,233,200,0.94); --ink-2: rgba(251,233,200,0.8); --ink-3: rgba(251,233,200,0.68);
+  --accent: #f2a33a; --accent-hi: #f5b561; --accent-lo: #936323; --accent-ghost: rgba(242,163,58,0.15); --text-link: #f2a33a;
+  --accent-bg: #f2a33a; --on-accent: #2a1405;
+  --bubble-mine-bg: linear-gradient(160deg,#a8460f,#7f3408); --bubble-mine-ink: #ffffff;
+  --bubble-theirs-bg: #55352a; --bubble-theirs-ink: #fbe9c8;
+  --card-bg: none; --card-base: #3d261a; --card-border: rgba(242,163,58,0.35); --card-shadow: 3px 3px 0 rgba(0,0,0,.5);
+  --select-popup-bg: #3d261a; --select-popup-ink: #fbe9c8; --input-bg: #352116; --input-border: #a6917a; --glass-border: rgba(242,163,58,0.35);
+  --sk-line: rgba(242,163,58,0.35); --sk-line-mine: transparent; --sk-line-theirs: rgba(242,163,58,0.35);
+  --sk-panel: #3d261a; --sk-field: #352116;
+  --sk-shadow: 3px 3px 0 rgba(0,0,0,.5); --sk-bubble-shadow: 0 4px 0 -1px #f2a33a, 0 8px 0 -2px #3fa090; --sk-shadow-press: none;
+  --sk-btn-bg: #f2a33a; --sk-btn-ink: #2a1405; --sk-panel-press: #543d2f;
+  --sk-bg: repeating-conic-gradient(from 0deg at 50% 118%, rgba(242,163,58,.1) 0deg 6deg, transparent 6deg 12deg), #2a1a10;
+}
+html[data-skin="retro"] #nav-bar.glass { margin: 8px 10px 0; padding-top: calc(env(safe-area-inset-top, 0px) + 2px); border-radius: 22px; }
+html[data-skin="retro"] #tab-bar.glass { margin: 0 12px calc(10px + env(safe-area-inset-bottom, 0px)); padding: 0 6px; border-radius: 26px; }
+html.kb-openhtml[data-skin="retro"] #tab-bar.glass { margin-bottom: 10px; }
+html[data-skin="retro"] #chat-form.glass { margin: 0 10px 8px; border-radius: 26px; }
+html[data-skin="retro"] :is(h1, h2, h3, #nav-title, #chat-peer-name, .settings-category-header-title, .sheet-panel h2, .btn-primary, .btn-secondary, .tab-btn) { font-family: var(--sk-head); font-weight: 800; }
+html[data-skin="retro"] .ico { stroke-linecap: round; stroke-linejoin: round; }
+html[data-skin="retro"] .ico-fill { stroke: none; }
+html[data-skin="retro"] #tab-bar .tab-btn { border-radius: 16px; transition: color .2s, background .2s; }
+html[data-skin="retro"] #tab-bar .tab-btn.active { background: var(--accent-ghost); }
+html[data-skin="retro"] .sheet-panel { border-bottom: 0; }
+html[data-skin="retro"] .sheet-backdrop { background: rgba(0,0,0,.42); }
+html[data-skin="retro"] :is(.chat-row, .settings-row, .settings-category-row, .sheet-action, .forward-row, .board-col, .contact-gallery-item, .bubble) { -webkit-backdrop-filter: none; backdrop-filter: none; }
+html[data-skin="retro"] .chat-row { margin: 3px 0; }
+html[data-skin="retro"] .bubble { padding: 9px 14px 7px; }
+html[data-skin="retro"] :is(.avatar, .avatar-xl) { border-radius: 50%; }
+html[data-skin="retro"] .send-btn { border-radius: 50%; }
+html[data-skin="retro"] :is(.search-input, #chat-input, .settings-select, .rich-input) { border-color: var(--input-border); }
+html[data-skin="retro"] :is(.search-input, #chat-input, .settings-select, .rich-input):focus { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+html[data-skin="retro"] :is(#chat-input, .search-input)::placeholder { color: var(--ink-3); }
+html[data-skin="retro"] :is(.chip, .chat-filter-chip, .theme-seg, .theme-seg button) { border-radius: 999px; }
+html[data-skin="retro"] .theme-seg button { white-space: normal; }
+html[data-skin="retro"] .theme-seg button.active { background: var(--sk-btn-bg); color: var(--sk-btn-ink); }
+html[data-skin="retro"] :is(.unread-badge, .tab-badge) { background: var(--accent-bg); color: var(--on-accent); text-shadow: none; }
+html[data-skin="retro"] .voice-play-btn { background: var(--accent-bg); color: var(--on-accent); }
+html[data-skin="retro"][data-scheme="light"] .bubble-row.mine .voice-play-btn { background: var(--bubble-mine-ink); color: #a8400c; }
+html[data-skin="retro"][data-scheme="dark"] .bubble-row.mine .voice-play-btn { background: var(--bubble-mine-ink); color: #a8460f; }
+html[data-skin="retro"] .bubble-row.theirs .bubble-forwarded { background: var(--accent-lo); color: #fff; }
+html[data-skin="retro"] #composer-menu-sheet .composer-menu-item { background: var(--sk-panel); font-weight: 600; }
+html[data-skin="retro"] .bubble { margin-block-end: 6px; }
+html[data-skin="retro"] .sk-ret { font-weight: 400; }

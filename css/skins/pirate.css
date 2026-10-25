@@ -1,0 +1,69 @@
+/* ============================ ПИРАТ (pirate) — карта сокровищ: пергамент, пунктир маршрута, ночное море, корабли и попугаи ============================ */
+html[data-skin="pirate"] {
+  --sk-font: -apple-system, "SF Pro Text", ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; --sk-head: Luminari, "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif; --sk-tracking: 0;
+  --sk-bw: 2px; --sk-bs: solid; --sk-radius: 8px; --sk-bubble-r: 12px; --sk-tail: 2px; --sk-btn-r: 6px; --sk-field-r: 8px;
+  --sk-blur: none; --sk-blur-px: 0px; --sk-press-scale: 0.97;
+  --r-sm: 2px; --r-md: 6px; --r-lg: 8px; --r-xl: 14px;
+}
+html[data-skin="pirate"][data-scheme="light"] {
+  --bg-0: #ecd9b0; --bg-1: #f1e1bb; --bg-2: #f6e8c6; --bg-3: #e6d8b7;
+  --line-1: rgba(107,74,42,0.24499999999999997); --line-2: rgba(107,74,42,0.45499999999999996);
+  --ink-0: #2c1a0c; --ink-1: rgba(44,26,12,0.94); --ink-2: rgba(44,26,12,0.8); --ink-3: rgba(44,26,12,0.7);
+  --accent: #8a2a14; --accent-hi: #a15543; --accent-lo: #8a2a14; --accent-ghost: rgba(138,42,20,0.15); --text-link: #8a2a14;
+  --accent-bg: #8a2a14; --on-accent: #ffffff;
+  --bubble-mine-bg: linear-gradient(160deg,#1f4e5f,#143a48); --bubble-mine-ink: #ffffff;
+  --bubble-theirs-bg: #f6e8c6; --bubble-theirs-ink: #2c1a0c;
+  --card-bg: none; --card-base: #f6e8c6; --card-border: rgba(107,74,42,0.35); --card-shadow: 0 4px 0 rgba(107,74,42,.3);
+  --select-popup-bg: #f6e8c6; --select-popup-ink: #2c1a0c; --input-bg: #f2e2bd; --input-border: #7d6c56; --glass-border: rgba(107,74,42,0.35);
+  --sk-line: rgba(107,74,42,0.35); --sk-line-mine: transparent; --sk-line-theirs: rgba(107,74,42,0.35);
+  --sk-panel: #f6e8c6; --sk-field: #f2e2bd;
+  --sk-shadow: 0 4px 0 rgba(107,74,42,.3); --sk-bubble-shadow: 0 2px 0 rgba(107,74,42,.35); --sk-shadow-press: none;
+  --sk-btn-bg: #8a2a14; --sk-btn-ink: #ffffff; --sk-panel-press: #e6d8b7;
+  --sk-bg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Cg fill='rgba(107,74,42,.3)'%3E%3Ccircle cx='6' cy='10' r='.8'/%3E%3Ccircle cx='30' cy='4' r='.6'/%3E%3Ccircle cx='50' cy='22' r='.9'/%3E%3Ccircle cx='18' cy='40' r='.7'/%3E%3Ccircle cx='42' cy='52' r='.8'/%3E%3Ccircle cx='8' cy='56' r='.6'/%3E%3C/g%3E%3C/svg%3E"), radial-gradient(ellipse 100% 60% at 50% 50%, transparent 55%, rgba(120,80,30,.28) 100%), #ecd9b0;
+}
+html[data-skin="pirate"][data-scheme="dark"] {
+  --bg-0: #0c1a24; --bg-1: #11222f; --bg-2: #15293a; --bg-3: #2f404b;
+  --line-1: rgba(232,182,76,0.21); --line-2: rgba(232,182,76,0.39);
+  --ink-0: #f1e6c8; --ink-1: rgba(241,230,200,0.94); --ink-2: rgba(241,230,200,0.8); --ink-3: rgba(241,230,200,0.68);
+  --accent: #e8b64c; --accent-hi: #edc570; --accent-lo: #8d6f2e; --accent-ghost: rgba(232,182,76,0.15); --text-link: #e8b64c;
+  --accent-bg: #e8b64c; --on-accent: #231805;
+  --bubble-mine-bg: linear-gradient(160deg,#1a5f76,#154d60); --bubble-mine-ink: #ffffff;
+  --bubble-theirs-bg: #203a50; --bubble-theirs-ink: #f1e6c8;
+  --card-bg: none; --card-base: #15293a; --card-border: rgba(232,182,76,0.3); --card-shadow: 0 6px 20px rgba(0,0,0,.5);
+  --select-popup-bg: #15293a; --select-popup-ink: #f1e6c8; --input-bg: #112331; --input-border: #8e9188; --glass-border: rgba(232,182,76,0.3);
+  --sk-line: rgba(232,182,76,0.3); --sk-line-mine: transparent; --sk-line-theirs: rgba(232,182,76,0.3);
+  --sk-panel: #15293a; --sk-field: #112331;
+  --sk-shadow: 0 6px 20px rgba(0,0,0,.5); --sk-bubble-shadow: 0 2px 8px rgba(0,0,0,.4); --sk-shadow-press: none;
+  --sk-btn-bg: #e8b64c; --sk-btn-ink: #231805; --sk-panel-press: #2f404b;
+  --sk-bg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='14'%3E%3Cpath d='M0 7q15-10 30 0t30 0' fill='none' stroke='rgba(232,182,76,.07)' stroke-width='1.2'/%3E%3C/svg%3E"), radial-gradient(circle at 85% 8%, rgba(255,240,190,.35) 0 22px, transparent 24px), linear-gradient(180deg, #11263a, #0a1620);
+}
+html[data-skin="pirate"] #nav-bar.glass { margin: 8px 10px 0; padding-top: calc(env(safe-area-inset-top, 0px) + 2px); border-radius: 10px; }
+html[data-skin="pirate"] #tab-bar.glass { margin: 0 12px calc(10px + env(safe-area-inset-bottom, 0px)); padding: 0 6px; border-radius: 14px; }
+html.kb-openhtml[data-skin="pirate"] #tab-bar.glass { margin-bottom: 10px; }
+html[data-skin="pirate"] #chat-form.glass { margin: 0 10px 8px; border-radius: 14px; }
+html[data-skin="pirate"] :is(h1, h2, h3, #nav-title, #chat-peer-name, .settings-category-header-title, .sheet-panel h2, .btn-primary, .btn-secondary, .tab-btn) { font-family: var(--sk-head); font-weight: 700; letter-spacing: .03em; }
+html[data-skin="pirate"] .ico { stroke-linecap: round; stroke-linejoin: round; }
+html[data-skin="pirate"] .ico-fill { stroke: none; }
+html[data-skin="pirate"] #tab-bar .tab-btn { border-radius: 6px; transition: color .2s, background .2s; }
+html[data-skin="pirate"] #tab-bar .tab-btn.active { background: var(--accent-ghost); }
+html[data-skin="pirate"] .sheet-panel { border-bottom: 0; }
+html[data-skin="pirate"] .sheet-backdrop { background: rgba(0,0,0,.42); }
+html[data-skin="pirate"] :is(.chat-row, .settings-row, .settings-category-row, .sheet-action, .forward-row, .board-col, .contact-gallery-item, .bubble) { -webkit-backdrop-filter: none; backdrop-filter: none; }
+html[data-skin="pirate"] .chat-row { margin: 3px 0; }
+html[data-skin="pirate"] .bubble { padding: 9px 14px 7px; }
+html[data-skin="pirate"] :is(.avatar, .avatar-xl) { border-radius: 50%; }
+html[data-skin="pirate"] .send-btn { border-radius: 50%; }
+html[data-skin="pirate"] :is(.search-input, #chat-input, .settings-select, .rich-input) { border-color: var(--input-border); }
+html[data-skin="pirate"] :is(.search-input, #chat-input, .settings-select, .rich-input):focus { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+html[data-skin="pirate"] :is(#chat-input, .search-input)::placeholder { color: var(--ink-3); }
+html[data-skin="pirate"] :is(.chip, .chat-filter-chip, .theme-seg, .theme-seg button) { border-radius: 999px; }
+html[data-skin="pirate"] .theme-seg button { white-space: normal; }
+html[data-skin="pirate"] .theme-seg button.active { background: var(--sk-btn-bg); color: var(--sk-btn-ink); }
+html[data-skin="pirate"] :is(.unread-badge, .tab-badge) { background: var(--accent-bg); color: var(--on-accent); text-shadow: none; }
+html[data-skin="pirate"] .voice-play-btn { background: var(--accent-bg); color: var(--on-accent); }
+html[data-skin="pirate"][data-scheme="light"] .bubble-row.mine .voice-play-btn { background: var(--bubble-mine-ink); color: #1f4e5f; }
+html[data-skin="pirate"][data-scheme="dark"] .bubble-row.mine .voice-play-btn { background: var(--bubble-mine-ink); color: #1a5f76; }
+html[data-skin="pirate"] .bubble-row.theirs .bubble-forwarded { background: var(--accent-lo); color: #fff; }
+html[data-skin="pirate"] #composer-menu-sheet .composer-menu-item { background: var(--sk-panel); font-weight: 600; }
+html[data-skin="pirate"] .chat-row, html[data-skin="pirate"] .settings-row { border-style: dashed; }
+html[data-skin="pirate"] #nav-title::before { content: "☠"; margin-inline-end: .4em; color: var(--accent); }

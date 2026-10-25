@@ -1,0 +1,68 @@
+/* ============================ ГАЛАКТИКА (galaxy) — туманности, мерцающие звёзды, кольцо планеты и редкая комета ============================ */
+html[data-skin="galaxy"] {
+  --sk-font: -apple-system, "SF Pro Text", ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; --sk-head: -apple-system, "SF Pro Text", ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; --sk-tracking: 0;
+  --sk-bw: 1px; --sk-bs: solid; --sk-radius: 16px; --sk-bubble-r: 18px; --sk-tail: 4px; --sk-btn-r: 12px; --sk-field-r: 16px;
+  --sk-blur: none; --sk-blur-px: 0px; --sk-press-scale: 0.97;
+  --r-sm: 10px; --r-md: 14px; --r-lg: 16px; --r-xl: 22px;
+}
+html[data-skin="galaxy"][data-scheme="light"] {
+  --bg-0: #eceaff; --bg-1: #f2f1ff; --bg-2: #f8f7ff; --bg-3: #e6e5f1;
+  --line-1: rgba(63,37,168,0.11199999999999999); --line-2: rgba(63,37,168,0.20800000000000002);
+  --ink-0: #1c1650; --ink-1: rgba(28,22,80,0.94); --ink-2: rgba(28,22,80,0.8); --ink-3: rgba(28,22,80,0.7);
+  --accent: #5a36d0; --accent-hi: #7b5ed9; --accent-lo: #5a36d0; --accent-ghost: rgba(90,54,208,0.15); --text-link: #5a36d0;
+  --accent-bg: #5a36d0; --on-accent: #ffffff;
+  --bubble-mine-bg: linear-gradient(160deg,#5a36d0,#3f25a8); --bubble-mine-ink: #ffffff;
+  --bubble-theirs-bg: #f8f7ff; --bubble-theirs-ink: #1c1650;
+  --card-bg: none; --card-base: #f8f7ff; --card-border: rgba(63,37,168,0.16); --card-shadow: 0 6px 20px rgba(28,22,80,0.12);
+  --select-popup-bg: #f8f7ff; --select-popup-ink: #1c1650; --input-bg: #f3f2ff; --input-border: #747096; --glass-border: rgba(63,37,168,0.16);
+  --sk-line: rgba(63,37,168,0.16); --sk-line-mine: transparent; --sk-line-theirs: rgba(63,37,168,0.16);
+  --sk-panel: #f8f7ff; --sk-field: #f3f2ff;
+  --sk-shadow: 0 6px 20px rgba(28,22,80,0.12); --sk-bubble-shadow: 0 1px 4px rgba(28,22,80,0.14); --sk-shadow-press: none;
+  --sk-btn-bg: #5a36d0; --sk-btn-ink: #ffffff; --sk-panel-press: #e6e5f1;
+  --sk-bg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cg fill='rgba(90,54,208,.35)'%3E%3Ccircle cx='14' cy='20' r='1'/%3E%3Ccircle cx='70' cy='12' r='1.4'/%3E%3Ccircle cx='104' cy='46' r='.9'/%3E%3Ccircle cx='36' cy='64' r='1.2'/%3E%3Ccircle cx='88' cy='92' r='1'/%3E%3Ccircle cx='20' cy='106' r='.8'/%3E%3Ccircle cx='58' cy='98' r='1.3'/%3E%3C/g%3E%3C/svg%3E"), radial-gradient(ellipse 70% 40% at 20% 0%, rgba(160,130,255,.3), transparent 70%), radial-gradient(ellipse 60% 40% at 90% 100%, rgba(255,150,210,.22), transparent 70%), #eceaff;
+}
+html[data-skin="galaxy"][data-scheme="dark"] {
+  --bg-0: #070816; --bg-1: #0d0e26; --bg-2: #121436; --bg-3: #2c2e4e;
+  --line-1: rgba(185,162,255,0.154); --line-2: rgba(185,162,255,0.28600000000000003);
+  --ink-0: #eceeff; --ink-1: rgba(236,238,255,0.94); --ink-2: rgba(236,238,255,0.8); --ink-3: rgba(236,238,255,0.68);
+  --accent: #b9a2ff; --accent-hi: #c7b5ff; --accent-lo: #6f629b; --accent-ghost: rgba(185,162,255,0.15); --text-link: #b9a2ff;
+  --accent-bg: #b9a2ff; --on-accent: #12082e;
+  --bubble-mine-bg: linear-gradient(160deg,#5b3fd0,#3d28a0); --bubble-mine-ink: #ffffff;
+  --bubble-theirs-bg: #1e2150; --bubble-theirs-ink: #eceeff;
+  --card-bg: none; --card-base: #121436; --card-border: rgba(185,162,255,0.22); --card-shadow: 0 8px 26px rgba(0,0,0,.5);
+  --select-popup-bg: #121436; --select-popup-ink: #eceeff; --input-bg: #0e0f29; --input-border: #8a8ca5; --glass-border: rgba(185,162,255,0.22);
+  --sk-line: rgba(185,162,255,0.22); --sk-line-mine: transparent; --sk-line-theirs: rgba(185,162,255,0.22);
+  --sk-panel: #121436; --sk-field: #0e0f29;
+  --sk-shadow: 0 8px 26px rgba(0,0,0,.5); --sk-bubble-shadow: 0 2px 8px rgba(0,0,0,.4); --sk-shadow-press: none;
+  --sk-btn-bg: #b9a2ff; --sk-btn-ink: #12082e; --sk-panel-press: #2c2e4e;
+  --sk-bg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cg fill='rgba(255,255,255,.6)'%3E%3Ccircle cx='14' cy='20' r='1'/%3E%3Ccircle cx='70' cy='12' r='1.4'/%3E%3Ccircle cx='104' cy='46' r='.9'/%3E%3Ccircle cx='36' cy='64' r='1.2'/%3E%3Ccircle cx='88' cy='92' r='1'/%3E%3Ccircle cx='20' cy='106' r='.8'/%3E%3Ccircle cx='58' cy='98' r='1.3'/%3E%3C/g%3E%3C/svg%3E"), radial-gradient(ellipse 70% 40% at 15% 5%, rgba(110,70,255,.35), transparent 70%), radial-gradient(ellipse 60% 40% at 95% 95%, rgba(255,70,170,.22), transparent 70%), #070816;
+}
+html[data-skin="galaxy"] #nav-bar.glass { margin: 8px 10px 0; padding-top: calc(env(safe-area-inset-top, 0px) + 2px); border-radius: 18px; }
+html[data-skin="galaxy"] #tab-bar.glass { margin: 0 12px calc(10px + env(safe-area-inset-bottom, 0px)); padding: 0 6px; border-radius: 22px; }
+html.kb-openhtml[data-skin="galaxy"] #tab-bar.glass { margin-bottom: 10px; }
+html[data-skin="galaxy"] #chat-form.glass { margin: 0 10px 8px; border-radius: 22px; }
+html[data-skin="galaxy"] :is(h1, h2, h3, #nav-title, #chat-peer-name, .settings-category-header-title, .sheet-panel h2, .btn-primary, .btn-secondary, .tab-btn) { font-family: var(--sk-head); font-weight: 700; letter-spacing: .02em; }
+html[data-skin="galaxy"] .ico { stroke-linecap: round; stroke-linejoin: round; }
+html[data-skin="galaxy"] .ico-fill { stroke: none; }
+html[data-skin="galaxy"] #tab-bar .tab-btn { border-radius: 12px; transition: color .2s, background .2s; }
+html[data-skin="galaxy"] #tab-bar .tab-btn.active { background: var(--accent-ghost); }
+html[data-skin="galaxy"] .sheet-panel { border-bottom: 0; }
+html[data-skin="galaxy"] .sheet-backdrop { background: rgba(0,0,0,.42); }
+html[data-skin="galaxy"] :is(.chat-row, .settings-row, .settings-category-row, .sheet-action, .forward-row, .board-col, .contact-gallery-item, .bubble) { -webkit-backdrop-filter: none; backdrop-filter: none; }
+html[data-skin="galaxy"] .chat-row { margin: 3px 0; }
+html[data-skin="galaxy"] .bubble { padding: 9px 14px 7px; }
+html[data-skin="galaxy"] :is(.avatar, .avatar-xl) { border-radius: 50%; }
+html[data-skin="galaxy"] .send-btn { border-radius: 50%; }
+html[data-skin="galaxy"] :is(.search-input, #chat-input, .settings-select, .rich-input) { border-color: var(--input-border); }
+html[data-skin="galaxy"] :is(.search-input, #chat-input, .settings-select, .rich-input):focus { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+html[data-skin="galaxy"] :is(#chat-input, .search-input)::placeholder { color: var(--ink-3); }
+html[data-skin="galaxy"] :is(.chip, .chat-filter-chip, .theme-seg, .theme-seg button) { border-radius: 999px; }
+html[data-skin="galaxy"] .theme-seg button { white-space: normal; }
+html[data-skin="galaxy"] .theme-seg button.active { background: var(--sk-btn-bg); color: var(--sk-btn-ink); }
+html[data-skin="galaxy"] :is(.unread-badge, .tab-badge) { background: var(--accent-bg); color: var(--on-accent); text-shadow: none; }
+html[data-skin="galaxy"] .voice-play-btn { background: var(--accent-bg); color: var(--on-accent); }
+html[data-skin="galaxy"][data-scheme="light"] .bubble-row.mine .voice-play-btn { background: var(--bubble-mine-ink); color: #5a36d0; }
+html[data-skin="galaxy"][data-scheme="dark"] .bubble-row.mine .voice-play-btn { background: var(--bubble-mine-ink); color: #5b3fd0; }
+html[data-skin="galaxy"] .bubble-row.theirs .bubble-forwarded { background: var(--accent-lo); color: #fff; }
+html[data-skin="galaxy"] #composer-menu-sheet .composer-menu-item { background: var(--sk-panel); font-weight: 600; }
+html[data-skin="galaxy"] .sk-star { font-weight: 400; }

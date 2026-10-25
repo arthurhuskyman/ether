@@ -1,0 +1,70 @@
+/* ============================ ЗАМОК (medieval) — каменная кладка, гербовый красный и золото, щитовые аватары и заглавные малые буквы ============================ */
+html[data-skin="medieval"] {
+  --sk-font: -apple-system, "SF Pro Text", ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; --sk-head: "Palatino Linotype", Palatino, "Book Antiqua", Georgia, "Times New Roman", serif; --sk-tracking: 0;
+  --sk-bw: 2px; --sk-bs: solid; --sk-radius: 3px; --sk-bubble-r: 6px; --sk-tail: 0px; --sk-btn-r: 3px; --sk-field-r: 3px;
+  --sk-blur: none; --sk-blur-px: 0px; --sk-press-scale: 0.97;
+  --r-sm: 0px; --r-md: 1px; --r-lg: 3px; --r-xl: 9px;
+}
+html[data-skin="medieval"][data-scheme="light"] {
+  --bg-0: #e9e2d2; --bg-1: #f0e9da; --bg-2: #f6f0e2; --bg-3: #e5dfd2;
+  --line-1: rgba(90,74,54,0.27999999999999997); --line-2: rgba(90,74,54,0.52);
+  --ink-0: #241c14; --ink-1: rgba(36,28,20,0.94); --ink-2: rgba(36,28,20,0.8); --ink-3: rgba(36,28,20,0.7);
+  --accent: #7b1d1d; --accent-hi: #954a4a; --accent-lo: #7b1d1d; --accent-ghost: rgba(123,29,29,0.15); --text-link: #7b1d1d;
+  --accent-bg: #7b1d1d; --on-accent: #ffffff;
+  --bubble-mine-bg: linear-gradient(160deg,#6b1a22,#4d1219); --bubble-mine-ink: #ffffff;
+  --bubble-theirs-bg: #f6f0e2; --bubble-theirs-ink: #241c14;
+  --card-bg: none; --card-base: #f6f0e2; --card-border: rgba(90,74,54,0.4); --card-shadow: 0 3px 0 rgba(90,74,54,.3);
+  --select-popup-bg: #f6f0e2; --select-popup-ink: #241c14; --input-bg: #f1eadc; --input-border: #787166; --glass-border: rgba(90,74,54,0.4);
+  --sk-line: rgba(90,74,54,0.4); --sk-line-mine: transparent; --sk-line-theirs: rgba(90,74,54,0.4);
+  --sk-panel: #f6f0e2; --sk-field: #f1eadc;
+  --sk-shadow: 0 3px 0 rgba(90,74,54,.3); --sk-bubble-shadow: 0 2px 0 rgba(90,74,54,.35); --sk-shadow-press: none;
+  --sk-btn-bg: #7b1d1d; --sk-btn-ink: #ffffff; --sk-panel-press: #e5dfd2;
+  --sk-bg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='24'%3E%3Cpath d='M0 .5H48M0 12.5H48M0 24.5H48M12 .5V12M36 12V24' fill='none' stroke='rgba(90,74,54,.14)'/%3E%3C/svg%3E"), #e9e2d2;
+}
+html[data-skin="medieval"][data-scheme="dark"] {
+  --bg-0: #14161c; --bg-1: #1a1d24; --bg-2: #20232c; --bg-3: #383a40;
+  --line-1: rgba(217,180,90,0.21); --line-2: rgba(217,180,90,0.39);
+  --ink-0: #ece6d6; --ink-1: rgba(236,230,214,0.94); --ink-2: rgba(236,230,214,0.8); --ink-3: rgba(236,230,214,0.68);
+  --accent: #d9b45a; --accent-hi: #e1c37b; --accent-lo: #846e36; --accent-ghost: rgba(217,180,90,0.15); --text-link: #d9b45a;
+  --accent-bg: #d9b45a; --on-accent: #1d1503;
+  --bubble-mine-bg: linear-gradient(160deg,#7a1f2a,#5a1620); --bubble-mine-ink: #ffffff;
+  --bubble-theirs-bg: #2e323f; --bubble-theirs-ink: #ece6d6;
+  --card-bg: none; --card-base: #20232c; --card-border: rgba(217,180,90,0.3); --card-shadow: 0 4px 0 rgba(0,0,0,.5);
+  --select-popup-bg: #20232c; --select-popup-ink: #ece6d6; --input-bg: #1b1e26; --input-border: #908e8a; --glass-border: rgba(217,180,90,0.3);
+  --sk-line: rgba(217,180,90,0.3); --sk-line-mine: transparent; --sk-line-theirs: rgba(217,180,90,0.3);
+  --sk-panel: #20232c; --sk-field: #1b1e26;
+  --sk-shadow: 0 4px 0 rgba(0,0,0,.5); --sk-bubble-shadow: 0 2px 0 rgba(0,0,0,.5); --sk-shadow-press: none;
+  --sk-btn-bg: #d9b45a; --sk-btn-ink: #1d1503; --sk-panel-press: #383a40;
+  --sk-bg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='24'%3E%3Cpath d='M0 .5H48M0 12.5H48M0 24.5H48M12 .5V12M36 12V24' fill='none' stroke='rgba(236,230,214,.05)'/%3E%3C/svg%3E"), radial-gradient(ellipse 70% 30% at 50% 100%, rgba(255,140,40,.2), transparent 70%), #14161c;
+}
+html[data-skin="medieval"] #nav-bar.glass { margin: 0; border-radius: 0; border-width: 0; border-block-end-width: 2px; box-shadow: none; }
+html[data-skin="medieval"] #tab-bar.glass { margin: 0; border-radius: 0; border-width: 0; border-block-start-width: 2px; box-shadow: none; }
+html[data-skin="medieval"] #chat-form.glass { margin: 0; border-radius: 0; border-width: 0; border-block-start-width: 2px; box-shadow: none; }
+html[data-skin="medieval"] :is(h1, h2, h3, #nav-title, #chat-peer-name, .settings-category-header-title, .sheet-panel h2, .btn-primary, .btn-secondary, .tab-btn) { font-family: var(--sk-head); font-weight: 700; letter-spacing: .04em; }
+html[data-skin="medieval"] .ico { stroke-linecap: square; stroke-linejoin: miter; }
+html[data-skin="medieval"] .ico-fill { stroke: none; }
+html[data-skin="medieval"] #tab-bar .tab-btn { border-radius: 3px; transition: color .2s, background .2s; }
+html[data-skin="medieval"] #tab-bar .tab-btn.active { background: var(--accent-ghost); }
+html[data-skin="medieval"] .sheet-panel { border-bottom: 0; }
+html[data-skin="medieval"] .sheet-backdrop { background: rgba(0,0,0,.42); }
+html[data-skin="medieval"] :is(.chat-row, .settings-row, .settings-category-row, .sheet-action, .forward-row, .board-col, .contact-gallery-item, .bubble) { -webkit-backdrop-filter: none; backdrop-filter: none; }
+html[data-skin="medieval"] .chat-row { margin: 3px 0; }
+html[data-skin="medieval"] .bubble { padding: 9px 14px 7px; }
+html[data-skin="medieval"] :is(.avatar, .avatar-xl) { border-radius: 6px 6px 50% 50%; }
+html[data-skin="medieval"] .send-btn { border-radius: 6px; }
+html[data-skin="medieval"] :is(.search-input, #chat-input, .settings-select, .rich-input) { border-color: var(--input-border); }
+html[data-skin="medieval"] :is(.search-input, #chat-input, .settings-select, .rich-input):focus { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+html[data-skin="medieval"] :is(#chat-input, .search-input)::placeholder { color: var(--ink-3); }
+html[data-skin="medieval"] :is(.chip, .chat-filter-chip, .theme-seg, .theme-seg button) { border-radius: 4px; }
+html[data-skin="medieval"] .theme-seg button { white-space: normal; }
+html[data-skin="medieval"] .theme-seg button.active { background: var(--sk-btn-bg); color: var(--sk-btn-ink); }
+html[data-skin="medieval"] :is(.unread-badge, .tab-badge) { background: var(--accent-bg); color: var(--on-accent); text-shadow: none; }
+html[data-skin="medieval"] .voice-play-btn { background: var(--accent-bg); color: var(--on-accent); }
+html[data-skin="medieval"][data-scheme="light"] .bubble-row.mine .voice-play-btn { background: var(--bubble-mine-ink); color: #6b1a22; }
+html[data-skin="medieval"][data-scheme="dark"] .bubble-row.mine .voice-play-btn { background: var(--bubble-mine-ink); color: #7a1f2a; }
+html[data-skin="medieval"] .bubble-row.theirs .bubble-forwarded { background: var(--accent-lo); color: #fff; }
+html[data-skin="medieval"] #composer-menu-sheet .composer-menu-item { background: var(--sk-panel); font-weight: 600; }
+html[data-skin="medieval"] :is(h1, h2, h3, #nav-title, #chat-peer-name, .sheet-panel h2) { font-variant: small-caps; }
+html[data-skin="medieval"] #nav-title::before { content: "⚜"; margin-inline-end: .4em; color: var(--accent); }
+html[data-skin="medieval"] .bubble-row.mine .bubble { border-radius: 6px 6px 0 6px; }
+html[data-skin="medieval"] .bubble-row.theirs .bubble { border-radius: 6px 6px 6px 0; }

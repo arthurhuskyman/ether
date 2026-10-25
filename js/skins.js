@@ -22,6 +22,24 @@ const Skins = (() => {
     { id: "wood", emoji: "🌳", light: ["#f4ecdd", "#fcf8f0", "#2d6a3e"], dark: ["#1d1711", "#2a2219", "#a5d97b"], bar: { light: "#f4ecdd", dark: "#1d1711" } },
     { id: "chalk", emoji: "🖍️", light: ["#f7f5ee", "#ffffff", "#b5322a"], dark: ["#1c2622", "#2a3631", "#ffd86b"], bar: { light: "#f7f5ee", dark: "#1c2622" } },
     { id: "newyear", emoji: "🎄", light: ["#eef5fc", "#ffffff", "#b3122b"], dark: ["#0b1530", "#16264d", "#ff9aa8"], bar: { light: "#eef5fc", dark: "#0b1530" } },
+{ id: "vampire", emoji: "🧛", light: ["#f3e8e5", "#fbf4f1", "#9c1030"], dark: ["#0d0408", "#1c0a10", "#ff5a76"], bar: { light: "#f3e8e5", dark: "#0d0408" } },
+    { id: "hacker", emoji: "💻", light: ["#e8f2ea", "#f5fbf6", "#0b6b2e"], dark: ["#020a05", "#07140b", "#39ff7a"], bar: { light: "#e8f2ea", dark: "#020a05" } },
+    { id: "pixel", emoji: "👾", light: ["#e4f0d2", "#f6fbea", "#236b23"], dark: ["#1a1033", "#2a1b4d", "#ffd23f"], bar: { light: "#e4f0d2", dark: "#1a1033" } },
+    { id: "vaporwave", emoji: "🌴", light: ["#fde6ff", "#fff5ff", "#a1157f"], dark: ["#1a0b3a", "#2a1458", "#ff71ce"], bar: { light: "#fde6ff", dark: "#1a0b3a" } },
+    { id: "ocean", emoji: "🌊", light: ["#e1f5fb", "#f4fcff", "#0a6a93"], dark: ["#03182b", "#072b47", "#4fd8ff"], bar: { light: "#e1f5fb", dark: "#03182b" } },
+    { id: "galaxy", emoji: "🪐", light: ["#eceaff", "#f8f7ff", "#5a36d0"], dark: ["#070816", "#121436", "#b9a2ff"], bar: { light: "#eceaff", dark: "#070816" } },
+    { id: "western", emoji: "🤠", light: ["#f0e0c4", "#f9eed8", "#8a3f10"], dark: ["#1f1410", "#33211a", "#f0a35c"], bar: { light: "#f0e0c4", dark: "#1f1410" } },
+    { id: "sumie", emoji: "🖌️", light: ["#f2eee4", "#fbf8f1", "#b3202a"], dark: ["#101010", "#1b1b1b", "#ee6a73"], bar: { light: "#f2eee4", dark: "#101010" } },
+    { id: "artdeco", emoji: "🏛️", light: ["#f3ecd9", "#fbf6e8", "#7a5608"], dark: ["#0b0e14", "#151b26", "#e6c05a"], bar: { light: "#f3ecd9", dark: "#0b0e14" } },
+    { id: "kawaii", emoji: "🍭", light: ["#ffeef6", "#fff9fc", "#a82a6a"], dark: ["#271230", "#381a45", "#ff9ccf"], bar: { light: "#ffeef6", dark: "#271230" } },
+    { id: "pirate", emoji: "🏴‍☠️", light: ["#ecd9b0", "#f6e8c6", "#8a2a14"], dark: ["#0c1a24", "#15293a", "#e8b64c"], bar: { light: "#ecd9b0", dark: "#0c1a24" } },
+    { id: "medieval", emoji: "🏰", light: ["#e9e2d2", "#f6f0e2", "#7b1d1d"], dark: ["#14161c", "#20232c", "#d9b45a"], bar: { light: "#e9e2d2", dark: "#14161c" } },
+    { id: "jungle", emoji: "🦜", light: ["#e4f2d8", "#f4faec", "#18682f"], dark: ["#0a1a10", "#12301c", "#7de08a"], bar: { light: "#e4f2d8", dark: "#0a1a10" } },
+    { id: "arctic", emoji: "🧊", light: ["#e8f5fb", "#f8fdff", "#0a6095"], dark: ["#06131f", "#0d2236", "#8fe0ff"], bar: { light: "#e8f5fb", dark: "#06131f" } },
+    { id: "halloween", emoji: "🎃", light: ["#fdf0dc", "#fff8ec", "#9a3e00"], dark: ["#130a1f", "#22123a", "#ff8a1f"], bar: { light: "#fdf0dc", dark: "#130a1f" } },
+    { id: "retro", emoji: "📻", light: ["#f6e7c8", "#fff3da", "#963a08"], dark: ["#2a1a10", "#3d261a", "#f2a33a"], bar: { light: "#f6e7c8", dark: "#2a1a10" } },
+    { id: "newspaper", emoji: "📰", light: ["#ece6d8", "#f7f3e8", "#8a1c1c"], dark: ["#1a1a18", "#252522", "#ff9a8a"], bar: { light: "#ece6d8", dark: "#1a1a18" } },
+    { id: "blueprint", emoji: "📐", light: ["#eef3f8", "#fafcff", "#0b5ea8"], dark: ["#0a2a4a", "#0f3a66", "#9fdcff"], bar: { light: "#eef3f8", dark: "#0a2a4a" } },
   ];
   // Пять скинов главного списка (сетка 3×2: пять карточек + ячейка «…» со всеми скинами)
   const MAIN = ["default", "glass", "neon", "clay", "sakura"];
@@ -208,6 +226,40 @@ const Skins = (() => {
     markActive(cur);
     renderSheet();
   }
+  // ---------- Общие помощники для скинов (чтобы файл скина был коротким) ----------
+  // kit({ w, f, iv, d, v, lp, nz }) — шесть звуков из одного «голоса»: волна w, основной тон f (Гц), интервалы iv (множители), длина ноты d (с), громкость v,
+  // lowpass lp, nz — частота среза щелчка-шума (если задан).
+  function kit(o) {
+    const w = o.w || "sine", f = o.f || 440, iv = o.iv || [1, 1.25, 1.5], d = o.d || 0.12, v = o.v || 0.08, nz = o.nz ? [{ w: "noise", t: 0, d: 0.03, v: 0.03, lp: o.nz }] : [];
+    const N = (fr, t, dd, vv) => { const n = { f: fr, t, d: dd, v: vv, w }; if (o.lp) n.lp = o.lp; return n; };
+    const a = iv[1] || 1.25, b = iv[2] || 1.5;
+    return {
+      in: iv.map((r, i) => N(f * r, i * d * 0.9, d * 1.8, v)).concat(nz),
+      out: [N(f * a, 0, d * 0.8, v * 0.9), N(f * b, d * 0.7, d, v * 0.9)],
+      tap: [N([f * 1.5, f * 1.2], 0, 0.05, v * 0.6)].concat(nz),
+      tab: [N(f * a, 0, 0.06, v * 0.6), N(f * b, 0.05, 0.08, v * 0.6)],
+      react: [N(f * 2, 0, 0.12, v * 0.6), N(f * b * 2, 0.07, 0.16, v * 0.5)],
+      error: [N([f, f * 0.7], 0, 0.22, v), N(f * 0.66, 0.12, 0.28, v)],
+    };
+  }
+  // fx(layer, { scheme, calm }, cfgs) — лёгкие частицы декора. cfg: g — глифы/эмодзи, m — режим (fall|rise|drift|roll|twinkle|bob|blink),
+  // n — число, s — размер px [мин, макс], o — прозрачность, t — период с, y — диапазон высоты vh, c — цвета (массив или { light, dark }), cls — класс скина.
+  // Анимация только transform/opacity; при «спокойном режиме» и reduced-motion частицы неподвижны (css/skins.css).
+  function fx(layer, o, cfgs) {
+    const calm = !!(o && o.calm), sc = (o && o.scheme) === "light" ? "light" : "dark";
+    for (const c of [].concat(cfgs || [])) {
+      const n = calm ? Math.ceil(c.n / 2) : c.n, col = Array.isArray(c.c) ? c.c : (c.c && c.c[sc]) || null;
+      for (let i = 0; i < n; i++) {
+        const r = (k) => { const x = Math.sin(i * 12.9898 + k * 78.233 + c.n * 3.1) * 43758.5453; return x - Math.floor(x); }, lerp = (p, k) => p[0] + r(k) * (p[1] - p[0]);
+        const e = document.createElement("i"); e.className = "sk-p sk-" + c.m + (c.cls ? " " + c.cls : "");
+        e.textContent = c.g[i % c.g.length];
+        e.style.cssText = `--x:${(r(2) * 94).toFixed(1)}vw;--y:${(c.y ? lerp(c.y, 3) : r(3) * 92).toFixed(0)}vh;--s:${lerp(c.s, 1).toFixed(0)}px;--o:${lerp(c.o, 4).toFixed(2)};--t:${lerp(c.t, 5).toFixed(1)}s;--dl:${(-r(6) * c.t[1]).toFixed(1)}s;--w:${((r(7) - 0.5) * 70).toFixed(0)}px;` + (col ? `color:${col[i % col.length]};` : "");
+        layer.appendChild(e);
+      }
+    }
+    return () => { layer.innerHTML = ""; };
+  }
+
   let tapWired = false;
   function wire() {
     render();
@@ -216,5 +268,5 @@ const Skins = (() => {
     if (live() && typeof MutationObserver !== "undefined" && !wire.mo) { wire.mo = new MutationObserver(() => { if (get() !== "default") applyDeco(get()); }); wire.mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-scheme"] }); }
     apply(get());
   }
-  return { LIST, IDS, KEY, valid, get, apply, set, render, wire, syncMeta, name, register, sfx, play, spec, MAIN, mainFive, openSheet, closeSheet };
+  return { LIST, IDS, KEY, valid, get, apply, set, render, wire, syncMeta, name, register, kit, fx, sfx, play, spec, MAIN, mainFive, openSheet, closeSheet };
 })();

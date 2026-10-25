@@ -6,7 +6,7 @@ const vm = require("vm");
 const { createApp, closeAll, ROOT } = require("./harness");
 test.after(closeAll);
 
-const SKIN_IDS = ["cartoon", "comic", "watercolor", "neon", "steampunk", "gothic", "clay", "lego", "wood", "glass", "chalk", "newyear", "sakura"];
+const SKIN_IDS = ["cartoon", "comic", "watercolor", "neon", "steampunk", "gothic", "clay", "lego", "wood", "glass", "chalk", "newyear", "sakura", "vampire", "hacker", "pixel", "vaporwave", "ocean", "galaxy", "western", "sumie", "artdeco", "kawaii", "pirate", "medieval", "jungle", "arctic", "halloween", "retro", "newspaper", "blueprint"];
 
 function loadDict(file) {
   const w = {}; w.window = w;
@@ -17,10 +17,10 @@ const J = (x) => JSON.parse(JSON.stringify(x));
 const ph = (s) => (String(s).match(/\{\w+\}|%[sd]/g) || []).sort().join(",");
 
 // ---------------- скины ----------------
-test("скины: каждый из 13 регистрируется со звуками; иконки и deco — у тех, у кого они есть", async () => {
+test("скины: каждый из 31 регистрируется со звуками; иконки и deco — у тех, у кого они есть", async () => {
   const a = createApp(); await a.ready;
   const info = JSON.parse(a.run(`JSON.stringify(Skins.IDS.map((id) => { Skins.set(id); const s = Skins.spec(); return { id, has: !!s, icons: s && s.icons ? Object.keys(s.icons) : [], sound: s && s.sound ? Object.keys(s.sound) : [], deco: !!(s && typeof s.deco === "function") }; }))`));
-  assert.equal(info.length, 14);
+  assert.equal(info.length, 32);
   for (const id of SKIN_IDS) {
     const r = info.find((x) => x.id === id);
     assert.ok(r && r.has, id + " зарегистрирован");
@@ -113,7 +113,7 @@ test("скины: apply/set/render/wire/sfx/onTap, невалидные id", asy
     // тап по кнопке в скине — не бросает; в default — игнорируется
     Skins.set("steampunk"); document.body.insertAdjacentHTML("beforeend", '<button id="zb">x</button>'); document.getElementById("zb").click();
     o.ok = true; return o; })()`));
-  assert.equal(r.cards, 6, "5 скинов + ячейка «…»"); assert.equal(r.sheetCards, 14, "в шторке все 14"); assert.equal(r.apply1, "default"); assert.deepEqual(r.valid, [true, false, false]);
+  assert.equal(r.cards, 6, "5 скинов + ячейка «…»"); assert.equal(r.sheetCards, 32, "в шторке все 32"); assert.equal(r.apply1, "default"); assert.deepEqual(r.valid, [true, false, false]);
   assert.equal(r.layer, true); assert.equal(r.layerSkin, "neon"); assert.equal(r.active, "neon"); assert.equal(r.afterClick, "gothic");
   assert.equal(r.garbage, "default"); assert.equal(r.sfxNo, false); assert.equal(r.attr, null); assert.equal(r.sfxDefault, false);
   assert.equal(r.nameUnknown, "zzz"); assert.equal(r.regBogus, false); assert.equal(r.ok, true);

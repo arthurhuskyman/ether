@@ -1,0 +1,68 @@
+/* ============================ АРКТИКА (arctic) — лёд и северное сияние, снежинки разного размера, холодные тени ============================ */
+html[data-skin="arctic"] {
+  --sk-font: -apple-system, "SF Pro Text", ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; --sk-head: -apple-system, "SF Pro Text", ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; --sk-tracking: 0;
+  --sk-bw: 1px; --sk-bs: solid; --sk-radius: 16px; --sk-bubble-r: 18px; --sk-tail: 6px; --sk-btn-r: 12px; --sk-field-r: 16px;
+  --sk-blur: none; --sk-blur-px: 0px; --sk-press-scale: 0.97;
+  --r-sm: 10px; --r-md: 14px; --r-lg: 16px; --r-xl: 22px;
+}
+html[data-skin="arctic"][data-scheme="light"] {
+  --bg-0: #e8f5fb; --bg-1: #f0f9fd; --bg-2: #f8fdff; --bg-3: #e5ecef;
+  --line-1: rgba(11,74,110,0.11199999999999999); --line-2: rgba(11,74,110,0.20800000000000002);
+  --ink-0: #0b2a3d; --ink-1: rgba(11,42,61,0.94); --ink-2: rgba(11,42,61,0.8); --ink-3: rgba(11,42,61,0.7);
+  --accent: #0a6095; --accent-hi: #3b80aa; --accent-lo: #0a6095; --accent-ghost: rgba(10,96,149,0.15); --text-link: #0a6095;
+  --accent-bg: #0b6fa3; --on-accent: #ffffff;
+  --bubble-mine-bg: linear-gradient(160deg,#0b6290,#0a4f78); --bubble-mine-ink: #ffffff;
+  --bubble-theirs-bg: #f8fdff; --bubble-theirs-ink: #0b2a3d;
+  --card-bg: none; --card-base: #f8fdff; --card-border: rgba(11,74,110,0.16); --card-shadow: 0 6px 20px rgba(11,42,61,0.12);
+  --select-popup-bg: #f8fdff; --select-popup-ink: #0b2a3d; --input-bg: #f2fafd; --input-border: #6a7e8b; --glass-border: rgba(11,74,110,0.16);
+  --sk-line: rgba(11,74,110,0.16); --sk-line-mine: transparent; --sk-line-theirs: rgba(11,74,110,0.16);
+  --sk-panel: #f8fdff; --sk-field: #f2fafd;
+  --sk-shadow: 0 6px 20px rgba(11,42,61,0.12); --sk-bubble-shadow: 0 1px 4px rgba(11,42,61,0.14); --sk-shadow-press: none;
+  --sk-btn-bg: #0b6fa3; --sk-btn-ink: #ffffff; --sk-panel-press: #e5ecef;
+  --sk-bg: radial-gradient(ellipse 70% 30% at 20% 0%, rgba(150,230,210,.35), transparent 70%), radial-gradient(ellipse 70% 30% at 90% 5%, rgba(180,170,255,.28), transparent 70%), linear-gradient(180deg, #f2fbff, #dcf0f8);
+}
+html[data-skin="arctic"][data-scheme="dark"] {
+  --bg-0: #06131f; --bg-1: #0a1b2b; --bg-2: #0d2236; --bg-3: #273c4e;
+  --line-1: rgba(143,224,255,0.154); --line-2: rgba(143,224,255,0.28600000000000003);
+  --ink-0: #e8f7ff; --ink-1: rgba(232,247,255,0.94); --ink-2: rgba(232,247,255,0.8); --ink-3: rgba(232,247,255,0.68);
+  --accent: #8fe0ff; --accent-hi: #a5e6ff; --accent-lo: #497384; --accent-ghost: rgba(143,224,255,0.15); --text-link: #8fe0ff;
+  --accent-bg: #8fe0ff; --on-accent: #04202f;
+  --bubble-mine-bg: linear-gradient(160deg,#0e5f8c,#0b4c75); --bubble-mine-ink: #ffffff;
+  --bubble-theirs-bg: #16344f; --bubble-theirs-ink: #e8f7ff;
+  --card-bg: none; --card-base: #0d2236; --card-border: rgba(143,224,255,0.22); --card-shadow: 0 8px 26px rgba(0,0,0,.5);
+  --select-popup-bg: #0d2236; --select-popup-ink: #e8f7ff; --input-bg: #0a1c2d; --input-border: #8597a5; --glass-border: rgba(143,224,255,0.22);
+  --sk-line: rgba(143,224,255,0.22); --sk-line-mine: transparent; --sk-line-theirs: rgba(143,224,255,0.22);
+  --sk-panel: #0d2236; --sk-field: #0a1c2d;
+  --sk-shadow: 0 8px 26px rgba(0,0,0,.5); --sk-bubble-shadow: 0 2px 8px rgba(0,0,0,.4); --sk-shadow-press: none;
+  --sk-btn-bg: #8fe0ff; --sk-btn-ink: #04202f; --sk-panel-press: #273c4e;
+  --sk-bg: radial-gradient(ellipse 80% 30% at 20% 0%, rgba(60,230,170,.3), transparent 70%), radial-gradient(ellipse 70% 30% at 85% 8%, rgba(140,100,255,.28), transparent 70%), linear-gradient(180deg, #08192b, #06131f 60%);
+}
+html[data-skin="arctic"] #nav-bar.glass { margin: 8px 10px 0; padding-top: calc(env(safe-area-inset-top, 0px) + 2px); border-radius: 18px; }
+html[data-skin="arctic"] #tab-bar.glass { margin: 0 12px calc(10px + env(safe-area-inset-bottom, 0px)); padding: 0 6px; border-radius: 22px; }
+html.kb-openhtml[data-skin="arctic"] #tab-bar.glass { margin-bottom: 10px; }
+html[data-skin="arctic"] #chat-form.glass { margin: 0 10px 8px; border-radius: 22px; }
+html[data-skin="arctic"] :is(h1, h2, h3, #nav-title, #chat-peer-name, .settings-category-header-title, .sheet-panel h2, .btn-primary, .btn-secondary, .tab-btn) { font-family: var(--sk-head); font-weight: 700; }
+html[data-skin="arctic"] .ico { stroke-linecap: round; stroke-linejoin: round; }
+html[data-skin="arctic"] .ico-fill { stroke: none; }
+html[data-skin="arctic"] #tab-bar .tab-btn { border-radius: 12px; transition: color .2s, background .2s; }
+html[data-skin="arctic"] #tab-bar .tab-btn.active { background: var(--accent-ghost); }
+html[data-skin="arctic"] .sheet-panel { border-bottom: 0; }
+html[data-skin="arctic"] .sheet-backdrop { background: rgba(0,0,0,.42); }
+html[data-skin="arctic"] :is(.chat-row, .settings-row, .settings-category-row, .sheet-action, .forward-row, .board-col, .contact-gallery-item, .bubble) { -webkit-backdrop-filter: none; backdrop-filter: none; }
+html[data-skin="arctic"] .chat-row { margin: 3px 0; }
+html[data-skin="arctic"] .bubble { padding: 9px 14px 7px; }
+html[data-skin="arctic"] :is(.avatar, .avatar-xl) { border-radius: 50%; }
+html[data-skin="arctic"] .send-btn { border-radius: 50%; }
+html[data-skin="arctic"] :is(.search-input, #chat-input, .settings-select, .rich-input) { border-color: var(--input-border); }
+html[data-skin="arctic"] :is(.search-input, #chat-input, .settings-select, .rich-input):focus { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+html[data-skin="arctic"] :is(#chat-input, .search-input)::placeholder { color: var(--ink-3); }
+html[data-skin="arctic"] :is(.chip, .chat-filter-chip, .theme-seg, .theme-seg button) { border-radius: 999px; }
+html[data-skin="arctic"] .theme-seg button { white-space: normal; }
+html[data-skin="arctic"] .theme-seg button.active { background: var(--sk-btn-bg); color: var(--sk-btn-ink); }
+html[data-skin="arctic"] :is(.unread-badge, .tab-badge) { background: var(--accent-bg); color: var(--on-accent); text-shadow: none; }
+html[data-skin="arctic"] .voice-play-btn { background: var(--accent-bg); color: var(--on-accent); }
+html[data-skin="arctic"][data-scheme="light"] .bubble-row.mine .voice-play-btn { background: var(--bubble-mine-ink); color: #0b6290; }
+html[data-skin="arctic"][data-scheme="dark"] .bubble-row.mine .voice-play-btn { background: var(--bubble-mine-ink); color: #0e5f8c; }
+html[data-skin="arctic"] .bubble-row.theirs .bubble-forwarded { background: var(--accent-lo); color: #fff; }
+html[data-skin="arctic"] #composer-menu-sheet .composer-menu-item { background: var(--sk-panel); font-weight: 600; }
+html[data-skin="arctic"] .sk-snow { font-weight: 400; }

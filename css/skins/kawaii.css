@@ -1,0 +1,70 @@
+/* ============================ КОНФЕТКА (kawaii) — пастельные сердечки, пухлые пузыри, горошек и круглые шрифты ============================ */
+html[data-skin="kawaii"] {
+  --sk-font: ui-rounded, "SF Pro Rounded", "Arial Rounded MT Bold", "Hiragino Maru Gothic ProN", "Nunito", system-ui, sans-serif; --sk-head: ui-rounded, "SF Pro Rounded", "Arial Rounded MT Bold", "Hiragino Maru Gothic ProN", "Nunito", system-ui, sans-serif; --sk-tracking: 0;
+  --sk-bw: 2px; --sk-bs: solid; --sk-radius: 26px; --sk-bubble-r: 24px; --sk-tail: 8px; --sk-btn-r: 20px; --sk-field-r: 26px;
+  --sk-blur: none; --sk-blur-px: 0px; --sk-press-scale: 0.94;
+  --r-sm: 20px; --r-md: 24px; --r-lg: 26px; --r-xl: 32px;
+}
+html[data-skin="kawaii"][data-scheme="light"] {
+  --bg-0: #ffeef6; --bg-1: #fff4f9; --bg-2: #fff9fc; --bg-3: #f1e7ec;
+  --line-1: rgba(224,140,184,0.175); --line-2: rgba(224,140,184,0.325);
+  --ink-0: #4a1d3a; --ink-1: rgba(74,29,58,0.94); --ink-2: rgba(74,29,58,0.8); --ink-3: rgba(74,29,58,0.7);
+  --accent: #a82a6a; --accent-hi: #b95588; --accent-lo: #a82a6a; --accent-ghost: rgba(168,42,106,0.15); --text-link: #a82a6a;
+  --accent-bg: #b82a74; --on-accent: #ffffff;
+  --bubble-mine-bg: linear-gradient(160deg,#b82a74,#a6256a); --bubble-mine-ink: #ffffff;
+  --bubble-theirs-bg: #fff9fc; --bubble-theirs-ink: #4a1d3a;
+  --card-bg: none; --card-base: #fff9fc; --card-border: rgba(224,140,184,0.25); --card-shadow: 0 6px 0 rgba(224,140,184,.35);
+  --select-popup-bg: #fff9fc; --select-popup-ink: #4a1d3a; --input-bg: #fff5fa; --input-border: #927588; --glass-border: rgba(224,140,184,0.25);
+  --sk-line: rgba(224,140,184,0.25); --sk-line-mine: transparent; --sk-line-theirs: rgba(224,140,184,0.25);
+  --sk-panel: #fff9fc; --sk-field: #fff5fa;
+  --sk-shadow: 0 6px 0 rgba(224,140,184,.35); --sk-bubble-shadow: 0 3px 0 rgba(224,140,184,.45); --sk-shadow-press: none;
+  --sk-btn-bg: #b82a74; --sk-btn-ink: #ffffff; --sk-panel-press: #f1e7ec;
+  --sk-bg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='30'%3E%3Ccircle cx='15' cy='15' r='3' fill='rgba(255,150,200,.28)'/%3E%3C/svg%3E"), linear-gradient(180deg, #fff3f9, #ffe3f0);
+}
+html[data-skin="kawaii"][data-scheme="dark"] {
+  --bg-0: #271230; --bg-1: #30163b; --bg-2: #381a45; --bg-3: #50335a;
+  --line-1: rgba(255,156,207,0.21); --line-2: rgba(255,156,207,0.39);
+  --ink-0: #ffe8f4; --ink-1: rgba(255,232,244,0.94); --ink-2: rgba(255,232,244,0.8); --ink-3: rgba(255,232,244,0.68);
+  --accent: #ff9ccf; --accent-hi: #ffb0d9; --accent-lo: #9b5e7d; --accent-ghost: rgba(255,156,207,0.15); --text-link: #ff9ccf;
+  --accent-bg: #ff9ccf; --on-accent: #3a0f2a;
+  --bubble-mine-bg: linear-gradient(160deg,#b02d85,#8a2268); --bubble-mine-ink: #ffffff;
+  --bubble-theirs-bg: #4d2560; --bubble-theirs-ink: #ffe8f4;
+  --card-bg: none; --card-base: #381a45; --card-border: rgba(255,156,207,0.3); --card-shadow: 0 6px 0 rgba(0,0,0,.3);
+  --select-popup-bg: #381a45; --select-popup-ink: #ffe8f4; --input-bg: #31173d; --input-border: #a58ba5; --glass-border: rgba(255,156,207,0.3);
+  --sk-line: rgba(255,156,207,0.3); --sk-line-mine: transparent; --sk-line-theirs: rgba(255,156,207,0.3);
+  --sk-panel: #381a45; --sk-field: #31173d;
+  --sk-shadow: 0 6px 0 rgba(0,0,0,.3); --sk-bubble-shadow: 0 3px 0 rgba(0,0,0,.3); --sk-shadow-press: none;
+  --sk-btn-bg: #ff9ccf; --sk-btn-ink: #3a0f2a; --sk-panel-press: #50335a;
+  --sk-bg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='30'%3E%3Ccircle cx='15' cy='15' r='3' fill='rgba(255,156,207,.14)'/%3E%3C/svg%3E"), radial-gradient(ellipse 80% 40% at 50% 0%, rgba(255,156,207,.2), transparent 70%), #271230;
+}
+html[data-skin="kawaii"] #nav-bar.glass { margin: 8px 10px 0; padding-top: calc(env(safe-area-inset-top, 0px) + 2px); border-radius: 28px; }
+html[data-skin="kawaii"] #tab-bar.glass { margin: 0 12px calc(10px + env(safe-area-inset-bottom, 0px)); padding: 0 6px; border-radius: 32px; }
+html.kb-openhtml[data-skin="kawaii"] #tab-bar.glass { margin-bottom: 10px; }
+html[data-skin="kawaii"] #chat-form.glass { margin: 0 10px 8px; border-radius: 32px; }
+html[data-skin="kawaii"] :is(h1, h2, h3, #nav-title, #chat-peer-name, .settings-category-header-title, .sheet-panel h2, .btn-primary, .btn-secondary, .tab-btn) { font-family: var(--sk-head); font-weight: 800; }
+html[data-skin="kawaii"] .ico { stroke-linecap: round; stroke-linejoin: round; }
+html[data-skin="kawaii"] .ico-fill { stroke: none; }
+html[data-skin="kawaii"] #tab-bar .tab-btn { border-radius: 20px; transition: color .2s, background .2s; }
+html[data-skin="kawaii"] #tab-bar .tab-btn.active { background: var(--accent-ghost); }
+html[data-skin="kawaii"] .sheet-panel { border-bottom: 0; }
+html[data-skin="kawaii"] .sheet-backdrop { background: rgba(0,0,0,.42); }
+html[data-skin="kawaii"] :is(.chat-row, .settings-row, .settings-category-row, .sheet-action, .forward-row, .board-col, .contact-gallery-item, .bubble) { -webkit-backdrop-filter: none; backdrop-filter: none; }
+html[data-skin="kawaii"] .chat-row { margin: 3px 0; }
+html[data-skin="kawaii"] .bubble { padding: 9px 14px 7px; }
+html[data-skin="kawaii"] :is(.avatar, .avatar-xl) { border-radius: 50%; }
+html[data-skin="kawaii"] .send-btn { border-radius: 50%; }
+html[data-skin="kawaii"] :is(.search-input, #chat-input, .settings-select, .rich-input) { border-color: var(--input-border); }
+html[data-skin="kawaii"] :is(.search-input, #chat-input, .settings-select, .rich-input):focus { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+html[data-skin="kawaii"] :is(#chat-input, .search-input)::placeholder { color: var(--ink-3); }
+html[data-skin="kawaii"] :is(.chip, .chat-filter-chip, .theme-seg, .theme-seg button) { border-radius: 999px; }
+html[data-skin="kawaii"] .theme-seg button { white-space: normal; }
+html[data-skin="kawaii"] .theme-seg button.active { background: var(--sk-btn-bg); color: var(--sk-btn-ink); }
+html[data-skin="kawaii"] :is(.unread-badge, .tab-badge) { background: var(--accent-bg); color: var(--on-accent); text-shadow: none; }
+html[data-skin="kawaii"] .voice-play-btn { background: var(--accent-bg); color: var(--on-accent); }
+html[data-skin="kawaii"][data-scheme="light"] .bubble-row.mine .voice-play-btn { background: var(--bubble-mine-ink); color: #b82a74; }
+html[data-skin="kawaii"][data-scheme="dark"] .bubble-row.mine .voice-play-btn { background: var(--bubble-mine-ink); color: #b02d85; }
+html[data-skin="kawaii"] .bubble-row.theirs .bubble-forwarded { background: var(--accent-lo); color: #fff; }
+html[data-skin="kawaii"] #composer-menu-sheet .composer-menu-item { background: var(--sk-panel); font-weight: 600; }
+html[data-skin="kawaii"] .bubble-row.mine .bubble { border-radius: 24px 24px 8px 24px; }
+html[data-skin="kawaii"] .bubble { padding: 10px 16px 8px; }
+html[data-skin="kawaii"] #nav-title::after { content: " ♡"; color: var(--accent); }

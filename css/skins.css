@@ -69,6 +69,17 @@ html[data-skin] .bubble, html[data-skin] .chat-row-name, html[data-skin] .chat-r
 #skin-deco { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; contain: layout paint; }
 html:not([data-skin]) #skin-deco { display: none; }
 @media (prefers-reduced-motion: reduce) { #skin-deco * { animation: none !important; } }
+/* частицы Skins.fx: позиция --x/--y, анимация только transform/opacity; без движения (спокойный режим, reduced-motion) стоят на месте */
+.sk-p { position: absolute; left: var(--x, 0); top: var(--y, 0); font-size: var(--s, 16px); line-height: 1; opacity: var(--o, .5); font-style: normal; user-select: none; animation: var(--a) var(--t, 20s) linear var(--dl, 0s) infinite; }
+.sk-fall { --a: skFall; } .sk-rise { --a: skRise; } .sk-drift { --a: skDrift; } .sk-roll { --a: skRoll; } .sk-twinkle { --a: skTwinkle; } .sk-bob { --a: skBob; animation-timing-function: ease-in-out; } .sk-blink { --a: skBlink; animation-timing-function: step-end; }
+html[data-calm-mode="1"] #skin-deco .sk-p { animation: none; }
+@keyframes skFall { from { transform: translate3d(0, calc(-14vh - var(--y, 0px)), 0) rotate(0); } to { transform: translate3d(var(--w, 20px), calc(112vh - var(--y, 0px)), 0) rotate(40deg); } }
+@keyframes skRise { from { transform: translate3d(0, calc(112vh - var(--y, 0px)), 0); } to { transform: translate3d(var(--w, 20px), calc(-14vh - var(--y, 0px)), 0); } }
+@keyframes skDrift { from { transform: translate3d(calc(-14vw - var(--x, 0px)), 0, 0); } 50% { transform: translate3d(calc(50vw - var(--x, 0px)), -3vh, 0); } to { transform: translate3d(calc(114vw - var(--x, 0px)), 1vh, 0); } }
+@keyframes skRoll { from { transform: translate3d(calc(-14vw - var(--x, 0px)), 0, 0) rotate(0); } to { transform: translate3d(calc(114vw - var(--x, 0px)), 0, 0) rotate(720deg); } }
+@keyframes skTwinkle { 0%, 100% { opacity: calc(var(--o, .5) * .2); transform: scale(.7); } 50% { opacity: var(--o, .5); transform: scale(1.1); } }
+@keyframes skBob { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-10px) rotate(4deg); } }
+@keyframes skBlink { 0%, 49% { opacity: var(--o, 1); } 50%, 100% { opacity: 0; } }
 
 /* активные «акцентные» элементы: цвет текста берётся из кнопочной пары скина, а не белый на любом акценте */
 html[data-skin] :is(.chat-filter-chip.active, .theme-seg button.active, .contact-card-add-btn, .room-btn) { background: var(--sk-btn-bg); color: var(--sk-btn-ink); }
