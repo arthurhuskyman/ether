@@ -20,7 +20,7 @@ const SKINS = ["cartoon", "comic", "watercolor", "neon", "steampunk", "gothic", 
 // discovery.js ("use strict") перенесён из середины core в начало app (стоял сразу перед webrtc/file-limits/emoji-data,
 // которые его не используют на этапе загрузки), чтобы не смешивать строгие и нестрогие файлы в одном бандле.
 const BUNDLES = [
-  { out: "js/bundle.core.js", strict: false, files: ["js/i18n.js", "js/signaling-codec.js", "js/crypto-helper.js", "js/secure-store.js", "js/icons.js", "js/rich.js", "js/vendor/ml-kem768.js", "js/ratchet.js", "js/linkauth.js", "js/signaling-client.js", "js/serverlist.js", "js/callquality.js", "js/webrtc.js", "js/file-limits.js", "js/bigfile.js", "js/emoji-data.js"] },
+  { out: "js/bundle.core.js", strict: false, files: ["js/i18n.js", "js/signaling-codec.js", "js/crypto-helper.js", "js/secure-store.js", "js/icons.js", "js/rich.js", "js/vendor/ml-kem768.js", "js/ratchet.js", "js/groupkeys.js", "js/channels.js", "js/search.js", "js/linkauth.js", "js/signaling-client.js", "js/serverlist.js", "js/callquality.js", "js/webrtc.js", "js/file-limits.js", "js/bigfile.js", "js/emoji-data.js"] },
   { out: "js/bundle.app.js", strict: true, files: ["js/discovery.js", ...appFiles] },
   { out: "js/bundle.features.js", strict: false, files: ["js/stickers.js", "js/group-call.js", "js/rooms.js", "js/localai.js", "js/devicecheck.js", "js/devicecert.js", "js/devicelink.js", "js/devices.js", "js/integrity.js", "js/skins.js", ...SKINS] },
   { out: "js/bundle.fx.js", strict: true, files: ["js/features.js", "js/features2.js"] },

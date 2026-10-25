@@ -62,6 +62,11 @@ const env = (n, tag) => ({ v: "sk1", cid: "chain0001", n, iv: "aXYxMjM0NTY3OA=="
   // совместимость: старое поведение deliver не затронуто
   A.send({ type: "deliver", to: "u-b", msgId: "old1", envelope: { iv: "aXY=", ct: "Y3Q=" }, kind: "chat" }); await w(150);
   check("обычный deliver работает как раньше", B.ev.some((e) => e.type === "deliver" && e.msgId === "old1" && e.kind === "chat" && !e.gid));
+  // неявная регистрация заменяется явным ростером участника (а явный чужой не перехватить)
+  E.send({ type: "group-roster", gid: "grp-auto-0001", members: ["u-e", "u-b"], ver: 1 }); await w(100);
+  check("явный ростер участника заменяет неявно созданный", E.ev.filter((e) => e.type === "group-roster-ack").pop().ver === 1);
+  B.send({ type: "group-roster", gid: "grp-auto-0001", members: ["u-b"], ver: 9 }); await w(100);
+  check("после явной регистрации чужой не-админ ростер не меняет", B.ev.filter((e) => e.type === "group-roster-ack").pop().error === "not-admin");
   console.log("\n" + pass + " ok, " + fail + " fail");
   setTimeout(() => process.exit(fail ? 1 : 0), 100);
 })();

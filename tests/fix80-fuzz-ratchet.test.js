@@ -25,7 +25,7 @@ function mutate(env, r) {
 }
 function mutate1(env, r) {
   const e = clone(env), paths = [];
-  (function walk(o, p) { for (const k of Object.keys(o)) { if (p.length === 0 && (k === "rc" || k === "ac")) continue; // rc/ac — осознанно НЕ аутентифицируемые подсказки возможностей (docs/THREAT-MODEL.md, остаточные риски)
+  (function walk(o, p) { for (const k of Object.keys(o)) { if (p.length === 0 && (k === "rc" || k === "ac" || k === "cp")) continue; // rc/ac — осознанно НЕ аутентифицируемые подсказки возможностей (docs/THREAT-MODEL.md, остаточные риски)
     const q = p.concat(k); if (o[k] && typeof o[k] === "object") walk(o[k], q); paths.push(q); } })(e, []);
   const path = paths[r.int(paths.length)];
   let o = e; for (let i = 0; i < path.length - 1; i++) o = o[path[i]];

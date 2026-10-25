@@ -512,6 +512,7 @@ function wireSignalingEvents(sig) {
       if (c && c.managed) {
         c.online = true;
         if (Array.isArray(u.caps) && u.caps.includes("env2")) markContactEnv2(c);
+        if (Array.isArray(u.caps) && u.caps.includes("sk1")) markContactSk(c);
         if (u.publicKey && keysDiffer(u.publicKey, c.publicKey)) { if (noteContactKey(c, u.publicKey)) { persistContacts(); flushPendingNoKey(u.id); } }
         scheduleAutoConnect(u.id);
       }
@@ -522,6 +523,7 @@ function wireSignalingEvents(sig) {
   subs.push(on("presence", (ev) => {
     const { id, online, name, visible, publicKey, caps } = ev.detail;
     if (online && Array.isArray(caps) && caps.includes("env2")) { const cc = state.contacts.get(id); if (cc && cc.managed) markContactEnv2(cc); }
+    if (online && Array.isArray(caps) && caps.includes("sk1")) { const cs = state.contacts.get(id); if (cs && cs.managed) markContactSk(cs); }
     if (online) {
       onlineSet.add(id);
       onlineRoster.set(id, { name, visible: visible !== false, publicKey: publicKey || null });
@@ -886,6 +888,7 @@ async function handleDeliver(detail, replay) {
     if (kind === "chat") sendAckBatch(from, [msgId], "delivered");
     return;
   }
+  if (kind === "gchat") { await handleGroupSkDeliver(detail, replay, ackBox); return; } // V.80: Sender Keys (09-groups.js)
   // group-invite дедуплицируется отдельно, по payload.id (см.
   // applyIncomingPayload) — там же ключ "grp-inv:". Раньше мы добавляли
   // ещё и "from|msgId", и Set рос вдвое быстрее (по 2 записи на
@@ -1127,7 +1130,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     seenGroupInviteIds.add(gDedupKey);
     if (seenGroupInviteIds.size > SEEN_DELIVER_LIMIT) seenGroupInviteIds.delete(seenGroupInviteIds.values().next().value);
 
-    if (!Array.isArray(payload.members) || payload.members.length === 0 || payload.members.length > MAX_GROUP_MEMBERS) return;
+    if (!Array.isArray(payload.members) || payload.members.length === 0 || payload.members.length > MAX_GROUP_MEMBERS_SK) return;
     {
       // Поля приглашения приходят от постороннего: оставляем только известные, строковые и ограниченные по длине
       const seenIds = new Set(), clean = [];
@@ -1178,6 +1181,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     }
   }
   const isNew = !g;
+  const gkOldIds = isNew ? [] : g.members.map((m) => m.id);
   // ver: версия ростера. Нет поля (старый клиент) — null: применяем как раньше, если прислал админ. Устаревшая версия от админа отбрасывается.
   const inVer = Number.isInteger(payload.ver) && payload.ver >= 0 && payload.ver < 1e9 ? payload.ver : null;
   if (isNew) {
@@ -1226,6 +1230,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     }
     g.lastActivity = Date.now();
     persistContacts();
+    gkOnRosterChange(g, gkOldIds);
     ensureGroupConnections(g);
     if (state.chatId === payload.groupId) renderChatThread();
     if (state.tab === "chats") renderChatsList();
@@ -1327,6 +1332,10 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     persistContacts();
     if (state.chatId === from) renderChatThread();
     if (state.tab === "chats") renderChatsList();
+  } else if (kind === "gk-dist") {
+    handleGkDist(from, payload);
+  } else if (kind === "gk-req") {
+    handleGkReq(from, payload);
   } else if (kind === "group-join-request") {
     // Приглашённый по invite-ссылке (см. joinGroupViaInvite) просит
     // добавить его в группу. Генерировать ссылку мог только админ (кнопка
@@ -1337,7 +1346,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     if (!g || !g.isGroup || !isGroupAdmin(g, Store.myId)) return;
     if (g.members.some((m) => m.id === from)) return; // уже участник — дублирующийся запрос
     if (Array.isArray(g.banned) && g.banned.includes(from)) return; // исключён админом — вернуть его может только сам админ вручную
-    if (g.members.length >= MAX_GROUP_MEMBERS) return;
+    if (g.members.length >= groupMemberLimit(g.members.map((m) => m.id).concat(from))) return;
     ensureContactEntry(from, payload.requesterName || null);
     addGroupMember(payload.groupId, from);
     try { if (typeof fxReferralInviterHit === "function") fxReferralInviterHit(from); } catch (e) {}

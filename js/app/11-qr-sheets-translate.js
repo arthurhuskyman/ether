@@ -187,7 +187,7 @@ function wireGroupInfo() {
   if (addBtn) addBtn.addEventListener("click", () => {
     const groupId = state.activeGroupContext; const g = state.contacts.get(groupId);
     if (!g) return;
-    if (g.members.length >= MAX_GROUP_MEMBERS) { toast(T("toast.groupTooBig", { max: MAX_GROUP_MEMBERS })); return; }
+    if (g.members.length >= groupMemberLimit(g.members.map((m) => m.id))) { toast(T("toast.groupTooBig", { max: groupMemberLimit(g.members.map((m) => m.id)) })); return; }
     const list = $("#forward-list"); if (!list) return;
     list.innerHTML = "";
     const memberIds = new Set(g.members.map((m) => m.id));
@@ -296,7 +296,7 @@ function wireConnectScreen() {
     const name = ($("#new-group-name") || {}).value || "";
     const checked = $$(".group-member-check:checked").map((el) => el.value);
     if (checked.length === 0) { toast(T("toast.groupNeedsMembers")); return; }
-    if (checked.length > MAX_GROUP_MEMBERS - 1) { toast(T("toast.groupTooBig", { max: MAX_GROUP_MEMBERS })); return; }
+    { const lim = groupMemberLimit(checked); if (checked.length > lim - 1) { toast(T("toast.groupTooBig", { max: lim })); return; } }
     const groupId = createGroup(name, checked, state._newGroupAvatar);
     if (!groupId) return;
     const sheet = $("#new-group-sheet"); if (sheet) sheet.classList.add("hidden");

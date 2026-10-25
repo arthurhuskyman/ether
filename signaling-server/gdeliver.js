@@ -41,7 +41,7 @@ function create(ctx) {
     if (!ctx.file) return;
     try {
       const tmp = ctx.file + ".tmp";
-      fs.writeFileSync(tmp, JSON.stringify({ v: 1, groups: Array.from(groups, ([gid, g]) => [gid, { m: Array.from(g.members), a: Array.from(g.admins), ver: g.ver, at: g.at }]) }), { mode: 0o600 });
+      fs.writeFileSync(tmp, JSON.stringify({ v: 1, groups: Array.from(groups, ([gid, g]) => [gid, { m: Array.from(g.members), a: Array.from(g.admins), ver: g.ver, at: g.at, i: g.implicit ? 1 : 0 }]) }), { mode: 0o600 });
       fs.renameSync(tmp, ctx.file);
     } catch (e) { console.warn("[groups] не удалось сохранить:", e.message); }
   }
@@ -51,7 +51,7 @@ function create(ctx) {
     try {
       if (!fs.existsSync(ctx.file)) return 0;
       const d = JSON.parse(fs.readFileSync(ctx.file, "utf8"));
-      for (const [gid, g] of (d && d.groups) || []) if (GID_RE.test(gid) && g && Array.isArray(g.m)) groups.set(gid, { members: new Set(g.m.filter(ID_OK).slice(0, LIM.members)), admins: new Set((g.a || []).filter(ID_OK)), ver: g.ver | 0, at: g.at || now() });
+      for (const [gid, g] of (d && d.groups) || []) if (GID_RE.test(gid) && g && Array.isArray(g.m)) groups.set(gid, { members: new Set(g.m.filter(ID_OK).slice(0, LIM.members)), admins: new Set((g.a || []).filter(ID_OK)), ver: g.ver | 0, at: g.at || now(), implicit: g.i === 1 });
       return groups.size;
     } catch (e) { return 0; }
   }
@@ -69,8 +69,9 @@ function create(ctx) {
       const ver = Number.isInteger(msg.ver) && msg.ver >= 0 && msg.ver < 1e9 ? msg.ver : 0;
       const cur = groups.get(msg.gid);
       if (cur) {
-        if (!cur.admins.has(myId)) return ack({ error: "not-admin" }), true;
-        if (ver <= cur.ver) return ack({ error: "stale", ver: cur.ver }), true;
+        const takeover = cur.implicit && cur.members.has(myId); // группу завёл неявный первый gdeliver — явный ростер участника её заменяет
+        if (!takeover && !cur.admins.has(myId)) return ack({ error: "not-admin" }), true;
+        if (!takeover && ver <= cur.ver) return ack({ error: "stale", ver: cur.ver }), true;
       } else {
         if (groups.size >= LIM.groups) groups.delete(groups.keys().next().value);
         if (!admins.has(myId)) admins.add(myId);
@@ -88,7 +89,7 @@ function create(ctx) {
     let g = groups.get(msg.gid);
     if (!g) { // первая весть о группе: отправитель регистрирует её (список получателей + он сам)
       if (groups.size >= LIM.groups) groups.delete(groups.keys().next().value);
-      g = { members: new Set([myId, ...to]), admins: new Set([myId]), ver: 0, at: now() }; groups.set(msg.gid, g); saveSoon();
+      g = { members: new Set([myId, ...to]), admins: new Set([myId]), ver: 0, at: now(), implicit: true }; groups.set(msg.gid, g); saveSoon();
     } else if (!g.members.has(myId)) return ack({ error: "not-member" }), true;
     const targets = Array.from(to).filter((id) => g.members.has(id));
     const dropped = to.size - targets.length;

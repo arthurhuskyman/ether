@@ -15,7 +15,8 @@ const LS = (a, k) => a.run(`SecureStore.rawGet(${JSON.stringify(k)})`);
 test("включение: данные на диске — шифртекст, приложение читает открытый текст, запись обновляет шифртекст; секретов в открытом виде нет", async () => {
   const a = await booted();
   a.run(`const c = ensureContactEntry("alice", "Alice"); c.managed = true; c.messages.push({ id: "m1", from: "me", text: "СЕКРЕТНОЕ-СООБЩЕНИЕ", ts: Date.now(), ack: "sent" }); persistContacts(); persistContactsNow();`);
-  assert.match(LS(a, "ether.contacts"), /СЕКРЕТНОЕ/, "до включения — открытый текст");
+  // V.80: шифрование включено по умолчанию — до PIN на диске уже шифртекст ключа устройства (раньше здесь ожидался открытый текст)
+  assert.ok(LS(a, "ether.contacts").startsWith("encd1:") && !LS(a, "ether.contacts").includes("СЕКРЕТНОЕ"), "до PIN — шифртекст ключа устройства");
   await a.run(`SecureStore.enable("123456")`);
   const disk = LS(a, "ether.contacts");
   assert.ok(disk.startsWith("enc1:"), "на диске шифртекст");
@@ -25,7 +26,7 @@ test("включение: данные на диске — шифртекст, �
   a.run(`state.contacts.get("alice").messages.push({ id: "m2", from: "me", text: "ВТОРОЕ-СЕКРЕТНОЕ", ts: Date.now(), ack: "sent" }); persistContacts(); persistContactsNow();`);
   await a.run(`SecureStore.flush()`);
   const disk2 = LS(a, "ether.contacts");
-  assert.notEqual(disk2, disk); assert.ok(disk2.startsWith("enc1:"));
+  assert.notEqual(disk2, disk); assert.ok(disk2.startsWith("encd1:"));
   // блокировка по неверному PIN, разблокировка по верному на «свежем» окне с тем же хранилищем
   assert.equal(await a.run(`SecureStore.verify("000000").then((x) => !!x)`), false);
   assert.equal(await a.run(`SecureStore.verify("123456").then((x) => !!x)`), true);
@@ -40,7 +41,8 @@ test("перезапуск: без unlock данные недоступны, unl
   const snapshot = {}; for (const k of ["ether.contacts", "ether.sec.on", "ether.sec.salt", "ether.sec.check", "ether.ratchet", "ether.privKey"]) { const v = LS(a, k); if (v !== null) snapshot[k] = v; }
   a.close();
   // новый «запуск»: тот же диск (шифртекст), пустая память
-  const b = createApp({ storage: Object.assign({ "ether.name": "T", "ether.myId": "me-test-id", "ether.lang": "ru", "ether.pinEnabled": "0" }, snapshot) });
+  // V.80: «перезапуск» = тот же профиль, то есть и тот же IndexedDB с ключом устройства (раньше хватало одного localStorage)
+  const b = createApp({ indexedDB: a.window.indexedDB, storage: Object.assign({ "ether.name": "T", "ether.myId": "me-test-id", "ether.lang": "ru", "ether.pinEnabled": "0" }, snapshot) });
   await b.ready;
   assert.equal(b.run(`SecureStore.isOn()`), true);
   assert.equal(b.run(`SecureStore.isActive()`), false);
@@ -62,7 +64,8 @@ test("смена PIN перешифровывает; выключение воз
   assert.equal(await a.run(`SecureStore.verify("222222").then((x) => !!x)`), true);
   assert.equal(await a.run(`SecureStore.disable("222222")`), true);
   assert.equal(a.run(`SecureStore.isOn()`), false);
-  assert.match(LS(a, "ether.contacts"), /ДО-СМЕНЫ-PIN/, "снова открытый текст");
+  assert.ok(LS(a, "ether.contacts").startsWith("encd1:") && !LS(a, "ether.contacts").includes("ДО-СМЕНЫ-PIN"), "без PIN остаётся слой ключа устройства (не открытый текст)");
+  assert.match(a.window.localStorage.getItem("ether.contacts"), /ДО-СМЕНЫ-PIN/, "приложение читает как прежде");
   assert.equal(LS(a, "ether.sec.salt"), null);
   a.close();
 });
@@ -71,14 +74,15 @@ test("файлы в IndexedDB шифруются отдельным ключом
   const a = await booted();
   a.run(`const c = ensureContactEntry("alice", "Alice"); c.managed = true; c.messages.push({ id: "m1", from: "me", text: "ПРЯТАТЬ-В-БЭКАПЕ", ts: Date.now(), ack: "sent" }); persistContacts(); persistContactsNow();`);
   await a.run(`backupToIDB()`);
-  assert.match(await a.run(`IDB.get("ether.contacts")`), /ПРЯТАТЬ-В-БЭКАПЕ/, "до шифрования копия открытая");
+  const pre = await a.run(`IDB.get("ether.contacts")`);
+  assert.ok(pre.startsWith("encd1:") && !pre.includes("ПРЯТАТЬ"), "V.80: копия в IndexedDB и без PIN — шифртекст ключа устройства");
   await a.run(`SecureStore.enable("123456")`);
   await a.run(`backupToIDB()`);
   const bk = await a.run(`IDB.get("ether.contacts")`);
-  assert.ok(bk.startsWith("enc1:") && !bk.includes("ПРЯТАТЬ"), "копия в IndexedDB — шифртекст");
+  assert.ok(bk.startsWith("encd1:") && !bk.includes("ПРЯТАТЬ"), "копия в IndexedDB — шифртекст");
   // файл
   const sealed = await a.run(`(async () => { const b = new Blob([new Uint8Array([1, 2, 3, 4, 5])], { type: "audio/webm" }); const s = await SecureStore.sealBlob(b); const o = await SecureStore.openBlob(s); return { enc: s.__enc, type: o.type, len: o.size, plainEqual: s instanceof Blob }; })()`);
-  assert.equal(sealed.enc, 1); assert.equal(sealed.type, "audio/webm"); assert.equal(sealed.len, 5); assert.equal(sealed.plainEqual, false);
+  assert.equal(sealed.enc, 2, "ключ устройства поверх PIN-слоя"); assert.equal(sealed.type, "audio/webm"); assert.equal(sealed.len, 5); assert.equal(sealed.plainEqual, false);
   a.close();
 });
 
@@ -104,7 +108,7 @@ test("запись: быстрые последовательные setItem — 
   await a.run(`SecureStore.flush()`);
   assert.equal(a.run(`localStorage.getItem("ether.drafts")`), JSON.stringify({ v: 19 }));
   const raw = a.run(`SecureStore.rawGet("ether.drafts")`);
-  assert.ok(raw.startsWith("enc1:"));
+  assert.ok(raw.startsWith("encd1:"));
   a.run(`localStorage.setItem("ether.lastSeen", "{}"); localStorage.removeItem("ether.lastSeen");`);
   await a.run(`SecureStore.flush()`);
   await sleep(50);
@@ -131,7 +135,9 @@ test("двойной unlock не сбрасывает кэш; disable не те�
   await a.run(`SecureStore.enable("123456")`);
   a.run(`localStorage.setItem("ether.drafts", "последнее")`);
   await a.run(`SecureStore.disable("123456")`);
-  assert.equal(a.run(`SecureStore.rawGet("ether.drafts")`), "последнее", "после отключения на диске последнее значение открытым текстом");
+  await a.run(`SecureStore.flush()`);
+  assert.ok(a.run(`SecureStore.rawGet("ether.drafts")`).startsWith("encd1:"), "после отключения PIN на диске шифртекст ключа устройства");
+  assert.equal(a.run(`localStorage.getItem("ether.drafts")`), "последнее", "последняя запись не потеряна");
   assert.equal(a.run(`SecureStore.isOn()`), false);
   a.close();
 });

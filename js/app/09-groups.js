@@ -48,7 +48,7 @@ function isMentioned(text, name) {
 }
 
 function createGroup(name, memberIds, avatar) {
-  if (memberIds.length + 1 > MAX_GROUP_MEMBERS) { toast(T("toast.groupTooBig", { max: MAX_GROUP_MEMBERS })); return null; }
+  { const lim = groupMemberLimit(memberIds); if (memberIds.length + 1 > lim) { toast(T("toast.groupTooBig", { max: lim })); return null; } }
   if (memberIds.length === 0) { toast(T("toast.groupNeedsMembers")); return null; }
   const groupId = crypto.randomUUID();
   const members = memberIds.map((id) => {
@@ -91,6 +91,7 @@ function broadcastGroupRoster(g) {
     if (m.id === Store.myId) continue;
     sendGroupRosterTo(g, m.id);
   }
+  gkPublishRoster(g);
 }
 // Единственная точка отправки ростера ОДНОМУ конкретному участнику —
 // переиспользуется и явной рассылкой всем (выше), и авто-восстановлением
@@ -138,6 +139,7 @@ async function sendGroupMessage(groupId, text, replyTo) {
   const payload = { kind: "chat", id: msgId, text, ts, groupId, senderName: Store.name || T("sys.someone") };
   if (replyTo) payload.replyTo = { id: replyTo.msgId, text: replyTo.text, authorName: replyTo.authorName };
   if (g.disappearingTimer) payload.ttl = g.disappearingTimer;
+  if (groupUsesSenderKeys(g) && await gkSendChat(g, msgId, payload)) { if (state.chatId === groupId) renderChatThreadInner(); return true; }
   for (const m of g.members) {
     if (m.id === Store.myId) continue;
     const mc = ensureContactEntry(m.id, m.name);
@@ -161,10 +163,12 @@ function addGroupMember(groupId, memberId) {
   const g = state.contacts.get(groupId); if (!g || !g.isGroup) return;
   if (!isGroupAdmin(g, Store.myId)) { toast(T("toast.groupAdminOnly")); return; }
   if (g.members.some((m) => m.id === memberId)) return;
-  if (g.members.length >= MAX_GROUP_MEMBERS) { toast(T("toast.groupTooBig", { max: MAX_GROUP_MEMBERS })); return; }
+  { const lim = groupMemberLimit(g.members.map((m) => m.id).concat(memberId)); if (g.members.length >= lim) { toast(T("toast.groupTooBig", { max: lim })); return; } }
   const c = state.contacts.get(memberId);
   if (Array.isArray(g.banned)) g.banned = g.banned.filter((x) => x !== memberId); // админ добавил сам — снимаем запрет
+  const gkOld = g.members.map((m) => m.id);
   g.members.push({ id: memberId, name: (c && c.name) || T("sys.someone") });
+  gkOnRosterChange(g, gkOld);
   g.messages.push({ id: crypto.randomUUID(), from: "system", text: T("group.systemAdded", { name: (c && c.name) || T("sys.someone") }), textKey: "group.systemAdded", textParams: { name: (c && c.name) || T("sys.someone") }, ts: Date.now() });
   trimMessages(g);
   g.lastActivity = Date.now();
@@ -181,7 +185,9 @@ function removeGroupMember(groupId, memberId, leftBySelf) {
   const wasIn = g.members.some((m) => m.id === memberId);
   if (!wasIn) return;
   const removedName = (g.members.find((m) => m.id === memberId) || {}).name || T("sys.someone");
+  const gkOld = g.members.map((m) => m.id);
   g.members = g.members.filter((m) => m.id !== memberId);
+  gkOnRosterChange(g, gkOld);
   if (!leftBySelf) { g.banned = (Array.isArray(g.banned) ? g.banned.filter((x) => x !== memberId) : []).concat(memberId).slice(-50); } // исключённый не может вернуться запросом по ссылке
   g.lastActivity = Date.now();
   if (leftBySelf && memberId === Store.myId) {
@@ -1230,3 +1236,131 @@ function applyReaction(contactId, payload) {
   if (state.chatId === c.id) renderChatThread();
 }
 
+
+// =====================================================================
+// V.80: большие группы на Sender Keys (js/groupkeys.js, signaling-server/gdeliver.js)
+// =====================================================================
+// Группа >8 участников, где КАЖДЫЙ умеет sk1 (флаг c.sk1 из caps присутствия) и сервер знает gdeliver, шлёт текст одним зашифрованным
+// конвертом через сервер. Иначе — прежняя попарная рассылка (она же запасной путь при ошибке/таймауте). Остальные виды сообщений
+// (файлы, реакции, правки) по-прежнему идут попарно: они редки/нужны подтверждения доставки. Квитанции доставки/прочтения для
+// сообщений Sender Keys не рассылаются (N×N трафика): у них один статус «отправлено» после приёма сервером.
+const MAX_GROUP_MEMBERS_SK = 256;
+function contactHasSk(id) { const c = state.contacts.get(id); return !!(c && c.sk1); }
+function markContactSk(c) { if (c && !c.sk1) { c.sk1 = true; try { persistContacts(); } catch (e) {} } }
+function serverHasGdeliver() { return !!(typeof signaling !== "undefined" && signaling && signaling.registered && Array.isArray(signaling.features) && signaling.features.includes("gdeliver")); }
+// Лимит участников: до 256, если все (кроме меня) умеют sk1 и сервер умеет gdeliver; иначе прежние 10
+function groupMemberLimit(memberIds) {
+  const ids = (memberIds || []).filter((id) => id !== Store.myId);
+  return typeof GroupKeys !== "undefined" && serverHasGdeliver() && ids.every(contactHasSk) ? MAX_GROUP_MEMBERS_SK : MAX_GROUP_MEMBERS;
+}
+function groupUsesSenderKeys(g) {
+  if (!g || !g.isGroup || typeof GroupKeys === "undefined" || !serverHasGdeliver()) return false;
+  return GroupKeys.shouldUse(g.members.map((m) => m.id).filter((id) => id !== Store.myId), Store.myId, contactHasSk);
+}
+function gkPublishRoster(g) {
+  if (!g || !serverHasGdeliver() || !groupUsesSenderKeys(g)) return;
+  try { signaling.groupRoster(g.id, g.members.map((m) => m.id), g.members.filter((m) => isGroupAdmin(g, m.id)).map((m) => m.id), Number.isInteger(g.rosterVer) ? g.rosterVer : 0); } catch (e) {}
+}
+// Раздать свою цепочку отправки участникам, которые её ещё не получали (only — ограничить списком id)
+async function gkDistribute(g, only) {
+  const dist = await GroupKeys.distribution(g.id);
+  g.gk = g.gk || {}; g.gk.sent = g.gk.sent || {};
+  const todo = g.members.filter((m) => m.id !== Store.myId && (!only || only.includes(m.id)) && g.gk.sent[m.id] !== dist.cid);
+  for (let i = 0; i < todo.length; i += 16) {
+    await Promise.all(todo.slice(i, i + 16).map((m) => {
+      g.gk.sent[m.id] = dist.cid;
+      const mc = ensureContactEntry(m.id, m.name);
+      return trySendOrQueue(mc, crypto.randomUUID(), { kind: "gk-dist", id: crypto.randomUUID(), groupId: g.id, cid: dist.cid, ck: dist.ck, n: dist.n, spub: dist.spub }).catch(() => { delete g.gk.sent[m.id]; });
+    }));
+  }
+  persistContacts();
+}
+function gkWaitAck(msgId, sendFn, timeoutMs) {
+  return new Promise((resolve) => {
+    let done = false;
+    const fin = (v) => { if (done) return; done = true; clearTimeout(t); try { signaling.removeEventListener("gdeliver-ack", onAck); } catch (e) {} resolve(v); };
+    const onAck = (ev) => { if (ev.detail && ev.detail.msgId === msgId) fin(!ev.detail.error); };
+    const t = setTimeout(() => fin(false), timeoutMs || 6000);
+    try { signaling.addEventListener("gdeliver-ack", onAck); } catch (e) { fin(false); return; }
+    if (!sendFn()) fin(false);
+  });
+}
+// Отправка текстового payload (kind "chat") в группу Sender Keys. true — сервер принял; false — вызывающий шлёт попарно
+async function gkSendChat(g, msgId, payload) {
+  try {
+    if (!signaling || !signaling.connected) return false;
+    if (g.gk && g.gk.rekey) { await GroupKeys.rekey(g.id); g.gk.rekey = false; g.gk.sent = {}; }
+    await gkDistribute(g);
+    const env = await GroupKeys.encrypt(g.id, Store.myId, JSON.stringify(payload));
+    const to = g.members.map((m) => m.id).filter((id) => id !== Store.myId);
+    const ok = await gkWaitAck(msgId, () => signaling.gdeliver(g.id, msgId, to, env));
+    if (ok) { const rec = g.messages.find((m) => m.id === msgId); if (rec) { rec.sk = true; rec.serverAcked = true; persistContacts(); } }
+    return ok;
+  } catch (e) { etherLog("warn", "[groupkeys] send:", String(e)); return false; }
+}
+// Состав группы изменился: после исключения — новая цепочка (лениво, перед следующей отправкой); новым участникам — текущая цепочка
+function gkOnRosterChange(g, oldIds) {
+  if (typeof GroupKeys === "undefined" || !g) return;
+  const nowIds = g.members.map((m) => m.id);
+  if (!nowIds.includes(Store.myId)) { GroupKeys.dropGroup(g.id); return; }
+  const removed = oldIds.filter((id) => !nowIds.includes(id)), added = nowIds.filter((id) => !oldIds.includes(id));
+  if (removed.length) {
+    GroupKeys.pruneToMembers(g.id, nowIds);
+    if (GroupKeys.hasSend(g.id)) { g.gk = g.gk || {}; g.gk.rekey = true; g.gk.sent = {}; }
+  }
+  if (added.length && GroupKeys.hasSend(g.id) && groupUsesSenderKeys(g) && !(g.gk && g.gk.rekey)) gkDistribute(g, added).catch(() => {});
+  gkPublishRoster(g);
+}
+const gkParked = new Map(), gkReqAt = new Map();
+function gkRequestKey(g, from, cid) {
+  const k = g.id + "|" + from + "|" + cid, t = Date.now();
+  if (t - (gkReqAt.get(k) || 0) < 30000) return;
+  gkReqAt.set(k, t); trimMap(gkReqAt, 200);
+  trySendOrQueue(ensureContactEntry(from, null), crypto.randomUUID(), { kind: "gk-req", id: crypto.randomUUID(), groupId: g.id, cid }).catch(() => {});
+}
+// Входящий gchat: расшифровать цепочкой отправителя и передать обычному обработчику чата группы
+async function handleGroupSkDeliver(detail, replay, ackBox) {
+  const { msgId, envelope } = detail, from = canonPeer(detail.from), gid = detail.gid;
+  const dKey = "gk|" + from + "|" + msgId;
+  if (hasSeenMsg(from, msgId) || seenDeliverIds.has(dKey)) { ackBox(); return; }
+  if (deliverInFlight.has(dKey)) return;
+  const g = typeof gid === "string" ? state.contacts.get(gid) : null;
+  if (g && (!g.isGroup || !g.members.some((m) => m.id === from))) { ackBox(); return; } // не участник — отбрасываем
+  deliverInFlight.add(dKey);
+  const fail = () => { if (bumpDeliverFail(from, msgId) >= DELIVER_MAX_ATTEMPTS) ackBox(); };
+  try {
+    if (!g || typeof GroupKeys === "undefined") { fail(); return; } // приглашение ещё не пришло — повторим при следующем подключении
+    let text;
+    try { text = await GroupKeys.decrypt(gid, from, envelope); }
+    catch (e) {
+      if (/no-chain/.test(String(e)) && envelope) { // ключа отправителя ещё нет: просим и ждём раздачу
+        const pk = gid + "|" + from + "|" + envelope.cid, arr = gkParked.get(pk) || [];
+        if (!arr.some((d) => d.msgId === msgId) && arr.length < 50) arr.push(detail);
+        gkParked.set(pk, arr); trimMap(gkParked, 100);
+        gkRequestKey(g, from, envelope.cid);
+        return;
+      }
+      if (/old|bad-sig|bad-envelope/.test(String(e))) { ackBox(); return; } // повтор/подделка: молча отбрасываем
+      fail(); return;
+    }
+    let payload = null; try { payload = JSON.parse(text); } catch (e) {}
+    if (!payload || typeof payload !== "object" || payload.kind !== "chat" || payload.groupId !== gid) { markSeenMsg(from, msgId); ackBox(); return; }
+    rememberDeliverId(dKey);
+    applyIncomingPayload(from, msgId, payload, true, "chat");
+    const rec = g.messages.find((m) => m.id === payload.id); if (rec) { rec.sk = true; delete rec.deliveryId; }
+    markSeenMsg(from, msgId); ackBox();
+  } finally { deliverInFlight.delete(dKey); }
+}
+function handleGkDist(from, payload) {
+  const g = state.contacts.get(payload.groupId);
+  if (!g || !g.isGroup || !g.members.some((m) => m.id === from) || typeof GroupKeys === "undefined") return;
+  if (!GroupKeys.acceptDistribution(g.id, from, payload)) return;
+  const pk = g.id + "|" + from + "|" + payload.cid, arr = gkParked.get(pk);
+  if (arr) { gkParked.delete(pk); for (const d of arr) handleDeliver(d, false).catch(() => {}); }
+}
+function handleGkReq(from, payload) {
+  const g = state.contacts.get(payload.groupId);
+  if (!g || !g.isGroup || !g.members.some((m) => m.id === from) || typeof GroupKeys === "undefined" || !GroupKeys.hasSend(g.id)) return;
+  if (g.gk && g.gk.sent) delete g.gk.sent[from];
+  gkDistribute(g, [from]).catch(() => {});
+}

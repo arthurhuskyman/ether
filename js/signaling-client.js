@@ -148,7 +148,7 @@ class SignalingClient extends EventTarget {
         // Доказательство владения id (sha256 от секрета устройства, не сам секрет); старый сервер поле игнорирует
         claim: this.claim || undefined,
         // Что умеет этот клиент (env2 — офлайн-конверты v2 с AAD)
-        caps: ["env2"],
+        caps: ["env2", "sk1"],
         // Контакты, чьё присутствие нужно видеть: сервер не раскрывает остальных (старый сервер поле просто игнорирует)
         watch: this.watchIds ? this.watchIds() : undefined,
       }));
@@ -241,6 +241,7 @@ class SignalingClient extends EventTarget {
             fromPublicKey: msg.fromPublicKey,
             fromDev: typeof msg.fromDev === "string" ? msg.fromDev : null,
             kind: msg.kind || "chat",
+            gid: typeof msg.gid === "string" ? msg.gid.slice(0, 64) : undefined,
             queued: !!msg.queued,
           },
         }));
@@ -256,6 +257,9 @@ class SignalingClient extends EventTarget {
         this.dispatchEvent(new CustomEvent("prekey-low", { detail: { count: this.prekeyCount } }));
       } else if (msg.type === "linkcall-signal" && typeof msg.room === "string") {
         this.dispatchEvent(new CustomEvent("linkcall-signal", { detail: { room: msg.room.slice(0, 64), data: msg.data } }));
+      } else if (/^(channel-|gdeliver-ack$|group-roster-ack$)/.test(msg.type)) {
+        // V.80: каналы (channels.js) и групповая доставка Sender Keys: ответы/рассылки сервера уходят подписчикам как есть
+        this.dispatchEvent(new CustomEvent(msg.type, { detail: msg }));
       } else if (/^(linkcall-|call-ringing$|push-test)/.test(msg.type)) {
         // V.79 (docs/CALL-RELIABILITY-PROTOCOL.md C/E): ответы сервера на link-call, «звонит у собеседника», результат теста гудков
         this.dispatchEvent(new CustomEvent(msg.type, { detail: msg }));
@@ -400,6 +404,11 @@ class SignalingClient extends EventTarget {
   }
 
   mailboxAck(msgId) { return this.send("mailbox-ack", { msgId }); }
+
+  // V.80: Sender Keys (одно шифрование на группу, рассылка сервером) и каналы
+  gdeliver(gid, msgId, to, envelope) { return this.send("gdeliver", { gid, msgId, to, envelope }); }
+  groupRoster(gid, members, admins, ver) { return this.send("group-roster", { gid, members, admins, ver }); }
+  channelOp(type, payload) { return /^channel-[a-z]+$/.test(type) ? this.send(type, payload) : false; }
 
   // Prekey-пакеты для начала Double Ratchet (см. ratchet.js): выложить свои публичные ключи / запросить пакет собеседника.
   // Заменяет список наблюдаемых контактов (сервер ответит watch-result с теми, кто сейчас онлайн)

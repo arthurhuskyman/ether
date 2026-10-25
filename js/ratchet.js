@@ -420,7 +420,7 @@ const Ratchet = (() => {
     return serial(ctx.contactId, async () => {
       if (dirty) persist(); // прошлая запись не удалась: пробуем снова, иначе отказ (бросает 'ratchet: persist failed')
       const list = sessionsOf(ctx.contactId);
-      let sawSigned = false;
+      let sawSigned = false, extSeen = null;
       if (!list.length) {
         let bundle = null;
         if (ctx.getBundle) { try { bundle = await ctx.getBundle(); } catch (e) { bundle = null; } }
@@ -428,15 +428,25 @@ const Ratchet = (() => {
         // Подпись есть и не сходится — пакет подменён/испорчен, начинаем от долговременных ключей; подписи нет (старый клиент) — принимаем как раньше,
         // КРОМЕ контактов, чей пакет уже хоть раз приходил с верной подписью (флаг sg): для них пакет без подписи — понижение защиты, считаем недействительным.
         if (bundle && bundle.spk && ctx.theirPubJwk) {
-          if (bundle.spk.sig != null) {
-            if (await verifySpk(ctx.theirPubJwk, bundle.spk)) sawSigned = true; else bundle = null;
+          const sp = bundle.spk;
+          if (sp.sig != null) {
+            if (await verifySpk(ctx.theirPubJwk, sp)) {
+              sawSigned = true;
+              // Расширение (caps + ключ KEM) принимаем только под sig2; без проверенной подписи поля игнорируем (они могли быть вставлены сервером).
+              if (sp.sig2 != null && await verifySpk2(ctx.theirPubJwk, sp) && (sp.c & CAP.A3) && typeof sp.kem === "string" && sp.kem.length === 1580) extSeen = { c: sp.c, kem: sp.kem };
+              bundle = { spk: { id: sp.id, pub: sp.pub, sig: sp.sig }, opk: bundle.opk };
+              if (!extSeen && getDb().b2[ctx.contactId]) warn(ctx.contactId, "pq-missing"); // раньше пакеты контакта несли PQ-ключ, теперь нет: понижение (или старый клиент/сервер)
+            } else bundle = null;
           } else if (getDb().sg[ctx.contactId]) bundle = null;
+          else bundle = { spk: sp, opk: bundle.opk };
         }
         const usable = bundle && bundle.spk && typeof bundle.spk.id === "string" && okPub(bundle.spk.pub) && (!bundle.opk || (typeof bundle.opk.id === "string" && okPub(bundle.opk.pub)));
-        list.unshift(usable ? await newInitiatorX(ctx, bundle) : await newInitiator(ctx.myPrivJwk, ctx.theirPubJwk, ctx.myId, ctx.contactId));
+        if (extSeen) { const d0 = getDb(); d0.cb[ctx.contactId] = extSeen.c; d0.b2[ctx.contactId] = 1; } // проверенные возможности (подпись личности)
+        const lv0 = sendLevel(ctx.contactId, ctx.v3Ok);
+        list.unshift(usable ? await newInitiatorX(ctx, bundle, lv0.level === 3, lv0.level === 3 ? extSeen : null, LOCAL_CAPS) : await newInitiator(ctx.myPrivJwk, ctx.theirPubJwk, ctx.myId, ctx.contactId));
       }
       const s = list[0];
-      const env = await encryptWith(s, ctx.myId, ctx.contactId, plain);
+      const env = await encryptWith(s, ctx.myId, ctx.contactId, plain, sendLevel(ctx.contactId, ctx.v3Ok));
       s.t = Date.now();
       if (sawSigned) getDb().sg[ctx.contactId] = true;
       persist(); // не удалось — бросает: конверт не возвращаем (приложение откатится на прежний способ шифрования)
@@ -449,15 +459,17 @@ const Ratchet = (() => {
   function decrypt(ctx, env) {
     return serial(ctx.contactId, async () => {
       if (!env || env.v !== 2 || !env.h || !Array.isArray(env.h.d) || env.h.d.length !== 2 || typeof env.ct !== "string") throw new Error("ratchet: bad envelope");
+      if (env.a != null && env.a !== 1 && env.a !== 3) throw new Error("ratchet: bad envelope");
+      if (env.a === 3 && !(Number.isInteger(env.h.c) && env.h.c >= 0 && env.h.c <= 255)) throw new Error("ratchet: bad envelope");
       const list = sessionsOf(ctx.contactId);
-      const from = ctx.contactId, to = ctx.myId;
+      const from = ctx.contactId, to = ctx.myId, level = envLevel(env);
       let lastErr = null;
       for (let i = 0; i < list.length; i++) {
-        const trial = clone(list[i]);
+        const trial = clone(list[i]), meta = {};
         try {
-          const plain = await decryptWith(trial, from, to, env);
+          const plain = await decryptWith(trial, from, to, env, meta);
           list[i] = trial;
-          noteCap(from, env);
+          noteCap(from, env); noteAuth(from, level, meta.caps);
           if (i > 0) { list.splice(i, 1); list.unshift(trial); } // сессия, на которой нам отвечают, становится основной
           trial.t = Date.now();
           // Выбор при неудаче записи: плайнтекст всё равно возвращаем (сообщение уже расшифровано, терять его хуже),
@@ -470,32 +482,37 @@ const Ratchet = (() => {
       if (env.h.i === 1 && !known) {
         let s, opkId = null;
         const p = env.h.p;
+        // «Липкий» уровень: после проверенного конверта AAD v2/v3 от этого контакта НАЧАЛЬНЫЙ конверт более слабого формата не принимаем (заголовок слабого AAD сервер мог подменить)
+        // и уровень молча не сбрасываем. Конверты внутри уже открытой сессии защищены ключом сообщения, их уровень значения не имеет (так «хвосты» до повышения уровня не теряются).
+        if (level < (getDb().cv[from] | 0)) { warn(from, "downgrade"); throw new Error("ratchet: downgrade"); }
+        if (p && (p.v === 3) !== (level === 3)) throw new Error("ratchet: bad prekey header"); // v3-заголовок допустим только вместе с AAD v3 и наоборот
         // Повтор давно использованного начального конверта (сессия уже вытеснена из списка) не должен создавать фиктивную сессию.
         const riId = dhKey(env.h.d) + "|" + (p && typeof p.s === "string" ? p.s + "|" + (typeof p.o === "string" ? p.o : "") : "-");
         const riList = getDb().ri[from] || (getDb().ri[from] = []);
         if (riList.includes(riId)) throw new Error("ratchet: replayed initial");
         if (p) {
           const okPub = (x) => Array.isArray(x) && x.length === 2 && x.every((v) => typeof v === "string" && v.length > 0 && v.length <= 100);
-          if (!okPub(p.e) || typeof p.s !== "string" || (p.o != null && typeof p.o !== "string")) throw new Error("ratchet: bad prekey header");
-          const r = await newResponderX(ctx, p); s = r.s; opkId = r.opkId;
+          if (!okPub(p.e) || typeof p.s !== "string" || (p.o != null && typeof p.o !== "string") || (p.v != null && p.v !== 3) || (p.k != null && (typeof p.k !== "string" || p.k.length > 1600 || p.v !== 3))) throw new Error("ratchet: bad prekey header");
+          const r = await newResponderX(ctx, p, env.h.c); s = r.s; opkId = r.opkId;
         } else {
           s = await newResponder(ctx.myPrivJwk, ctx.theirPubJwk, ctx.myId, from);
         }
-        const plain = await decryptWith(s, from, to, env);
+        const meta = {};
+        const plain = await decryptWith(s, from, to, env, meta);
         // Удаление opk должно быть записано ДО выдачи plaintext: иначе после падения/перезагрузки opk «воскреснет» и позволит
         // расшифровать повтор. Не удалось записать — откатываем память и бросаем (сообщение придёт повторно).
-        const opkSaved = opkId ? pk().opks[opkId] : null, capBefore = getDb().ca[from], listBefore = list.slice(), riBefore = riList.slice();
+        const opkSaved = opkId ? pk().opks[opkId] : null, capBefore = [getDb().ca[from], getDb().ch[from], getDb().cv[from], getDb().cp[from]], listBefore = list.slice(), riBefore = riList.slice();
         if (opkId) delete pk().opks[opkId]; // одноразовый ключ использован и уничтожен
         list.unshift(s);
         while (list.length > MAX_SESSIONS) list.pop();
         riList.push(riId);
         while (riList.length > RI_MAX) riList.shift();
-        noteCap(from, env);
+        noteCap(from, env); noteAuth(from, level, meta.caps);
         try { persist(); }
         catch (e) {
           if (opkId && opkSaved) pk().opks[opkId] = opkSaved;
           list.splice(0, list.length, ...listBefore); riList.splice(0, riList.length, ...riBefore);
-          if (capBefore) getDb().ca[from] = capBefore; else delete getDb().ca[from];
+          ["ca", "ch", "cv", "cp"].forEach((k, j) => { if (capBefore[j] != null) getDb()[k][from] = capBefore[j]; else delete getDb()[k][from]; });
           throw e;
         }
         return plain;
@@ -509,7 +526,8 @@ const Ratchet = (() => {
   function pk() { const d = getDb(); if (!d.pk.opks) d.pk.opks = {}; if (!d.pk.old) d.pk.old = []; return d.pk; }
   function rid() { return b64(crypto.getRandomValues(new Uint8Array(9))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
   // Нужно ли пополнить запас на сервере: нет spk, пора менять spk, или одноразовых там меньше OPK_WANT.
-  function needsPrekeys(serverCount) { const p = pk(); return !p.spk || Date.now() - p.spk.t > SPK_ROTATE_MS || !(serverCount >= OPK_WANT); }
+  function needsPrekeys(serverCount) { const p = pk(); return !p.spk || Date.now() - p.spk.t > SPK_ROTATE_MS || !(serverCount >= OPK_WANT) || (!p.spk.ks && Kem.available()) || (p.spk.ks && !p.spk.sig2); }
+  async function addKem(rec) { const k = await Kem.keygen(); rec.ks = b64(k.seed); rec.kem = b64(k.pub); rec.c = LOCAL_CAPS; delete rec.sig2; }
   // Готовит публичную часть для загрузки на сервер: текущий spk (меняется раз в неделю, старые ещё живут) и count новых одноразовых.
   async function prekeyUploadPayload(count, myPrivJwk) {
     const p = pk(), now = Date.now();
@@ -519,6 +537,7 @@ const Ratchet = (() => {
       const pair = await genPair();
       p.spk = { id: rid(), x: pair.x, y: pair.y, d: pair.d, t: now };
     }
+    if (!p.spk.ks && Kem.available()) { try { await addKem(p.spk); } catch (e) { /* без KEM: пакет остаётся классическим */ } } // существующий spk дополняется PQ-ключом на месте
     // Сервер раздаёт загруженные opk, пока их не разберут: удалять «живые» нельзя (иначе первое сообщение придёт с «unknown one-time prekey»).
     // Вытесняем только давно загруженные (старше OPK_TTL_MS), а новых создаём не больше, чем осталось места.
     for (const id of Object.keys(p.opks)) if (now - (p.opks[id].t || 0) > OPK_TTL_MS) delete p.opks[id];
@@ -531,13 +550,26 @@ const Ratchet = (() => {
     }
     persistSoft();
     if (myPrivJwk && !p.spk.sig) { try { p.spk.sig = await signSpk(myPrivJwk, p.spk.id, p.spk.x, p.spk.y); persistSoft(); } catch (e) {} }
-    return { spk: { id: p.spk.id, pub: [p.spk.x, p.spk.y], ...(p.spk.sig ? { sig: p.spk.sig } : {}) }, opks: fresh };
+    if (myPrivJwk && p.spk.ks && !p.spk.sig2) { try { p.spk.sig2 = await signSpk2(myPrivJwk, p.spk.id, p.spk.x, p.spk.y, p.spk.c, p.spk.kem); persistSoft(); } catch (e) {} }
+    return { spk: { id: p.spk.id, pub: [p.spk.x, p.spk.y], ...(p.spk.sig ? { sig: p.spk.sig } : {}), ...(p.spk.sig && p.spk.sig2 ? { sig2: p.spk.sig2, c: p.spk.c, kem: p.spk.kem } : {}) }, opks: fresh };
   }
 
   function reset(contactId) { const d = getDb().s; if (d[contactId]) { delete d[contactId]; persistSoft(); } }
-  function resetAll() { db = { s: {}, pk: {}, ri: {}, sg: {}, ca: {} }; persistSoft(); }
+  function resetAll() { db = { s: {}, pk: {}, ri: {}, sg: {}, ca: {}, cv: {}, cp: {}, cb: {}, ch: {}, b2: {} }; persistSoft(); }
+  // Явное «сбросить защиту» для контакта (после уведомления о понижении или при законной смене клиента): забываем липкие уровни, подписанные пакеты и сессии.
+  // Это решение человека; библиотека сама ничего подобного не делает.
+  function resetTrust(contactId) {
+    const d = getDb(); delete d.s[contactId];
+    for (const k of ["ca", "cv", "cp", "cb", "ch", "b2", "sg", "ri"]) delete d[k][contactId];
+    persistSoft();
+  }
+  function status(contactId) {
+    const d = getDb(), l = d.s[contactId] || [], sl = sendLevel(contactId, true);
+    return { level: sl.level, sticky: d.cv[contactId] | 0, caps: d.cp[contactId] | 0, pq: !!(l[0] && l[0].pq), pqSeen: !!d.b2[contactId], sessions: l.length };
+  }
   function info(contactId) { const l = (getDb().s[contactId] || []); return l.length ? l.length + " сесс., основная: ns=" + l[0].ns + " nr=" + l[0].nr + (l[0].init ? " (ждёт ответа)" : "") : "нет"; }
 
-  return { encrypt, decrypt, reset, resetAll, setStore, info, needsPrekeys, prekeyUploadPayload, verifySpk, signSpk };
+  return { encrypt, decrypt, reset, resetAll, resetTrust, status, setStore, info, needsPrekeys, prekeyUploadPayload, verifySpk, signSpk, verifySpk2, signSpk2, Kem, CAP, LOCAL_CAPS, padBucket, frameEncode, frameDecode,
+    onWarn(fn) { warnHook = typeof fn === "function" ? fn : null; } };
 })();
 if (typeof module !== "undefined") module.exports = Ratchet;

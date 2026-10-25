@@ -35,7 +35,7 @@ test("claim-токен: создаётся один раз, лежит в рез
   const ws = a.window.__fws[0]; ws.emit("open");
   const reg = ws.sent.find((m) => m.type === "register");
   assert.equal(reg.claim, a.window.__p);
-  assert.deepEqual(JSON.parse(JSON.stringify(reg.caps)), ["env2"]);
+  assert.deepEqual(JSON.parse(JSON.stringify(reg.caps)), ["env2", "sk1"]);
   assert.ok(!JSON.stringify(reg).includes(t1), "секрет не уходит по сети");
   a.close();
 });

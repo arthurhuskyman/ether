@@ -970,7 +970,7 @@ function markThreadRead(c) {
       // разные сообщения в одной группе могли написать разные люди.
       const byAuthor = new Map();
       for (const m of toAck) {
-        const authorId = m.fromId; if (!authorId) continue;
+        const authorId = m.fromId; if (!authorId || m.sk) continue; // сообщения Sender Keys квитанций не порождают (иначе N×N трафика)
         if (!byAuthor.has(authorId)) byAuthor.set(authorId, []);
         byAuthor.get(authorId).push(m.deliveryId || m.id);
       }

@@ -93,7 +93,7 @@ test("SignalingClient: регистрация при открытии, разб�
   const { a } = await sc();
   a.run(`__c.claim = "cl"; __c.start(); __c.start(); __sockets[0].__open();`);
   const reg = J(a.run(`__sockets[0].sent[0]`));
-  assert.equal(reg.type, "register"); assert.equal(reg.id, "id-1"); assert.equal(reg.visible, false); assert.deepEqual(reg.watch, ["w1"]); assert.equal(reg.claim, "cl"); assert.deepEqual(reg.caps, ["env2"]);
+  assert.equal(reg.type, "register"); assert.equal(reg.id, "id-1"); assert.equal(reg.visible, false); assert.deepEqual(reg.watch, ["w1"]); assert.equal(reg.claim, "cl"); assert.deepEqual(reg.caps, ["env2", "sk1"]);
   assert.equal(a.run(`__sockets.length`), 1, "второй start не создаёт сокет");
   const recv = (o) => a.run(`__sockets[0].__recv(${JSON.stringify(o)})`);
   recv({ type: "registered", features: ["watch", 5, "x"], prekeyCount: 7, online: ["a", { id: "b", name: "B", caps: ["env2", 1] }, null, { id: 5 }] });

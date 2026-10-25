@@ -127,7 +127,9 @@ test("потеря состояния у одной стороны лечитс�
   const settled = await send(a, b, { n: 2 }); // без флага начальной сессии
   b.R.resetAll();
   await assert.rejects(recv(b, a, settled));
-  const hello = await send(b, a, { again: 1 });
+  // Б потерял состояние: свежий пакет Алисы (подписанные возможности) сразу даёт v3 и начальный конверт принимается; без пакета слабый конверт Алиса отвергла бы (см. fix77-ratchet)
+  const up = await a.R.prekeyUploadPayload(1, a.priv);
+  const hello = await b.R.encrypt({ ...ctx(b, a), getBundle: async () => ({ spk: up.spk, opk: up.opks[0] }) }, { again: 1 });
   assert.deepEqual(await recv(a, b, hello), { again: 1 });
   const back = await send(a, b, { back: 1 });
   assert.deepEqual(await recv(b, a, back), { back: 1 });
@@ -178,7 +180,7 @@ test("prekey: старт по пакету с одноразовым ключо�
   assert.deepEqual(await recv(b, a, e2), { t: 2 });
   // повтор начального конверта после сброса сессий не проходит: одноразовый ключ уничтожен (теперь ловится ещё раньше — журналом принятых начальных конвертов)
   b.R.reset(a.id);
-  await assert.rejects(recv(b, a, e1), /replayed initial|one-time prekey/);
+  await assert.rejects(recv(b, a, e1), /replayed initial|one-time prekey|downgrade/);
 });
 
 test("prekey: пакет без одноразового ключа тоже работает (3DH)", async () => {
@@ -245,7 +247,7 @@ test("prekey: одновременный старт с обеих сторон �
 test("prekey: запас на сервере пополняется по условию; хранилище переживает перезапуск", async () => {
   const { b } = await pair();
   assert.equal(b.R.needsPrekeys(50), true, "ещё нет spk");
-  const up = await b.R.prekeyUploadPayload(20);
+  const up = await b.R.prekeyUploadPayload(20, b.priv);
   assert.equal(up.opks.length, 20);
   assert.equal(b.R.needsPrekeys(25), false);
   assert.equal(b.R.needsPrekeys(5), true, "на сервере мало");

@@ -24,10 +24,10 @@ test("C3: первое сообщение v1 (совместимо), после 
   assert.equal(e1.ac, 1); assert.equal(e1.a, undefined, "без подтверждённой поддержки AAD v1");
   assert.deepEqual(await recv(b, a, e1), { t: 1 });
   const r = await send(b, a, { t: 2 });
-  assert.equal(r.a, 1, "Боб знает, что Алиса умеет v2");
+  assert.equal(r.a, 3, "Боб знает (подсказка cp), что Алиса умеет AAD v3");
   assert.deepEqual(await recv(a, b, r), { t: 2 });
   const e2 = await send(a, b, { t: 3 });
-  assert.equal(e2.a, 1);
+  assert.equal(e2.a, 3);
   assert.deepEqual(await recv(b, a, e2), { t: 3 });
   // подмена h.i в v2-конверте
   const e3 = await send(a, b, { t: 4 });
@@ -42,23 +42,34 @@ test("C3: v2 AAD покрывает h.i и h.p (начальный конвер�
   const up = await b.R.prekeyUploadPayload(2);
   a.R.reset("bob-id");
   const e = await send(a, b, { x: 1 }, { getBundle: async () => ({ spk: up.spk, opk: up.opks[0] }) });
-  assert.equal(e.a, 1); assert.ok(e.h.p && e.h.i === 1);
+  assert.equal(e.a, 3); assert.ok(e.h.p && e.h.i === 1);
   const bad = JSON.parse(JSON.stringify(e)); bad.h.p.o = up.opks[1].id;
   await assert.rejects(recv(b, a, bad));
   assert.deepEqual(await recv(b, a, e), { x: 1 });
 });
 
-test("C3: старый клиент (без ac, AAD v1) принимается; откат собеседника сбрасывает v2", async () => {
+test("C3/v3: после проверенного v3 откат собеседника не сбрасывает уровень молча: конверт слабее отвергается, resetTrust — явный выход", async () => {
   const { a, b } = await pair();
   await recv(b, a, await send(a, b, { 1: 1 }));
   const r = await send(b, a, { 2: 2 }); await recv(a, b, r);
-  assert.equal((await send(a, b, { 3: 3 })).a, 1);
-  // Боб «откатился» на старый клиент: его конверт без ac
-  const j = JSON.parse(b.mem.json); j.ca = {}; b.mem.json = JSON.stringify(j);
-  b.R.setStore({ load: () => JSON.parse(b.mem.json), save: (o) => { b.mem.json = JSON.stringify(o); return true; } });
-  const old = await send(b, a, { 4: 4 }); assert.equal(old.a, undefined); delete old.ac;
-  assert.deepEqual(await recv(a, b, old), { 4: 4 });
-  assert.equal((await send(a, b, { 5: 5 })).a, undefined, "снова AAD v1");
+  assert.equal((await send(a, b, { 3: 3 })).a, 3);
+  const warns = []; a.R.onWarn((id, code) => warns.push(id + ":" + code));
+  // Сервер убрал a/ac/cp у настоящего v3-конверта Боба: AAD не сойдётся (не принимаем как v1/v2)
+  const e = await send(b, a, { 4: 4 }); const forged = JSON.parse(JSON.stringify(e)); delete forged.a; delete forged.ac; delete forged.cp;
+  await assert.rejects(recv(a, b, forged), /auth failed/);
+  assert.equal(a.R.status("bob-id").sticky, 3);
+  assert.equal((await send(a, b, { 5: 5 })).a, 3, "Алиса продолжает слать v3 даже без подсказок");
+  assert.deepEqual(await recv(a, b, e), { 4: 4 }, "настоящий конверт по-прежнему открывается");
+  // «Боб» поставил чистый клиент и шлёт начальный конверт со слабым AAD: отвергаем с предупреждением, не сбрасывая уровень
+  const b2 = device("bob-id", await CH.generateKeyPair());
+  b2.pub = b.pub; b2.priv = b.priv;
+  const weak = await send(b2, a, { w: 1 });
+  assert.equal(weak.a, undefined);
+  await assert.rejects(recv(a, b2, weak), /downgrade/);
+  assert.deepEqual(warns, ["bob-id:downgrade"]);
+  assert.equal(a.R.status("bob-id").sticky, 3);
+  a.R.resetTrust("bob-id");
+  assert.equal(a.R.status("bob-id").sticky, 0);
 });
 
 test("C4: opk не отдаёт plaintext, если запись удаления не удалась; повтор после восстановления работает", async () => {
@@ -88,3 +99,4 @@ test("C5: переполнение не вытесняет свежие opk — 
   b.R.setStore({ load: () => JSON.parse(b.mem.json), save: (o) => { b.mem.json = JSON.stringify(o); return true; } });
   assert.equal((await b.R.prekeyUploadPayload(20)).opks.length, 5);
 });
+
