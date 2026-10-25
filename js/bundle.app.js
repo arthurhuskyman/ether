@@ -12351,35 +12351,43 @@ function wireSheetBackdrops() {
   $$(".sheet-cancel").forEach((btn) => {
     btn.addEventListener("click", () => { const id = btn.dataset.closeSheet; if (id) { const el = $("#" + id); if (el) el.classList.add("hidden"); } });
   });
-  // Ручка (.sheet-handle) была чисто декоративной — визуально обещает
-  // "потяни, чтобы закрыть" (знакомый паттерн из iOS/Telegram/WhatsApp),
-  // но ничего не делала. Жест только на самой ручке (не на всей панели)
-  // — безопасно, не может конфликтовать со скроллом контента внутри
-  // шторки (.sheet-panel сам по себе прокручиваемый).
-  $$(".sheet-handle").forEach((handle) => {
-    let startY = 0, dragging = false, panel = null;
-    handle.addEventListener("touchstart", (e) => {
-      startY = e.touches[0].clientY;
-      dragging = true;
-      panel = handle.closest(".sheet-panel");
-      if (panel) panel.style.transition = "none";
-    }, { passive: true });
-    handle.addEventListener("touchmove", (e) => {
-      if (!dragging || !panel) return;
-      const dy = Math.max(0, e.touches[0].clientY - startY);
-      panel.style.transform = `translateY(${dy}px)`;
-    }, { passive: true });
-    handle.addEventListener("touchend", (e) => {
-      if (!dragging) return;
-      dragging = false;
-      const dy = Math.max(0, (e.changedTouches[0] ? e.changedTouches[0].clientY : startY) - startY);
-      if (panel) {
-        panel.style.transition = "";
-        panel.style.transform = "";
-      }
-      if (dy > 60) { const s = handle.closest(".sheet"); if (s) s.classList.add("hidden"); }
-    });
-  });
+  wireSheetSwipeClose();
+}
+// Закрытие шторки смахиванием вниз — для ВСЕХ шторок (и созданных на лету, напр. «Проверка контакта»), делегированием на document:
+// жест начинается на ручке/верхней зоне шторки или в любом месте, если содержимое прокручено к началу; поля ввода и ползунки не трогаем.
+// Закрываем кликом по подложке шторки — так срабатывает штатная логика закрытия и статичных шторок, и динамических.
+let __sheetSwipeWired = false;
+function wireSheetSwipeClose() {
+  if (__sheetSwipeWired) return; __sheetSwipeWired = true;
+  let g = null;
+  const scrolledInside = (t, panel) => { for (let n = t; n && n !== panel; n = n.parentElement) if (n.scrollTop > 0) return true; return panel.scrollTop > 0; };
+  document.addEventListener("touchstart", (e) => {
+    g = null;
+    const t = e.target; if (!t || !t.closest || e.touches.length !== 1) return;
+    const panel = t.closest(".sheet-panel"); if (!panel) return;
+    const sheet = panel.closest(".sheet"); if (!sheet || sheet.classList.contains("hidden")) return;
+    if (t.closest("input, textarea, select, [contenteditable], canvas, video")) return;
+    const onHandle = !!t.closest(".sheet-handle") || e.touches[0].clientY - panel.getBoundingClientRect().top < 56;
+    if (!onHandle && scrolledInside(t, panel)) return;
+    g = { y: e.touches[0].clientY, x: e.touches[0].clientX, panel, sheet, on: false, dy: 0 };
+  }, { passive: true, capture: true });
+  document.addEventListener("touchmove", (e) => {
+    if (!g) return;
+    const dy = e.touches[0].clientY - g.y, dx = e.touches[0].clientX - g.x;
+    if (!g.on) {
+      if (dy < 8 || Math.abs(dx) > dy) { if (dy < -8 || Math.abs(dx) > 12) g = null; return; }
+      g.on = true; g.panel.style.transition = "none";
+    }
+    g.dy = Math.max(0, dy); g.panel.style.transform = `translateY(${g.dy}px)`;
+  }, { passive: true, capture: true });
+  const end = (cancel) => {
+    if (!g) return; const k = g; g = null;
+    if (!k.on) return;
+    k.panel.style.transition = ""; k.panel.style.transform = "";
+    if (!cancel && k.dy > 60) { const bd = k.sheet.querySelector(".sheet-backdrop"); if (bd) bd.click(); else k.sheet.classList.add("hidden"); }
+  };
+  document.addEventListener("touchend", () => end(false), { passive: true, capture: true });
+  document.addEventListener("touchcancel", () => end(true), { passive: true, capture: true });
 }
 // V.79: отдельная плавающая панель реакций удалена — дублировала ряд реакций в шторке сообщения; долгое нажатие открывает шторку.
 // Ряд быстрых реакций (6 частых + «ещё») в шторке сообщения (#reaction-bar).
