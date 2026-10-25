@@ -173,7 +173,7 @@ async function exportBackup() {
   const data = {};
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
-    if (k && k.startsWith("ether.")) data[k] = localStorage.getItem(k);
+    if (k && k.startsWith("ether.") && !k.startsWith("ether.sec.")) data[k] = localStorage.getItem(k); // значения — уже расшифрованные (кэш SecureStore); соль/проверка PIN в файл не кладём
   }
   let payload = data;
   let password = null;
@@ -192,6 +192,7 @@ async function exportBackup() {
   }
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
   downloadBlob(blob, `ether-backup-${new Date().toISOString().slice(0, 10)}.json`);
+  if (!password) toast(T("backup.plainWarn")); // V.80: хранилище на устройстве зашифровано, а файл без пароля — читается любым: явное предупреждение
   toast(T("toast.backupSaved") + (typeof Devices !== "undefined" && Devices.isCompanion() ? " " + T("devices.backupCopy") : ""));
 }
 async function importBackup(ev) {
@@ -237,6 +238,8 @@ async function applyImportedData(data) {
   // поверх только что импортированных данных это старьё.
   if (__contactsPersistTimer) { clearTimeout(__contactsPersistTimer); __contactsPersistTimer = null; }
   __contactsPersistPending = null;
+  // Слой PIN снимаем до замены данных (импорт приносит открытые значения; слой ключа устройства останется и зашифрует их при записи)
+  try { if (SecureStore.isOn() && SecureStore.isActive() && !(await SecureStore.disable())) { toast(T("toast.importFailed")); return false; } } catch (e) { toast(T("toast.importFailed")); return false; }
   // Снимок прежних ether.* — при сбое записи (квота и т.п.) откатываем, а не оставляем наполовину применённый профиль.
   const snapshot = {};
   for (let i = 0; i < localStorage.length; i++) {
@@ -248,7 +251,8 @@ async function applyImportedData(data) {
       const k = localStorage.key(i);
       if (k && k.startsWith("ether.")) localStorage.removeItem(k);
     }
-    for (const k of Object.keys(data)) if (k.startsWith("ether.") && typeof data[k] === "string") localStorage.setItem(k, data[k]);
+    for (const k of SecureStore.KEYS) localStorage.removeItem(k); // значения, ещё не дошедшие до диска, живут только в кэше SecureStore
+    for (const k of Object.keys(data)) if (k.startsWith("ether.") && !k.startsWith("ether.sec.") && typeof data[k] === "string") localStorage.setItem(k, data[k]);
   } catch (e) {
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const k = localStorage.key(i);
@@ -261,6 +265,7 @@ async function applyImportedData(data) {
   // Резервная копия в IndexedDB — от прежнего профиля: пересоздаём её из импортированных данных, иначе при загрузке старые значения
   // отсутствующих в файле ключей (PIN, аватар, контакты) вернулись бы поверх импорта. И никакого сохранения «из памяти» при перезагрузке.
   __wiping = false;
+  try { await SecureStore.flush(); } catch (e) {} // зашифрованная запись асинхронна — дожидаемся до перезагрузки
   try { await Promise.all(CRITICAL_LS_KEYS.map((k) => IDB.del(k))); await backupToIDB(); } catch (e) {}
   __wiping = true;
   toast(T("toast.imported"));
@@ -752,6 +757,27 @@ function showBootRecovery() {
   try { if (typeof I18N !== "undefined") I18N.init(); } catch (e) {}
   try { applyStaticTranslations(); } catch (e) {}
 }
+// V.80: данные зашифрованы, а ключа устройства нет (очищены данные сайта частично, профиль браузера сброшен/восстановлен из копии). Ничего не
+// удаляем молча: объясняем и даём выбор. Данные без ключа не прочитать никому, поэтому честные варианты — резервная копия или чистый старт.
+function showStorageRecovery() {
+  const r = document.getElementById("boot-recovery"); if (!r) return;
+  for (const id of ["onboarding", "app-shell", "lock-screen"]) { const e = document.getElementById(id); if (e) e.classList.add("hidden"); }
+  r.classList.remove("hidden"); r.style.zIndex = "calc(var(--z-sheet) - 1)"; // ниже шторок: пароль резервной копии и подтверждение рисуются поверх
+  try { wireConfirmSheet(); wireBackupPasswordSheet(); } catch (e) {}
+  const card = r.querySelector(".boot-recovery-card"); if (!card) return;
+  while (card.firstChild) card.removeChild(card.firstChild);
+  const mk = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt) e.textContent = txt; card.appendChild(e); return e; };
+  mk("h1", "boot-recovery-title", T("storage.lost.title")).id = "storage-lost-title";
+  const body = mk("p", "fine", T("storage.lost.body")); body.id = "storage-lost-body";
+  const file = document.createElement("input"); file.type = "file"; file.accept = "application/json,.json"; file.className = "hidden"; file.id = "storage-lost-file"; card.appendChild(file);
+  file.addEventListener("change", async () => { const f = file.files && file.files[0]; file.value = ""; if (f) await importBackupFile(f); });
+  const b1 = mk("button", "btn-primary", T("storage.lost.restore")); b1.type = "button"; b1.id = "storage-lost-restore";
+  b1.addEventListener("click", () => file.click());
+  const b2 = mk("button", "btn-secondary", T("storage.lost.retry")); b2.type = "button"; b2.id = "storage-lost-retry";
+  b2.addEventListener("click", () => location.reload());
+  const b3 = mk("button", "btn-tertiary", T("storage.lost.reset")); b3.type = "button"; b3.id = "storage-lost-reset";
+  b3.addEventListener("click", async () => { if (await confirmSheet(T("storage.lost.confirm"), { destructive: true })) wipeEverythingAndReload(); });
+}
 function bootDidNotRender() {
   const on = document.getElementById("onboarding");
   const ap = document.getElementById("app-shell");
@@ -770,6 +796,14 @@ document.addEventListener("visibilitychange", () => { if (document.visibilitySta
 document.addEventListener("DOMContentLoaded", async () => {
   try {
     await restoreFromIDB().catch(() => {});
+    // V.80: ключ устройства + расшифровка хранилища в память ДО startApp(). Экран «Входящий звонок» (быстрый путь V.79) рисуем сразу, не дожидаясь
+    // расшифровки: ему нужны только открытые ether.name/myId и индекс имён ether.cnames; полные контакты подтянутся после старта.
+    const secInit = SecureStore.init().catch(() => "none");
+    try { if (/^#answer=/.test(location.hash) && Store.name && Store.myId) answerBootFromLocation(); } catch (e) {}
+    const secState = await secInit;
+    if (secState === "keylost") { try { I18N.init(); applyStaticTranslations(); } catch (e) {} showStorageRecovery(); clearTimeout(bootWatchdog); return; }
+    scheduleIDBBackup(); // зеркало в IndexedDB — только шифртекст: обновляем после миграции
+    setTimeout(() => { IDB.migrateToEncrypted().catch(() => {}); }, 1500); // файлы/снимки в IndexedDB: открытый текст -> шифртекст, фоном
     try { I18N.init(); } catch (e) {}
     try { applyStaticTranslations(); } catch (e) {} // экран блокировки показывается ДО startApp() — переводим его до этого момента, а не после
     // Очистка "залипшей" Media Session. startBackgroundAudioSession() в более

@@ -1668,6 +1668,9 @@ function wireRenameSheet() {
 // возвращала PIN, ключи и переписку), а перезагрузка запускала beforeunload, который тут же записывал данные обратно.
 async function wipeEverythingAndReload() {
   __wiping = true;
+  // V.80 crypto-shred: ключ устройства уничтожаем ПЕРВЫМ делом (до любых await) — с этого мгновения всё зашифрованное нечитаемо, даже если
+  // дальнейшая очистка (service worker, кэши, IndexedDB) не успеет или будет прервана
+  let shredP = null; try { shredP = SecureStore.shred(); } catch (e) {}
   // push-подписка и сервис-воркер: иначе сервер продолжит слать пуши на уже стёртое устройство
   try {
     if ("serviceWorker" in navigator) {
@@ -1684,6 +1687,7 @@ async function wipeEverythingAndReload() {
   try { await IDB.close(); } catch (e) {}
   if ("caches" in window) tasks.push(caches.keys().then((names) => Promise.all(names.map((n) => caches.delete(n)))).catch(() => {}));
   if ("indexedDB" in window) tasks.push(new Promise((res) => { try { const r = indexedDB.deleteDatabase("ether-db"); r.onsuccess = r.onerror = r.onblocked = () => res(); } catch (e) { res(); } setTimeout(res, 3000); }));
+  if (shredP) tasks.push(shredP);
   await Promise.all(tasks);
   try { localStorage.clear(); } catch (e) {}
   location.reload();

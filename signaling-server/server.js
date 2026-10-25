@@ -1465,6 +1465,7 @@ function flushMailbox(id, ws) {
       fromPublicKey: entry.fromPublicKey || null,
       kind: entry.kind || "chat",
       ...(entry.fromDev ? { fromDev: entry.fromDev } : {}),
+      ...(entry.gid ? { gid: entry.gid } : {}),
       queued: true,
     });
   }
@@ -1548,8 +1549,25 @@ function devicesCtx() {
     mailboxDropBox: (k) => { const b = mailbox.get(k); if (b) for (const m of Array.from(b.keys())) mailboxRemove(k, m); scheduleMailboxSave(); } };
 }
 let SERVER_VERSION = "0"; try { SERVER_VERSION = String(require("./package.json").version || "0"); } catch (e) {}
-const SERVER_FEATURES = ["ratchet2", "prekeys", "watch", "claim", "env2", "devicelink", "devlist", "devmail", "devsync", "devpush", "devnotify", "alias"].concat(DISCOVERY_ENABLED ? ["discovery"] : []);
+const SERVER_FEATURES = ["ratchet2", "prekeys", "watch", "claim", "env2", "devicelink", "devlist", "devmail", "devsync", "devpush", "devnotify", "alias", "channels", "gdeliver", "sk1"].concat(DISCOVERY_ENABLED ? ["discovery"] : []);
 
+// ---------- Каналы и групповая доставка Sender Keys (channels.js, gdeliver.js) ----------
+const channelsMod = require("./channels").create({
+  safeSend, clientsGet: (id) => clients.get(id), file: process.env.CHANNELS_PERSIST === "0" ? null : (process.env.CHANNELS_FILE || path.join(process.env.DATA_DIR || __dirname, ".ether-channels.json")),
+  push: (uid, c) => sendPushTo(uid, "ch-" + c.id, { title: (c.meta && c.meta.name) || pushText((pushSubs.get(uid) || {}).lang, "newMessage"), body: pushText((pushSubs.get(uid) || {}).lang, "newMessage"), tag: "ether-ch-" + c.id, contactId: "ch-" + c.id, kind: "message" }).catch(() => {}),
+});
+channelsMod.load();
+const gdeliverMod = require("./gdeliver").create({
+  safeSend, clientsGet: (id) => clients.get(id), mailboxPut, scheduleSave: scheduleMailboxSave,
+  file: process.env.GROUPS_PERSIST === "0" ? null : (process.env.GROUPS_FILE || path.join(process.env.DATA_DIR || __dirname, ".ether-groups.json")),
+  schedulePush: (to, from, mid) => setTimeout(() => {
+    const box = mailbox.get(to); if (!box || !box.has(mid) || pushSentForMsgId.has(mid + "|" + to)) return;
+    pushSentForMsgId.set(mid + "|" + to, Date.now());
+    const lang = (pushSubs.get(to) || {}).lang, me = clients.get(from);
+    sendPushTo(to, from, { title: (me && me.name) || pushText(lang, "newMessage"), body: pushText(lang, "newMessage"), tag: "ether-msg-" + from, contactId: from, kind: "message" }).catch(() => {});
+  }, PUSH_AFTER_MS),
+});
+gdeliverMod.load();
 // ---------- Prekey-пакеты для начала Double Ratchet (3DH/4DH) ----------
 // Клиент заранее выкладывает подписанный-по-смыслу prekey (spk, меняется раз в неделю) и пачку одноразовых (opks).
 // Сервер хранит только ПУБЛИЧНЫЕ части в памяти и отдаёт желающим начать переписку: spk + один opk (который тут же удаляется).
@@ -1808,6 +1826,11 @@ wss.on("connection", (ws, req) => {
     // Companion-устройства аккаунта (devices.js): register с deviceId, device-auth и всё от уже авторизованного companion-сокета
     if ((msg.type === "register" && typeof msg.deviceId === "string") || msg.type === "device-auth" || ws._dev) {
       if (devicesMod.onMessage(ws, msg, devicesCtx())) return;
+    }
+
+    // Каналы и групповая доставка Sender Keys
+    if (myId && typeof msg.type === "string" && (msg.type.startsWith("channel-") || msg.type === "gdeliver" || msg.type === "group-roster")) {
+      if (channelsMod.onMessage(ws, msg, myId) || gdeliverMod.onMessage(ws, msg, myId)) return;
     }
 
     // Звонок по ссылке: join/signal/end допустимы и с НЕзарегистрированного сокета (гость); create/allow/deny — только от зарегистрированного.
@@ -2284,6 +2307,7 @@ function shutdown() {
   try { if (DISCOVERY_ENABLED) saveDiscovery(); } catch (e) {}
   try { savePushSubs(); } catch (e) {}
   try { saveDeviceLists(); } catch (e) {}
+  try { channelsMod.save(); gdeliverMod.save(); } catch (e) {}
   try { saveMailbox(); } catch (e) {}
   for (const ws of wss.clients) { try { ws.close(1001, "server shutdown"); } catch (e) {} }
   wss.close(() => {

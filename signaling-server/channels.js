@@ -101,9 +101,9 @@ function create(ctx) {
   // Возвращает true, если сообщение обработано.
   function onMessage(ws, msg, myId) {
     if (typeof msg.type !== "string" || !msg.type.startsWith("channel-") || !myId) return false;
-    const T = msg.type, ch = msg.ch;
-    if (typeof ch !== "string" || !ID_RE.test(ch)) { send(ws, { type: T === "channel-post" ? "channel-post-ack" : T, ch: typeof ch === "string" ? ch.slice(0, 32) : "", error: "invalid" }); return true; }
-    if (!rate("op:" + myId, LIM.opsPerMin)) { err(ws, T === "channel-post" ? "channel-post-ack" : T, ch, "rate"); return true; }
+    const T = msg.type, ch = msg.ch, ET = T === "channel-post" ? "channel-post-ack" : T === "channel-subscribe" ? "channel-info" : T === "channel-delete" ? "channel-deleted" : T === "channel-create" ? "channel-created" : T;
+    if (typeof ch !== "string" || !ID_RE.test(ch)) { send(ws, { type: ET, ch: typeof ch === "string" ? ch.slice(0, 32) : "", error: "invalid" }); return true; }
+    if (!rate("op:" + myId, LIM.opsPerMin)) { err(ws, ET, ch, "rate"); return true; }
 
     if (T === "channel-create") {
       if (channels.has(ch)) { err(ws, "channel-created", ch, "exists"); return true; }
@@ -117,7 +117,7 @@ function create(ctx) {
       return true;
     }
     const c = channels.get(ch);
-    if (!c) { err(ws, T === "channel-post" ? "channel-post-ack" : T, ch, "not-found"); return true; }
+    if (!c) { err(ws, ET, ch, "not-found"); return true; }
 
     if (T === "channel-info") { send(ws, info(c, { subscribed: c.subs.has(myId) })); return true; }
 

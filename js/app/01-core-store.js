@@ -184,8 +184,8 @@ const IDB = (() => {
   async function set(key, value, opts) {
     if (__wiping) return null;
     try {
-      if (typeof SecureStore !== "undefined" && SecureStore.isActive() && !(opts && opts.plain)) {
-        if (typeof key === "string" && key.indexOf("file:") === 0 && value instanceof Blob) value = await SecureStore.sealBlob(value);
+      if (typeof SecureStore !== "undefined" && SecureStore.sealing() && !(opts && opts.plain)) {
+        if (typeof key === "string" && key.indexOf("file:") === 0 && value instanceof Blob) value = await SecureStore.sealBlob(value, opts);
         else if (SEALED_TEXT_KEYS.has(key) && typeof value === "string") value = await SecureStore.sealText(value);
       }
       const db = await open();
@@ -208,7 +208,7 @@ const IDB = (() => {
           let v = r.result;
           try {
             if (typeof SecureStore !== "undefined") {
-              if (v && typeof v === "object" && v.__enc === 1) v = await SecureStore.openBlob(v);
+              if (v && typeof v === "object" && v.__enc) v = await SecureStore.openBlob(v);
               else if (SEALED_TEXT_KEYS.has(key) && typeof v === "string") v = await SecureStore.openText(v);
             }
           } catch (e) { v = undefined; }
@@ -234,7 +234,32 @@ const IDB = (() => {
   }
   // Закрыть соединение (нужно перед deleteDatabase, иначе удаление ждёт, пока его отпустят)
   async function close() { const p = dbPromise; dbPromise = null; try { if (p) (await p).close(); } catch (e) {} }
-  return { open, set, get, del, close };
+  // V.80: однократная миграция открытого текста в IndexedDB (файлы file:*, снимки contactsPrev/contactsCorrupt) в шифрованный вид. Возобновляемо:
+  // обрабатываются только записи без шифрования; набор значений проверяется расшифровкой перед заменой. Возвращает число перешифрованных.
+  async function migrateToEncrypted() {
+    if (typeof SecureStore === "undefined" || !SecureStore.sealing()) return 0;
+    let keys = [];
+    try {
+      const db = await open();
+      keys = await new Promise((res) => { const r = db.transaction(STORE, "readonly").objectStore(STORE).getAllKeys(); r.onsuccess = () => res(r.result || []); r.onerror = () => res([]); });
+    } catch (e) { return 0; }
+    let n = 0;
+    for (const k of keys) {
+      if (typeof k !== "string" || !(k.indexOf("file:") === 0 || SEALED_TEXT_KEYS.has(k))) continue;
+      try {
+        const db = await open();
+        const raw = await new Promise((res) => { const r = db.transaction(STORE, "readonly").objectStore(STORE).get(k); r.onsuccess = () => res(r.result); r.onerror = () => res(undefined); });
+        const plain = (raw instanceof Blob) || (typeof raw === "string" && SEALED_TEXT_KEYS.has(k) && raw.indexOf("enc") !== 0);
+        if (!plain) continue;
+        await set(k, raw);
+        const back = await get(k); // проверка: читается обратно
+        if (back instanceof Blob ? back.size === raw.size : back === raw) n++;
+        else await set(k, raw, { plain: true }); // не читается — возвращаем как было (данные не теряем)
+      } catch (e) {}
+    }
+    return n;
+  }
+  return { open, set, get, del, close, migrateToEncrypted };
 })();
 
 const CRITICAL_LS_KEYS = [

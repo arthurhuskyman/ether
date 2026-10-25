@@ -2591,6 +2591,12 @@ const Integrity = (() => {
     if (s.status === "mismatch" && s.updatePending) t += " — " + T2("security.state.updatePending");
     return t;
   }
+  function storageLine() {
+    let m = "none", pend = 0; try { m = SecureStore.mode(); pend = SecureStore.pending(); } catch (e) {}
+    if (m === "pin") return T2("security.storage.pin");
+    if (m === "device") return T2(pend ? "security.storage.pending" : "security.storage.device");
+    return T2(m === "keylost" ? "security.storage.lost" : "security.storage.none");
+  }
   function html() {
     const s = st, cs = contactStats();
     const list = (pre, n) => { let h = ""; for (let i = 1; i <= n; i++) h += "<li>" + esc(T2("security." + pre + "." + i)) + "</li>"; return h; };
@@ -2604,6 +2610,7 @@ const Integrity = (() => {
       <button type="button" id="security-check-btn" class="btn-secondary" aria-label="${esc(T2("security.check.aria"))}">${esc(T2("security.check"))}</button></section>
     <section aria-labelledby="sec-h-p"><h4 id="sec-h-p" class="settings-group-title">${esc(T2("security.protects"))}</h4><ul class="fine security-list" aria-label="${esc(T2("security.protects"))}">${list("protect", PROTECTS)}</ul></section>
     <section aria-labelledby="sec-h-n"><h4 id="sec-h-n" class="settings-group-title">${esc(T2("security.notProtects"))}</h4><ul class="fine security-list" aria-label="${esc(T2("security.notProtects"))}">${list("not", NOT_PROTECTS)}</ul></section>
+    <section aria-labelledby="sec-h-st"><h4 id="sec-h-st" class="settings-group-title">${esc(T2("security.storage"))}</h4><p class="fine" id="security-storage-line">${esc(storageLine())}</p><p class="fine muted">${esc(T2("security.storage.note"))}</p></section>
     <section aria-labelledby="sec-h-c"><h4 id="sec-h-c" class="settings-group-title">${esc(T2("security.contacts"))}</h4><p class="fine" id="security-contacts">${esc(T2("security.contacts.count", { n: cs.verified, total: cs.total }))}</p></section>
     <section aria-labelledby="sec-h-s"><h4 id="sec-h-s" class="settings-group-title">${esc(T2("security.servers"))}</h4><p class="fine" id="security-server-line">${esc(host)}${srv ? " — " + esc(srv) : ""}</p><div id="security-servers-slot" data-slot="servers"></div></section>
     <p class="fine"><a id="security-policy-link" href=".well-known/security.txt" target="_blank" rel="noopener noreferrer" aria-label="${esc(T2("security.policy.aria"))}">${esc(T2("security.policy"))}</a></p>`;

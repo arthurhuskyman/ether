@@ -195,7 +195,7 @@ async function migrateFilesEncryption(toEncrypted) {
     if (!m.file || m.file.pending || m.file.failed) continue;
     try {
       const raw = await IDB.get("file:" + m.id); // уже расшифрованный Blob (или undefined)
-      if (raw instanceof Blob) await IDB.set("file:" + m.id, raw, toEncrypted ? undefined : { plain: true });
+      if (raw instanceof Blob) await IDB.set("file:" + m.id, raw, toEncrypted ? undefined : (SecureStore.hasDevice() ? { deviceOnly: true } : { plain: true })); // V.80: снятие PIN оставляет слой ключа устройства
     } catch (e) {}
   }
 }

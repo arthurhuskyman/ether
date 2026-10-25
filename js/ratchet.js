@@ -50,7 +50,13 @@ const Ratchet = (() => {
       const raw = store.load() || {};
       db = { s: raw.s && typeof raw.s === "object" ? raw.s : {}, pk: raw.pk && typeof raw.pk === "object" ? raw.pk : {},
         ri: raw.ri && typeof raw.ri === "object" ? raw.ri : {}, sg: raw.sg && typeof raw.sg === "object" ? raw.sg : {},
-        ca: raw.ca && typeof raw.ca === "object" ? raw.ca : {} };
+        ca: raw.ca && typeof raw.ca === "object" ? raw.ca : {},
+        // v3 (см. docs/THREAT-MODEL.md): cv — достигнутый ПРОВЕРЕННЫМ (расшифрованным) конвертом уровень AAD контакта (2|3), «липкий»;
+        // cp — его проверенные возможности (из шифртекста), cb — возможности из подписанного prekey-пакета, ch — НЕпроверенная подсказка из конверта,
+        // b2 — контакт хоть раз присылал пакет с расширением (caps/KEM) под подписью личности.
+        cv: raw.cv && typeof raw.cv === "object" ? raw.cv : {}, cp: raw.cp && typeof raw.cp === "object" ? raw.cp : {},
+        cb: raw.cb && typeof raw.cb === "object" ? raw.cb : {}, ch: raw.ch && typeof raw.ch === "object" ? raw.ch : {},
+        b2: raw.b2 && typeof raw.b2 === "object" ? raw.b2 : {} };
     }
     return db;
   }
@@ -79,6 +85,111 @@ const Ratchet = (() => {
       return await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, key, unb64(spk.sig), spkMsg(spk.id, spk.pub[0], spk.pub[1]));
     } catch (e) { return false; }
   }
+  // Расширение пакета (v3): подпись sig2 покрывает id, ключ, биты возможностей c и открытый ключ ML-KEM (kem). Старая подпись sig (только id|x|y) остаётся —
+  // старые клиенты и старые серверы, отрезавшие новые поля, продолжают работать; сервер не может ни добавить, ни убрать c/kem незаметно для новых клиентов.
+  const SPK_SIG2_DOMAIN = "ether-spk-v2|";
+  const spkMsg2 = (id, x, y, c, kem) => te.encode(SPK_SIG2_DOMAIN + [id, x, y, c, kem].join("|"));
+  async function signSpk2(priv, id, x, y, c, kem) {
+    const key = await crypto.subtle.importKey("jwk", { kty: "EC", crv: "P-256", x: priv.x, y: priv.y, d: priv.d, ext: true }, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
+    return b64(new Uint8Array(await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, spkMsg2(id, x, y, c, kem))));
+  }
+  async function verifySpk2(theirPub, spk) {
+    try {
+      if (!spk || typeof spk.sig2 !== "string" || spk.sig2.length > 200 || !Array.isArray(spk.pub) || !Number.isInteger(spk.c) || typeof spk.kem !== "string") return false;
+      const key = await crypto.subtle.importKey("jwk", { kty: "EC", crv: "P-256", x: theirPub.x, y: theirPub.y, ext: true }, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
+      return await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, key, unb64(spk.sig2), spkMsg2(spk.id, spk.pub[0], spk.pub[1], spk.c, spk.kem));
+    } catch (e) { return false; }
+  }
+  async function sha256b64(bytes) { return b64(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))); }
+
+  // ---------- ML-KEM-768 (FIPS 203): нативный WebCrypto, если есть и прошёл самопроверку против вшитой реализации, иначе js/vendor/ml-kem768.js ----------
+  const KEM_NAME = "ML-KEM-768", KEM_PUB = 1184, KEM_CT = 1088, KEM_SEED = 64;
+  const Kem = (() => {
+    let nativeState = null; // null — не проверяли; true/false
+    const soft = () => {
+      let m = typeof globalThis !== "undefined" ? globalThis.EtherMlKem768 : null;
+      if (!m && typeof require === "function") { try { require("./vendor/ml-kem768.js"); m = globalThis.EtherMlKem768; } catch (e) { m = null; } }
+      return m || null;
+    };
+    const sub = () => (typeof crypto !== "undefined" && crypto.subtle) || null;
+    async function nativeKeygen() {
+      const s = sub(), pair = await s.generateKey({ name: KEM_NAME }, true, ["encapsulateBits", "decapsulateBits"]);
+      return { seed: new Uint8Array(await s.exportKey("raw-seed", pair.privateKey)), pub: new Uint8Array(await s.exportKey("raw-public", pair.publicKey)) };
+    }
+    async function nativeEncaps(pub) {
+      const s = sub(), k = await s.importKey("raw-public", pub, { name: KEM_NAME }, false, ["encapsulateBits"]);
+      const r = await s.encapsulateBits({ name: KEM_NAME }, k);
+      return { ct: new Uint8Array(r.ciphertext), ss: new Uint8Array(r.sharedKey) };
+    }
+    async function nativeDecaps(seed, ct) {
+      const s = sub(), k = await s.importKey("raw-seed", seed, { name: KEM_NAME }, false, ["decapsulateBits"]);
+      return new Uint8Array(await s.decapsulateBits({ name: KEM_NAME }, k, ct));
+    }
+    // Самопроверка нативной реализации против вшитой в обе стороны; любое расхождение/ошибка — навсегда используем вшитую.
+    async function useNative() {
+      if (nativeState !== null) return nativeState;
+      nativeState = false;
+      const m = soft(), s = sub();
+      if (!m || !s || typeof s.encapsulateBits !== "function") return false;
+      try {
+        const a = await nativeKeygen(), e1 = await nativeEncaps(a.pub), ref = m.keygen(a.seed), e2 = m.encapsulate(a.pub);
+        const eq = (x, y) => x.length === y.length && x.every((v, i) => v === y[i]);
+        nativeState = eq(ref.publicKey, a.pub) && eq(m.decapsulate(e1.ct, ref.secretKey), e1.ss) && eq(await nativeDecaps(a.seed, e2.cipherText), e2.sharedSecret);
+      } catch (e) { nativeState = false; }
+      return nativeState;
+    }
+    return {
+      available() { return !!soft() || nativeState === true; },
+      async backend() { return (await useNative()) ? "webcrypto" : (soft() ? "vendor" : "none"); },
+      _reset() { nativeState = null; },
+      async keygen() {
+        if (await useNative()) { try { return await nativeKeygen(); } catch (e) { nativeState = false; } }
+        const m = soft(); if (!m) throw new Error("ratchet: no kem");
+        const seed = crypto.getRandomValues(new Uint8Array(KEM_SEED)), r = m.keygen(seed);
+        return { seed, pub: r.publicKey };
+      },
+      async encaps(pub) {
+        if (!(pub instanceof Uint8Array) || pub.length !== KEM_PUB) throw new Error("ratchet: bad kem key");
+        if (await useNative()) { try { return await nativeEncaps(pub); } catch (e) { nativeState = false; } }
+        const m = soft(); if (!m) throw new Error("ratchet: no kem");
+        const r = m.encapsulate(pub); return { ct: r.cipherText, ss: r.sharedSecret };
+      },
+      async decaps(seed, ct) {
+        if (!(ct instanceof Uint8Array) || ct.length !== KEM_CT || !(seed instanceof Uint8Array) || seed.length !== KEM_SEED) throw new Error("ratchet: bad kem ct");
+        if (await useNative()) { try { return await nativeDecaps(seed, ct); } catch (e) { nativeState = false; } }
+        const m = soft(); if (!m) throw new Error("ratchet: no kem");
+        return m.decapsulate(ct, m.keygen(seed).secretKey);
+      },
+    };
+  })();
+
+  // ---------- возможности (битовая маска) и дополнение до корзин ----------
+  // A3 — AAD v3 (возможности и начальный заголовок под AEAD), PQ1 — гибридный старт ML-KEM-768, PAD1 — выравнивание размера открытого текста.
+  const CAP = { A3: 1, PQ1: 2, PAD1: 4 }, LOCAL_CAPS = 7;
+  const PAD_BUCKETS = [256, 1024, 4096, 16384], PAD_STEP = 65536, PAD_MAX = 2 * 1024 * 1024; // сверх PAD_MAX не дополняем: серверный потолок конверта не должен превышаться
+  function padBucket(n) {
+    for (const b of PAD_BUCKETS) if (n <= b) return b;
+    return Math.ceil(n / PAD_STEP) * PAD_STEP;
+  }
+  // Кадр v3 внутри AEAD: [3][caps][длина JSON, uint32 BE][JSON][нули до корзины]. Длина и caps аутентифицированы вместе с остальным шифртекстом.
+  function frameEncode(json, caps, pad) {
+    const body = te.encode(json), n = 6 + body.length;
+    const total = pad && n <= PAD_MAX ? padBucket(n) : n;
+    const out = new Uint8Array(total);
+    out[0] = 3; out[1] = caps & 255;
+    out[2] = (body.length >>> 24) & 255; out[3] = (body.length >>> 16) & 255; out[4] = (body.length >>> 8) & 255; out[5] = body.length & 255;
+    out.set(body, 6);
+    return out;
+  }
+  function frameDecode(bytes) {
+    if (bytes.length < 6 || bytes[0] !== 3) throw new Error("ratchet: bad frame");
+    const len = ((bytes[2] << 24) | (bytes[3] << 16) | (bytes[4] << 8) | bytes[5]) >>> 0;
+    if (len > bytes.length - 6) throw new Error("ratchet: bad frame");
+    for (let i = 6 + len; i < bytes.length; i++) if (bytes[i] !== 0) throw new Error("ratchet: bad frame");
+    return { caps: bytes[1], json: td.decode(bytes.subarray(6, 6 + len)) };
+  }
+  const envLevel = (env) => (env && env.a === 3 ? 3 : env && env.a === 1 ? 2 : 1);
+
   async function genPair() {
     const pair = await crypto.subtle.generateKey(ALG, true, ["deriveBits"]);
     const j = await crypto.subtle.exportKey("jwk", pair.privateKey);
@@ -106,17 +217,43 @@ const Ratchet = (() => {
   }
   // AAD v1 (старые клиенты) не покрывает h.i и h.p. AAD v2 (env.a === 1) добавляет их: флаг «начальный» и prekey-заголовок (e, s, o) нельзя подменить.
   // v2 шлём только контакту, чей клиент заявил поддержку (ca[contact], см. noteCap); старые клиенты v2 не расшифруют.
-  function aad(from, to, h, v2) {
+  // AAD v3 (env.a === 3): всё из v2 плюс биты возможностей h.c и все поля prekey-заголовка (в т.ч. шифртекст KEM p.k и версия p.v).
+  function aad(from, to, h, level) {
+    if (level === 3) {
+      const p = h.p && typeof h.p === "object" ? h.p : null;
+      const px = p ? ["p", Array.isArray(p.e) ? p.e.join(".") : "", p.s == null ? "" : p.s, p.o == null ? "" : p.o, p.k == null ? "" : p.k, p.v == null ? "" : p.v].join(",") : "-";
+      return te.encode(["ether-dr3", from, to, h.d[0], h.d[1], h.pn, h.n, h.i === 1 ? 1 : 0, px, Number.isInteger(h.c) ? h.c : -1].join("|"));
+    }
+    const v2 = level === 2;
     if (!v2) return te.encode(["ether-dr1", from, to, h.d[0], h.d[1], h.pn, h.n].join("|"));
     const p = h.p && typeof h.p === "object" ? h.p : null;
     const px = p ? ["p", Array.isArray(p.e) ? p.e.join(".") : "", p.s == null ? "" : p.s, p.o == null ? "" : p.o].join(",") : "-";
     return te.encode(["ether-dr2", from, to, h.d[0], h.d[1], h.pn, h.n, h.i === 1 ? 1 : 0, px].join("|"));
   }
-  // Поддержка AAD v2 у собеседника: все новые клиенты ставят в конверт ac:1. Увидели — шлём v2; пришёл конверт без ac (собеседник откатился) — снова v1.
+  // НЕпроверенные подсказки о возможностях собеседника (поля конверта ac / cp не под AEAD, сервер может их убрать или добавить): годятся лишь чтобы ПОПРОБОВАТЬ
+  // повысить уровень. Понижать уровень они не могут — этим занимается «липкий» cv (только по успешно расшифрованным конвертам).
   function noteCap(contactId, env) {
-    const d = getDb().ca, want = env && env.ac === 1;
-    if (want && !d[contactId]) d[contactId] = 1; else if (!want && d[contactId]) delete d[contactId];
+    const d = getDb(), want = env && env.ac === 1, cp = env && Number.isInteger(env.cp) && env.cp >= 0 && env.cp <= 255 ? env.cp : 0;
+    if (want) d.ca[contactId] = 1; else delete d.ca[contactId];
+    if (cp) d.ch[contactId] = cp; else delete d.ch[contactId];
   }
+  // Проверенное знание: конверт открылся (AEAD) на уровне level с возможностями caps (для v3 — из шифртекста).
+  function noteAuth(contactId, level, caps) {
+    const d = getDb();
+    if (level >= 2 && (d.cv[contactId] | 0) < level) d.cv[contactId] = level;
+    if (level === 3) d.cp[contactId] = caps | 0;
+  }
+  // Уровень и возможности для отправки контакту. Уровень не падает ниже проверенного (cv): без этого сервер, убрав ac, мог бы заставить нас слать слабый AAD v1.
+  function sendLevel(contactId, v3Ok) {
+    const d = getDb(), hint = d.ch[contactId] | 0, auth = (d.cp[contactId] | 0) | (d.cb[contactId] | 0);
+    let lvl = d.cv[contactId] | 0;
+    if (((hint | auth) & CAP.A3)) lvl = 3; else if (lvl < 2 && d.ca[contactId]) lvl = 2;
+    if (lvl < 1) lvl = 1;
+    if (lvl === 3 && v3Ok === false) lvl = 1; // сервер без pq1 вырежет поля a/cp: v3 до адресата не дойдёт
+    return { level: lvl, caps: hint | auth };
+  }
+  let warnHook = null;
+  function warn(contactId, code) { try { if (warnHook) warnHook(contactId, code); } catch (e) {} }
   async function initialSecret(myPriv, theirPubXY, myId, theirId) {
     const shared = await dh(myPriv, theirPubXY);
     const ids = [myId, theirId].sort().join("|");
@@ -138,18 +275,35 @@ const Ratchet = (() => {
   async function x3dhSecret(parts, myId, theirId) {
     return hkdf(concat(...parts), te.encode("ether-dr-x3dh-v1"), "ether-dr-x3dh|" + [myId, theirId].sort().join("|"), 32);
   }
-  async function newInitiatorX(ctx, bundle) {
+  // v3: в HKDF входят (info) биты возможностей и ВЕСЬ начальный заголовок (ek, id spk/opk, хэши открытого ключа и шифртекста KEM), а секрет KEM — в ikm.
+  // Любая правка заголовка в пути даёт другой SK (и, кроме того, другой AAD) — расшифровка не удастся, тихого понижения нет.
+  async function x3dhSecret3(parts, myId, theirId, bind) {
+    return hkdf(concat(...parts), te.encode("ether-dr-x3dh-v3"), "ether-dr-x3dh3|" + [myId, theirId].sort().join("|") + "|" + bind, 32);
+  }
+  async function bindString(caps, e, sId, oId, kemPubBytes, kemCtBytes) {
+    return ["v3", caps, e[0] + "." + e[1], sId, oId || "", kemPubBytes ? await sha256b64(kemPubBytes) : "", kemCtBytes ? await sha256b64(kemCtBytes) : ""].join("|");
+  }
+  // ext = { c, kem } из ПРОВЕРЕННОГО (sig2) пакета или null; v3 — используем ли формат v3 (иначе поведение прежнее, байт в байт).
+  async function newInitiatorX(ctx, bundle, v3, ext, caps) {
     const theirXY = [ctx.theirPubJwk.x, ctx.theirPubJwk.y], spkPub = bundle.spk.pub, opkPub = bundle.opk ? bundle.opk.pub : null;
     const ek = await genPair();
     const parts = [await dh(ctx.myPrivJwk, spkPub), await dh(ek, theirXY), await dh(ek, spkPub)];
     if (opkPub) parts.push(await dh(ek, opkPub));
-    const sk = await x3dhSecret(parts, ctx.myId, ctx.contactId);
+    let kemCt = null, sk;
+    if (v3) {
+      let kemPub = null;
+      if (ext && (ext.c & CAP.PQ1) && ctx.pq !== false && Kem.available()) {
+        kemPub = unb64(ext.kem);
+        const r = await Kem.encaps(kemPub); kemCt = r.ct; parts.push(r.ss);
+      }
+      sk = await x3dhSecret3(parts, ctx.myId, ctx.contactId, await bindString(caps, [ek.x, ek.y], bundle.spk.id, bundle.opk ? bundle.opk.id : null, kemPub, kemCt));
+    } else sk = await x3dhSecret(parts, ctx.myId, ctx.contactId);
     const dhs = await genPair();
     const [rk, cks] = await kdfRK(sk, await dh(dhs, spkPub));
     return { id: b64(crypto.getRandomValues(new Uint8Array(6))), rk: b64(rk), dhs, dhr: [spkPub[0], spkPub[1]], cks: b64(cks), ckr: null, ns: 0, nr: 0, pn: 0, sk: {}, skOrder: [], hist: [], init: true,
-      px: { e: [ek.x, ek.y], s: bundle.spk.id, o: bundle.opk ? bundle.opk.id : null }, t: Date.now() };
+      px: Object.assign({ e: [ek.x, ek.y], s: bundle.spk.id, o: bundle.opk ? bundle.opk.id : null }, v3 ? { v: 3 } : {}, kemCt ? { k: b64(kemCt) } : {}), pq: !!kemCt, t: Date.now() };
   }
-  async function newResponderX(ctx, p) {
+  async function newResponderX(ctx, p, hc) {
     const store = pk();
     const spk = store.spk && store.spk.id === p.s ? store.spk : store.old.find((o) => o.id === p.s);
     if (!spk) throw new Error("ratchet: unknown prekey");
@@ -158,8 +312,17 @@ const Ratchet = (() => {
     const ikA = [ctx.theirPubJwk.x, ctx.theirPubJwk.y];
     const parts = [await dh(spk, ikA), await dh(ctx.myPrivJwk, p.e), await dh(spk, p.e)];
     if (opk) parts.push(await dh(opk, p.e));
-    const sk = await x3dhSecret(parts, ctx.myId, ctx.contactId);
-    return { s: { id: b64(crypto.getRandomValues(new Uint8Array(6))), rk: b64(sk), dhs: { x: spk.x, y: spk.y, d: spk.d }, dhr: null, cks: null, ckr: null, ns: 0, nr: 0, pn: 0, sk: {}, skOrder: [], hist: [], init: false, t: Date.now() }, opkId: p.o || null };
+    let sk, pq = false;
+    if (p.v === 3) {
+      let kemPub = null, kemCt = null;
+      if (p.k != null) {
+        if (!spk.ks || !spk.kem) throw new Error("ratchet: unknown kem key");
+        kemPub = unb64(spk.kem); kemCt = unb64(p.k);
+        parts.push(await Kem.decaps(unb64(spk.ks), kemCt)); pq = true;
+      }
+      sk = await x3dhSecret3(parts, ctx.myId, ctx.contactId, await bindString(hc, p.e, p.s, p.o, kemPub, kemCt));
+    } else sk = await x3dhSecret(parts, ctx.myId, ctx.contactId);
+    return { s: { id: b64(crypto.getRandomValues(new Uint8Array(6))), rk: b64(sk), pq, dhs: { x: spk.x, y: spk.y, d: spk.d }, dhr: null, cks: null, ckr: null, ns: 0, nr: 0, pn: 0, sk: {}, skOrder: [], hist: [], init: false, t: Date.now() }, opkId: p.o || null };
   }
 
   async function newResponder(myIdPriv, theirPubJwk, myId, theirId) {
@@ -167,17 +330,20 @@ const Ratchet = (() => {
     return { id: b64(crypto.getRandomValues(new Uint8Array(6))), rk: b64(sk), dhs: { x: myIdPriv.x, y: myIdPriv.y, d: myIdPriv.d }, dhr: null, cks: null, ckr: null, ns: 0, nr: 0, pn: 0, sk: {}, skOrder: [], hist: [], init: false, t: Date.now() };
   }
 
-  async function encryptWith(s, from, to, plain) {
+  async function encryptWith(s, from, to, plain, lv) {
     const [nextCk, mk] = await kdfCK(unb64(s.cks));
     s.cks = b64(nextCk);
     const h = { d: [s.dhs.x, s.dhs.y], pn: s.pn, n: s.ns };
     s.ns++;
     if (s.init) { h.i = 1; if (s.px) h.p = s.px; }
-    const v2 = !!getDb().ca[to];
+    const level = lv ? lv.level : 1;
+    if (level === 3) h.c = LOCAL_CAPS;
     const { key, iv } = await aeadKey(mk);
-    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: aad(from, to, h, v2) }, key, te.encode(JSON.stringify(plain))));
-    const env = { v: 2, h, ct: b64(ct), rc: 1, ac: 1 };
-    if (v2) env.a = 1;
+    const json = JSON.stringify(plain);
+    const data = level === 3 ? frameEncode(json, LOCAL_CAPS, !!(lv.caps & CAP.PAD1)) : te.encode(json);
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: aad(from, to, h, level) }, key, data));
+    const env = { v: 2, h, ct: b64(ct), rc: 1, ac: 1, cp: LOCAL_CAPS }; // rc/ac/cp — подсказки вне AEAD; проверенные копии (h.c и кадр) есть только в v3
+    if (level === 2) env.a = 1; else if (level === 3) env.a = 3;
     return env;
   }
 
@@ -196,11 +362,18 @@ const Ratchet = (() => {
     while (s.skOrder.length > MAX_SKIPPED_STORED) delete s.sk[s.skOrder.shift()];
   }
 
-  async function decryptWith(s, from, to, env) {
-    const h = env.h; const ct = unb64(env.ct);
+  async function decryptWith(s, from, to, env, meta) {
+    const h = env.h; const ct = unb64(env.ct), level = envLevel(env);
     const open = async (mk) => {
       const { key, iv } = await aeadKey(mk);
-      try { return JSON.parse(td.decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv, additionalData: aad(from, to, h, env.a === 1) }, key, ct))); }
+      try {
+        const raw = new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv, additionalData: aad(from, to, h, level) }, key, ct));
+        if (level !== 3) return JSON.parse(td.decode(raw));
+        const f = frameDecode(raw);
+        if (f.caps !== h.c) throw new Error("caps mismatch");
+        if (meta) meta.caps = f.caps;
+        return JSON.parse(f.json);
+      }
       catch (e) { throw new Error("ratchet: auth failed"); }
     };
     const skId = dhKey(h.d) + "|" + h.n;
@@ -220,7 +393,8 @@ const Ratchet = (() => {
       s.dhs = await genPair();
       const [rk2, cks] = await kdfRK(rk1, await dh(s.dhs, s.dhr));
       s.rk = b64(rk2); s.cks = b64(cks);
-      s.init = false;
+      s.init = false; delete s.px; // prekey-заголовок нужен только пока ответа нет
+      
     }
     if (h.n < s.nr) throw new Error("ratchet: duplicate or old message");
     await skipKeys(s, h.n);

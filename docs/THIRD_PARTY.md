@@ -8,6 +8,7 @@
 |---|---|---|---|
 | qrcode-generator (Kazuhiko Arase) | `js/vendor/qrcode-generator*.js` | 2.0.4 | MIT |
 | jsQR (cozmo) | `js/vendor/jsQR.js` | 1.4.0 | Apache-2.0 |
+| @noble/post-quantum 0.7.1 + @noble/hashes 2.4.0 (Paul Miller), ML-KEM-768 | `js/vendor/ml-kem768.js` | 0.7.1 / 2.4.0 | MIT; SHA-384 `DHLaLw9quG9pG/WT5R+XYI6dWERxqemuZplgOLXLnkOQUp/ofJ8rJ8uX3EaqQuie` |
 | transformers.js (Hugging Face) | `js/vendor/transformers.min.js` | 3.0.0 | Apache-2.0 |
 | onnxruntime-web (входит в transformers.js; wasm-файлы загружаются при включении локального ИИ с cdn.jsdelivr.net) | — | из transformers 3.0.0 | MIT |
 | Модель Whisper (OpenAI), конвертация Xenova/whisper-base и -tiny | загружается с huggingface.co по согласию | — | MIT (Whisper); карточки Xenova: см. репозиторий модели |
