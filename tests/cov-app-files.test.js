@@ -57,8 +57,8 @@ test("выбор файлов: превью-шторка для фото/вид�
 test("отправка файла: пустой, огромный, блокировка, живая связь, офлайн-путь, сжатие, группа", async () => {
   const a = await boot(); const t = fakeTimers(a); seed(a);
   const msgs = () => J(a.run(`state.contacts.get("alice").messages.filter((m) => m.file).map((m) => ({ ack: m.ack, pending: m.file.pending, name: m.file.name, cap: m.file.caption, ttl: m.ttl }))`));
-  // пустой/огромный/заблокированный
-  await a.run(`sendFileMessage("alice", new File([], "e.txt"))`); await a.run(`sendFileMessage("alice", { size: 999999999, name: "huge.bin", type: "x" })`); await a.run(`sendFileMessage("nope", new File(["x"], "n.txt"))`);
+  // пустой/огромный/заблокированный. V.80: «огромный» теперь > P2P_MAX_FILE_SIZE (4 ГБ); файлы от 2 МБ до 4 ГБ идут бинарным P2P-путём (tests/fix80-bigfile-*.test.js), а не отклоняются
+  await a.run(`sendFileMessage("alice", new File([], "e.txt"))`); await a.run(`sendFileMessage("alice", { size: 5 * 1024 ** 3, name: "huge.bin", type: "x" })`); await a.run(`sendFileMessage("nope", new File(["x"], "n.txt"))`);
   a.run(`state.contacts.get("alice").blocked = true;`); await a.run(`sendFileMessage("alice", new File(["x"], "b.txt"))`); a.run(`state.contacts.get("alice").blocked = false;`);
   assert.equal(msgs().length, 0);
   // живая связь

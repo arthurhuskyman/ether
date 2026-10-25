@@ -7626,7 +7626,7 @@ function bigBubbleHtml(msgId, f) {
 }
 // Живое обновление пузыря без перерисовки ленты (прогресс приходит ≤ 5 раз в секунду — движок троттлит).
 function bigPaint(id, f) {
-  const el = document.querySelector(`.file-bubble-big[data-msg-id="${CSS.escape(id)}"]`); if (!el) return;
+  const el = [...document.querySelectorAll(".file-bubble-big")].find((e) => e.getAttribute("data-msg-id") === id); if (!el) return;
   const pct = Math.max(0, Math.min(100, (f.progress || 0) * 100));
   const fill = el.querySelector(".file-progress-fill"); if (fill) fill.style.width = pct.toFixed(1) + "%";
   const bar = el.querySelector(".big-progress"); if (bar) bar.setAttribute("aria-valuenow", String(Math.round(pct)));

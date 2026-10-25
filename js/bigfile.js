@@ -9,6 +9,11 @@
 //        file-reject{id,reason}  file-pause{id}  file-cancel{id,reason}.
 //  Двоичный кадр (один ArrayBuffer): [0xEB][ver=1][idLen][flags: bit0=crc] [u32 индекс первого блока][u32 длина][u32 crc32] [id ASCII] [данные].
 //  Блок (unit) = 16 КиБ — единица учёта (битовая карта, докачка). Кадр несёт 1..15 блоков подряд (16–240 КиБ полезной нагрузки, по умолчанию 64 КиБ; всё сообщение ≤ 256 КиБ).
+//
+//  Платформы (что проверено только логикой, не на устройстве): OPFS createWritable есть в Chrome/Edge/Firefox-desktop; в Safari (в т.ч. iOS) его нет на главном потоке —
+//  там срабатывает запасной IndexedDB (Blob-значения; на iOS нужен iOS ≥ 15). Квота iOS Safari ~ доли свободного места и вытесняется при нехватке — отсюда проверка
+//  navigator.storage.estimate() и navigator.storage.persist(). Фоновая вкладка/блокировка экрана на iOS замораживают таймеры и DataChannel — передача встанет и
+//  продолжится докачкой при возврате (resume), поэтому гарантий «передача при погашенном экране» нет. showSaveFilePicker (FSA) — только Chromium desktop, и только из жеста пользователя.
 (function (root, factory) {
   if (typeof module !== "undefined" && module.exports) {
     module.exports = factory(root);

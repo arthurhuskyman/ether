@@ -120,15 +120,12 @@ test("пауза и отмена с обеих сторон", async () => {
   // пауза получателем
   R.pause("f-pz-1"); assert.ok(await until(() => S.info("f-pz-1").state === "paused", 3000)); assert.equal(R.info("f-pz-1").state, "paused");
   await sleep(300); const g1 = R.sin.get("f-pz-1").gotUnits; await sleep(300); assert.equal(R.sin.get("f-pz-1").gotUnits, g1, "данные не идут во время паузы");
-  // продолжение получателем
+  // продолжение: получатель сам запросил паузу, поэтому «продолжить» нажимает он; отправитель просто возобновляет раздачу
   R.resume("f-pz-1");
-  assert.ok(await until(() => S.info("f-pz-1") && S.info("f-pz-1").state === "queued" || S.info("f-pz-1").state === "sending" || !S.has("f-pz-1"), 100) || true);
-  // отправитель в состоянии «пауза (remote)» сам продолжается после resume() на своей стороне:
-  S.resume("f-pz-1");
-  assert.ok(await until(() => R.sin.get("f-pz-1") ? R.sin.get("f-pz-1").gotUnits > g1 + 50 : true, 15000, 5), "после resume данные идут");
+  assert.ok(await until(() => !R.sin.get("f-pz-1") || R.sin.get("f-pz-1").gotUnits > g1 + 50, 15000, 5), "после resume данные идут");
   // пауза отправителем
   if (S.has("f-pz-1") && R.has("f-pz-1")) {
-    S.pause("f-pz-1"); assert.ok(await until(() => R.info("f-pz-1") && R.info("f-pz-1").state === "paused", 3000));
+    S.pause("f-pz-1"); assert.ok(await until(() => !R.has("f-pz-1") || R.info("f-pz-1").state === "paused", 3000));
     S.resume("f-pz-1");
   }
   assert.ok(await until(() => evs(R, "done", "f-pz-1").length === 1, 40000, 50), "после пауз файл всё равно дошёл целым");

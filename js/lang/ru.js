@@ -1174,7 +1174,7 @@ window.__LANG_DICTS["ru"] = {
     "settings.callReport": "Отчёт о качестве звонка",
     "settings.callReport.hint": "После звонка показывает краткий итог, как он прошёл. Данные остаются на устройстве; их можно выгрузить в JSON.",
     "settings.callReport.export": "Выгрузить отчёт о последнем звонке",
-    "gcall.audioOnlyMany": "Много участников: видео отключено, чтобы звук оставался чистым",
+    "callq.groupAudioOnly": "Много участников: видео отключено, чтобы звук оставался чистым",
     "settings.hideNotifContent": "Скрывать текст сообщений в уведомлениях",
     "search.everywhere": "Искать везде",
     "emoji.tone": "Тон кожи",

@@ -1174,7 +1174,7 @@ window.__LANG_DICTS["en"] = {
     "settings.callReport": "Call quality report",
     "settings.callReport.hint": "After a call, shows a short summary of how it went. Data stays on this device; you can export it as JSON.",
     "settings.callReport.export": "Export last call report",
-    "gcall.audioOnlyMany": "Many participants: video is off to keep the audio clear",
+    "callq.groupAudioOnly": "Many participants: video is off to keep the audio clear",
     "settings.hideNotifContent": "Hide message text in notifications",
     "search.everywhere": "Search everywhere",
     "emoji.tone": "Skin tone",

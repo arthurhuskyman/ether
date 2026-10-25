@@ -42,18 +42,19 @@ test("список: один встроенный сервер как раньш
 test("фейловер: 3 неудачных подключения -> новый клиент на следующем сервере, HTTP-база и /ice следуют за активным, на новом сервере — заметка про первую регистрацию", async () => {
   const a = await boot({ storage: { "ether.servers": sv(A, B), "ether.serversSeen": JSON.stringify([A]) } });
   fakeWebSocket(a); const fk = fakeTimers(a);
-  a.run(`initSignaling()`); await sleep(30);
+  a.run(`window.__sw = []; swRegistration = { active: { postMessage: (m) => window.__sw.push(m) } }; initSignaling()`); await sleep(30);
   const last = () => a.run(`__sockets[__sockets.length - 1].url`);
   assert.equal(last(), A);
   for (let i = 0; i < 3; i++) {
     a.run(`__sockets[__sockets.length - 1].__err()`); // ошибка до open = неудачная попытка
-    fk.tick(25000);
+    fk.tick(3000); // пауза повтора 1.0 / 1.6 / 2.6 с; таймаут подключения (7 с) на новом сервере ещё не наступает
   }
   fk.tick(50);
   assert.equal(last(), B, "переключились на второй сервер");
   assert.equal(a.run(`effectiveSignalingUrl()`), B);
   assert.equal(a.run(`signalingHttpBase()`), "https://b.example.com");
   assert.equal(a.run(`signalingUrlForIce()`), "https://b.example.com");
+  assert.deepEqual(J(a, `window.__sw.map((m) => m.httpBase)`), ["https://a.example.com", "https://b.example.com"], "service worker получил адрес нового сервера (ring-config)");
   assert.equal(a.run(`localStorage.getItem("ether.serverLastGood")`), null, "последний рабочий пишется по успешной регистрации");
   a.run(`(() => { const s = __sockets[__sockets.length - 1]; s.__open(); s.__recv({ type: "registered", id: "me-test-id", online: [], features: ["claim"] }); })()`);
   assert.equal(a.run(`localStorage.getItem("ether.serverLastGood")`), B);
@@ -240,4 +241,24 @@ test("нет серверов: состояние в шторке и «Режи�
   assert.equal(a.run(`state.tab`), "connect");
   assert.equal($("#servers-sheet").classList.contains("hidden"), true);
   assert.equal($("#manual-section").classList.contains("hidden"), false);
+});
+
+test("SignalingClient: connect-failed при ошибке до open, таймауте и исключении конструктора; после open — нет; registered даёт время рукопожатия", async () => {
+  const a = await boot();
+  fakeWebSocket(a); const fk = fakeTimers(a);
+  a.run(`window.__ev = []; window.__c = new SignalingClient("wss://x.example.com", "me", {}); for (const t of ["connect-failed", "registered", "disconnected"]) __c.addEventListener(t, (e) => __ev.push(t + (e.detail && e.detail.url ? ":" + e.detail.url : ""))); __c.start();`);
+  a.run(`__sockets[__sockets.length - 1].__err()`);                       // 1) ошибка до open
+  assert.equal(J(a, `__ev[0]`), "connect-failed:wss://x.example.com");
+  fk.tick(3000);                                                          // повтор
+  fk.tick(8000);                                                          // 2) таймаут рукопожатия 7 с
+  assert.equal(J(a, `__ev.filter((x) => x.startsWith("connect-failed")).length`), 2);
+  fk.tick(3000);
+  a.run(`const s = __sockets[__sockets.length - 1]; s.__open(); s.__recv({ type: "registered", id: "me", online: [] });`);
+  assert.equal(J(a, `__ev.filter((x) => x === "registered").length`), 1);
+  assert.equal(typeof a.run(`__c.connectMs`), "number");
+  a.run(`__sockets[__sockets.length - 1].close()`);                       // 3) закрытие после open — не неудача подключения
+  assert.equal(J(a, `__ev.filter((x) => x.startsWith("connect-failed")).length`), 2);
+  assert.ok(J(a, `__ev`).includes("disconnected"));
+  a.run(`__c.stop(); window.WebSocket = class { constructor() { throw new Error("blocked"); } }; window.__ev2 = []; window.__d = new SignalingClient("wss://y.example.com", "me", {}); __d.addEventListener("connect-failed", () => __ev2.push(1)); __d.start(); __d.stop();`);
+  assert.equal(J(a, `__ev2.length`), 1, "исключение конструктора (например, CSP/блокировка) тоже считается неудачей");
 });

@@ -499,7 +499,7 @@ function gcallApplyBudget() {
   const plan = CQ.groupVideoPlan({ peers: GC.peers.size, uplinkBps: n && n === GC.peers.size ? Math.max(500000, Math.min(up, 6000000)) : 2500000 });
   const budget = GC.video && plan.video ? plan.perPeerBps : (GC.video ? 0 : null);
   for (const id of GC.peers.keys()) { const l = mesh && mesh.get(id); if (l && typeof l.setVideoBudget === "function" && l._videoBudget !== budget && budget !== null) l.setVideoBudget(budget); }
-  if (GC.video && !plan.video && !GC._capNoticed) { GC._capNoticed = true; try { toast(T("gcall.audioOnlyMany")); } catch (e) {} }
+  if (GC.video && !plan.video && !GC._capNoticed) { GC._capNoticed = true; try { toast(T("callq.groupAudioOnly")); } catch (e) {} }
   if (plan.video) GC._capNoticed = false;
 }
 

@@ -5,6 +5,7 @@ const fs = require("fs"), os = require("os"), path = require("path"), zlib = req
 const ROOT = path.join(__dirname, "..");
 const MM = require("../tools/make-mirror.js");
 const SL = require("../js/serverlist.js");
+const cfgOf = (f) => { const w = {}; vm.runInNewContext(read(f).toString(), { window: w }); return JSON.parse(JSON.stringify(w.__ETHER_CONFIG__)); };
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "ether-mirror-"));
 const read = (p) => fs.readFileSync(p);
 function readZip(file) { // минимальный разбор zip: имя -> содержимое
@@ -25,11 +26,11 @@ test("зеркало: файлы, config.js, неизменённые index.html
   for (const f of ["index.html", "sw.js", "manifest.webmanifest", "config.js", "servers.json", "mirrors.json", "_headers", ".nojekyll", "nginx.conf.example", "js/bundle.core.js", "js/bundle.app.js", "js/serverlist.js", "js/lang/en.js", "css/styles.css", "icons/icon-192.png"]) assert.ok(fs.existsSync(path.join(out, f)), f);
   assert.ok(!fs.existsSync(path.join(out, "js/app")), "исходники бандла не нужны");
   for (const f of ["index.html", "sw.js", "manifest.webmanifest", "js/bundle.core.js", "js/bundle.app.js", "js/bundle.features.js", "js/bundle.fx.js"]) assert.ok(read(path.join(out, f)).equals(read(path.join(ROOT, f))), f + " не изменён");
-  const w = {}; vm.runInNewContext(read(path.join(out, "config.js")).toString(), { window: w });
-  assert.deepEqual(w.__ETHER_CONFIG__.servers.map((s) => s.url), ["wss://relay.example.org", "wss://relay2.example.org", "wss://ether-1-baqy.onrender.com"]);
-  assert.equal(w.__ETHER_CONFIG__.servers[0].label, "Мой сервер");
-  assert.deepEqual(SL.configDefaults(w.__ETHER_CONFIG__).map((e) => e.url), w.__ETHER_CONFIG__.servers.map((s) => s.url));
-  assert.deepEqual(w.__ETHER_CONFIG__.mirrors.map((m) => m.url), ["https://mirror.example.net/ether/"]);
+  const cfg = cfgOf(path.join(out, "config.js"));
+  assert.deepEqual(cfg.servers.map((s) => s.url), ["wss://relay.example.org", "wss://relay2.example.org", "wss://ether-1-baqy.onrender.com"]);
+  assert.equal(cfg.servers[0].label, "Мой сервер");
+  assert.deepEqual(SL.configDefaults(cfg).map((e) => e.url), cfg.servers.map((s) => s.url));
+  assert.deepEqual(cfg.mirrors.map((m) => m.url), ["https://mirror.example.net/ether/"]);
   assert.deepEqual(JSON.parse(read(path.join(out, "mirrors.json"))).mirrors.length, 1);
   assert.ok(read(path.join(ROOT, "config.js")).toString().includes("ether-1-baqy"), "исходный config.js не тронут");
   const z = readZip(r.zip);
@@ -44,8 +45,8 @@ test("зеркало: файлы, config.js, неизменённые index.html
 test("--no-default и --lock-connect: сервер по умолчанию не добавляется; CSP сужается, inline-хэши целы", () => {
   const out = path.join(tmp(), "m");
   MM.make({ servers: ["wss://only.example.org:8443"], mirrors: [], out, zip: false, lock: true, keepDefault: false });
-  const w = {}; vm.runInNewContext(read(path.join(out, "config.js")).toString(), { window: w });
-  assert.deepEqual(w.__ETHER_CONFIG__.servers.map((s) => s.url), ["wss://only.example.org:8443"]);
+  const cfg = cfgOf(path.join(out, "config.js"));
+  assert.deepEqual(cfg.servers.map((s) => s.url), ["wss://only.example.org:8443"]);
   const html = read(path.join(out, "index.html")).toString();
   assert.match(html, /connect-src 'self' https:\/\/only\.example\.org:8443 wss:\/\/only\.example\.org:8443 blob: data:/);
   const orig = read(path.join(ROOT, "index.html")).toString();

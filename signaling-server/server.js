@@ -673,7 +673,7 @@ const httpServer = http.createServer(async (req, res) => {
 
   const url = req.url || "";
   // /health и /info — публичные, без секретов: клиент с ЛЮБОГО origin (зеркала приложения) может мерить RTT и выбирать сервер (js/serverlist.js)
-  if (url === "/health" || url === "/" || url === "/info") { res.setHeader("Access-Control-Allow-Origin", "*"); res.setHeader("Cache-Control", "no-store"); }
+  if (req.method === "GET" && (url === "/health" || url === "/" || url === "/info")) { res.setHeader("Access-Control-Allow-Origin", "*"); res.setHeader("Cache-Control", "no-store"); }
   if (url === "/push-ack") { handlePushAck(req, res, clientIp(req)); return; }
   if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
 
