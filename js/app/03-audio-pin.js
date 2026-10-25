@@ -8,6 +8,14 @@ function ensureGlobalAudioCtx() {
   if (!globalAudioCtx) {
     try { globalAudioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
     catch (e) { globalAudioCtx = null; }
+    // iOS переводит контекст в "interrupted" (входящий обычный звонок, Siri, фон) и в "suspended"; во время звонка/рингтона
+    // сразу пробуем вернуть его (вне жеста iOS может отказать — тогда сработает следующее касание/возврат в приложение).
+    try {
+      if (globalAudioCtx && globalAudioCtx.addEventListener) globalAudioCtx.addEventListener("statechange", () => {
+        const c = globalAudioCtx;
+        if (c && c.state !== "running" && (ringWanted || dialWanted || (typeof state !== "undefined" && state && state.callId))) { try { c.resume().catch(() => {}); } catch (e) {} }
+      });
+    } catch (e) {}
   }
   return globalAudioCtx;
 }
@@ -67,7 +75,7 @@ function initAudioWarmup() {
     if (__warmDone || __warmInProgress) return;
     const ctx = ensureGlobalAudioCtx();
     if (!ctx) return;
-    if (ctx.state === "suspended") {
+    if (ctx.state === "suspended" || ctx.state === "interrupted") {
       // __warmInProgress ставим ДО ctx.resume(): пока промис не
       // разрешится, ctx.state всё ещё "suspended", и без этого флага
       // обработчики одного тапа (touchstart+click+keydown) параллельно
@@ -118,6 +126,19 @@ function initAudioWarmup() {
   document.addEventListener("click", warm);
   document.addEventListener("keydown", warm);
   warm();
+  // Постоянный (не снимается) обработчик жестов: warm() выше снимает себя после первого resume, а iOS потом снова
+  // «прерывает» контекст и роняет play() рингтона/гудков. Любое касание возвращает всё это без участия пользователя.
+  if (!initAudioWarmup._kick) {
+    initAudioWarmup._kick = true;
+    const kick = () => { try { kickAudioOnGesture(); } catch (e) {} };
+    ["touchstart", "pointerdown", "click", "keydown"].forEach((ev) => document.addEventListener(ev, kick, { capture: true, passive: true }));
+  }
+}
+function kickAudioOnGesture() {
+  const c = globalAudioCtx;
+  if (c && c.state !== "running" && c.resume) { try { c.resume().catch(() => {}); } catch (e) {} }
+  try { unlockSoundPool(); } catch (e) {} // добирает элементы, которые не удалось разблокировать с первого раза
+  if (ringWanted || dialWanted) rearmCallSounds("gesture");
 }
 
 // =====================================================================
@@ -125,7 +146,7 @@ function initAudioWarmup() {
 // =====================================================================
 function ensureAudioCtx() {
   const ctx = ensureGlobalAudioCtx();
-  if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {});
+  if (ctx && ctx.state !== "running" && ctx.resume) { try { ctx.resume().catch(() => {}); } catch (e) {} }
   return ctx;
 }
 // «Тихие часы»: в заданный интервал (может переходить через полночь) сообщения приходят без звука и вибрации; звонки звонят как обычно
@@ -255,68 +276,118 @@ function currentRingtoneSrc() {
   return RINGTONES[Store.ringtone] || RINGTONES["ring-classic"];
 }
 
+// «Рингтон нужен» / «гудки дозвона нужны»: пока флаг поднят, звук самовосстанавливается (см. rearmCallSounds).
+let ringWanted = false, dialWanted = false, __callSoundWatch = null;
+function startRingElement() {
+  const el = ringtoneAudioEl = getSoundEl(currentRingtoneSrc(), true);
+  abortSoundUnlock(el);
+  el.loop = true; // finish() разблокировки возвращает исходный loop=false
+  el.muted = false;
+  el.volume = 1;
+  if (el.ended || el.paused) { try { el.currentTime = 0; } catch (e) {} }
+  const p = el.play();
+  if (p && p.catch) p.catch((e) => {
+    etherLog("warn", "[ringtone] play failed:", String(e));
+    // Автоплей заблокирован (iOS: нет жеста / фон): хотя бы Web Audio, если контекст жив; <audio> повторим на жесте/возврате
+    if (ringWanted) { try { startRingOscillators(); } catch (x) {} }
+  });
+}
+function startRingOscillators() {
+  if (ringtoneTimer) return;
+  const ctx = ensureGlobalAudioCtx();
+  if (!ctx || ctx.state !== "running") return;
+  const playTone = (freq, delay, dur, vol) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = freq;
+    gain.gain.value = 0.0001;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    const t = ctx.currentTime + delay;
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(vol, t + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.start(t);
+    osc.stop(t + dur + 0.05);
+  };
+  const ringCycle = () => {
+    playTone(880, 0, 0.18, 0.35);
+    playTone(660, 0.18, 0.18, 0.35);
+    playTone(880, 0.4, 0.18, 0.35);
+    playTone(660, 0.58, 0.18, 0.35);
+  };
+  ringCycle();
+  ringtoneTimer = setInterval(ringCycle, 2000);
+}
+function startDialElement() {
+  const el = dialingAudioEl = getSoundEl(SOUND_FILES.dialing, true);
+  abortSoundUnlock(el);
+  el.loop = true; // finish() разблокировки возвращает исходный loop=false
+  el.muted = false;
+  el.volume = 1;
+  if (el.ended || el.paused) { try { el.currentTime = 0; } catch (e) {} }
+  const p = el.play();
+  if (p && p.catch) p.catch((e) => etherLog("warn", "[dialing] play failed:", String(e)));
+}
+// Если элемент как раз «разблокируется» тихим WAV (первое касание), а звонок пришёл в этот момент, finish() потом затёр бы рингтон
+// (src обратно + pause) — досрочно завершаем разблокировку.
+function abortSoundUnlock(el) {
+  try { if (el && el.dataset && el.dataset.unlocking && el.__finishUnlock) el.__finishUnlock(false); } catch (e) {}
+}
+// Всё, что можно сделать без участия пользователя, чтобы рингтон/гудки звучали: вернуть AudioContext и перезапустить <audio>, если он стоит.
+// Зовётся: возврат в приложение (visibilitychange/pageshow/focus), любой жест, пауза элемента, сторож раз в 1,5 с на переднем плане.
+function rearmCallSounds(reason) {
+  if (!ringWanted && !dialWanted) return false;
+  let acted = false;
+  try { const c = globalAudioCtx; if (c && c.state !== "running" && c.resume) c.resume().catch(() => {}); } catch (e) {}
+  if (!Store.soundsEnabled) return false;
+  try {
+    if (ringWanted && (!ringtoneAudioEl || ringtoneAudioEl.paused || ringtoneAudioEl.ended)) { startRingElement(); acted = true; }
+    if (dialWanted && (!dialingAudioEl || dialingAudioEl.paused || dialingAudioEl.ended)) { startDialElement(); acted = true; }
+  } catch (e) { etherLog("warn", "[callsound] rearm (" + reason + "):", String(e)); }
+  if (acted) etherLog("info", "[callsound] перезапуск (" + reason + ")");
+  return acted;
+}
+function armCallSoundWatch() {
+  if (__callSoundWatch) return;
+  __callSoundWatch = setInterval(() => {
+    if (!ringWanted && !dialWanted) { clearInterval(__callSoundWatch); __callSoundWatch = null; return; }
+    if (document.visibilityState === "hidden") return; // в фоне play() у iOS всё равно откладывается — повторим при возврате
+    rearmCallSounds("watchdog");
+  }, 1500);
+}
+function onCallSoundReturn() { if (document.visibilityState !== "hidden") rearmCallSounds("foreground"); }
+document.addEventListener("visibilitychange", onCallSoundReturn);
+window.addEventListener("pageshow", onCallSoundReturn);
+window.addEventListener("focus", onCallSoundReturn);
+
 function playRingtone() {
   stopRingtone();
+  ringWanted = true;
   // Форсируем resume() аудио-контекста — если пользователь уже
   // взаимодействовал с приложением хотя бы раз за сессию, на iOS
   // контекст в running, и осцилляторный фолбэк ниже сработает. Если
   // ещё не взаимодействовал — просто no-op, ничего не ломает.
   try { ensureAudioCtx(); } catch (e) {}
-  if (!Store.soundsEnabled) { if (navigator.vibrate) { try { navigator.vibrate([400, 200, 400, 200, 400, 1000]); } catch (e) {} } return; }
+  if (!Store.soundsEnabled) { ringWanted = false; if (navigator.vibrate) { try { navigator.vibrate([400, 200, 400, 200, 400, 1000]); } catch (e) {} } return; }
   // Основной путь — HTMLAudioElement (mp3-файл рингтона). Он работает и в
   // foreground, и в background. Явно сбрасываем muted/volume перед play:
   // stopRingtone() мог оставить элемент в промежуточном состоянии, а
   // предыдущий проигрыш мог не завершиться корректно — оба приводили к
   // "второй звонок не сработал".
-  try {
-    ringtoneAudioEl = getSoundEl(currentRingtoneSrc(), true);
-    ringtoneAudioEl.muted = false;
-    ringtoneAudioEl.volume = 1;
-    ringtoneAudioEl.currentTime = 0;
-    const p = ringtoneAudioEl.play();
-    if (p && p.catch) p.catch((e) => etherLog("warn", "[ringtone] play failed:", String(e)));
-  } catch (e) { etherLog("warn", "[ringtone] failed:", String(e)); }
+  try { startRingElement(); } catch (e) { etherLog("warn", "[ringtone] failed:", String(e)); }
+  armCallSoundWatch();
 
   if (navigator.vibrate) {
     try { navigator.vibrate([400, 200, 400, 200, 400, 1000]); } catch (e) {}
   }
-  // Web Audio-дублирование — ТОЛЬКО если ctx реально running. Раньше здесь
-  // было if (ctx) — и в момент, когда ctx был suspended (например,
-  // приложение только что ушло в фон и звонок приходит уже в фоне),
-  // планировались осцилляторы, которые никуда не звучали и накапливались,
-  // а потом "выстреливали" при следующем пользовательском жесте. Плюс
-  // setInterval создавал параллельный таймер, который продолжал работать
-  // и после stopRingtone() — второй звонок накладывался на первый.
-  try {
-    const ctx = ensureGlobalAudioCtx();
-    if (ctx && ctx.state === "running") {
-      const playTone = (freq, delay, dur, vol) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = "sine";
-        osc.frequency.value = freq;
-        gain.gain.value = 0.0001;
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        const t = ctx.currentTime + delay;
-        gain.gain.setValueAtTime(0.0001, t);
-        gain.gain.exponentialRampToValueAtTime(vol, t + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-        osc.start(t);
-        osc.stop(t + dur + 0.05);
-      };
-      const ringCycle = () => {
-        playTone(880, 0, 0.18, 0.35);
-        playTone(660, 0.18, 0.18, 0.35);
-        playTone(880, 0.4, 0.18, 0.35);
-        playTone(660, 0.58, 0.18, 0.35);
-      };
-      ringCycle();
-      ringtoneTimer = setInterval(ringCycle, 2000);
-    }
-  } catch (e) {}
+  // Web Audio-дублирование — ТОЛЬКО если ctx реально running (иначе осцилляторы копились в спящем контексте и «выстреливали»
+  // пачкой при следующем жесте). Единственный таймер ringtoneTimer снимается в stopRingtone().
+  try { startRingOscillators(); } catch (e) {}
 }
 function stopRingtone() {
+  ringWanted = false;
   if (ringtoneTimer) { clearInterval(ringtoneTimer); ringtoneTimer = null; }
   if (ringtoneAudioEl) clearNowPlaying();
   if (ringtoneAudioEl) {
@@ -330,12 +401,9 @@ function stopRingtone() {
 function playDialingSound() {
   stopCallSounds();
   if (!Store.soundsEnabled) return;
-  try {
-    dialingAudioEl = getSoundEl(SOUND_FILES.dialing, true);
-    dialingAudioEl.currentTime = 0;
-    const p = dialingAudioEl.play();
-    if (p && p.catch) p.catch(() => {});
-  } catch (e) {}
+  dialWanted = true;
+  try { startDialElement(); } catch (e) {}
+  armCallSoundWatch();
 }
 function playBusySound() {
   stopCallSounds();
@@ -358,6 +426,7 @@ function playNoAnswerSound() {
   } catch (e) {}
 }
 function stopCallSounds() {
+  dialWanted = false;
   if (dialingAudioEl) clearNowPlaying();
   if (dialingAudioEl) {
     try { dialingAudioEl.pause(); dialingAudioEl.currentTime = 0; } catch (e) {}

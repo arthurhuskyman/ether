@@ -336,8 +336,12 @@ function openCallScreen(id, phase, opts) {
     clearCallNotices();
     armCallBackGuard();
     speakerOn = false; // новый звонок всегда начинается с внутреннего динамика
-    try { if (navigator.audioSession) navigator.audioSession.type = "play-and-record"; } catch (e) {}
   }
+  // Маршрут звука iOS: пока ИДЁТ ВХОДЯЩИЙ ВЫЗОВ, нужен "playback" (динамик, громко). Раньше тут всегда ставился "play-and-record" —
+  // он уводит ВСЁ воспроизведение в разговорный динамик (у уха), и рингтон на iPhone «пропадал». В "play-and-record" переходим
+  // при ответе (acceptCall) — до запроса микрофона.
+  if (phase === "ringing") setCallAudioSession("playback");
+  else if (state.callId !== id) setCallAudioSession("play-and-record");
   state.callId = id;
   state.callPhase = phase;
   try { ensureAudioCtx(); } catch (e) {}
@@ -390,6 +394,7 @@ function setCallPhaseActive() {
   state._callUserAccepted = true;
   clearPendingCall();
   stopCallSounds();
+  setCallAudioSession(speakerOn ? "playback" : "play-and-record");
   const ci = $("#call-controls-incoming"); if (ci) ci.classList.add("hidden");
   const ca = $("#call-controls-active"); if (ca) ca.classList.remove("hidden");
   const cv = $(".call-volume"); if (cv) cv.classList.remove("hidden");
@@ -537,6 +542,7 @@ function attachRemoteAudio(id, stream) {
     if (audioEl._volReadOnly && Store.callVolume < 0.99) ensureRelayGain(audioEl, stream);
   } catch (e) {}
   wireRemoteAudioEvents(audioEl);
+  watchRemoteTracks(id, stream);
   playRemoteAudio(audioEl);
   const sl = $("#call-volume-slider"); if (sl) sl.value = String(Store.callVolume);
   // На iOS видеозвонки (в отличие от чисто голосовых) переключаются
@@ -571,6 +577,16 @@ function playRemoteAudio(audioEl) {
   });
   else setCallNotice("audio", null);
 }
+// Входящий трек получил unmute (iOS вернул звук после прерывания / пошли пакеты) — гарантируем, что <audio> и контекст живы.
+function watchRemoteTracks(id, stream) {
+  try {
+    for (const t of stream.getAudioTracks()) {
+      if (t.__etherWatched || typeof t.addEventListener !== "function") continue;
+      t.__etherWatched = true;
+      t.addEventListener("unmute", () => { if (state.callId === id) resumeCallAudio("remote-unmute"); });
+    }
+  } catch (e) {}
+}
 function wireRemoteAudioEvents(audioEl) {
   if (audioEl._etherWired) return;
   audioEl._etherWired = true;
@@ -592,7 +608,7 @@ function clearCallNotices() { __callNotices.clear(); setCallNotice("x", null); }
 // Вызывается при возврате в приложение, по жесту после отказа autoplay, после смены маршрута и по кнопке «проблема со звуком».
 function resumeCallAudio(reason) {
   const id = state.callId; if (!id) return;
-  try { if (navigator.audioSession && !speakerOn && navigator.audioSession.type !== "play-and-record") navigator.audioSession.type = "play-and-record"; } catch (e) {}
+  if (state.callPhase !== "ringing") { try { if (navigator.audioSession && !speakerOn && navigator.audioSession.type !== "play-and-record") navigator.audioSession.type = "play-and-record"; } catch (e) {} }
   try { const c = ensureGlobalAudioCtx(); if (c && c.state !== "running") c.resume().catch(() => {}); } catch (e) {}
   const el = document.getElementById("remote-audio-" + id);
   if (el) {
@@ -893,14 +909,28 @@ function watchCallAudioFlow(stats) {
   const w = __audioWatch;
   if (hasIn) { w.silentIn = (w.lastIn >= 0 && inB <= w.lastIn) ? w.silentIn + 1 : 0; w.lastIn = inB; }
   if (hasOut) { w.silentOut = (w.lastOut >= 0 && outB <= w.lastOut) ? w.silentOut + 1 : 0; w.lastOut = outB; }
-  if (w.silentOut === 3) {
-    const l = mesh.get(state.callId);
-    etherLog("warn", "[call] звук не уходит собеседнику уже 9 с (исходящих байт: " + outB + "); " + (l && l.audioDebug ? l.audioDebug() : "") + " — беру микрофон заново");
-    if (l && l.recoverAudio) l.recoverAudio().then((ok) => { if (ok) l.reInvite(); });
+  watchCallAudioAct(w, inB, outB);
+}
+// Решения сторожа (вынесены для тестов). silentOut/silentIn — число подряд идущих замеров (≈3 с) без прироста байт.
+// Исходящее: чиним на 3-м замере и повторяем каждые 6 (раньше — один раз: при неудаче в фоне звук молчал до конца звонка).
+// Не трогаем, если микрофон выключен пользователем, приложение в фоне (getUserMedia не даст трек) или идёт видео-замена.
+// Входящее: сперва дешёвые меры (звук/<audio>), потом один перезапуск ICE; если собеседник сам сообщил «микрофон приостановлен» — ждём его.
+function watchCallAudioAct(w, inB, outB) {
+  const id = state.callId, l = id && mesh.get(id);
+  if (!l) return;
+  if (w.silentOut >= 3 && (w.silentOut - 3) % 6 === 0 && !l._muted && !document.hidden) {
+    etherLog("warn", "[call] звук не уходит собеседнику уже " + (w.silentOut * 3) + " с (исходящих байт: " + outB + "); " + (l.audioDebug ? l.audioDebug() : "") + " — беру микрофон заново");
+    if (l.recoverAudio) l.recoverAudio().then((ok) => { if (ok && l.reInvite) l.reInvite(); });
   }
-  if (w.silentIn === 3) {
+  if (w.silentIn >= 2 && w.silentIn < 3) resumeCallAudio("watchdog");
+  if (w.silentIn === 3 && !__callNotices.has("peerMic")) {
     etherLog("warn", "[call] звук от собеседника не приходит 9 с (входящих байт: " + inB + ")");
-    if (!w.kicked) { w.kicked = true; const l = mesh.get(state.callId); if (l) l.reInvite(); }
+    if (!w.kicked) { w.kicked = true; if (l.reInvite) l.reInvite(); }
+  }
+  // байты идут, а <audio> стоит (прерывание без события pause, потерянный srcObject) — запускаем
+  if (w.silentIn === 0) {
+    const el = document.getElementById("remote-audio-" + id);
+    if (el && !document.hidden && (el.paused || (!el.srcObject && el._relayStream))) resumeCallAudio("watchdog");
   }
 }
 // Подробная строка о качестве звука в журнал (раз в ~15 с): путь, RTT, джиттер, потери, буфер воспроизведения, «замазанные» сэмплы.
@@ -1310,6 +1340,9 @@ function wireCallScreen() {
   // wireCallScreen).
 }
 
+function setCallAudioSession(type) {
+  try { if (navigator.audioSession && navigator.audioSession.type !== type) navigator.audioSession.type = type; } catch (e) {}
+}
 async function acceptCall(withMute) {
   { const ci = state.callId && state.contacts.get(state.callId);
     if (ci && !ci.ephemeral && Store.requireVerifiedCalls && !isContactVerified(ci)) { toast(T("call.needVerifyIncoming", { name: ci.name || T("sys.someone") })); return; } }
@@ -1323,6 +1356,7 @@ async function acceptCall(withMute) {
 
   try {
     stopRingtone();
+    setCallAudioSession(speakerOn ? "playback" : "play-and-record"); // до getUserMedia: микрофону нужна сессия с записью
     const c = state.contacts.get(cid);
     const link = mesh.get(cid);
 

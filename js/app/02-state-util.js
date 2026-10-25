@@ -249,7 +249,15 @@ function getSoundEl(src, loop) {
     el.setAttribute("playsinline", "");
     el.setAttribute("x-webkit-airplay", "deny"); el.disableRemotePlayback = true; // не показывать AirPlay/пульт для служебных звуков
     el.addEventListener("ended", clearNowPlaying);
-    el.addEventListener("pause", () => { clearTimeout(el.__npTimer); el.__npTimer = setTimeout(() => { if (el.paused) clearNowPlaying(); }, 300); });
+    el.addEventListener("pause", () => {
+      clearTimeout(el.__npTimer);
+      // Рингтон/гудки поставила на паузу система (прерывание, смена маршрута), а звонок ещё идёт — возобновляем; иначе снимаем «Now Playing».
+      el.__npTimer = setTimeout(() => {
+        if (!el.paused) return;
+        if (((typeof ringWanted !== "undefined" && ringWanted && el === ringtoneAudioEl) || (typeof dialWanted !== "undefined" && dialWanted && el === dialingAudioEl)) && typeof rearmCallSounds === "function") { rearmCallSounds("pause"); return; }
+        clearNowPlaying();
+      }, 300);
+    });
     document.body.appendChild(el);
     soundPool.set(src, el);
     // Уведомления и рингтон должны быть слышны сразу, громко — если ОС
@@ -301,11 +309,13 @@ function unlockSoundPool() {
     let finished = false;
     const finish = (ok) => {
       if (finished) return; finished = true;
+      el.__finishUnlock = null;
       try { el.pause(); } catch (e) {}
       try { el.muted = false; el.volume = 1; el.src = src; el.loop = originalLoop; el.currentTime = 0; } catch (e) {}
       if (ok) el.dataset.unlocked = "1";
       delete el.dataset.unlocking;
     };
+    el.__finishUnlock = finish;
     try {
       el.muted = true;
       el.src = silentWavUri();
