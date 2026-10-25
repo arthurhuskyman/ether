@@ -22,21 +22,20 @@ test("fxPairKeyString симметрична; общая руна/хэш/эмо�
   a.close();
 });
 
-test("карточка контакта: миниатюра — общая руна пары; у Алисы и у Боба разметка идентична", async () => {
+test("карточка контакта: миниатюра — личная руна контакта, идентичная «Их руне» в листе проверки", async () => {
   const keyOf = (x, y) => ({ kty: "EC", crv: "P-256", x, y });
-  const html = [];
-  for (const [mine, theirs] of [[keyOf("AAA", "BBB"), keyOf("CCC", "DDD")], [keyOf("CCC", "DDD"), keyOf("AAA", "BBB")]]) {
-    const a = await bootApp({ platform: "desktop" });
-    a.window.__mine = mine; a.window.__theirs = theirs;
-    a.run(`Store.myPublicKeyJwk = window.__mine; FX.set && FX.set("sigil", true); ensureContactEntry("peer", "Peer"); state.contacts.get("peer").publicKey = window.__theirs; state.contacts.get("peer").managed = true; state.tab = "connect"; state.contactCardId = "peer"; renderTab(); fxDecorateContactCard();`);
-    const sg = a.document.querySelector("#fx-sigil");
-    assert.ok(sg && sg.querySelector("svg"), "руна показана на карточке");
-    html.push(sg.innerHTML);
-    const probe = a.document.createElement("div"); probe.innerHTML = a.run(`sigilSvg(fxPairKeyString(fxMyKeyString(), fxKeyString(state.contacts.get("peer"))), 44)`);
-    assert.equal(sg.innerHTML, probe.innerHTML);
-    a.close();
-  }
-  assert.equal(html[0], html[1], "оба собеседника видят одну и ту же руну на карточке друг друга");
+  const a = await bootApp({ platform: "desktop" });
+  a.window.__mine = keyOf("AAA", "BBB"); a.window.__theirs = keyOf("CCC", "DDD");
+  a.run(`Store.myPublicKeyJwk = window.__mine; FX.set && FX.set("sigil", true); ensureContactEntry("peer", "Peer"); state.contacts.get("peer").publicKey = window.__theirs; state.contacts.get("peer").managed = true; state.tab = "connect"; state.contactCardId = "peer"; renderTab(); fxDecorateContactCard();`);
+  const sg = a.document.querySelector("#fx-sigil");
+  assert.ok(sg && sg.querySelector("svg"), "руна показана на карточке");
+  const probe = a.document.createElement("div"); probe.innerHTML = a.run(`sigilSvg(fxKeyString(state.contacts.get("peer")), 44)`);
+  assert.equal(sg.innerHTML, probe.innerHTML, "личная руна контакта");
+  // тот же ключ в листе проверки («Их руна», 56px) даёт ту же разметку с точностью до размера
+  const same = a.run(`sigilSvg(fxKeyString(state.contacts.get("peer")), 56)`).replace(/width="56" height="56"/, 'width="44" height="44"');
+  const p2 = a.document.createElement("div"); p2.innerHTML = same;
+  assert.equal(p2.innerHTML, sg.innerHTML.trim());
+  a.close();
 });
 
 test("шторка сверки: общая руна, эмодзи, слова, отпечаток, обе личные руны с подписями, кнопки; у обоих сторон тексты совпадают", async () => {
