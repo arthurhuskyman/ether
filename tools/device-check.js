@@ -12,7 +12,7 @@ const MIME = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css
 const args = process.argv.slice(2);
 const out = args[0] && !args[0].startsWith("--") ? args[0] : ".";
 const opt = (n, d) => { const i = args.indexOf("--" + n); return i < 0 ? d : args[i + 1]; };
-const DEV = { se: { viewport: { width: 320, height: 568 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, userAgent: devices["iPhone 14"].userAgent }, desktop: { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 } };
+const DEV = { se: { viewport: { width: 320, height: 568 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, userAgent: devices["iPhone 14"].userAgent }, desktop: { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 }, desktop1440: { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 } };
 const devNames = opt("devices", "se,iPhone 15,Pixel 7,Galaxy S24,iPad Pro 11,desktop").split(",");
 const skins = opt("skins", "default").split(","), schemes = opt("schemes", "light,dark").split(","), langs = opt("langs", "ru").split(",");
 const shots = args.includes("--shots"), callMode = args.includes("--call"), wantKb = args.includes("--kb"), extra = args.includes("--extra"), wantContrast = args.includes("--contrast");

@@ -117,6 +117,7 @@ function goToOnboardingSlide(idx) {
     el.classList.toggle("active", Number(el.dataset.dot) === __onboardingSlide);
   });
   if (__onboardingSlide === ONBOARDING_SLIDE_COUNT - 1) renderOnboardingReadySlide();
+  if (__onboardingSlide === 1) setTimeout(() => { const n = $("#onboarding-name"); if (n && !n.value) { try { n.focus(); } catch (e) {} } }, 60); // имя — первое, что нужно набрать
 }
 function renderOnboardingLangGrid() {
   const grid = $("#onboarding-lang-grid"); if (!grid) return;
@@ -159,6 +160,7 @@ function applyOnboardingLanguage(code) {
     if (!ok) { toast(T("toast.langLoadFailed")); return; }
     I18N.setLang(code);
     applyStaticTranslations();
+    try { paintOnboardingLangToggle(); } catch (e) {}
     $$(".onboarding-lang-btn").forEach((b) => b.classList.toggle("active", b.dataset.lang === code));
     if (sel) sel.value = code;
   });
@@ -203,6 +205,7 @@ function wireOnboardingOnce() {
   }
   renderOnboardingLangGrid();
   populateOnboardingLangSelect();
+  try { wireOnboardingExtras(); } catch (e) {}
   $$(".onboarding-next").forEach((btn) => btn.addEventListener("click", () => goToOnboardingSlide(__onboardingSlide + 1)));
   $$(".onboarding-back").forEach((btn) => btn.addEventListener("click", () => goToOnboardingSlide(__onboardingSlide - 1)));
   const form = $("#onboarding-form");
@@ -387,6 +390,7 @@ function startApp() {
   sc(wireReminders, "wireReminders");
   sc(wireChatHeaderMenu, "wireChatHeaderMenu");
   sc(wireCmdk, "wireCmdk");
+  sc(wireDesktopUx, "wireDesktopUx");
   sc(wireMuteSheet, "wireMuteSheet");
   sc(wireCallScreen, "wireCallScreen");
   sc(wireSettingsScreen, "wireSettingsScreen");

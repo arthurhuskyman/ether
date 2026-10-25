@@ -582,7 +582,7 @@ function closeChatSafely() {
   try { renderTab(); } catch (e) {}
 }
 function closeContactCardSafely() { state.contactCardId = null; try { renderTab(); } catch (e) {} }
-function renderTab() { try { renderTabInner(); } catch (e) { etherLog("error", "[renderTab]", String(e)); } }
+function renderTab() { try { renderTabInner(); } catch (e) { etherLog("error", "[renderTab]", String(e)); } try { wideSync(); } catch (e) {} }
 function setNavMode(mode) {
   const list = $("#nav-list-mode"), chat = $("#nav-chat-mode"), contact = $("#nav-contact-mode");
   if (list) list.classList.toggle("hidden", mode !== "list");
@@ -945,6 +945,7 @@ function renderChatsList() {
     const row = document.createElement("button");
     row.type = "button";
     row.className = "chat-row flat-content" + (c.archived ? " archived" : "");
+    row.dataset.chatId = c.id;
     const __rowMutedForBadge = isContactMuted(c);
     const badge = unread > 0 ? `<span class="unread-badge${__rowMutedForBadge ? " is-muted" : ""}">${unread > 99 ? "99+" : unread}</span>` : "";
     const mentionIcon = state.mentionedChats.has(c.id) ? `<span class="chat-row-mention" title="${escapeHtml(T("chats.mentioned"))}">@</span>` : "";

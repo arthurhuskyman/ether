@@ -135,8 +135,11 @@
       </div>
       <h1 data-i18n="app.name">The Messenger</h1>
       <p class="onboarding-sub" data-i18n="app.tagline">Messages and calls directly between devices.</p>
-      <div id="onboarding-lang-grid" class="onboarding-lang-grid"></div>
-      <select id="onboarding-lang-select" class="settings-select" aria-label="Language" data-i18n-aria="onboarding.welcome.lang"></select>
+      <button type="button" id="onboarding-lang-toggle" class="btn-tertiary onboarding-lang-toggle"></button>
+      <div id="onboarding-lang-more" class="hidden">
+        <div id="onboarding-lang-grid" class="onboarding-lang-grid"></div>
+        <select id="onboarding-lang-select" class="settings-select" aria-label="Language" data-i18n-aria="onboarding.welcome.lang"></select>
+      </div>
       <button type="button" class="btn-primary onboarding-next" data-i18n="onboarding.next">Next</button>
       <button type="button" id="onboarding-import-backup-btn" class="btn-tertiary" data-i18n="onboarding.importBackup">Restore from a backup file</button>
       <button type="button" id="onboarding-link-device-btn" class="btn-tertiary" data-i18n="devlink.onboarding">Move from my old phone</button>
@@ -173,6 +176,7 @@
       <p class="fine muted" data-i18n="onboarding.ready.inviteHint">Send the link or show the QR code — your chat appears as soon as they open it.</p>
       <p class="onboarding-invite-code" id="onboarding-invite-code"></p>
       <p id="onboarding-next-hint" class="fine muted onboarding-next-hint" data-i18n="onboarding.invite.next">Next: send the link — the chat will appear when your friend opens it. You can also do this later from the Chats tab.</p>
+      <button type="button" id="onboarding-pick-contacts-btn" class="btn-tertiary hidden" data-i18n="invite.pick">Invite from my contacts</button>
       <button type="button" id="onboarding-find-btn" class="btn-tertiary" data-i18n="discovery.findBtn">Find by phone/email</button>
       <div class="onboarding-nav">
         <button type="button" class="btn-tertiary onboarding-back" data-i18n="sys.back">Back</button>
@@ -316,6 +320,7 @@
 
     <section id="screen-connect" class="screen hidden">
       <button type="button" id="connect-join-code-btn" class="btn-tertiary join-code-btn" data-i18n="lc.joinEntry">Join a call by code</button>
+      <button type="button" id="connect-pick-contacts-btn" class="btn-tertiary hidden" data-i18n="invite.pick">Invite from my contacts</button>
       <div class="connect-card flat-content">
         <h2 data-i18n="connect.myContacts">My contacts</h2>
         <p class="muted" data-i18n="connect.myContacts.sub">Everyone you've added. Tap a contact to chat or call.</p>
@@ -733,6 +738,8 @@
       </div>
     </section>
 
+    <aside id="wide-info" class="wide-info hidden" aria-label="Contact" data-i18n-aria="nav.contacts"></aside>
+    <div id="wide-empty" class="wide-empty hidden"><p class="muted" data-i18n="wide.pick">Pick a chat from the list</p></div>
     <section id="screen-contact" class="screen hidden">
       <div class="contact-profile flat-content">
         <button type="button" id="contact-avatar" class="contact-avatar contact-avatar-btn" aria-label="Change avatar"></button>
@@ -919,6 +926,54 @@
     <div class="sheet-handle"></div>
     <h2 id="skin-sheet-title" data-i18n="skin.all">All skins</h2>
     <div id="skin-sheet-grid" class="skin-grid" role="radiogroup" aria-label="Skin"></div>
+    <button type="button" id="theme-editor-open" class="btn-secondary" data-i18n="theme.open">Make your own theme</button>
+  </div>
+</div>
+<div id="theme-editor-sheet" class="sheet hidden" role="dialog" aria-modal="true" aria-labelledby="theme-editor-title">
+  <div class="sheet-backdrop"></div>
+  <div class="sheet-panel glass-content theme-editor">
+    <div class="sheet-handle"></div>
+    <h2 id="theme-editor-title" data-i18n="theme.title">Your theme</h2>
+    <p class="fine muted" data-i18n="theme.note">Saved only on this device. Text colour is chosen automatically so it stays readable.</p>
+    <div id="theme-editor-preview" class="te-preview" aria-hidden="true">
+      <div class="te-bubble te-theirs"><span data-i18n="theme.preview.in">Hi! How are you?</span></div>
+      <div class="te-bubble te-mine"><span data-i18n="theme.preview.out">Great, thanks!</span></div>
+    </div>
+    <div class="te-grid">
+      <label class="te-field"><span data-i18n="theme.accent">Accent</span><input type="color" id="te-accent" value="#6446c9" /></label>
+      <label class="te-field"><span data-i18n="theme.bg">Background</span><input type="color" id="te-bg" value="#fafafc" /></label>
+      <label class="te-field"><span data-i18n="theme.mine">My bubbles</span><input type="color" id="te-mine" value="#6244d8" /></label>
+      <label class="te-field"><span data-i18n="theme.theirs">Their bubbles</span><input type="color" id="te-theirs" value="#f2f2f5" /></label>
+    </div>
+    <div class="te-radius" role="radiogroup" aria-label="Corners" data-i18n-aria="theme.radius">
+      <button type="button" role="radio" aria-checked="false" data-te-radius="sharp" data-i18n="theme.radius.sharp">Sharp</button>
+      <button type="button" role="radio" aria-checked="true" data-te-radius="normal" data-i18n="theme.radius.normal">Normal</button>
+      <button type="button" role="radio" aria-checked="false" data-te-radius="round" data-i18n="theme.radius.round">Round</button>
+      <button type="button" role="radio" aria-checked="false" data-te-radius="pill" data-i18n="theme.radius.pill">Pill</button>
+    </div>
+    <ul id="theme-editor-checks" class="te-checks" aria-live="polite"></ul>
+    <p id="theme-editor-note" class="fine muted" role="status"></p>
+    <button type="button" id="te-fix" class="btn-secondary" data-i18n="theme.fix">Fix contrast</button>
+    <textarea id="te-json" class="te-json" rows="3" spellcheck="false" aria-label="JSON" placeholder='{"ether":"theme", ...}'></textarea>
+    <div class="te-row">
+      <button type="button" id="te-export" class="btn-tertiary" data-i18n="theme.export">Copy as JSON</button>
+      <button type="button" id="te-import" class="btn-tertiary" data-i18n="theme.import">Apply JSON</button>
+    </div>
+    <div class="te-row">
+      <button type="button" id="te-reset" class="btn-tertiary" data-i18n="theme.reset">Remove my theme</button>
+      <button type="button" id="te-save" class="btn-primary" data-i18n="theme.save">Save</button>
+    </div>
+  </div>
+</div>
+<div id="invite-contacts-sheet" class="sheet hidden" role="dialog" aria-modal="true" aria-labelledby="invite-contacts-title">
+  <div class="sheet-backdrop"></div>
+  <div class="sheet-panel glass-content">
+    <div class="sheet-handle"></div>
+    <h2 id="invite-contacts-title" data-i18n="invite.pick">Invite from my contacts</h2>
+    <p class="fine muted" data-i18n="invite.privacy">Chosen contacts stay on this device and are not uploaded. The app only opens your messages or mail with an invite link.</p>
+    <div id="invite-contacts-list" class="invite-contacts-list"></div>
+    <p id="invite-contacts-empty" class="fine muted hidden" data-i18n="invite.noReach">None of the chosen contacts has a phone number or email.</p>
+    <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="invite-contacts-sheet" data-i18n="sys.close">Close</button>
   </div>
 </div>
 <div id="composer-menu-sheet" class="sheet hidden">

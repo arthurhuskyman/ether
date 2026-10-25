@@ -177,6 +177,7 @@ const Skins = (() => {
     id = valid(id) ? id : "default";
     try { localStorage.setItem(KEY, id); } catch (e) {}
     try { if (typeof scheduleIDBBackup === "function") scheduleIDBBackup(); } catch (e) {}
+    try { if (typeof ThemeEditor !== "undefined") ThemeEditor.disable(); } catch (e) {} // выбор готового скина снимает свою тему
     const r = apply(id); renderMainIfNeeded(); return r;
   }
   const gridsOf = () => ["skin-grid", "skin-sheet-grid"].map((i) => document.getElementById(i)).filter(Boolean);
@@ -267,6 +268,7 @@ const Skins = (() => {
     // схема (светлая/тёмная) могла смениться — декор зависит от неё
     if (live() && typeof MutationObserver !== "undefined" && !wire.mo) { wire.mo = new MutationObserver(() => { if (get() !== "default") applyDeco(get()); }); wire.mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-scheme"] }); }
     apply(get());
+    try { if (typeof ThemeEditor !== "undefined") ThemeEditor.wire(); } catch (e) {}
   }
   return { LIST, IDS, KEY, valid, get, apply, set, render, wire, syncMeta, name, register, kit, fx, sfx, play, spec, MAIN, mainFive, openSheet, closeSheet };
 })();

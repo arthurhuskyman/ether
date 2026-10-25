@@ -866,6 +866,7 @@ function wireGlobalSearch() {
   document.addEventListener("keydown", (e) => {
     const mod = e.metaKey || e.ctrlKey;
     if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "k") {
+      if ($("#cmdk")) return; // Ctrl+K — быстрый переход (06-thread.js); общий поиск открывается кнопкой в шапке
       e.preventDefault();
       openGlobalSearch();
     }
