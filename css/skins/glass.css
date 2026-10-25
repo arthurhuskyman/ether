@@ -82,7 +82,7 @@ html[data-skin="glass"] .chat-row-wrapper { border-radius: 26px; }
 html[data-skin="glass"] .chat-row:active { transform: scale(.985); }
 html[data-skin="glass"] :is(.avatar, .avatar-xl) { border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.65); box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.55), inset 0 -6px 10px rgba(0, 0, 40, 0.18), 0 6px 16px rgba(2, 4, 30, 0.3); }
 html[data-skin="glass"] .avatar::after { content: ""; position: absolute; left: 14%; top: 8%; width: 52%; height: 34%; border-radius: 50%; background: linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0)); pointer-events: none; }
-html[data-skin="glass"] .unread-badge, html[data-skin="glass"] .tab-badge { background: radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.85), transparent 45%), linear-gradient(150deg, #ff6bb5, #8b6bff); color: #fff; box-shadow: 0 4px 12px rgba(160, 80, 255, 0.5), inset 0 -2px 4px rgba(0, 0, 80, 0.3); border: 1px solid rgba(255, 255, 255, 0.6); text-shadow: 0 1px 2px rgba(40, 0, 80, 0.5); }
+html[data-skin="glass"] .unread-badge, html[data-skin="glass"] .tab-badge { background: radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.18), transparent 45%), linear-gradient(150deg, #c4237f, #5a36c8); color: #fff; box-shadow: 0 4px 12px rgba(160, 80, 255, 0.5), inset 0 -2px 4px rgba(0, 0, 80, 0.3); border: 1px solid rgba(255, 255, 255, 0.6); text-shadow: 0 1px 2px rgba(40, 0, 80, 0.5); }
 
 /* ---- пузыри: капли стекла, разная прозрачность, без blur ---- */
 html[data-skin="glass"] .bubble { -webkit-backdrop-filter: none; backdrop-filter: none; padding: 11px 18px 9px; overflow: hidden; isolation: isolate; }
@@ -102,7 +102,7 @@ html[data-skin="glass"] .bubble-reaction-chip { border-radius: 999px; background
 html[data-skin="glass"] .bubble-row.mine .bubble-reaction-chip { color: #1a2a6a; }
 
 /* ---- кнопки: выпуклые линзы с бликом ---- */
-html[data-skin="glass"] :is(.btn-primary, .send-btn) { background: radial-gradient(ellipse 70% 45% at 40% 14%, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0) 70%), var(--sk-btn-bg); border: 1px solid rgba(255, 255, 255, 0.7); box-shadow: 0 10px 24px rgba(70, 70, 220, 0.4), inset 0 -8px 14px rgba(40, 20, 140, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.9); border-radius: 999px; font-weight: 700; transition: transform .3s cubic-bezier(.3, 1.6, .5, 1), box-shadow .3s; }
+html[data-skin="glass"] :is(.btn-primary, .send-btn) { background: radial-gradient(ellipse 70% 45% at 40% 14%, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0) 70%), var(--sk-btn-bg); border: 1px solid rgba(255, 255, 255, 0.7); box-shadow: 0 10px 24px rgba(70, 70, 220, 0.4), inset 0 -8px 14px rgba(40, 20, 140, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.9); border-radius: 999px; font-weight: 700; transition: transform .3s cubic-bezier(.3, 1.6, .5, 1), box-shadow .3s; }
 html[data-skin="glass"] .send-btn { width: 46px; height: 46px; padding: 0; }
 html[data-skin="glass"] .btn-secondary { background-image: var(--gl-hi); border-radius: 999px; font-weight: 700; box-shadow: var(--sk-shadow); }
 html[data-skin="glass"] .btn-primary.destructive { background: radial-gradient(ellipse 70% 45% at 40% 14%, rgba(255, 255, 255, 0.6), transparent 70%), linear-gradient(150deg, #d92d4a, #b3173a); color: #fff; }
@@ -169,3 +169,6 @@ html[data-skin="glass"][data-scheme="dark"] #composer-menu-sheet .composer-menu-
   html[data-skin="glass"] .theme-seg button { font-size: 0.6875rem; padding-inline: 2px; }
 }
 html[data-skin="glass"][data-scheme="dark"] .btn-secondary { color: #fff; background-color: rgba(18, 22, 74, 0.55); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4); }
+/* V.80: деструктивные пункты на светлом стекле тёмной схемы — больше белого в смеси (было 4.16:1) */
+html[data-skin="glass"][data-scheme="dark"] :is(.sheet-action.destructive, #contact-clear-btn, #contact-delete-btn, .nav-conn-indicator) { color: color-mix(in srgb, var(--danger) 35%, #fff); }
+html[data-skin="glass"][data-scheme="dark"] .edit-banner { color: #d6e5ff; }

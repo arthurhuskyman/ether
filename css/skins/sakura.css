@@ -78,7 +78,7 @@ html[data-skin="sakura"] .unread-badge, html[data-skin="sakura"] .tab-badge { ba
 html[data-skin="sakura"] .voice-play-btn { background: var(--accent-bg); color: var(--on-accent); }
 html[data-skin="sakura"] .bubble-row.mine .voice-play-btn { background: #fff; color: #b02a5e; }
 html[data-skin="sakura"][data-scheme="dark"] .bubble-row.mine .voice-play-btn { background: #2b0f1c; color: #ffb4cf; }
-html[data-skin="sakura"] .bubble-row.mine .bubble-time { color: color-mix(in srgb, var(--bubble-mine-ink) 78%, transparent); }
+html[data-skin="sakura"] .bubble-row.mine .bubble-time { color: var(--bubble-mine-ink); }
 
 /* декор: лепестки (слой #skin-deco) */
 .sk-petal { position: absolute; top: -24px; width: 10px; height: 13px; border-radius: 80% 0 80% 0; background: linear-gradient(135deg, #ffd3e2, #ff9fc0); opacity: .55; animation: skPetal 22s linear infinite; will-change: transform; }

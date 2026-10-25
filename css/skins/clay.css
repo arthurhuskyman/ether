@@ -46,7 +46,7 @@ html[data-skin="clay"][data-scheme="dark"] {
   --sk-shadow-press: 0 2px 4px rgba(0, 0, 0, 0.45), inset 0 4px 9px rgba(0, 0, 0, 0.35);
   --sk-field: #352c42; --sk-field-shadow: inset 0 6px 10px rgba(0, 0, 0, 0.42), inset 0 -4px 6px rgba(255, 255, 255, 0.07);
   --sk-btn-bg: #4fb3a6; --sk-btn-ink: #04201c; --sk-panel-press: #4d405d;
-  --clay-mine-2: #8a5fc0; --clay-mine-2-ink: #ffffff; --clay-theirs-2: #2f6b66; --clay-theirs-2-ink: #ffffff;
+  --clay-mine-2: #7b52b8; --clay-mine-2-ink: #ffffff; --clay-theirs-2: #2f6b66; --clay-theirs-2-ink: #ffffff;
   --clay-dent: rgba(0, 0, 0, 0.32); --clay-gloss: rgba(255, 255, 255, 0.34);
   --sk-bg: radial-gradient(ellipse 70% 50% at 20% 10%, rgba(120, 90, 160, 0.5), transparent 70%), radial-gradient(ellipse 60% 50% at 90% 90%, rgba(70, 140, 130, 0.35), transparent 70%), #2a2233;
 }
@@ -123,6 +123,9 @@ html[data-skin="clay"] .bubble::after { content: ""; position: absolute; inset: 
 /* чередуем «цвета пластилина», чтобы лента была пёстрой */
 html[data-skin="clay"] .bubble-row.mine:nth-of-type(3n+2) .bubble { background-color: var(--clay-mine-2); color: var(--clay-mine-2-ink); }
 html[data-skin="clay"] .bubble-row.theirs:nth-of-type(3n+1) .bubble { background-color: var(--clay-theirs-2); color: var(--clay-theirs-2-ink); }
+/* V.80: время и опросы в разноцветных пузырях берут цвет текста самого пузыря (общий --ink-2 на бирюзовом был 4.1:1) */
+html[data-skin="clay"] .bubble-row.theirs:nth-of-type(3n+1) .bubble :is(.bubble-time, .bubble-edited, .poll-opt-count, .poll-foot) { color: inherit; }
+html[data-skin="clay"][data-scheme="dark"] :is(.poll-opt, .board-card) { background-color: rgba(0, 0, 0, .24); }
 html[data-skin="clay"] .bubble-time { font-weight: 700; }
 html[data-skin="clay"] .bubble-reaction-chip { border-radius: 999px; padding: 3px 9px; background: var(--sk-panel); color: var(--ink-0); box-shadow: 0 3px 5px var(--clay-dent), inset 0 2px 3px rgba(255, 255, 255, .7); }
 html[data-skin="clay"] .bubble-reply { border-radius: 18px; border-inline-start-width: 6px; }
@@ -181,7 +184,7 @@ html[data-skin="clay"] :is(.avatar, .avatar-sm, .avatar-lg, .avatar-xl) { border
 html[data-skin="clay"] .chat-row-wrapper:nth-child(even) .avatar { border-radius: 52% 48% 46% 54% / 46% 54% 50% 50%; }
 html[data-skin="clay"] .chat-row:active .avatar { animation: clay-wobble .6s ease-in-out; }
 @keyframes clay-wobble { 0%, 100% { transform: rotate(0) scale(1); } 25% { transform: rotate(-9deg) scale(1.1, .9); } 55% { transform: rotate(7deg) scale(.95, 1.08); } 80% { transform: rotate(-3deg); } }
-html[data-skin="clay"] .unread-badge, html[data-skin="clay"] .tab-badge { border-radius: 999px; padding: 4px 9px; background-image: linear-gradient(180deg, rgba(255, 255, 255, .35), transparent 55%); box-shadow: 0 3px 5px var(--clay-dent), inset 0 2px 3px rgba(255, 255, 255, .6), inset 0 -3px 4px rgba(0, 0, 0, .2); }
+html[data-skin="clay"] .unread-badge, html[data-skin="clay"] .tab-badge { border-radius: 999px; padding: 4px 9px; background-color: var(--accent-bg); color: var(--on-accent); background-image: linear-gradient(180deg, rgba(255, 255, 255, .08), transparent 55%); box-shadow: 0 3px 5px var(--clay-dent), inset 0 2px 3px rgba(255, 255, 255, .6), inset 0 -3px 4px rgba(0, 0, 0, .2); }
 html[data-skin="clay"] .tab-badge { box-shadow: 0 0 0 2px var(--bg-0), inset 0 2px 3px rgba(255, 255, 255, .6); }
 
 /* шторки, меню «+», тосты */

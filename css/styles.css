@@ -1114,7 +1114,7 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
 /* --- Анимация появления новых сообщений: send/receive --- */
 @keyframes bubble-send-out {
   0%   { transform: scale(1); opacity: 1; }
-  100% { transform: scale(0.96); opacity: 0.88; }
+  100% { transform: scale(0.96); opacity: 1; } /* V.80: было 0.88 и оставалось до перерисовки — белый текст на фоне пузыря падал ниже 4.5:1 */
 }
 @keyframes bubble-receive-in {
   /* filter: blur() раньше был частью этой анимации — дорогой для
@@ -1144,7 +1144,7 @@ html[data-scheme="light"] .bubble-row.theirs .bubble { background: var(--bg-2); 
 .bubble-ttl { font-size: var(--t-meta); opacity: 0.75; margin-inline-end: 2px; }
 .bubble-favorite { color: #ffcc33; display: inline-flex; margin-inline-end: 2px; vertical-align: middle; }
 .bubble-sender { font-size: var(--fs-xs); font-weight: 700; color: var(--accent); margin-bottom: 2px; }
-.bubble-reply { padding: 6px 10px; margin: -2px 0 6px; border-inline-start: 3px solid currentColor; border-radius: 8px; background: rgba(255, 255, 255, 0.08); font-size: var(--fs-xs); opacity: 1; }
+.bubble-reply { padding: 6px 10px; margin: -2px 0 6px; border-inline-start: 3px solid currentColor; border-radius: 8px; background: transparent; font-size: var(--fs-xs); opacity: 1; }
 .bubble-reply-author { font-weight: 600; font-size: 0.6875rem; }
 .bubble-reply-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .bubble-forwarded { font-size: 0.625rem; opacity: 0.75; font-style: italic; margin-bottom: 3px; }
@@ -2489,8 +2489,8 @@ html[data-readable="1"] .chat-row-preview-text, html[data-readable="1"] .setting
 .poll-q .ico, .board-title .ico { margin-top: 2px; }
 .poll-opts { display: flex; flex-direction: column; gap: 6px; }
 .poll-opt { position: relative; display: flex; align-items: center; gap: 8px; width: 100%; text-align: start; padding: 8px 10px; min-height: 40px; border-radius: var(--radius-s, 8px); border: 1px solid color-mix(in srgb, currentColor 22%, transparent); background: transparent; color: inherit; font: inherit; overflow: hidden; cursor: pointer; }
-.poll-opt:disabled { cursor: default; opacity: .85; }
-.poll-opt-bar { position: absolute; inset-block: 0; inset-inline-start: 0; background: color-mix(in srgb, var(--accent) 24%, transparent); transition: width var(--motion-base, 200ms) ease; z-index: 0; }
+.poll-opt:disabled { cursor: default; opacity: 1; }
+.poll-opt-bar { position: absolute; inset-block: 0; inset-inline-start: 0; background: color-mix(in srgb, currentColor 14%, transparent); transition: width var(--motion-base, 200ms) ease; z-index: 0; }
 .poll-opt > :not(.poll-opt-bar) { position: relative; z-index: 1; }
 .poll-opt.is-mine { border-color: var(--accent); }
 .poll-opt-mark { width: 16px; display: inline-flex; color: var(--accent); }
