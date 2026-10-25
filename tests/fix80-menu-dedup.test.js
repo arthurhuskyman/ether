@@ -84,7 +84,7 @@ test("повторные отрисовки не размножают встав
   a.close();
 });
 
-test("группа: у участника одно действие «удалить» (✕ скрыт, когда есть «Удалить» с причиной)", async () => {
+test("группа: у участника остаётся быстрый ✕ (по просьбе владельца) и «Удалить» с причиной в «Дополнительно»", async () => {
   const a = await booted(), d = a.document;
   const gid = a.run(`(function(){ const g = createGroup("Team", ["alice","bob"]); return g && (g.id || g); })()`);
   a.run(`openGroupInfo(${JSON.stringify(gid)})`);
@@ -92,6 +92,6 @@ test("группа: у участника одно действие «удали
   const advKicks = Array.from(d.querySelectorAll("#group-admin-panel button")).filter((b) => b.textContent === kick).length;
   const xBtns = Array.from(d.querySelectorAll("#group-info-members button")).filter((b) => b.getAttribute("aria-label") === rm).length;
   assert.equal(advKicks, 2);
-  assert.equal(xBtns, 0, "дублирующих ✕ нет");
+  assert.equal(xBtns, 2, "✕ у каждого участника (быстрое удаление)");
   a.close();
 });
