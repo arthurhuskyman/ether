@@ -533,7 +533,79 @@ async function gcallAcquire(withVideo) {
     return false;
   }
   GC.video = !!(GC.stream && GC.stream.getVideoTracks().length);
+  try { GC.stream.getAudioTracks().forEach(gcallWatchMic); } catch (e) {}
   return true;
+}
+
+// ---------- устойчивость звука (iOS/Android отбирают микрофон и ставят <video> на паузу) ----------
+// Микрофон: ОС может заглушить трек (mute) или убить его (ended) — раньше участники просто переставали слышать нас до конца звонка.
+function gcallWatchMic(track) {
+  if (!track || track.__gcWatched || typeof track.addEventListener !== "function") return;
+  track.__gcWatched = true;
+  track.addEventListener("mute", () => { if (GC.gid) GC.micSuspended = true; });
+  track.addEventListener("unmute", () => { GC.micSuspended = false; });
+  track.addEventListener("ended", () => { if (GC.gid && GC.stream && !GC.leaving) { GC.micSuspended = true; gcallEnsureMic("ended"); } });
+}
+// Проверка/починка исходящего звука: трек жив и не заглушён -> всё хорошо; иначе берём микрофон заново и подставляем во все линки (replaceTrack).
+async function gcallEnsureMic(reason, force) {
+  if (!GC.gid || !GC.stream) return false;
+  const old = GC.stream.getAudioTracks()[0];
+  const dead = !old || old.readyState === "ended";
+  if (!dead && !force && !old.muted) { old.enabled = !GC.muted; GC.micSuspended = false; return true; }
+  if (typeof document !== "undefined" && document.hidden) return false; // в фоне getUserMedia не даст трек — повторим при возврате
+  if (GC.micP) return GC.micP;
+  const gid = GC.gid;
+  const p = (async () => {
+    try {
+      let ns;
+      try { ns = await navigator.mediaDevices.getUserMedia({ audio: typeof AUDIO_CAPTURE !== "undefined" ? AUDIO_CAPTURE : true }); }
+      catch (e) { ns = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+      const nt = ns.getAudioTracks()[0];
+      if (!nt) return false;
+      if (GC.gid !== gid || !GC.stream) { try { ns.getTracks().forEach((t) => t.stop()); } catch (e) {} return false; }
+      nt.enabled = !GC.muted;
+      const oldId = old && old.id;
+      if (old) { try { old.stop(); } catch (e) {} try { GC.stream.removeTrack(old); } catch (e) {} }
+      GC.stream.addTrack(nt);
+      gcallWatchMic(nt);
+      for (const id of GC.peers.keys()) {
+        const l = mesh && mesh.get(id);
+        if (!l) continue;
+        let done = false;
+        if (oldId && l.replaceGroupTrack) { try { done = await l.replaceGroupTrack(oldId, nt, GC.stream); } catch (e) { done = false; } }
+        if (!done && l.addGroupTracks) l.addGroupTracks(GC.stream);
+      }
+      GC.micSuspended = false;
+      return true;
+    } catch (e) { return false; }
+  })();
+  GC.micP = p;
+  const clear = () => { if (GC.micP === p) GC.micP = null; };
+  p.then(clear, clear);
+  return p;
+}
+// Звук собеседников: <video> мог встать на паузу (прерывание, автоплей) — запускаем снова; AudioContext и маршрут iOS возвращаем.
+function gcallResumeAudio(reason) {
+  if (!GC.gid) return;
+  try { if (navigator.audioSession && navigator.audioSession.type !== "play-and-record") navigator.audioSession.type = "play-and-record"; } catch (e) {}
+  try { const c = typeof ensureGlobalAudioCtx === "function" ? ensureGlobalAudioCtx() : null; if (c && c.state !== "running") c.resume().catch(() => {}); } catch (e) {}
+  const scr = typeof document !== "undefined" && document.getElementById("gcall-screen");
+  const vids = scr ? scr.querySelectorAll("video") : [];
+  for (const v of vids) {
+    if (v.muted && v.srcObject === GC.stream) continue; // свой собственный предпросмотр
+    if (v.srcObject && v.paused) { try { const pr = v.play(); if (pr && pr.catch) pr.catch(() => gcallRetryOnGesture()); } catch (e) {} }
+  }
+  if (!document.hidden) setTimeout(() => { if (GC.gid) gcallEnsureMic(reason); }, reason === "foreground" ? 1200 : 0);
+}
+function gcallRetryOnGesture() {
+  if (GC.gestureRetry) return;
+  GC.gestureRetry = true;
+  const go = () => {
+    GC.gestureRetry = false;
+    ["touchstart", "pointerdown", "click", "keydown"].forEach((ev) => document.removeEventListener(ev, go, true));
+    gcallResumeAudio("gesture");
+  };
+  ["touchstart", "pointerdown", "click", "keydown"].forEach((ev) => document.addEventListener(ev, go, true));
 }
 
 async function startGroupCall(gid, withVideo) {
@@ -570,7 +642,8 @@ async function joinGroupCall(gid) {
 function gcallEnter(gid) {
   if (GC.timer) { clearInterval(GC.timer); GC.timer = null; }
   GC.gid = gid; GC.peers = new Map(); GC.sentJoin = new Set(); GC.joined = new Set(); GC.muted = false;
-  GC.startedAt = Date.now(); GC.everConnected = false;
+  GC.startedAt = Date.now(); GC.everConnected = false; GC.leaving = false; GC.micSuspended = false;
+  try { if (navigator.audioSession) navigator.audioSession.type = "play-and-record"; } catch (e) {}
   gcallRenderScreen();
   GC.timer = setInterval(gcallTick, 1000);
   try { requestWakeLock(); } catch (e) {}
@@ -687,6 +760,12 @@ function gcallWire() {
   GC.wired = true;
   mesh.addEventListener("remote-track", gcallOnRemoteTrack);
   mesh.addEventListener("link-status", gcallOnLinkStatus);
+  try {
+    const back = () => { if (!document.hidden) gcallResumeAudio("foreground"); };
+    document.addEventListener("visibilitychange", back);
+    window.addEventListener("pageshow", back);
+    window.addEventListener("focus", back);
+  } catch (e) {}
 }
 
 // ---------- управление ----------
@@ -728,12 +807,14 @@ function leaveGroupCall(opts) {
   const g = gcallGroup(gid);
   const dur = Date.now() - GC.startedAt;
   const hadPeers = GC.everConnected;
+  GC.leaving = true;
   gcallBroadcast({ t: "leave" });
   for (const id of GC.peers.keys()) { const l = mesh && mesh.get(id); if (l && l.stopQuality) { try { l.stopQuality(); l._videoBudget = null; } catch (e) {} } if (l && l.removeGroupTracks) l.removeGroupTracks(); }
   if (GC.stream) { try { GC.stream.getTracks().forEach((t) => { try { t.stop(); } catch (e) {} }); } catch (e) {} }
   clearInterval(GC.timer); GC.timer = null;
   GC.gid = null; GC.stream = null; GC.peers = new Map(); GC.sentJoin = new Set(); GC.joined = new Set(); GC.video = false; GC.muted = false;
   try { releaseWakeLock(); } catch (e) {}
+  try { if (navigator.audioSession) navigator.audioSession.type = "auto"; } catch (e) {}
   gcallRenderScreen();
   if (g && hadPeers && !(opts && opts.silent)) {
     g.messages.push({ id: crypto.randomUUID(), from: "system", text: T("gcall.systemEnded", { duration: formatDuration(dur) }), textKey: "gcall.systemEnded", textParams: { duration: formatDuration(dur) }, ts: Date.now() });
@@ -819,7 +900,8 @@ function gcallRenderScreen() {
     const v = el.querySelector("video");
     v.classList.toggle("novid", !hasVideo);
     const want = local ? GC.stream : (p && p.stream);
-    if (want && v.srcObject !== want) { v.srcObject = want; try { v.play && v.play().catch(() => {}); } catch (e) {} }
+    if (want && v.srcObject !== want) { v.srcObject = want; try { v.play && v.play().catch(() => { if (!local) gcallRetryOnGesture(); }); } catch (e) {} }
+    if (!v.__gcPause) { v.__gcPause = true; v.addEventListener("pause", () => { setTimeout(() => { if (GC.gid && v.isConnected && v.paused && v.srcObject && !(v.muted && v.srcObject === GC.stream)) { try { const pr = v.play(); if (pr && pr.catch) pr.catch(() => {}); } catch (e) {} } }, 200); }); }
     // аудио удалённых участников играет через <video> даже когда картинка скрыта
     v.muted = local; // свой звук не воспроизводим (эхо); чужой играет через <video> даже при скрытой картинке
     el.querySelector(".gcall-name").innerHTML = escapeHtml(name) + (muted ? ' <span class="gcall-muted" aria-hidden="true">🔇</span>' : "");

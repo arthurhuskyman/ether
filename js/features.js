@@ -742,7 +742,14 @@ function fxDecorateContactCard() {
     // На карточке контакта — ОБЩАЯ руна пары (из двух ключей, порядок не важен): у вас и у собеседника она одинаковая.
     // Раньше тут была руна ключа самого контакта: у каждого из двоих на карточке своя (чужая) руна — «они разные».
     const pk0 = c.publicKey && Store.myPublicKeyJwk ? fxPairKeyString(fxMyKeyString(), fxKeyString(c)) : fxKeyString(c);
-    sg.innerHTML = sigilSvg(pk0, 44); sg.title = T(c.publicKey ? "sigil.pair.hint" : "fx.sigil.hint");
+    // Та же руна, что в открывшемся листе (длинная, из SHA-256 пары), а не короткая 5×5: иначе «в списке и внутри разные».
+    if (c.publicKey && Store.myPublicKeyJwk) {
+      if (sg.getAttribute("data-pk") !== pk0) {
+        sg.setAttribute("data-pk", pk0); sg.removeAttribute("data-hex"); sg.innerHTML = sigilSvg(pk0, 44);
+        fxSigilPairHex(pk0).then((hex) => { if (sg.getAttribute("data-pk") === pk0) { sg.setAttribute("data-hex", hex); sg.innerHTML = sigilLongSvg(hex, 44); } }).catch(() => {});
+      }
+    } else { sg.removeAttribute("data-pk"); sg.innerHTML = sigilSvg(pk0, 44); }
+    sg.title = T(c.publicKey ? "sigil.pair.hint" : "fx.sigil.hint");
     sg.setAttribute("role", "button"); sg.tabIndex = 0;
     sg.onclick = () => { const cc = state.contactCardId ? state.contacts.get(state.contactCardId) : null; if (cc) fxOpenSigilSheet({ title: cc.name || "", keyStr: fxKeyString(cc), name: cc.name || "", noKey: !cc.publicKey, contactId: cc.id, myKey: fxMyKeyString(), theirKey: fxKeyString(cc) }); };
   } else if (sg) sg.remove();
