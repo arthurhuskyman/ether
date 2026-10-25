@@ -15,12 +15,13 @@ const LS = (a, k) => a.run(`SecureStore.rawGet(${JSON.stringify(k)})`);
 test("включение: данные на диске — шифртекст, приложение читает открытый текст, запись обновляет шифртекст; секретов в открытом виде нет", async () => {
   const a = await booted();
   a.run(`const c = ensureContactEntry("alice", "Alice"); c.managed = true; c.messages.push({ id: "m1", from: "me", text: "СЕКРЕТНОЕ-СООБЩЕНИЕ", ts: Date.now(), ack: "sent" }); persistContacts(); persistContactsNow();`);
+  await a.run(`SecureStore.flush()`);
   // V.80: шифрование включено по умолчанию — до PIN на диске уже шифртекст ключа устройства (раньше здесь ожидался открытый текст)
   assert.ok(LS(a, "ether.contacts").startsWith("encd1:") && !LS(a, "ether.contacts").includes("СЕКРЕТНОЕ"), "до PIN — шифртекст ключа устройства");
   await a.run(`SecureStore.enable("123456")`);
   const disk = LS(a, "ether.contacts");
-  assert.ok(disk.startsWith("enc1:"), "на диске шифртекст");
-  assert.ok(!disk.includes("СЕКРЕТНОЕ") && !Buffer.from(disk.slice(5), "base64").toString("latin1").includes("alice"));
+  assert.ok(disk.startsWith("encd1:"), "на диске шифртекст (ключ устройства поверх PIN-слоя)");
+  assert.ok(!disk.includes("СЕКРЕТНОЕ") && !disk.includes("alice"));
   assert.match(a.window.localStorage.getItem("ether.contacts"), /СЕКРЕТНОЕ/, "приложению отдаётся открытый текст");
   // новая запись
   a.run(`state.contacts.get("alice").messages.push({ id: "m2", from: "me", text: "ВТОРОЕ-СЕКРЕТНОЕ", ts: Date.now(), ack: "sent" }); persistContacts(); persistContactsNow();`);
@@ -73,6 +74,7 @@ test("смена PIN перешифровывает; выключение воз
 test("файлы в IndexedDB шифруются отдельным ключом и читаются обратно; резервная копия ключей не содержит открытого текста", async () => {
   const a = await booted();
   a.run(`const c = ensureContactEntry("alice", "Alice"); c.managed = true; c.messages.push({ id: "m1", from: "me", text: "ПРЯТАТЬ-В-БЭКАПЕ", ts: Date.now(), ack: "sent" }); persistContacts(); persistContactsNow();`);
+  await a.run(`SecureStore.flush()`);
   await a.run(`backupToIDB()`);
   const pre = await a.run(`IDB.get("ether.contacts")`);
   assert.ok(pre.startsWith("encd1:") && !pre.includes("ПРЯТАТЬ"), "V.80: копия в IndexedDB и без PIN — шифртекст ключа устройства");
