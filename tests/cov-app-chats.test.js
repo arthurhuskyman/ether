@@ -132,7 +132,8 @@ test("инфо о группе: админ и участник, роли, уда
   assert.ok(!a.run(`isGroupAdmin(state.contacts.get("g1"), "u1")`));
   // удалить участника
   a.run(`window.confirmSheet = async () => true;`);
-  a.document.querySelector('#group-info-members button[aria-label]').click(); await sleep(30);
+  // V.80 (fix80-menu-dedup): две кнопки «удалить» в строке участника сведены в одну — «Удалить» (с причиной) в «Дополнительно»; ✕ остаётся, только если её нет.
+  (a.document.querySelector('#group-admin-panel button[aria-label^="' + a.run(`T("group.kick")`) + '"]') || a.document.querySelector('#group-info-members button[aria-label]')).click(); await sleep(30);
   const sentKinds = J(a.window.__sent || []).map((x) => x[1]);
   // режим «пишут только админы»
   a.run(`setGroupWriteRestricted("g1", true);`); assert.equal(a.run(`state.contacts.get("g1").writeRestricted`), true); assert.equal(a.run(`isGroupWriteAllowed(state.contacts.get("g1"), "u2")`), false);

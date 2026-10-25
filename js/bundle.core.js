@@ -5103,6 +5103,19 @@ async startCall(withVideo) {
     }
     return true;
   }
+  // Подмена трека (микрофон взят заново) на месте: без пересогласования, собеседники продолжают слышать.
+  async replaceGroupTrack(oldId, newTrack, stream) {
+    if (this._closed || !this._gSenders || !newTrack) return false;
+    const sender = this._gSenders.get(oldId);
+    if (!sender) return false;
+    try {
+      await sender.replaceTrack(newTrack);
+      try { sender.setStreams(stream); } catch (e) {}
+      this._gSenders.delete(oldId);
+      this._gSenders.set(newTrack.id, sender);
+      return true;
+    } catch (e) { this._log("warn", "[webrtc] replaceGroupTrack:", String(e)); return false; }
+  }
   removeGroupTracks(kind) {
     if (!this._gSenders) return;
     for (const [tid, sender] of Array.from(this._gSenders)) {

@@ -16,7 +16,7 @@ const css = fs.readFileSync(path.join(__dirname, "..", "css", "styles.css"), "ut
 test("меню «+»: порядок плашек, сетка 2 колонки, «Недавнее» скрыто без файлов и показано с файлом", async () => {
   const a = await booted();
   const ids = Array.from(a.document.querySelectorAll("#composer-menu-sheet .composer-menu-item:not(.composer-recent):not(#composer-menu-more)")).map((b) => b.id);
-  assert.deepEqual(ids, ["chat-emoji-btn", "chat-camera-btn", "chat-attach-btn", "chat-poll-btn", "chat-board-btn", "chat-note-btn", "chat-summary-btn", "chat-sticker-btn"]);
+  assert.deepEqual(ids, ["chat-emoji-btn", "chat-camera-btn", "chat-attach-btn", "chat-poll-btn", "chat-board-btn", "chat-note-btn", "chat-sticker-btn"]);
   assert.match(css, /composer-menu-actions \{ display: grid; grid-template-columns: repeat\(2/);
   a.run(`{ const c = ensureContactEntry("alice", "Alice"); c.managed = true; state.chatId = "alice"; renderTab(); setComposerFan(true); }`);
   assert.ok(a.document.querySelector("#composer-recent").classList.contains("hidden"));
@@ -48,7 +48,7 @@ test("меню шапки чата и контекстное меню строк
   assert.ok(a.document.querySelector("#chat-more-btn").getAttribute("aria-label") || a.document.querySelector("#chat-more-btn").dataset.i18nAria);
   a.document.querySelector("#chat-more-btn").click();
   const items = Array.from(a.document.querySelectorAll("#anchored-menu .amenu-item")); // V.79: единое якорное меню
-  assert.equal(items.length, 8, "в полном режиме все 8 пунктов сразу, без «Ещё»");
+  assert.equal(items.length, 5, "в полном режиме все 5 пунктов сразу, без «Ещё» (V.80: убраны дубли Поиск/Закреплённое/Экспорт)");
   assert.ok(items[items.length - 1].classList.contains("destructive"), "очистка внизу красным");
   a.run(`closeAnchoredMenu(); state.chatId = null; state.tab = "chats"; renderTab(); renderChatsList(); openChatRowMenu(state.contacts.get("alice"));`);
   assert.equal(a.document.querySelectorAll("#anchored-menu .amenu-item").length, 5);

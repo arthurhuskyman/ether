@@ -337,7 +337,7 @@
             </svg>
           </div>
           <p class="muted fine" data-i18n="connect.empty">No contacts yet.</p>
-          <div class="first-run-actions"><button type="button" id="contacts-empty-scan" class="btn-secondary" data-i18n="connect.qr.scan">Scan QR</button><button type="button" id="contacts-empty-invite" class="btn-secondary" data-i18n="contacts.empty.add">Add by ID</button></div>
+          <!-- V.80: кнопки «Scan QR»/«Add by ID» убраны — дублировали «Сканировать QR» и форму добавления на этом же экране. -->
         </div>
         <button type="button" id="new-group-btn" class="btn-secondary" data-i18n="group.new">New group</button>
       </div>
@@ -436,8 +436,11 @@
       <div data-settings-adv class="settings-group flat-content" data-settings-category="privacy">
         <div class="settings-row column">
           <span><span data-i18n="settings.server">Connection server</span> <span id="signaling-status-dot" class="status-dot"></span></span>
-          <input id="settings-signaling-url" type="text" data-i18n-ph="settings.signalingUrl.placeholder" placeholder="Leave empty to use the default server" />
-          <button type="button" id="save-signaling-btn" class="btn-secondary settings-btn-full" data-i18n="settings.save">Save and connect</button>
+          <!-- V.80: список серверов («Серверы») заменил одиночное поле; поле показывается только если в нём остался старый адрес (см. refreshLegacyServerField). -->
+          <div id="settings-legacy-server" class="hidden">
+            <input id="settings-signaling-url" type="text" data-i18n-ph="settings.signalingUrl.placeholder" placeholder="Leave empty to use the default server" />
+            <button type="button" id="save-signaling-btn" class="btn-secondary settings-btn-full" data-i18n="settings.save">Save and connect</button>
+          </div>
           <span id="signaling-status-text" class="fine muted"></span>
         </div>
         <button type="button" id="servers-open-btn" class="settings-row link-row" aria-haspopup="dialog"><span data-i18n="servers.open">Servers</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
@@ -631,14 +634,8 @@
         <button type="button" id="devicecheck-btn" class="settings-row link-row"><span data-i18n="devicecheck.title">Device check</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
         <button type="button" id="report-problem-btn" class="settings-row link-row"><span>Report a problem</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
       </div>
-      <div class="settings-group flat-content">
-        <button type="button" id="export-backup-btn" class="settings-row link-row"><span data-i18n="debug.exportData">Export all data</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
-        <p class="fine muted" style="margin:-8px 0 10px;" data-i18n="debug.exportDataNote">Includes contacts, messages and settings. Photos, videos and voice messages sent or received are stored only on this device and are not included.</p>
-        <button type="button" id="import-backup-btn" class="settings-row link-row"><span data-i18n="debug.importData">Import data from file</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
-      </div>
-      <div class="settings-group flat-content">
+            <div class="settings-group flat-content">
         <button type="button" id="reset-all-btn" class="settings-row destructive" data-i18n="debug.dropConnections">Drop all connections</button>
-        <button type="button" id="debug-hard-reset-btn" class="settings-row destructive" data-i18n="debug.fullReset">Full app reset</button>
       </div>
       <div class="settings-group flat-content">
         <div class="settings-row column">
@@ -936,7 +933,6 @@
       <button type="button" id="chat-poll-btn" class="sheet-action composer-menu-item"><svg data-icon="poll" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg><span data-i18n="chat.menu.poll">Poll</span></button>
       <button type="button" id="chat-board-btn" data-menu-more class="sheet-action composer-menu-item"><svg data-icon="board" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg><span data-i18n="chat.menu.board">Board</span></button>
       <button type="button" id="chat-note-btn" data-menu-more class="sheet-action composer-menu-item"><svg data-icon="edit" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg><span data-i18n="chat.menu.note">Shared note</span></button>
-      <button type="button" id="chat-summary-btn" data-menu-more class="sheet-action composer-menu-item"><svg data-icon="sparkle" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg><span data-i18n="summary.menu">Chat summary</span></button>
       <button type="button" id="chat-sticker-btn" class="sheet-action composer-menu-item"><svg data-icon="image" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg><span data-i18n="sticker.menu">Stickers</span></button>
       <button type="button" id="composer-menu-more" class="sheet-action composer-menu-item composer-menu-more" aria-expanded="false"><svg data-icon="chevron-down" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"></svg><span data-i18n="menu.more">More</span></button>
     </div>

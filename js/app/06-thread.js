@@ -813,14 +813,12 @@ function attachChatRowContext(row, c) {
 }
 function openChatHeaderMenu() {
   const id = state.chatId, c = id && state.contacts.get(id); if (!c) return;
+  // V.80: убраны дубли — «Поиск» (значок в шапке), «Закреплённое» (баннер над перепиской), «Экспорт» (карточка контакта).
   const items = [
-    { label: T("chat.search"), icon: "search", fn: () => { const b = $("#chat-search-btn"); if (b) b.click(); } },
     { label: T("chat.contact.gallery"), icon: "image", fn: () => openContactCard(id) },
-    { label: T("chat.pinned"), icon: "pin", rare: true, fn: () => { if (!c.pinnedMessageId) { toast(T("chat.pinned.none")); return; } const j = $("#pinned-msg-jump"); if (j) j.click(); } },
     { label: isContactMuted(c) ? T("chats.action.unmute") : T("chat.contact.mute"), icon: "bell", fn: () => toggleChatMute(c, () => { try { renderChatThreadInner(); } catch (e) {} }) },
     { label: T("chat.disappearing"), icon: "clock", rare: true, fn: () => openActionSheet(T("chat.disappearing"), [["chat.disappearing.off", 0], ["chat.disappearing.1h", 3600000], ["chat.disappearing.1d", 86400000], ["chat.disappearing.1w", 604800000]].map(([k, ms]) => ({ label: ((c.disappearingTimer || 0) === ms ? "✓ " : "") + T(k), icon: "clock", fn: () => setDisappearingTimer(id, ms) }))) },
     { label: T("summary.menu"), icon: "sparkle", rare: true, fn: () => { if (typeof openChatSummary === "function") openChatSummary(id); } },
-    { label: T("chat.contact.export"), icon: "download", rare: true, fn: () => exportChat(id) },
     { label: T("chat.contact.clear"), icon: "trash", danger: true, fn: async () => {
       if (!await confirmSheet(T("toast.confirmDeleteChat", { name: c.name }), { destructive: true })) return;
       cleanupExpiredFileBlobs(c.messages); c.messages = []; c.lastActivity = Date.now(); persistContacts();

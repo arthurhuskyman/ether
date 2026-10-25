@@ -358,7 +358,8 @@ function wireChatSummary() {
     sh.classList.remove("hidden");
     sh.addEventListener("click", () => { try { const b = document.getElementById("summary-body"); Promise.resolve(navigator.share({ title: T("summary.shareTitle"), text: b.innerText || b.textContent })).catch(() => {}); } catch (e) {} });
   }
-  for (const id of ["chat-summary-btn", "contact-summary-btn"]) {
+  for (const id of ["contact-summary-btn"]) // V.80: из меню «+» убрано (есть в меню «⋯» и карточке)
+   {
     const btn = document.getElementById(id);
     if (btn) btn.addEventListener("click", () => { try { collapseComposerPlus(); } catch (e) {} const cid = state.chatId || state.contactCardId; if (cid) openChatSummary(cid); });
   }

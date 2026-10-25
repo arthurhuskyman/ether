@@ -1599,7 +1599,7 @@ function wireComposerPlusMode() {
     if (id && state.chatId) jumpToMessageInChat(state.chatId, id); // прокрутка + подсветка (highlight-origin)
   });
   // Выбор любого из трёх действий закрывает меню (capture — раньше, чем сработают обработчики самих кнопок)
-  for (const id of ["#chat-attach-btn", "#chat-emoji-btn", "#chat-camera-btn", "#chat-poll-btn", "#chat-board-btn", "#chat-note-btn", "#chat-summary-btn"]) {
+  for (const id of ["#chat-attach-btn", "#chat-emoji-btn", "#chat-camera-btn", "#chat-poll-btn", "#chat-board-btn", "#chat-note-btn"]) {
     const btn = $(id);
     if (btn) btn.addEventListener("click", collapseComposerPlus, { capture: true });
   }

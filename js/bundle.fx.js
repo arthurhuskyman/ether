@@ -99,9 +99,9 @@ function sigilSvg(str, size) {
   }
   const s = size || 48;
   return `<svg class="fx-sigil-svg" viewBox="0 0 48 48" width="${s}" height="${s}" role="img" aria-label="sigil">`
-    + `<defs><linearGradient id="sg${hue}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(${hue} 85% 65%)"/><stop offset="1" stop-color="hsl(${hue2} 85% 60%)"/></linearGradient></defs>`
-    + `<circle cx="24" cy="24" r="22.5" fill="none" stroke="url(#sg${hue})" stroke-width="1.5"/>`
-    + `<g fill="url(#sg${hue})">${cells}</g></svg>`;
+    + `<defs><linearGradient id="sg${hue}-${hue2}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(${hue} 85% 65%)"/><stop offset="1" stop-color="hsl(${hue2} 85% 60%)"/></linearGradient></defs>`
+    + `<circle cx="24" cy="24" r="22.5" fill="none" stroke="url(#sg${hue}-${hue2})" stroke-width="1.5"/>`
+    + `<g fill="url(#sg${hue}-${hue2})">${cells}</g></svg>`;
 }
 
 // «Длинная руна»: 8×8 клеток, зеркальная симметрия (4 колонки × 8 рядов = 32 клетки), у каждой клетки 4 состояния (пусто / цвет 1-3):
@@ -741,10 +741,9 @@ function fxDecorateContactCard() {
   let sg = document.getElementById("fx-sigil");
   if (FX.get("sigil") && prof) {
     if (!sg) { sg = document.createElement("div"); sg.id = "fx-sigil"; sg.className = "fx-sigil"; const nameEl = document.getElementById("contact-name"); if (nameEl) nameEl.insertAdjacentElement("afterend", sg); }
-    // На карточке контакта — ОБЩАЯ руна пары (из двух ключей, порядок не важен): у вас и у собеседника она одинаковая.
-    // Раньше тут была руна ключа самого контакта: у каждого из двоих на карточке своя (чужая) руна — «они разные».
-    const pk0 = c.publicKey && Store.myPublicKeyJwk ? fxPairKeyString(fxMyKeyString(), fxKeyString(c)) : fxKeyString(c);
-    sg.innerHTML = sigilSvg(pk0, 44); sg.title = T(c.publicKey ? "sigil.pair.hint" : "fx.sigil.hint");
+    // На карточке — ЛИЧНАЯ руна контакта (из его ключа): та же, что «Их руна» в листе проверки. Общая руна пары — в листе по нажатию.
+    sg.innerHTML = sigilSvg(fxKeyString(c), 44);
+    sg.title = T(c.publicKey ? "sigil.pair.hint" : "fx.sigil.hint");
     sg.setAttribute("role", "button"); sg.tabIndex = 0;
     sg.onclick = () => { const cc = state.contactCardId ? state.contacts.get(state.contactCardId) : null; if (cc) fxOpenSigilSheet({ title: cc.name || "", keyStr: fxKeyString(cc), name: cc.name || "", noKey: !cc.publicKey, contactId: cc.id, myKey: fxMyKeyString(), theirKey: fxKeyString(cc) }); };
   } else if (sg) sg.remove();

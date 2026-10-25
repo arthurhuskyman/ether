@@ -1148,7 +1148,17 @@ function avatarGradient(name) {
   const hue2 = (hue + 40) % 360;
   const sat = 65 + (h % 15);
   const lt = light ? 52 : 42;
-  const grad = `linear-gradient(150deg, hsl(${hue}, ${sat}%, ${lt + 8}%), hsl(${hue2}, ${sat}%, ${lt - 6}%))`;
+  // V.80: белые инициалы должны читаться (WCAG 4.5:1) на любом оттенке — жёлто-зелёные тона при той же светлоте заметно ярче синих, их затемняем
+  const fit = (hh, l) => {
+    const q = sat / 100;
+    for (; l > 10; l -= 2) {
+      const f = (n) => { const k = (n + hh / 30) % 12, a = q * Math.min(l / 100, 1 - l / 100); return l / 100 - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)); };
+      const c = (v) => (v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+      if (1.05 / (0.2126 * c(f(0)) + 0.7152 * c(f(8)) + 0.0722 * c(f(4)) + 0.05) >= 4.6) break;
+    }
+    return l;
+  };
+  const grad = `linear-gradient(150deg, hsl(${hue}, ${sat}%, ${fit(hue, lt + 8)}%), hsl(${hue2}, ${sat}%, ${fit(hue2, lt - 6)}%))`;
   // Защита от неограниченного роста — на практике число разных имён в
   // одном клиенте мало (контакты + участники групп), но на всякий
   // случай не копим бесконечно (например, если имя меняется часто).
@@ -1259,7 +1269,9 @@ function openGroupInfo(groupId) {
       row.className = "forward-row";
       const isMe = m.id === Store.myId;
       const memberIsAdmin = isGroupAdmin(g, m.id);
-      const canRemove = myIsAdmin && !isMe;
+      // V.80: если в «Дополнительно» есть «Удалить» (с причиной) — второй кнопки удаления в строке не показываем.
+      let advKick = false; try { advKick = !isMe && typeof GroupAdmin !== "undefined" && !g.isChannel && GroupAdmin.rank(g, Store.myId) >= 1 && GroupAdmin.can(g, Store.myId, { op: "kick", target: m.id }); } catch (e) {}
+      const canRemove = myIsAdmin && !isMe && !advKick;
       const roleBadge = memberIsAdmin ? `<span class="group-role-badge">${escapeHtml(T("group.admin"))}</span>` : "";
       row.innerHTML = `<div class="avatar avatar-sm" style="background:${avatarGradient(m.name)}">${escapeHtml(initials(m.name))}</div><span class="forward-name">${escapeHtml(m.name)}${isMe ? " " + escapeHtml(T("group.you")) : ""}</span>${roleBadge}`;
       if (myIsAdmin && !isMe && g.createdBy !== m.id) {

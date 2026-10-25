@@ -59,7 +59,7 @@ test("«+» композера: в simple 5 плиток + «Ещё», «Ещё�
   assert.ok(!sheet.classList.contains("hidden"));
   const more = a.document.querySelector("#composer-menu-more");
   assert.ok(more, "кнопка «Ещё»");
-  for (const id of ["chat-board-btn", "chat-note-btn", "chat-summary-btn"]) assert.ok(a.document.getElementById(id).hasAttribute("data-menu-more"), id + " уходит под «Ещё»");
+  for (const id of ["chat-board-btn", "chat-note-btn"]) assert.ok(a.document.getElementById(id).hasAttribute("data-menu-more"), id + " уходит под «Ещё»");
   for (const id of ["chat-emoji-btn", "chat-camera-btn", "chat-attach-btn", "chat-poll-btn", "chat-sticker-btn"]) assert.ok(!a.document.getElementById(id).hasAttribute("data-menu-more"), id + " основной");
   more.click();
   assert.ok(sheet.classList.contains("menu-expanded"));
@@ -83,7 +83,7 @@ test("якорное меню: «⋯» шапки в simple прячет ред�
   assert.ok(vis().length <= 5, "основных пунктов не больше 4 + «Ещё»: " + vis().join("|"));
   m.querySelector(".amenu-more").click();
   assert.equal(vis().includes("More"), false);
-  assert.ok(vis().length >= 8, "после «Ещё» доступно всё (ничего не удалено)");
+  assert.ok(vis().length >= 5, "после «Ещё» доступно всё оставшееся (V.80: в меню 5 пунктов, дубли убраны)");
   // Tab не выходит за меню
   const items = Array.from(m.querySelectorAll(".amenu-item:not(.hidden)"));
   items[items.length - 1].focus();

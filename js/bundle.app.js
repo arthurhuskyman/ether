@@ -886,7 +886,15 @@ function getSoundEl(src, loop) {
     el.setAttribute("playsinline", "");
     el.setAttribute("x-webkit-airplay", "deny"); el.disableRemotePlayback = true; // не показывать AirPlay/пульт для служебных звуков
     el.addEventListener("ended", clearNowPlaying);
-    el.addEventListener("pause", () => { clearTimeout(el.__npTimer); el.__npTimer = setTimeout(() => { if (el.paused) clearNowPlaying(); }, 300); });
+    el.addEventListener("pause", () => {
+      clearTimeout(el.__npTimer);
+      // Рингтон/гудки поставила на паузу система (прерывание, смена маршрута), а звонок ещё идёт — возобновляем; иначе снимаем «Now Playing».
+      el.__npTimer = setTimeout(() => {
+        if (!el.paused) return;
+        if (((typeof ringWanted !== "undefined" && ringWanted && el === ringtoneAudioEl) || (typeof dialWanted !== "undefined" && dialWanted && el === dialingAudioEl)) && typeof rearmCallSounds === "function") { rearmCallSounds("pause"); return; }
+        clearNowPlaying();
+      }, 300);
+    });
     document.body.appendChild(el);
     soundPool.set(src, el);
     // Уведомления и рингтон должны быть слышны сразу, громко — если ОС
@@ -938,11 +946,13 @@ function unlockSoundPool() {
     let finished = false;
     const finish = (ok) => {
       if (finished) return; finished = true;
+      el.__finishUnlock = null;
       try { el.pause(); } catch (e) {}
       try { el.muted = false; el.volume = 1; el.src = src; el.loop = originalLoop; el.currentTime = 0; } catch (e) {}
       if (ok) el.dataset.unlocked = "1";
       delete el.dataset.unlocking;
     };
+    el.__finishUnlock = finish;
     try {
       el.muted = true;
       el.src = silentWavUri();
@@ -1517,6 +1527,14 @@ function ensureGlobalAudioCtx() {
   if (!globalAudioCtx) {
     try { globalAudioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
     catch (e) { globalAudioCtx = null; }
+    // iOS переводит контекст в "interrupted" (входящий обычный звонок, Siri, фон) и в "suspended"; во время звонка/рингтона
+    // сразу пробуем вернуть его (вне жеста iOS может отказать — тогда сработает следующее касание/возврат в приложение).
+    try {
+      if (globalAudioCtx && globalAudioCtx.addEventListener) globalAudioCtx.addEventListener("statechange", () => {
+        const c = globalAudioCtx;
+        if (c && c.state !== "running" && (ringWanted || dialWanted || (typeof state !== "undefined" && state && state.callId))) { try { c.resume().catch(() => {}); } catch (e) {} }
+      });
+    } catch (e) {}
   }
   return globalAudioCtx;
 }
@@ -1576,7 +1594,7 @@ function initAudioWarmup() {
     if (__warmDone || __warmInProgress) return;
     const ctx = ensureGlobalAudioCtx();
     if (!ctx) return;
-    if (ctx.state === "suspended") {
+    if (ctx.state === "suspended" || ctx.state === "interrupted") {
       // __warmInProgress ставим ДО ctx.resume(): пока промис не
       // разрешится, ctx.state всё ещё "suspended", и без этого флага
       // обработчики одного тапа (touchstart+click+keydown) параллельно
@@ -1627,6 +1645,19 @@ function initAudioWarmup() {
   document.addEventListener("click", warm);
   document.addEventListener("keydown", warm);
   warm();
+  // Постоянный (не снимается) обработчик жестов: warm() выше снимает себя после первого resume, а iOS потом снова
+  // «прерывает» контекст и роняет play() рингтона/гудков. Любое касание возвращает всё это без участия пользователя.
+  if (!initAudioWarmup._kick) {
+    initAudioWarmup._kick = true;
+    const kick = () => { try { kickAudioOnGesture(); } catch (e) {} };
+    ["touchstart", "pointerdown", "click", "keydown"].forEach((ev) => document.addEventListener(ev, kick, { capture: true, passive: true }));
+  }
+}
+function kickAudioOnGesture() {
+  const c = globalAudioCtx;
+  if (c && c.state !== "running" && c.resume) { try { c.resume().catch(() => {}); } catch (e) {} }
+  try { unlockSoundPool(); } catch (e) {} // добирает элементы, которые не удалось разблокировать с первого раза
+  if (ringWanted || dialWanted) rearmCallSounds("gesture");
 }
 
 // =====================================================================
@@ -1634,7 +1665,7 @@ function initAudioWarmup() {
 // =====================================================================
 function ensureAudioCtx() {
   const ctx = ensureGlobalAudioCtx();
-  if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {});
+  if (ctx && ctx.state !== "running" && ctx.resume) { try { ctx.resume().catch(() => {}); } catch (e) {} }
   return ctx;
 }
 // «Тихие часы»: в заданный интервал (может переходить через полночь) сообщения приходят без звука и вибрации; звонки звонят как обычно
@@ -1764,68 +1795,118 @@ function currentRingtoneSrc() {
   return RINGTONES[Store.ringtone] || RINGTONES["ring-classic"];
 }
 
+// «Рингтон нужен» / «гудки дозвона нужны»: пока флаг поднят, звук самовосстанавливается (см. rearmCallSounds).
+let ringWanted = false, dialWanted = false, __callSoundWatch = null;
+function startRingElement() {
+  const el = ringtoneAudioEl = getSoundEl(currentRingtoneSrc(), true);
+  abortSoundUnlock(el);
+  el.loop = true; // finish() разблокировки возвращает исходный loop=false
+  el.muted = false;
+  el.volume = 1;
+  if (el.ended || el.paused) { try { el.currentTime = 0; } catch (e) {} }
+  const p = el.play();
+  if (p && p.catch) p.catch((e) => {
+    etherLog("warn", "[ringtone] play failed:", String(e));
+    // Автоплей заблокирован (iOS: нет жеста / фон): хотя бы Web Audio, если контекст жив; <audio> повторим на жесте/возврате
+    if (ringWanted) { try { startRingOscillators(); } catch (x) {} }
+  });
+}
+function startRingOscillators() {
+  if (ringtoneTimer) return;
+  const ctx = ensureGlobalAudioCtx();
+  if (!ctx || ctx.state !== "running") return;
+  const playTone = (freq, delay, dur, vol) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = freq;
+    gain.gain.value = 0.0001;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    const t = ctx.currentTime + delay;
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(vol, t + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.start(t);
+    osc.stop(t + dur + 0.05);
+  };
+  const ringCycle = () => {
+    playTone(880, 0, 0.18, 0.35);
+    playTone(660, 0.18, 0.18, 0.35);
+    playTone(880, 0.4, 0.18, 0.35);
+    playTone(660, 0.58, 0.18, 0.35);
+  };
+  ringCycle();
+  ringtoneTimer = setInterval(ringCycle, 2000);
+}
+function startDialElement() {
+  const el = dialingAudioEl = getSoundEl(SOUND_FILES.dialing, true);
+  abortSoundUnlock(el);
+  el.loop = true; // finish() разблокировки возвращает исходный loop=false
+  el.muted = false;
+  el.volume = 1;
+  if (el.ended || el.paused) { try { el.currentTime = 0; } catch (e) {} }
+  const p = el.play();
+  if (p && p.catch) p.catch((e) => etherLog("warn", "[dialing] play failed:", String(e)));
+}
+// Если элемент как раз «разблокируется» тихим WAV (первое касание), а звонок пришёл в этот момент, finish() потом затёр бы рингтон
+// (src обратно + pause) — досрочно завершаем разблокировку.
+function abortSoundUnlock(el) {
+  try { if (el && el.dataset && el.dataset.unlocking && el.__finishUnlock) el.__finishUnlock(false); } catch (e) {}
+}
+// Всё, что можно сделать без участия пользователя, чтобы рингтон/гудки звучали: вернуть AudioContext и перезапустить <audio>, если он стоит.
+// Зовётся: возврат в приложение (visibilitychange/pageshow/focus), любой жест, пауза элемента, сторож раз в 1,5 с на переднем плане.
+function rearmCallSounds(reason) {
+  if (!ringWanted && !dialWanted) return false;
+  let acted = false;
+  try { const c = globalAudioCtx; if (c && c.state !== "running" && c.resume) c.resume().catch(() => {}); } catch (e) {}
+  if (!Store.soundsEnabled) return false;
+  try {
+    if (ringWanted && (!ringtoneAudioEl || ringtoneAudioEl.paused || ringtoneAudioEl.ended)) { startRingElement(); acted = true; }
+    if (dialWanted && (!dialingAudioEl || dialingAudioEl.paused || dialingAudioEl.ended)) { startDialElement(); acted = true; }
+  } catch (e) { etherLog("warn", "[callsound] rearm (" + reason + "):", String(e)); }
+  if (acted) etherLog("info", "[callsound] перезапуск (" + reason + ")");
+  return acted;
+}
+function armCallSoundWatch() {
+  if (__callSoundWatch) return;
+  __callSoundWatch = setInterval(() => {
+    if (!ringWanted && !dialWanted) { clearInterval(__callSoundWatch); __callSoundWatch = null; return; }
+    if (document.visibilityState === "hidden") return; // в фоне play() у iOS всё равно откладывается — повторим при возврате
+    rearmCallSounds("watchdog");
+  }, 1500);
+}
+function onCallSoundReturn() { if (document.visibilityState !== "hidden") rearmCallSounds("foreground"); }
+document.addEventListener("visibilitychange", onCallSoundReturn);
+window.addEventListener("pageshow", onCallSoundReturn);
+window.addEventListener("focus", onCallSoundReturn);
+
 function playRingtone() {
   stopRingtone();
+  ringWanted = true;
   // Форсируем resume() аудио-контекста — если пользователь уже
   // взаимодействовал с приложением хотя бы раз за сессию, на iOS
   // контекст в running, и осцилляторный фолбэк ниже сработает. Если
   // ещё не взаимодействовал — просто no-op, ничего не ломает.
   try { ensureAudioCtx(); } catch (e) {}
-  if (!Store.soundsEnabled) { if (navigator.vibrate) { try { navigator.vibrate([400, 200, 400, 200, 400, 1000]); } catch (e) {} } return; }
+  if (!Store.soundsEnabled) { ringWanted = false; if (navigator.vibrate) { try { navigator.vibrate([400, 200, 400, 200, 400, 1000]); } catch (e) {} } return; }
   // Основной путь — HTMLAudioElement (mp3-файл рингтона). Он работает и в
   // foreground, и в background. Явно сбрасываем muted/volume перед play:
   // stopRingtone() мог оставить элемент в промежуточном состоянии, а
   // предыдущий проигрыш мог не завершиться корректно — оба приводили к
   // "второй звонок не сработал".
-  try {
-    ringtoneAudioEl = getSoundEl(currentRingtoneSrc(), true);
-    ringtoneAudioEl.muted = false;
-    ringtoneAudioEl.volume = 1;
-    ringtoneAudioEl.currentTime = 0;
-    const p = ringtoneAudioEl.play();
-    if (p && p.catch) p.catch((e) => etherLog("warn", "[ringtone] play failed:", String(e)));
-  } catch (e) { etherLog("warn", "[ringtone] failed:", String(e)); }
+  try { startRingElement(); } catch (e) { etherLog("warn", "[ringtone] failed:", String(e)); }
+  armCallSoundWatch();
 
   if (navigator.vibrate) {
     try { navigator.vibrate([400, 200, 400, 200, 400, 1000]); } catch (e) {}
   }
-  // Web Audio-дублирование — ТОЛЬКО если ctx реально running. Раньше здесь
-  // было if (ctx) — и в момент, когда ctx был suspended (например,
-  // приложение только что ушло в фон и звонок приходит уже в фоне),
-  // планировались осцилляторы, которые никуда не звучали и накапливались,
-  // а потом "выстреливали" при следующем пользовательском жесте. Плюс
-  // setInterval создавал параллельный таймер, который продолжал работать
-  // и после stopRingtone() — второй звонок накладывался на первый.
-  try {
-    const ctx = ensureGlobalAudioCtx();
-    if (ctx && ctx.state === "running") {
-      const playTone = (freq, delay, dur, vol) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = "sine";
-        osc.frequency.value = freq;
-        gain.gain.value = 0.0001;
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        const t = ctx.currentTime + delay;
-        gain.gain.setValueAtTime(0.0001, t);
-        gain.gain.exponentialRampToValueAtTime(vol, t + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-        osc.start(t);
-        osc.stop(t + dur + 0.05);
-      };
-      const ringCycle = () => {
-        playTone(880, 0, 0.18, 0.35);
-        playTone(660, 0.18, 0.18, 0.35);
-        playTone(880, 0.4, 0.18, 0.35);
-        playTone(660, 0.58, 0.18, 0.35);
-      };
-      ringCycle();
-      ringtoneTimer = setInterval(ringCycle, 2000);
-    }
-  } catch (e) {}
+  // Web Audio-дублирование — ТОЛЬКО если ctx реально running (иначе осцилляторы копились в спящем контексте и «выстреливали»
+  // пачкой при следующем жесте). Единственный таймер ringtoneTimer снимается в stopRingtone().
+  try { startRingOscillators(); } catch (e) {}
 }
 function stopRingtone() {
+  ringWanted = false;
   if (ringtoneTimer) { clearInterval(ringtoneTimer); ringtoneTimer = null; }
   if (ringtoneAudioEl) clearNowPlaying();
   if (ringtoneAudioEl) {
@@ -1839,12 +1920,9 @@ function stopRingtone() {
 function playDialingSound() {
   stopCallSounds();
   if (!Store.soundsEnabled) return;
-  try {
-    dialingAudioEl = getSoundEl(SOUND_FILES.dialing, true);
-    dialingAudioEl.currentTime = 0;
-    const p = dialingAudioEl.play();
-    if (p && p.catch) p.catch(() => {});
-  } catch (e) {}
+  dialWanted = true;
+  try { startDialElement(); } catch (e) {}
+  armCallSoundWatch();
 }
 function playBusySound() {
   stopCallSounds();
@@ -1867,6 +1945,7 @@ function playNoAnswerSound() {
   } catch (e) {}
 }
 function stopCallSounds() {
+  dialWanted = false;
   if (dialingAudioEl) clearNowPlaying();
   if (dialingAudioEl) {
     try { dialingAudioEl.pause(); dialingAudioEl.currentTime = 0; } catch (e) {}
@@ -2407,6 +2486,7 @@ function startApp() {
     const si = $("#settings-identity"); if (si) si.value = Store.myIdentityRaw;
     const sms = $("#settings-my-status"); if (sms) sms.value = Store.myStatus;
     const ss = $("#settings-signaling-url"); if (ss) ss.value = Store.signalingUrl || "";
+    const lsr = $("#settings-legacy-server"); if (lsr) lsr.classList.toggle("hidden", !(Store.signalingUrl || "").trim()); // V.80: старое поле только пока там есть адрес; управление — через «Серверы»
     const sd = $("#settings-discoverable"); if (sd) sd.checked = Store.discoverable;
     const sr = $("#settings-receipts"); if (sr) sr.checked = Store.receiptsEnabled;
     const sls = $("#settings-last-seen"); if (sls) sls.checked = Store.lastSeenVisible;
@@ -4330,7 +4410,17 @@ function avatarGradient(name) {
   const hue2 = (hue + 40) % 360;
   const sat = 65 + (h % 15);
   const lt = light ? 52 : 42;
-  const grad = `linear-gradient(150deg, hsl(${hue}, ${sat}%, ${lt + 8}%), hsl(${hue2}, ${sat}%, ${lt - 6}%))`;
+  // V.80: белые инициалы должны читаться (WCAG 4.5:1) на любом оттенке — жёлто-зелёные тона при той же светлоте заметно ярче синих, их затемняем
+  const fit = (hh, l) => {
+    const q = sat / 100;
+    for (; l > 10; l -= 2) {
+      const f = (n) => { const k = (n + hh / 30) % 12, a = q * Math.min(l / 100, 1 - l / 100); return l / 100 - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)); };
+      const c = (v) => (v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+      if (1.05 / (0.2126 * c(f(0)) + 0.7152 * c(f(8)) + 0.0722 * c(f(4)) + 0.05) >= 4.6) break;
+    }
+    return l;
+  };
+  const grad = `linear-gradient(150deg, hsl(${hue}, ${sat}%, ${fit(hue, lt + 8)}%), hsl(${hue2}, ${sat}%, ${fit(hue2, lt - 6)}%))`;
   // Защита от неограниченного роста — на практике число разных имён в
   // одном клиенте мало (контакты + участники групп), но на всякий
   // случай не копим бесконечно (например, если имя меняется часто).
@@ -4441,7 +4531,9 @@ function openGroupInfo(groupId) {
       row.className = "forward-row";
       const isMe = m.id === Store.myId;
       const memberIsAdmin = isGroupAdmin(g, m.id);
-      const canRemove = myIsAdmin && !isMe;
+      // V.80: если в «Дополнительно» есть «Удалить» (с причиной) — второй кнопки удаления в строке не показываем.
+      let advKick = false; try { advKick = !isMe && typeof GroupAdmin !== "undefined" && !g.isChannel && GroupAdmin.rank(g, Store.myId) >= 1 && GroupAdmin.can(g, Store.myId, { op: "kick", target: m.id }); } catch (e) {}
+      const canRemove = myIsAdmin && !isMe && !advKick;
       const roleBadge = memberIsAdmin ? `<span class="group-role-badge">${escapeHtml(T("group.admin"))}</span>` : "";
       row.innerHTML = `<div class="avatar avatar-sm" style="background:${avatarGradient(m.name)}">${escapeHtml(initials(m.name))}</div><span class="forward-name">${escapeHtml(m.name)}${isMe ? " " + escapeHtml(T("group.you")) : ""}</span>${roleBadge}`;
       if (myIsAdmin && !isMe && g.createdBy !== m.id) {
@@ -5538,14 +5630,12 @@ function attachChatRowContext(row, c) {
 }
 function openChatHeaderMenu() {
   const id = state.chatId, c = id && state.contacts.get(id); if (!c) return;
+  // V.80: убраны дубли — «Поиск» (значок в шапке), «Закреплённое» (баннер над перепиской), «Экспорт» (карточка контакта).
   const items = [
-    { label: T("chat.search"), icon: "search", fn: () => { const b = $("#chat-search-btn"); if (b) b.click(); } },
     { label: T("chat.contact.gallery"), icon: "image", fn: () => openContactCard(id) },
-    { label: T("chat.pinned"), icon: "pin", rare: true, fn: () => { if (!c.pinnedMessageId) { toast(T("chat.pinned.none")); return; } const j = $("#pinned-msg-jump"); if (j) j.click(); } },
     { label: isContactMuted(c) ? T("chats.action.unmute") : T("chat.contact.mute"), icon: "bell", fn: () => toggleChatMute(c, () => { try { renderChatThreadInner(); } catch (e) {} }) },
     { label: T("chat.disappearing"), icon: "clock", rare: true, fn: () => openActionSheet(T("chat.disappearing"), [["chat.disappearing.off", 0], ["chat.disappearing.1h", 3600000], ["chat.disappearing.1d", 86400000], ["chat.disappearing.1w", 604800000]].map(([k, ms]) => ({ label: ((c.disappearingTimer || 0) === ms ? "✓ " : "") + T(k), icon: "clock", fn: () => setDisappearingTimer(id, ms) }))) },
     { label: T("summary.menu"), icon: "sparkle", rare: true, fn: () => { if (typeof openChatSummary === "function") openChatSummary(id); } },
-    { label: T("chat.contact.export"), icon: "download", rare: true, fn: () => exportChat(id) },
     { label: T("chat.contact.clear"), icon: "trash", danger: true, fn: async () => {
       if (!await confirmSheet(T("toast.confirmDeleteChat", { name: c.name }), { destructive: true })) return;
       cleanupExpiredFileBlobs(c.messages); c.messages = []; c.lastActivity = Date.now(); persistContacts();
@@ -11182,6 +11272,8 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     handleIdMigrateNotice(from, payload).catch((e) => etherLog("warn", "[idmig] notice:", String(e)));
   } else if (kind === "rc-reset") {
     handleRatchetResetRequest(from);
+  } else if (kind === "miniapp") { // состояние мини-приложения от собеседника (js/miniapps.js)
+    if (window.EtherMiniApps) { try { EtherMiniApps.receive(from, payload); } catch (e) {} }
   } else if (kind === "heartbeat") {
     // killer-features-backlog 0.5 — "мягкий" Dead Man's Switch: "я жив",
     // отправляется из checkDeadManSwitch() при каждом запуске отправителя.
@@ -13278,7 +13370,7 @@ function wireComposerPlusMode() {
     if (id && state.chatId) jumpToMessageInChat(state.chatId, id); // прокрутка + подсветка (highlight-origin)
   });
   // Выбор любого из трёх действий закрывает меню (capture — раньше, чем сработают обработчики самих кнопок)
-  for (const id of ["#chat-attach-btn", "#chat-emoji-btn", "#chat-camera-btn", "#chat-poll-btn", "#chat-board-btn", "#chat-note-btn", "#chat-summary-btn"]) {
+  for (const id of ["#chat-attach-btn", "#chat-emoji-btn", "#chat-camera-btn", "#chat-poll-btn", "#chat-board-btn", "#chat-note-btn"]) {
     const btn = $(id);
     if (btn) btn.addEventListener("click", collapseComposerPlus, { capture: true });
   }
@@ -13814,8 +13906,12 @@ function openCallScreen(id, phase, opts) {
     clearCallNotices();
     armCallBackGuard();
     speakerOn = false; // новый звонок всегда начинается с внутреннего динамика
-    try { if (navigator.audioSession) navigator.audioSession.type = "play-and-record"; } catch (e) {}
   }
+  // Маршрут звука iOS: пока ИДЁТ ВХОДЯЩИЙ ВЫЗОВ, нужен "playback" (динамик, громко). Раньше тут всегда ставился "play-and-record" —
+  // он уводит ВСЁ воспроизведение в разговорный динамик (у уха), и рингтон на iPhone «пропадал». В "play-and-record" переходим
+  // при ответе (acceptCall) — до запроса микрофона.
+  if (phase === "ringing") setCallAudioSession("playback");
+  else if (state.callId !== id) setCallAudioSession("play-and-record");
   state.callId = id;
   state.callPhase = phase;
   try { ensureAudioCtx(); } catch (e) {}
@@ -13868,6 +13964,7 @@ function setCallPhaseActive() {
   state._callUserAccepted = true;
   clearPendingCall();
   stopCallSounds();
+  setCallAudioSession(speakerOn ? "playback" : "play-and-record");
   const ci = $("#call-controls-incoming"); if (ci) ci.classList.add("hidden");
   const ca = $("#call-controls-active"); if (ca) ca.classList.remove("hidden");
   const cv = $(".call-volume"); if (cv) cv.classList.remove("hidden");
@@ -14015,6 +14112,7 @@ function attachRemoteAudio(id, stream) {
     if (audioEl._volReadOnly && Store.callVolume < 0.99) ensureRelayGain(audioEl, stream);
   } catch (e) {}
   wireRemoteAudioEvents(audioEl);
+  watchRemoteTracks(id, stream);
   playRemoteAudio(audioEl);
   const sl = $("#call-volume-slider"); if (sl) sl.value = String(Store.callVolume);
   // На iOS видеозвонки (в отличие от чисто голосовых) переключаются
@@ -14049,6 +14147,16 @@ function playRemoteAudio(audioEl) {
   });
   else setCallNotice("audio", null);
 }
+// Входящий трек получил unmute (iOS вернул звук после прерывания / пошли пакеты) — гарантируем, что <audio> и контекст живы.
+function watchRemoteTracks(id, stream) {
+  try {
+    for (const t of stream.getAudioTracks()) {
+      if (t.__etherWatched || typeof t.addEventListener !== "function") continue;
+      t.__etherWatched = true;
+      t.addEventListener("unmute", () => { if (state.callId === id) resumeCallAudio("remote-unmute"); });
+    }
+  } catch (e) {}
+}
 function wireRemoteAudioEvents(audioEl) {
   if (audioEl._etherWired) return;
   audioEl._etherWired = true;
@@ -14070,7 +14178,7 @@ function clearCallNotices() { __callNotices.clear(); setCallNotice("x", null); }
 // Вызывается при возврате в приложение, по жесту после отказа autoplay, после смены маршрута и по кнопке «проблема со звуком».
 function resumeCallAudio(reason) {
   const id = state.callId; if (!id) return;
-  try { if (navigator.audioSession && !speakerOn && navigator.audioSession.type !== "play-and-record") navigator.audioSession.type = "play-and-record"; } catch (e) {}
+  if (state.callPhase !== "ringing") { try { if (navigator.audioSession && !speakerOn && navigator.audioSession.type !== "play-and-record") navigator.audioSession.type = "play-and-record"; } catch (e) {} }
   try { const c = ensureGlobalAudioCtx(); if (c && c.state !== "running") c.resume().catch(() => {}); } catch (e) {}
   const el = document.getElementById("remote-audio-" + id);
   if (el) {
@@ -14371,14 +14479,28 @@ function watchCallAudioFlow(stats) {
   const w = __audioWatch;
   if (hasIn) { w.silentIn = (w.lastIn >= 0 && inB <= w.lastIn) ? w.silentIn + 1 : 0; w.lastIn = inB; }
   if (hasOut) { w.silentOut = (w.lastOut >= 0 && outB <= w.lastOut) ? w.silentOut + 1 : 0; w.lastOut = outB; }
-  if (w.silentOut === 3) {
-    const l = mesh.get(state.callId);
-    etherLog("warn", "[call] звук не уходит собеседнику уже 9 с (исходящих байт: " + outB + "); " + (l && l.audioDebug ? l.audioDebug() : "") + " — беру микрофон заново");
-    if (l && l.recoverAudio) l.recoverAudio().then((ok) => { if (ok) l.reInvite(); });
+  watchCallAudioAct(w, inB, outB);
+}
+// Решения сторожа (вынесены для тестов). silentOut/silentIn — число подряд идущих замеров (≈3 с) без прироста байт.
+// Исходящее: чиним на 3-м замере и повторяем каждые 6 (раньше — один раз: при неудаче в фоне звук молчал до конца звонка).
+// Не трогаем, если микрофон выключен пользователем, приложение в фоне (getUserMedia не даст трек) или идёт видео-замена.
+// Входящее: сперва дешёвые меры (звук/<audio>), потом один перезапуск ICE; если собеседник сам сообщил «микрофон приостановлен» — ждём его.
+function watchCallAudioAct(w, inB, outB) {
+  const id = state.callId, l = id && mesh.get(id);
+  if (!l) return;
+  if (w.silentOut >= 3 && (w.silentOut - 3) % 6 === 0 && !l._muted && !document.hidden) {
+    etherLog("warn", "[call] звук не уходит собеседнику уже " + (w.silentOut * 3) + " с (исходящих байт: " + outB + "); " + (l.audioDebug ? l.audioDebug() : "") + " — беру микрофон заново");
+    if (l.recoverAudio) l.recoverAudio().then((ok) => { if (ok && l.reInvite) l.reInvite(); });
   }
-  if (w.silentIn === 3) {
+  if (w.silentIn >= 2 && w.silentIn < 3) resumeCallAudio("watchdog");
+  if (w.silentIn === 3 && !__callNotices.has("peerMic")) {
     etherLog("warn", "[call] звук от собеседника не приходит 9 с (входящих байт: " + inB + ")");
-    if (!w.kicked) { w.kicked = true; const l = mesh.get(state.callId); if (l) l.reInvite(); }
+    if (!w.kicked) { w.kicked = true; if (l.reInvite) l.reInvite(); }
+  }
+  // байты идут, а <audio> стоит (прерывание без события pause, потерянный srcObject) — запускаем
+  if (w.silentIn === 0) {
+    const el = document.getElementById("remote-audio-" + id);
+    if (el && !document.hidden && (el.paused || (!el.srcObject && el._relayStream))) resumeCallAudio("watchdog");
   }
 }
 // Подробная строка о качестве звука в журнал (раз в ~15 с): путь, RTT, джиттер, потери, буфер воспроизведения, «замазанные» сэмплы.
@@ -14788,6 +14910,9 @@ function wireCallScreen() {
   // wireCallScreen).
 }
 
+function setCallAudioSession(type) {
+  try { if (navigator.audioSession && navigator.audioSession.type !== type) navigator.audioSession.type = type; } catch (e) {}
+}
 async function acceptCall(withMute) {
   { const ci = state.callId && state.contacts.get(state.callId);
     if (ci && !ci.ephemeral && Store.requireVerifiedCalls && !isContactVerified(ci)) { toast(T("call.needVerifyIncoming", { name: ci.name || T("sys.someone") })); return; } }
@@ -14801,6 +14926,7 @@ async function acceptCall(withMute) {
 
   try {
     stopRingtone();
+    setCallAudioSession(speakerOn ? "playback" : "play-and-record"); // до getUserMedia: микрофону нужна сессия с записью
     const c = state.contacts.get(cid);
     const link = mesh.get(cid);
 
@@ -15942,6 +16068,7 @@ function wireSettingsScreen() {
     const el = $("#settings-signaling-url");
     if (el) Store.signalingUrl = el.value.trim();
     try { const f = serverEntries()[0]; if (f) getFailover().force(f.url); } catch (e) {} // новый адрес в поле «Сервер» — первый в списке
+    const lsr = $("#settings-legacy-server"); if (lsr) lsr.classList.toggle("hidden", !(Store.signalingUrl || "").trim());
     initSignaling(); toast(T("toast.saved"));
   });
   const disc = $("#settings-discoverable");
@@ -16741,15 +16868,8 @@ function wireDebugScreen() {
     Store.chatFoldersJson = "[]"; renderChatFolderChips();
     resetConnectScreen(); renderTab();
   });
-  const hard = $("#debug-hard-reset-btn");
-  if (hard) hard.addEventListener("click", async () => {
-    if (!await confirmSheet(T("toast.confirmHardReset"), { destructive: true })) return;
-    performFullAccountWipe();
-  });
-  // «Удалить аккаунт» в обычных настройках — та же необратимая операция,
-  // что и debug-hard-reset-btn (раньше была доступна только за 5 тапов
-  // в скрытом Debug-экране), но с явным подтверждением, которое называет
-  // вещи своими именами: нет серверной копии, отменить нельзя.
+  // «Удалить аккаунт» в настройках — необратимая операция; V.80: дубль «Full app reset» из Debug убран (делал то же самое).
+  // Подтверждение называет вещи своими именами: нет серверной копии, отменить нельзя.
   const delAcc = $("#settings-delete-account-btn");
   if (delAcc) delAcc.addEventListener("click", async () => {
     if (!await confirmSheet(T("toast.confirmDeleteAccount"), { destructive: true })) return;

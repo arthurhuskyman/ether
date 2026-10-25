@@ -443,6 +443,7 @@ function startApp() {
     const si = $("#settings-identity"); if (si) si.value = Store.myIdentityRaw;
     const sms = $("#settings-my-status"); if (sms) sms.value = Store.myStatus;
     const ss = $("#settings-signaling-url"); if (ss) ss.value = Store.signalingUrl || "";
+    const lsr = $("#settings-legacy-server"); if (lsr) lsr.classList.toggle("hidden", !(Store.signalingUrl || "").trim()); // V.80: старое поле только пока там есть адрес; управление — через «Серверы»
     const sd = $("#settings-discoverable"); if (sd) sd.checked = Store.discoverable;
     const sr = $("#settings-receipts"); if (sr) sr.checked = Store.receiptsEnabled;
     const sls = $("#settings-last-seen"); if (sls) sls.checked = Store.lastSeenVisible;

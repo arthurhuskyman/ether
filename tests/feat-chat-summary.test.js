@@ -73,7 +73,10 @@ test("ответ replyTo закрывает вопрос; пустой чат и
 test("шторка: пункт меню чата и строка карточки контакта, выбор периода, пустой период, aria", async () => {
   const a = await booted(); const d = a.document; seed(a);
   a.run(`state.chatId = "alice"; state.tab = "chats"; renderTab();`);
-  const btn = d.querySelector("#chat-summary-btn"); assert.ok(btn); assert.equal(btn.textContent.trim(), "Сводка чата");
+  // V.80 (fix80-menu-dedup): из меню «+» пункт убран (не вложение) — открывается из меню «⋯» шапки чата и из карточки контакта
+  assert.equal(d.querySelector("#chat-summary-btn"), null, "в меню «+» дубля нет");
+  a.run(`openChatHeaderMenu()`);
+  const btn = Array.from(d.querySelectorAll("#anchored-menu .amenu-item")).find((b) => b.textContent.trim() === "Сводка чата"); assert.ok(btn);
   btn.click();
   const sheet = d.querySelector("#summary-sheet");
   assert.ok(!sheet.classList.contains("hidden"));

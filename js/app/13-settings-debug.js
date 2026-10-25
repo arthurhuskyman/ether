@@ -399,6 +399,7 @@ function wireSettingsScreen() {
     const el = $("#settings-signaling-url");
     if (el) Store.signalingUrl = el.value.trim();
     try { const f = serverEntries()[0]; if (f) getFailover().force(f.url); } catch (e) {} // новый адрес в поле «Сервер» — первый в списке
+    const lsr = $("#settings-legacy-server"); if (lsr) lsr.classList.toggle("hidden", !(Store.signalingUrl || "").trim());
     initSignaling(); toast(T("toast.saved"));
   });
   const disc = $("#settings-discoverable");
@@ -1198,15 +1199,8 @@ function wireDebugScreen() {
     Store.chatFoldersJson = "[]"; renderChatFolderChips();
     resetConnectScreen(); renderTab();
   });
-  const hard = $("#debug-hard-reset-btn");
-  if (hard) hard.addEventListener("click", async () => {
-    if (!await confirmSheet(T("toast.confirmHardReset"), { destructive: true })) return;
-    performFullAccountWipe();
-  });
-  // «Удалить аккаунт» в обычных настройках — та же необратимая операция,
-  // что и debug-hard-reset-btn (раньше была доступна только за 5 тапов
-  // в скрытом Debug-экране), но с явным подтверждением, которое называет
-  // вещи своими именами: нет серверной копии, отменить нельзя.
+  // «Удалить аккаунт» в настройках — необратимая операция; V.80: дубль «Full app reset» из Debug убран (делал то же самое).
+  // Подтверждение называет вещи своими именами: нет серверной копии, отменить нельзя.
   const delAcc = $("#settings-delete-account-btn");
   if (delAcc) delAcc.addEventListener("click", async () => {
     if (!await confirmSheet(T("toast.confirmDeleteAccount"), { destructive: true })) return;
