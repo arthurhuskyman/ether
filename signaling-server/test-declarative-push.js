@@ -31,6 +31,11 @@ const APP_ORIGIN = "https://arthurhuskyman.github.io/ether";
 // eslint-disable-next-line no-eval
 const buildDeclarativePush = eval("(" + fnMatch[0].replace("function buildDeclarativePush", "function") + ")");
 
+const hMatch = src.match(/function buildHybridRing\([\s\S]*?\n\}/);
+if (!hMatch) { console.error("не нашёл buildHybridRing в server.js"); process.exit(1); }
+// eslint-disable-next-line no-eval
+const buildHybridRing = eval("(" + hMatch[0].replace("function buildHybridRing", "function") + ")");
+
 let pass = 0, fail = 0;
 function check(label, cond) {
   if (cond) { pass++; console.log("  OK   " + label); }
@@ -59,10 +64,32 @@ console.log("\n=== Уведомление о сообщении: та же сх�
   check("web_push === 8030", p.web_push === 8030);
   check("navigate ведёт на ?chat=, не ?call=", p.notification.navigate.indexOf("chat=abc") !== -1);
   check("requireInteraction=false для обычного сообщения (не блокирует экран)", p.notification.requireInteraction === false);
+  // V.80.1: сообщения mutable:true — живой SW применяет фильтр заблокированных, при мёртвом SW платформа показывает уведомление сама
+  check("mutable === true для сообщения (V.80.1; раньше false)", p.mutable === true);
+  check("silent === false и lang/dir заданы", p.notification.silent === false && p.notification.lang === "en" && p.notification.dir === "ltr");
+  check("app_badge не шлётся (сервер не знает общего числа непрочитанных)", !("app_badge" in p.notification));
+  check("RTL-язык даёт dir=rtl", buildDeclarativePush({ title: "x", kind: "message", contactId: "a" }, "ar-SA").notification.dir === "rtl");
   check("JSON.stringify не падает и результат снова парсится (то, что реально уйдёт в sendNotification)", (() => {
     try { const s = JSON.stringify(p); const back = JSON.parse(s); return back.web_push === 8030; }
     catch (e) { return false; }
   })());
+}
+
+console.log("\n=== Гибридный «гудок» (PUSH_RING_HYBRID / push-test-ring mode:hybrid) ===");
+{
+  const tx = (lang, k) => ({ call: "Call", incomingCall: "Incoming call", callEnded: "Call ended", callMissed: "Missed call" })[k];
+  const r = buildHybridRing({ callId: "abc123", from: "bob", name: "Bob", seq: 2, total: 6, video: true, ackToken: "tok", lang: "ru-RU", appOrigin: APP_ORIGIN }, tx);
+  const n = r.notification;
+  check("web_push 8030 и mutable:true", r.web_push === 8030 && r.mutable === true);
+  check("tag ring-<callId>, silent:false, lang ru", n.tag === "ring-abc123" && n.silent === false && n.lang === "ru");
+  check("navigate — глубокая ссылка #answer=…&from=…", n.navigate === APP_ORIGIN + "/#answer=abc123&from=bob");
+  check("data для SW: t, callId, seq, total, from, name, video, ackToken", n.data.t === "call-ring" && n.data.callId === "abc123" && n.data.seq === 2 && n.data.total === 6 && n.data.from === "bob" && n.data.name === "Bob" && n.data.video === true && n.data.ackToken === "tok");
+  check("title содержит имя, body — «входящий»", n.title.indexOf("Bob") >= 0 && n.body === "Incoming call");
+  const c = buildHybridRing({ cancel: true, reason: "cancelled", callId: "abc123", from: "bob", name: "Bob", lang: "en", appOrigin: APP_ORIGIN }, tx);
+  check("cancel: тот же tag (заменяет гудок), data.t call-cancel, «пропущенный»", c.notification.tag === "ring-abc123" && c.notification.data.t === "call-cancel" && c.notification.title === "Missed call");
+  const e = buildHybridRing({ cancel: true, reason: "answered", callId: "abc123", from: "bob", name: "Bob", lang: "en", appOrigin: APP_ORIGIN }, tx);
+  check("cancel answered: «Call ended»", e.notification.title === "Call ended");
+  check("JSON-сериализуемо", JSON.parse(JSON.stringify(r)).notification.data.t === "call-ring");
 }
 
 console.log(`\nИтого: ${pass} прошло, ${fail} упало`);

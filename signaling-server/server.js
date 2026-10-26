@@ -1022,8 +1022,8 @@ loadPushSubs();
 // русский по умолчанию, как было раньше (сервер теперь знает язык
 // получателя из push-subscribe).
 const PUSH_TEXT = {
-  en: { call: "Call", incomingCall: "Incoming call", newMessage: "New message", aggregatedMessages: (n) => `${n} new messages` },
-  ru: { call: "Звонок", incomingCall: "Входящий вызов", newMessage: "Новое сообщение", aggregatedMessages: (n) => `${n} новых сообщений` },
+  en: { call: "Call", incomingCall: "Incoming call", newMessage: "New message", aggregatedMessages: (n) => `${n} new messages`, callEnded: "Call ended", callMissed: "Missed call" },
+  ru: { call: "Звонок", incomingCall: "Входящий вызов", newMessage: "Новое сообщение", aggregatedMessages: (n) => `${n} новых сообщений`, callEnded: "Звонок завершён", callMissed: "Пропущенный звонок" },
   es: { call: "Llamada", incomingCall: "Llamada entrante", newMessage: "Mensaje nuevo", aggregatedMessages: (n) => `${n} mensajes nuevos` },
   pt: { call: "Chamada", incomingCall: "Chamada recebida", newMessage: "Nova mensagem", aggregatedMessages: (n) => `${n} novas mensagens` },
   fr: { call: "Appel", incomingCall: "Appel entrant", newMessage: "Nouveau message", aggregatedMessages: (n) => `${n} nouveaux messages` },
@@ -1065,11 +1065,17 @@ function buildDeclarativePush(payload, lang) {
   const now = Date.now();
   // ts для звонка: клиент по нему понимает, свежий ли это звонок (push старше минуты — звонящий уже сдался).
   const navigate = APP_ORIGIN + (isCall ? "?call=" : "?chat=") + encodeURIComponent(payload.contactId || "") + (isCall ? "&ts=" + now : "");
+  // lang/dir: платформа показывает уведомление сама (SW может быть мёртв), ей нужен язык для переносов/направления текста.
+  const l = String(lang || "en").toLowerCase().split(/[-_]/)[0] || "en";
   const notification = {
     title: payload.title || "Мессенджер",
     body: payload.body || "",
     navigate,
     tag: payload.tag || "ether",
+    lang: l,
+    dir: ["ar", "fa", "he", "ur"].indexOf(l) >= 0 ? "rtl" : "ltr",
+    silent: false, // явно: звук по умолчанию платформы (раньше поле отсутствовало)
+    timestamp: now,
     icon: APP_ORIGIN + "/icons/icon-192.png",
     badge: APP_ORIGIN + "/icons/icon-192.png",
     vibrate: isCall ? [300, 150, 300, 150, 300] : [100, 50, 100],
@@ -1077,7 +1083,25 @@ function buildDeclarativePush(payload, lang) {
     renotify: isCall,
     data: { contactId: payload.contactId || null, kind: payload.kind || "message", navigate, ts: now },
   };
-  return { web_push: 8030, notification, mutable: false };
+  // V.80.1: сообщения — mutable:true. Живой SW (event.data.json().notification) всё ещё применяет список заблокированных и
+  // свою обработку тега; если SW мёртв/не успел — платформа показывает декларативное уведомление как есть. Звонки остаются
+  // mutable:false (их ведёт серия raw-push, раздел A протокола). app_badge не шлём: сервер не знает общего числа непрочитанных.
+  return { web_push: 8030, notification, mutable: !isCall };
+}
+
+// V.80.1 (эксперимент, PUSH_RING_HYBRID=1 или push-test-ring {mode:"hybrid"}): «гудок» как декларативный push с mutable:true.
+// Если SW жив — handleCallPush получает raw.notification.data.t и работает как с raw-форматом (ack, дедуп); если нет — платформа
+// показывает это уведомление сама. tx — pushText (внедряется, чтобы функцию можно было проверить отдельно).
+function buildHybridRing(o, tx) {
+  const lang = o.lang, l = String(lang || "en").toLowerCase().split(/[-_]/)[0] || "en";
+  const t = (k) => tx(lang, k);
+  const base = { web_push: 8030, mutable: true };
+  const common = { tag: "ring-" + o.callId, lang: l, dir: ["ar", "fa", "he", "ur"].indexOf(l) >= 0 ? "rtl" : "ltr", silent: false, timestamp: o.now || Date.now(), navigate: o.appOrigin + "/#answer=" + encodeURIComponent(o.callId) + "&from=" + encodeURIComponent(o.from) };
+  if (o.cancel) {
+    const missed = o.reason === "cancelled" || o.reason === "timeout";
+    return Object.assign(base, { notification: Object.assign(common, { title: t(missed ? "callMissed" : "callEnded"), body: o.name || "", requireInteraction: false, data: { t: "call-cancel", callId: o.callId, reason: o.reason, from: o.from, name: o.name } }) });
+  }
+  return Object.assign(base, { notification: Object.assign(common, { title: "📞 " + (o.name || t("call")), body: t("incomingCall"), requireInteraction: true, data: { t: "call-ring", callId: o.callId, seq: o.seq, total: o.total, from: o.from, name: o.name, video: !!o.video, ackToken: o.ackToken } }) });
 }
 
 async function actuallySendPush(subEntry, payload) {
@@ -1609,6 +1633,7 @@ const RING_MAX_CALLS = envInt("RING_MAX_CALLS", 20000);
 const RING_PENDING_PER_RECIPIENT = 3;
 const PUSH_ACK_PER_IP_PER_MIN = envInt("PUSH_ACK_PER_IP_PER_MIN", 60);
 const PUSH_TEST_PER_MIN = envInt("PUSH_TEST_PER_MIN", 3);
+const PUSH_RING_HYBRID = process.env.PUSH_RING_HYBRID === "1"; // эксперимент: серия «гудков» декларативным push (mutable:true); по умолчанию raw-формат
 // Секрет HMAC для ackToken: PUSH_ACK_SECRET из окружения, иначе случайный на время жизни процесса (после рестарта токены старых push недействительны — это нормально, TTL push 30 с).
 const PUSH_ACK_SECRET = process.env.PUSH_ACK_SECRET || crypto.randomBytes(32).toString("hex");
 const rings = new Map();        // callId -> запись (в т.ч. остановленные до RING_TOMBSTONE_MS)
@@ -1648,7 +1673,9 @@ function ringOnce(rec) {
   const callerRec = clients.get(rec.fromReal);
   const subHash = ringSubHash(entry.subscription);
   rec.subHash = subHash;
-  const payload = { t: "call-ring", callId: rec.callId, from: rec.from, name: rec.name, seq, total: rec.total, video: rec.video, ackToken: ringToken(rec.callId, seq, subHash) };
+  const ackToken = ringToken(rec.callId, seq, subHash);
+  let payload = { t: "call-ring", callId: rec.callId, from: rec.from, name: rec.name, seq, total: rec.total, video: rec.video, ackToken };
+  if (rec.hybrid) payload = buildHybridRing({ callId: rec.callId, from: rec.from, name: rec.name, seq, total: rec.total, video: rec.video, ackToken, lang: entry.lang, appOrigin: APP_ORIGIN }, pushText);
   void callerRec;
   ringSendPush(rec, payload, { topic: "ring-" + rec.callId.slice(0, 8).replace(/[^A-Za-z0-9_-]/g, "x") + "-" + seq }).then((r) => { if (r === "gone") { rec.sent = rec.total; ringStop(rec, "gone"); } }).catch(() => {});
 }
@@ -1660,7 +1687,8 @@ function ringStop(rec, reason) {
   if (ringPairIdx.get(rec.pk) === rec.callId) ringPairIdx.delete(rec.pk);
   const loud = reason === "answered" || reason === "declined" || reason === "cancelled" || reason === "timeout";
   if (loud && !rec.test && rec.sent > 0 && pushSubs.has(rec.to)) {
-    ringSendPush(rec, { t: "call-cancel", callId: rec.callId, reason, from: rec.from, name: rec.name }, { topic: "cancel-" + rec.callId.slice(0, 8).replace(/[^A-Za-z0-9_-]/g, "x") }).catch(() => {});
+    const cancelPayload = rec.hybrid ? buildHybridRing({ cancel: true, reason, callId: rec.callId, from: rec.from, name: rec.name, lang: (pushSubs.get(rec.to) || {}).lang, appOrigin: APP_ORIGIN }, pushText) : { t: "call-cancel", callId: rec.callId, reason, from: rec.from, name: rec.name };
+    ringSendPush(rec, cancelPayload, { topic: "cancel-" + rec.callId.slice(0, 8).replace(/[^A-Za-z0-9_-]/g, "x") }).catch(() => {});
   }
   if (loud && !rec.test) { const t = clients.get(rec.to); if (t) safeSend(t.ws, { type: "call-cancel", callId: rec.callId, from: rec.from, reason }); }
   rec.gc = setTimeout(() => ringDrop(rec), RING_TOMBSTONE_MS); rec.gc.unref();
@@ -1706,7 +1734,7 @@ function onCallInvite(myId, sid, ipAddr, msg, target) {
   for (const m of [callPairAt, callRecipientAt]) if (m.size > 50000) m.delete(m.keys().next().value);
   const me = clients.get(myId);
   const lang = (pushSubs.get(to) || {}).lang;
-  const rec = ringNew({ callId, from: sid, fromReal: myId, to, name: (me && me.name) || pushText(lang, "call"), video: !!(d.video || d.kind === "video"), pending: online ? null : { from: sid, data: d } });
+  const rec = ringNew({ callId, from: sid, fromReal: myId, to, name: (me && me.name) || pushText(lang, "call"), video: !!(d.video || d.kind === "video"), hybrid: PUSH_RING_HYBRID, pending: online ? null : { from: sid, data: d } });
   if (hasSub) {
     if (online) { rec.timer = setTimeout(() => ringOnce(rec), RING_ONLINE_GRACE_MS); rec.timer.unref(); }
     else ringOnce(rec);
@@ -1757,15 +1785,15 @@ function handlePushAck(req, res, ip) {
   });
 }
 // Тест push из диагностики клиента: сервер звонит САМОМУ клиенту (3 гудка, callId "test-…", без состояния звонка)
-function onPushTestRing(myId, ws, ipAddr) {
+function onPushTestRing(myId, ws, ipAddr, mode) {
   const err = (reason) => safeSend(ws, { type: "push-test-error", reason });
   if (!PUSH_ENABLED) return err("disabled");
   if (!pushSubs.has(myId)) return err("nosub");
   if (!wsRateLimitOk(testRingHits, myId, PUSH_TEST_PER_MIN) || !wsRateLimitOk(testRingIpHits, ipAddr, PUSH_TEST_PER_MIN * 3) || rings.size >= RING_MAX_CALLS) return err("ratelimit");
   const callId = "test-" + crypto.randomBytes(6).toString("hex");
   const me = clients.get(myId);
-  const rec = ringNew({ callId, from: myId, fromReal: myId, to: myId, name: (me && me.name) || "Test", test: true, total: 3 });
-  safeSend(ws, { type: "push-test-started", callId, total: 3 });
+  const rec = ringNew({ callId, from: myId, fromReal: myId, to: myId, name: (me && me.name) || "Test", test: true, total: 3, hybrid: mode === "hybrid" });
+  safeSend(ws, { type: "push-test-started", callId, total: 3, mode: mode === "hybrid" ? "hybrid" : "raw" });
   ringOnce(rec);
 }
 // Язык push приходит от клиента: нормализуем ("ru_RU" → "ru-RU") и проверяем по белому списку формы, иначе "en".
@@ -1861,7 +1889,7 @@ wss.on("connection", (ws, req) => {
       linkcall.onMessage(ws, msg, { id: reg ? myId : null, ip: ipAddr, onJoined: () => clearTimeout(regTimer) });
       return;
     }
-    if (msg.type === "push-test-ring" && myId && clients.get(myId) && clients.get(myId).ws === ws) { onPushTestRing(myId, ws, ipAddr); return; }
+    if (msg.type === "push-test-ring" && myId && clients.get(myId) && clients.get(myId).ws === ws) { onPushTestRing(myId, ws, ipAddr, msg.mode === "hybrid" ? "hybrid" : "raw"); return; }
 
     // Всё, кроме register/ping, — только от текущего (не вытесненного) соединения зарегистрированного id.
     if (msg.type !== "register" && (!myId || !clients.get(myId) || clients.get(myId).ws !== ws)) return;

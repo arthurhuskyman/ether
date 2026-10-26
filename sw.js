@@ -1,4 +1,4 @@
-const CACHE_VERSION = "ether-shell-v243";
+const CACHE_VERSION = "ether-shell-v244";
 // В предзагрузке только ядро. css/skins/<id>.css и fonts/skins/*.woff2 подтягиваются по требованию (активный скин) и
 // кладутся в кэш обработчиком fetch ниже (runtime-cache, stale-while-revalidate).
 const SHELL_FILES = [
@@ -352,6 +352,9 @@ self.addEventListener("push", (event) => {
     try { raw = event.data.json(); } catch (e) { raw = null; }
   }
   if (raw && (raw.t === "call-ring" || raw.t === "call-cancel")) { event.waitUntil(handleCallPush(raw)); return; }
+  // V.80.1: гибридный «гудок» — декларативный payload (mutable:true), данные звонка в notification.data: та же обработка, что у raw
+  const hd = raw && raw.notification && typeof raw.notification === "object" && raw.notification.data;
+  if (hd && (hd.t === "call-ring" || hd.t === "call-cancel")) { event.waitUntil(handleCallPush(Object.assign({}, hd))); return; }
   event.waitUntil(metaPut("./__lastpush.json", { ts: Date.now(), t: "push" })); // для экрана «Проверка уведомлений»
   let n = raw && raw.notification && typeof raw.notification === "object"
     ? raw.notification
@@ -360,7 +363,11 @@ self.addEventListener("push", (event) => {
   const data = n.data || {};
   event.waitUntil(
     caches.open("ether-meta").then((c) => c.match("./__blocked.json")).then((r) => r ? r.json() : []).catch(() => []).then((blockedIds) => {
-      if (data.contactId && blockedIds.indexOf(data.contactId) >= 0) return null; // заблокирован: ни звонка, ни сообщения
+      if (data.contactId && blockedIds.indexOf(data.contactId) >= 0) { // заблокирован: ни звонка, ни сообщения
+        // declarative+mutable:true: платформа покажет уведомление сама, если SW его не показал; закрыть можно только event.notification (если есть)
+        try { if (event.notification && event.notification.close) event.notification.close(); } catch (e) {}
+        return null;
+      }
       return self.clients.matchAll({ type: "window", includeUncontrolled: true });
     }).then((clientList) => {
       if (!clientList) return;
