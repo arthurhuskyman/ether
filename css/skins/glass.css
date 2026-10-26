@@ -62,6 +62,8 @@ html[data-skin="glass"] #nav-bar.glass { margin: calc(env(safe-area-inset-top, 0
 html[data-skin="glass"] #tab-bar.glass { margin: 0 12px calc(10px + env(safe-area-inset-bottom, 0px)); padding: 0 6px; border-radius: 36px; }
 html[data-skin="glass"] :is(#nav-bar.glass, #tab-bar.glass, #chat-form.glass, .chat-input-bar.glass, .sheet-panel, .first-run-card, .edit-banner.glass) { background-image: var(--gl-hi); position: relative; }
 html[data-skin="glass"] .sheet-panel { border-radius: 36px 36px 0 0; border-bottom: none; }
+html[data-skin="glass"][data-scheme="dark"] .sheet-panel:not(#composer-menu-sheet .sheet-panel) { background-color: rgba(16, 20, 50, 0.95); background-image: none; } /* шторка над светлым фоном страницы: стекло 11% белого давало 94,95,114 → ссылки/подписи < 3:1 */
+html[data-skin="glass"][data-scheme="dark"] .sheet-panel :is(.settings-row, .forward-row, .sheet-action, .btn-secondary) { background-image: none; } /* бликующий градиент поверх строки + панель + подложка складывались в ~30% белого */
 html[data-skin="glass"] .sheet-backdrop { background: rgba(10, 12, 50, 0.32); }
 html[data-skin="glass"][data-scheme="light"] .sheet-backdrop { background: rgba(120, 140, 220, 0.25); }
 /* блик на нижней кромке (двойная кромка стекла) */

@@ -57,6 +57,11 @@ html[data-skin] :is(.avatar, .avatar-xl) { border: var(--sk-bw) var(--sk-bs, sol
 html[data-skin] #composer-menu-sheet .composer-menu-item { border: var(--sk-bw) var(--sk-bs, solid) var(--sk-line); box-shadow: var(--sk-shadow); border-radius: var(--sk-btn-r, 24px); }
 html[data-skin] .bubble-reaction-chip { border: var(--sk-bw) var(--sk-bs, solid) var(--sk-line); }
 html[data-skin] .board-card { background: var(--sk-field, var(--sk-panel)); border: var(--sk-bw) var(--sk-bs, solid) var(--sk-line); }
+/* карточки доски внутри пузыря наследуют цвет текста пузыря (currentColor): поверхность — сам пузырь (прозрачная, различие рамкой), а не панель скина
+   (панель светлая, а текст в исходящем пузыре белый → нечитаемо). Контраст текста = контраст пузыря; тонирование currentColor его только снижает. */
+html[data-skin] .bubble :is(.board-col, .board-card) { background: transparent; background-image: none; border: 1px solid color-mix(in srgb, currentColor 30%, transparent); box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; color: inherit; }
+html[data-skin] .bubble .board-card { border-color: color-mix(in srgb, currentColor 45%, transparent); }
+html[data-skin] .bubble :is(.board-col-h, .board-card-acts button, .board-add, .poll-opt-who) { opacity: 1; }
 html[data-skin] #tab-bar .active, html[data-skin] #tab-bar [aria-selected="true"] { color: var(--accent); }
 html[data-skin] :is(#toast, .toast) { background: var(--sk-panel); color: var(--ink-0); border: var(--sk-bw) var(--sk-bs, solid) var(--sk-line); box-shadow: var(--sk-shadow); }
 html[data-skin] :is(.settings-select, select) { color-scheme: inherit; }

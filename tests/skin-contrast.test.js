@@ -55,3 +55,18 @@ test("аудит скинов: инструмент подхватывает с�
   if (/Executable doesn't exist|browserType\.launch/.test(r.stderr + r.stdout)) return t.skip("нет Chromium");
   assert.equal(r.status, 0, r.stdout.slice(-1500) + r.stderr.slice(-500));
 });
+
+test("доска задач в пузыре (входящем и исходящем) читаема во всех схемах: карточки не берут светлую панель скина", { timeout: 240000 }, (t) => {
+  const tool = path.join(__dirname, "..", "tools", "skin-contrast.js");
+  if (!fs.existsSync("/opt/node-tools/node_modules/playwright")) return t.skip("нет Playwright");
+  const out = path.join(require("os").tmpdir(), "skin-board-" + process.pid + ".json");
+  // sakura/vampire/medieval — светлая схема с бордовыми/сливовыми исходящими пузырями на кремовой странице (жалоба владельца V.79), default — без data-skin
+  const r = spawnSync(process.execPath, [tool, "--skins", "sakura,vampire,medieval,default", "--schemes", "light,dark", "--screens", "chat", "--strict", "--probe", ".board-bubble *", "--out", out], { encoding: "utf8", timeout: 220000 });
+  if (/Executable doesn't exist|browserType\.launch/.test(r.stderr + r.stdout)) return t.skip("нет Chromium");
+  const rows = JSON.parse(fs.readFileSync(out, "utf8")); fs.unlinkSync(out);
+  const board = rows.filter((x) => /board-/.test(x.el));
+  for (const sel of ["board-card-t", "board-col-name", "board-add"]) assert.ok(board.some((x) => x.el.includes(sel)), "в прогоне нет " + sel + " (доска не отрисована?)");
+  const bad = board.filter((x) => (x.kind === "text" || x.kind === "probe") && x.ratio < 4.5);
+  assert.deepEqual(bad.map((x) => `${x.skin}/${x.scheme} ${x.el} ${x.ratio}`), []);
+  assert.deepEqual(rows.filter((x) => x.kind !== "probe").map((x) => `${x.skin}/${x.scheme} ${x.el} ${x.ratio}`), []);
+});

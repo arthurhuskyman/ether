@@ -14,6 +14,7 @@ const MIME = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css
 const args = process.argv.slice(2);
 const opt = (n, d) => { const i = args.indexOf("--" + n); return i < 0 ? d : args[i + 1]; };
 const TEXT_MIN = parseFloat(opt("text", "4.5")), UI_MIN = parseFloat(opt("ui", "3")), verbose = args.includes("--verbose");
+const onlyScreens = opt("screens", "") ? opt("screens", "").split(",") : null; // --screens chat,msg-sheet: только эти экраны (быстрый прогон)
 const outFile = opt("out", ""), probe = opt("probe", ""), strict = args.includes("--strict"); // --probe <css-селектор>: напечатать контраст всех подходящих элементов, даже проходящих
 
 // Выполняется в странице: возвращает список нарушений на текущем экране
@@ -44,7 +45,8 @@ function pageAudit({ TEXT_MIN, UI_MIN, probe, strict }) {
     const layers = []; let opacity = 1;
     for (let x = el; x && x.nodeType === 1; x = x.parentElement) {
       const cs = getComputedStyle(x); opacity *= parseFloat(cs.opacity);
-      const ls = elLayers(cs); let solid = false;
+      const bgSib = x.querySelector(":scope > .call-bg"); // фон-подложка соседним абсолютным слоем (z-index:-1), а не на самом предке
+      const ls = (bgSib ? elLayers(getComputedStyle(bgSib)) : []).concat(elLayers(cs)); let solid = false;
       for (const l of ls) { layers.push(l); if (l[3] >= 0.99) { solid = true; break; } }
       if (solid) break;
     }
@@ -70,21 +72,33 @@ function pageAudit({ TEXT_MIN, UI_MIN, probe, strict }) {
   const push = (kind, e, fg, bg, ratio, need, extra) => res.push(Object.assign({ kind, el: desc(e), ratio: +ratio.toFixed(2), need, fg: fg.map(Math.round).join(","), bg: bg.map(Math.round).slice(0, 3).join(",") }, extra));
   // --- текст
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-  const seen = new Set();
+  const seen = new Set(); let nText = 0;
   for (let n = walker.nextNode(); n; n = walker.nextNode()) {
     const txt = n.textContent.trim(); const e = n.parentElement; if (!txt || !e || seen.has(e)) continue;
     if (/^(SCRIPT|STYLE|NOSCRIPT|OPTION|TEXTAREA)$/.test(e.tagName)) continue;
+    if (!/[\p{L}\p{N}]/u.test(txt)) continue; // только эмодзи/символы-пиктограммы: цвет шрифта на них не влияет
     seen.add(e);
     const r = e.getBoundingClientRect(); if (!visible(e, r)) continue;
     if (e.closest("button:disabled,[disabled],[aria-disabled=true]")) continue;
     const cs = getComputedStyle(e);
     let fgS = cs.webkitTextFillColor && cs.webkitTextFillColor !== cs.color ? cs.webkitTextFillColor : cs.color; const fg = col(fgS); if (!fg || fg[3] === 0) continue;
+    nText++;
     const { bg, alts, opacity } = bgFor(e);
     const px = parseFloat(cs.fontSize), large = SC.isLarge(px, +cs.fontWeight || 400);
     const need = large ? UI_MIN : TEXT_MIN; let ratio = SC.textRatio(fg, bg, opacity);
     for (const a of alts) ratio = Math.min(ratio, SC.textRatio(fg, a, opacity));
     if (ratio < need) push("text", e, fg, bg, ratio, need, { txt: txt.slice(0, 28), fs: px });
     else if (probe && e.matches(probe)) push("probe", e, fg, bg, ratio, need, { txt: txt.slice(0, 28), fs: px });
+  }
+  // --- псевдоэлементы ::before/::after с текстовым content (цвет против фона владельца; позиционированные плашки не учитываются)
+  for (const e of document.body.querySelectorAll("*")) {
+    for (const ps of ["::before", "::after"]) {
+      const pc = getComputedStyle(e, ps); const m = /^"(.+)"$/.exec(pc.content || ""); if (!m || !/[\p{L}\p{N}]/u.test(m[1]) || pc.display === "none") continue;
+      const r = e.getBoundingClientRect(); if (!visible(e, r)) continue;
+      const fg = col(pc.color); if (!fg || fg[3] === 0) continue; const { bg, opacity } = bgFor(e);
+      const px = parseFloat(pc.fontSize), need = SC.isLarge(px, +pc.fontWeight || 400) ? UI_MIN : TEXT_MIN; const ratio = SC.textRatio(fg, bg, opacity * (parseFloat(pc.opacity) || 1));
+      if (ratio < need) push("pseudo", e, fg, bg, ratio, need, { txt: ps + m[1].slice(0, 20), fs: px });
+    }
   }
   // --- placeholder
   for (const e of document.querySelectorAll("input,textarea")) {
@@ -96,11 +110,12 @@ function pageAudit({ TEXT_MIN, UI_MIN, probe, strict }) {
   for (const s of document.querySelectorAll("svg")) {
     const r = s.getBoundingClientRect(); if (r.width < 10 || !visible(s, r)) continue;
     if (s.closest("button:disabled,[disabled],[aria-disabled=true],.avatar,.fx-av,.story-ring")) continue;
-    const cs = getComputedStyle(s); let fgS = cs.fill && cs.fill !== "none" ? cs.fill : (cs.stroke && cs.stroke !== "none" ? cs.stroke : null); if (!fgS) continue;
+    const cs = getComputedStyle(s); let fgS = s.querySelector('[fill=currentColor],[stroke=currentColor]') ? cs.color : cs.fill && cs.fill !== "none" ? cs.fill : (cs.stroke && cs.stroke !== "none" ? cs.stroke : null); if (!fgS) continue;
+    const ownBg = bgFor(s);
     // иконка-ориентир: у path/g может быть свой fill (например, цветной смайл) — берём только цвета, заданные от currentColor
     const fg = col(fgS); if (!fg || fg[3] === 0) continue;
     if (s.querySelector("[fill]:not([fill=none]):not([fill=currentColor])")) continue; // многоцветные иллюстрации
-    const { bg, opacity } = bgFor(s.parentElement || s); const ratio = SC.textRatio(fg, bg, opacity * (parseFloat(cs.opacity) || 1));
+    const { bg, opacity } = ownBg; const ratio = SC.textRatio(fg, bg, opacity * (parseFloat(cs.opacity) || 1));
     if (ratio < UI_MIN) push("icon", s, fg, bg, ratio, UI_MIN, {});
   }
   // поля ввода: заливка или рамка должны отделять поле от фона (3:1 — только если поле без видимой границы нет вообще)
@@ -111,6 +126,7 @@ function pageAudit({ TEXT_MIN, UI_MIN, probe, strict }) {
     const bw = parseFloat(cs.borderTopWidth) || 0, bc = col(cs.borderTopColor); const brd = bw >= 1 && bc && bc[3] > 0 ? SC.ratio(SC.over(bc, [par[0], par[1], par[2], 1]), par) : 1;
     if (Math.max(fill, brd) < 1.25 && !e.closest(".composer,#composer,.chat-input-wrap")) push("field", e, own, par, Math.max(fill, brd), 1.25, { note: "поле сливается с фоном" });
   }
+  res.push({ kind: "meta", el: "", ratio: 0, need: 0, fg: "", bg: "", n: nText }); // покрытие: сколько видимых текстовых узлов проверено на экране
   return res;
 }
 
@@ -125,10 +141,11 @@ function pageAudit({ TEXT_MIN, UI_MIN, probe, strict }) {
   const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", args: ["--no-sandbox"] }).catch(() => chromium.launch({ args: ["--no-sandbox"] }));
   const ctx = await b.newContext({ viewport: { width: 390, height: 3400 }, deviceScaleFactor: 1, serviceWorkers: "block", locale: "ru-RU" });
   await ctx.addInitScript(() => { try { if (!localStorage.getItem("__init")) { localStorage.setItem("__init", "1"); localStorage.setItem("ether.lang", "ru"); } } catch (e) {} });
-  const page = await ctx.newPage(); const errors = [];
+  const page = await ctx.newPage(); const errors = []; page.setDefaultTimeout(4000);
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto(url, { waitUntil: "load" }); await page.waitForTimeout(1200);
   await page.evaluate(LIB);
+  await page.addStyleTag({ content: "*,*::before,*::after{transition:none!important}" }); // без промежуточных цветов перехода (ложные срабатывания сразу после смены скина)
   await page.click('[data-slide="0"] .onboarding-next'); await page.waitForTimeout(250);
   await page.fill("#onboarding-name", "Аня"); await page.click('[data-slide="1"] button[type=submit]').catch(() => {}); await page.waitForTimeout(1200);
   await page.click("#onboarding-start-btn").catch(() => {}); await page.waitForTimeout(900);
@@ -153,22 +170,41 @@ function pageAudit({ TEXT_MIN, UI_MIN, probe, strict }) {
       mk({ from: "system", text: "Собеседник сменил ключ безопасности", textKey: "x" }),
       mk({ from: "them", text: "Сообщение со ссылкой https://example.com/article", readAckSent: true }),
       mk({ from: "me", text: "Исчезающее сообщение", ttl: 3600, ack: "sent" }),
-      mk({ from: "them", text: "Непрочитанное входящее", mentionMe: true })
+      mk({ from: "them", text: "Непрочитанное входящее", mentionMe: true }),
+      // карточки внутри пузыря: доски (3 и 2 колонки), опросы (закрытый/публичный/с таймером), заметка, контакт — входящие и исходящие
+      ...["them", "me"].flatMap((f) => {
+        const o = f === "me" ? { ack: "read" } : { readAckSent: true };
+        const board3 = EtherRich.sanitizeBoard({ title: "Задачи", cols: [{ id: "todo", t: "Сделать" }, { id: "doing", t: "В работе" }, { id: "done", t: "Готово" }] });
+        board3.cards = [{ id: "k1", t: "Что-то", col: "todo" }, { id: "k2", t: "Купить билеты", col: "doing" }, { id: "k3", t: "Готово уже", col: "done" }];
+        const board2 = EtherRich.sanitizeBoard({ title: "Список", cols: [{ id: "todo", t: "Сделать" }, { id: "done", t: "Готово" }] });
+        board2.cards = [{ id: "k4", t: "Хлеб", col: "todo" }];
+        return [
+          mk(Object.assign({ from: f, text: "Задачи", board: board3 }, o)),
+          mk(Object.assign({ from: f, text: "Список", board: board2 }, o)),
+          mk(Object.assign({ from: f, text: "Закрытый", poll: { q: "Закрытый опрос", multi: false, closed: true, opts: [{ id: "a", t: "Да" }, { id: "b", t: "Нет" }] }, pollVotes: { x: ["a"], [Store.myId]: ["a"] } }, o)),
+          mk(Object.assign({ from: f, text: "Публичный", poll: { q: "Публичный опрос", multi: true, pub: true, closeAt: Date.now() + 3600000, opts: [{ id: "a", t: "Да" }, { id: "b", t: "Нет" }] }, pollVotes: { x: ["a", "b"] } }, o)),
+          mk(Object.assign({ from: f, text: "Заметка", note: { title: "Заметка", text: "Текст общей заметки" } }, o)),
+          mk(Object.assign({ from: f, text: "", contactCard: { id: "zzz-" + f, name: "Глеб", servers: [] } }, o))
+        ];
+      })
     );
     linkPreviewCache.set("https://example.com/article", { status: "done", data: { url: "https://example.com/article", title: "Заголовок статьи", description: "Описание страницы для превью ссылки", siteName: "example.com" } });
     linkPreviewCache.set("https://example.org/page", { status: "none", data: null });
     for (let i = 0; i < 3; i++) { const id = "__x" + i; state.contacts.set(id, { id, name: ["Борис", "Вера", "Глеб"][i], raw: "", managed: true, status: "paired", pinned: i === 0, messages: [{ id: "q" + i, from: "them", text: "Сообщение номер " + i, ts: now - i * 1000 }] }); }
+    try { storiesList = null; Store.storiesJson = JSON.stringify([{ id: "st1", owner: "me", text: "Моя история для проверки контраста", ts: Date.now() - 60000, bg: 0 }, { id: "st2", owner: "__x0", text: "История Бориса", ts: Date.now() - 120000, bg: 1 }]); } catch (e) {}
     renderTab(); renderChatThread();
   }).catch((e) => errors.push("seed: " + e.message));
   const skinList = await page.evaluate(() => Skins.LIST.map((s) => s.id));
   const skins = opt("skins", skinList.join(",")).split(","), schemes = opt("schemes", "light,dark").split(",");
-  const all = [];
+  const all = []; let OVERLAYS = "";
   for (const skin of skins) for (const scheme of schemes) {
     await page.evaluate(([skin, scheme]) => { Store.theme = scheme; applyTheme(scheme); Skins.set(skin); }, [skin, scheme]).catch((e) => errors.push("set: " + e.message));
-    await page.waitForTimeout(450);
+    await page.waitForTimeout(300);
+    if (OVERLAYS) await page.evaluate((o) => { for (const id of ["content", "app-shell"]) { const ct = document.getElementById(id); if (ct) ct.classList.remove("hidden"); } document.querySelectorAll(o).forEach((e) => e.classList.add("hidden")); document.querySelectorAll(".fx-wrapped").forEach((e) => e.remove()); }, OVERLAYS).catch(() => {});
     const step = async (name, fn) => {
+      if (onlyScreens && !onlyScreens.includes(name)) return;
       try { await fn(); } catch (e) { errors.push(`${skin}/${scheme}/${name}: ${e.message.split("\n")[0]}`); }
-      await page.waitForTimeout(260);
+      await page.waitForTimeout(120);
       await page.evaluate(() => document.getAnimations().forEach((a) => { try { if (a.effect.getComputedTiming().iterations !== Infinity) a.finish(); } catch (e) {} })).catch(() => {}); // конец входных анимаций (появление меню, пузырей): без них снимали бы полупрозрачные кадры
       const r = await page.evaluate(pageAudit, { TEXT_MIN, UI_MIN, probe, strict }).catch((e) => { errors.push(`${skin}/${scheme}/${name} audit: ${e.message.split("\n")[0]}`); return []; });
       for (const x of r) all.push(Object.assign({ skin, scheme, screen: name }, x));
@@ -188,12 +224,59 @@ function pageAudit({ TEXT_MIN, UI_MIN, probe, strict }) {
       });
     });
     await step("chats", async () => { await closeAll(); await page.evaluate(() => { try { closeChat(); } catch (e) {} state.tab = "chats"; renderTab(); }); });
-    await step("settings", async () => { await closeAll(); await page.click('.tab-btn[data-tab="settings"]'); });
-    for (const cat of ["profile", "appearance", "privacy", "notifications", "data", "help"]) await step("set-" + cat, async () => { await page.click('.tab-btn[data-tab="settings"]').catch(() => {}); await page.evaluate((c) => { try { openSettingsCategory(c); } catch (e) {} }, cat); });
+    await step("settings", async () => { await closeAll(); await page.evaluate(() => document.querySelector('.tab-btn[data-tab="settings"]').click()); });
+    for (const cat of ["profile", "appearance", "privacy", "notifications", "data", "help"]) await step("set-" + cat, async () => { await page.evaluate(() => document.querySelector('.tab-btn[data-tab="settings"]').click()).catch(() => {}); await page.evaluate((c) => { try { openSettingsCategory(c); } catch (e) {} }, cat); });
+    // остальные экраны/шторки: каждый открывается из приложения, после проверки оверлеи скрываются
+    OVERLAYS = "#call-screen,#answer-screen,#lock-screen,#story-viewer,#media-viewer,#onboarding,.sheet,.anchored-menu,.menu,.emoji-picker,#emoji-picker,.cmdk,#cmdk";
+    const extra = [
+      ["thread-panel", "openThread(DEMO_CHAT_ID, 's0')"],
+      ["emoji-picker", "openEmojiPicker({ onPick() {} })"],
+      ["poll-sheet", "openPollSheet()"],
+      ["note-sheet", "(() => { const m = state.contacts.get(DEMO_CHAT_ID).messages.find((x) => x.note); openNoteSheet(DEMO_CHAT_ID, m.id); })()"],
+      ["remind-sheet", "openRemindSheet(DEMO_CHAT_ID, 's0')"],
+      ["summary-sheet", "openSummarySheet('Первое сообщение. Второе сообщение. Третье сообщение.')"],
+      ["chat-summary", "openChatSummary(DEMO_CHAT_ID)"],
+      ["forward-sheet", "openForwardSheet(() => {})"],
+      ["text-sheet", "openTextSheet({ title: 'Название', value: 'Значение', placeholder: 'Введите', onOk() {} })"],
+      ["safety-sheet", "openSafetySheet(DEMO_CHAT_ID)"],
+      ["contact-card", "openContactCard(DEMO_CHAT_ID)"],
+      ["group-info", "(() => { let g = [...state.contacts.values()].find((x) => isGroup(x)); if (!g) g = createGroup('Друзья', ['__x0', '__x1', '__x2']); openGroupInfo(g.id || g); })()"],
+      ["global-search", "openGlobalSearch('сообщ')"],
+      ["cmdk", "openCmdk()"],
+      ["story-viewer", "openStoryViewer('me')"],
+      ["story-composer", "openStoryComposer()"],
+      ["lock-screen", "showLockScreen()"],
+      ["answer-screen", "showAnswerScreen('__x0', 'call1', 'Борис')"],
+      ["call-active", "openCallScreen(DEMO_CHAT_ID, 'active', {})"],
+      ["call-video", "openCallScreen(DEMO_CHAT_ID, 'active', { video: true })"],
+      ["call-ringing", "openCallScreen(DEMO_CHAT_ID, 'ringing', {})"],
+      ["wrapped", "openYearlyWrapped()"],
+      ["favorites", "openFavoritesSheet()"],
+      ["outbox", "openOutboxSheet()"],
+      ["schedule-list", "openScheduleListSheet()"],
+      ["jump-date", "openJumpToDateSheet(DEMO_CHAT_ID)"],
+      ["discovery", "openDiscoverySheet()"],
+      ["folder-manage", "openFolderManageSheet()"],
+      ["audio-output", "openAudioOutputPicker()"],
+      ["chat-row-menu", "openChatRowMenu(DEMO_CHAT_ID, document.querySelector('.chat-row') || document.body)"],
+      ["link-action", "openLinkActionSheet('https://example.com/article')"],
+      ["mini-apps", "EtherMiniApps.openPicker()"]
+    ];
+    for (const [name, expr] of extra) {
+      await step(name, async () => {
+        await page.evaluate(() => { for (const f of ["hideAnswerScreen", "closeStoryViewer", "closeGlobalSearch", "closeCmdk", "closeThreadSheet"]) { try { window[f] && window[f](); } catch (e) {} } try { closeCallScreen("audit", {}); } catch (e) {} try { state.contactCardId = null; } catch (e) {} for (const id of ["content", "app-shell"]) { const ct = document.getElementById(id); if (ct) ct.classList.remove("hidden"); } }).catch(() => {});
+        await page.evaluate((o) => { document.querySelectorAll(o).forEach((e) => e.classList.add("hidden")); document.querySelectorAll(".fx-wrapped").forEach((e) => e.remove()); state.tab = "chats"; state.chatId = DEMO_CHAT_ID; renderTab(); renderChatThread(); }, OVERLAYS).catch(() => {});
+        await page.evaluate(`(async () => { ${expr} })()`);
+      });
+    }
+    await page.evaluate((o) => { document.querySelectorAll(o).forEach((e) => e.classList.add("hidden")); document.querySelectorAll(".fx-wrapped").forEach((e) => e.remove()); }, OVERLAYS).catch(() => {});
     await step("skins-sheet", async () => { await page.evaluate(() => { try { Skins.openSheet(); } catch (e) {} }); });
     await closeAll(); await page.evaluate(() => { try { Skins.closeSheet(); } catch (e) {} });
   }
   await b.close(); srv.close();
+  const cov = new Map(); for (const x of all) if (x.kind === "meta") { const c = cov.get(x.screen) || { min: 1e9, max: 0, skins: [] }; c.min = Math.min(c.min, x.n); c.max = Math.max(c.max, x.n); if (x.n < 3) c.skins.push(x.skin + "/" + x.scheme); cov.set(x.screen, c); }
+  for (let i = all.length - 1; i >= 0; i--) if (all[i].kind === "meta") all.splice(i, 1);
+  if (verbose || args.includes("--coverage")) console.log("покрытие (текстовых узлов на экран, мин/макс по скинам; <3 = экран, скорее всего, не открылся):\n  " + [...cov.entries()].map(([k, c]) => `${k}:${c.min}/${c.max}${c.skins.length ? " ПУСТО в " + c.skins.slice(0, 3).join(",") : ""}`).join("  "));
   // группировка: один дефект = (вид, элемент, скин, схема) -> худший экран
   const key = (x) => [x.kind, x.el].join("|");
   const groups = new Map();

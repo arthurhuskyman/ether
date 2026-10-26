@@ -103,7 +103,7 @@
   --ink-0: #ffffff;                      /* заголовки, сильный акцент */
   --ink-1: rgba(255, 255, 255, 0.88);    /* основной текст  (--text-primary) */
   --ink-2: rgba(255, 255, 255, 0.64);    /* метаданные      (--text-secondary) */
-  --ink-3: rgba(255, 255, 255, 0.48);    /* подписи, placeholder (--text-tertiary), ≈4.97:1 */
+  --ink-3: rgba(255, 255, 255, 0.56);    /* подписи, placeholder (--text-tertiary), ≥4.5:1 и на панелях шторок (bg ≈ #373453) */
   --text-strong: var(--ink-0);
   --text-primary: var(--ink-1);
   --text-secondary: var(--ink-2);
@@ -245,7 +245,7 @@ html[data-scheme="light"] {
   --text-link: #5a3fd1;
 
   --success: #2fa84f;
-  --danger: #c9322a;
+  --danger: #b3261e;
   --warning: #d98700;
   --success-text: #1f7a3a;               /* ≥4.8:1 на --bg-0..--bg-2 (чистый --success давал 2.7:1) */
   --warning-text: #8a5600;
