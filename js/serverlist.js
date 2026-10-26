@@ -77,6 +77,8 @@ const ServerList = (function () {
     const u = normalizeUrl(url); if (!u) return "";
     let p; try { p = new URL(u.replace(/^wss:/, "https:").replace(/^ws:/, "http:")); } catch (e) { return ""; }
     if (p.protocol === "http:" && !(allowLocal && isLoopback(p.hostname))) return "";
+    // D7: подсказка от контакта не должна заставлять браузер стучаться во внутреннюю сеть: IP-литералы и служебные имена только при allowLocal
+    if (!allowLocal && (/^\d{1,3}(\.\d{1,3}){3}$/.test(p.hostname) || /^\[/.test(p.hostname) || /(^|\.)(local|localhost|internal|lan|home|corp|intranet)$/.test(p.hostname))) return "";
     return (p.protocol === "https:" ? "wss://" : "ws://") + p.host;
   }
   function normalizeHints(arr, opts) {

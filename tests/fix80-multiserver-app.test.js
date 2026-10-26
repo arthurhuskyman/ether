@@ -50,6 +50,7 @@ test("фейловер: 3 неудачных подключения -> новы�
     fk.tick(3000); // пауза повтора 1.0 / 1.6 / 2.6 с; таймаут подключения (7 с) на новом сервере ещё не наступает
   }
   fk.tick(50);
+  await sleep(30); // D1: proof для не доверенного сервера (v2, привязан к origin) считается асинхронно (SHA-256) — сокет создаётся после него
   assert.equal(last(), B, "переключились на второй сервер");
   assert.equal(a.run(`effectiveSignalingUrl()`), B);
   assert.equal(a.run(`signalingHttpBase()`), "https://b.example.com");

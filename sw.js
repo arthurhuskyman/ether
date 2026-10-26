@@ -1,4 +1,4 @@
-const CACHE_VERSION = "ether-shell-v242";
+const CACHE_VERSION = "ether-shell-v243";
 // В предзагрузке только ядро. css/skins/<id>.css и fonts/skins/*.woff2 подтягиваются по требованию (активный скин) и
 // кладутся в кэш обработчиком fetch ниже (runtime-cache, stale-while-revalidate).
 const SHELL_FILES = [
@@ -396,12 +396,20 @@ self.addEventListener("pushsubscriptionchange", (event) => {
   );
 });
 
+// D6: содержимое push формирует ретранслятор (возможно, чужой): в openWindow попадает только адрес того же origin, иначе "./"
+function safeSameOriginUrl(u) {
+  try {
+    if (typeof u !== "string" || !u || u.length > 2000) return "./";
+    const url = new URL(u, self.registration.scope);
+    return url.origin === self.location.origin && (url.protocol === "https:" || url.protocol === "http:") ? u : "./";
+  } catch (e) { return "./"; }
+}
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const data = event.notification.data || {};
   const contactId = data.contactId;
   const kind = data.kind || "message";
-  const navigateUrl = data.navigate || "./";
+  const navigateUrl = safeSameOriginUrl(data.navigate);
   // V.79: уведомление-«гудок»: окно есть — фокус + сообщение с глубокой ссылкой, нет — открываем /#answer=<callId>&from=<id>
   if (data.ring === true && data.callId) {
     event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
@@ -411,7 +419,7 @@ self.addEventListener("notificationclick", (event) => {
           return c.focus();
         }
       }
-      if (self.clients.openWindow) return self.clients.openWindow(data.url || "./");
+      if (self.clients.openWindow) return self.clients.openWindow(safeSameOriginUrl(data.url));
     }));
     return;
   }

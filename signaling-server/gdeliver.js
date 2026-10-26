@@ -12,6 +12,7 @@ const LIM = {
   perMin: envInt("GDELIVER_PER_MIN", 240),
   perGidMin: envInt("GDELIVER_PER_GROUP_MIN", 600),
   groups: envInt("GROUPS_MAX", 20000),
+  pushes: envInt("GDELIVER_PUSH_PER_MSG", 32), // push офлайн-получателям за одно сообщение; остальные заберут из ящика при входе
 };
 const GID_RE = /^[A-Za-z0-9_-]{8,64}$/;
 const ID_OK = (x) => typeof x === "string" && x.length > 0 && x.length <= 128 && !x.includes("#");
@@ -25,7 +26,7 @@ function cleanSk(env) {
 }
 
 function create(ctx) {
-  // ctx: { safeSend, clientsGet(id), mailboxPut(userId,msgId,entry), scheduleSave(), schedulePush(toId,fromId,msgId), file|null, now() }
+  // ctx: { canReach(from,toId,client), rateOk(from,to), safeSend, clientsGet(id), mailboxPut(userId,msgId,entry), scheduleSave(), schedulePush(toId,fromId,msgId), file|null, now() }
   const groups = new Map(); // gid -> { members:Set, admins:Set, ver, at }
   const hits = new Map();
   const now = () => (ctx.now ? ctx.now() : Date.now());
@@ -86,24 +87,27 @@ function create(ctx) {
     if (!to || !env) return ack({ error: to ? "invalid-envelope" : "too-many" }), true;
     if (!rate("gd:" + myId, LIM.perMin) || !rate("gdg:" + msg.gid, LIM.perGidMin)) return ack({ error: "rate" }), true;
     to.delete(myId);
-    let g = groups.get(msg.gid);
-    if (!g) { // первая весть о группе: отправитель регистрирует её (список получателей + он сам)
-      if (groups.size >= LIM.groups) groups.delete(groups.keys().next().value);
-      g = { members: new Set([myId, ...to]), admins: new Set([myId]), ver: 0, at: now(), implicit: true }; groups.set(msg.gid, g); saveSoon();
-    } else if (!g.members.has(myId)) return ack({ error: "not-member" }), true;
+    // D4: группу создаёт только явный group-roster (участник, которого отправитель назвал, видит её в реестре; незнакомец не заводит «неявную» группу чужими id)
+    const g = groups.get(msg.gid);
+    if (!g) return ack({ error: "no-group" }), true;
+    if (!g.members.has(myId)) return ack({ error: "not-member" }), true;
     const targets = Array.from(to).filter((id) => g.members.has(id));
-    const dropped = to.size - targets.length;
-    let live = 0, queued = 0;
+    let sent = 0, limited = false, pushes = 0;
     const t = now();
     for (const id of targets) {
-      const entry = { from: myId, msgId: msg.msgId, envelope: env, fromPublicKey: null, kind: "gchat", gid: msg.gid, ts: t };
-      ctx.mailboxPut(id, msg.msgId, entry);
       const cl = ctx.clientsGet(id);
-      if (cl && cl.ws && cl.ws.readyState === 1) { ctx.safeSend(cl.ws, { type: "deliver", from: myId, msgId: msg.msgId, envelope: env, fromPublicKey: null, kind: "gchat", gid: msg.gid, queued: false }); live++; }
-      else { queued++; if (ctx.schedulePush) ctx.schedulePush(id, myId, msg.msgId); }
+      const online = !!(cl && cl.ws && cl.ws.readyState === 1);
+      // те же ограничения, что у обычного deliver: парный лимит и общий потолок на отправителя; скрытый онлайн-получатель, не знающий отправителя, не получает
+      if (online && ctx.canReach && !ctx.canReach(myId, id, cl)) continue;
+      if (ctx.rateOk && !ctx.rateOk(myId, id)) { limited = true; continue; }
+      ctx.mailboxPut(id, msg.msgId, { from: myId, msgId: msg.msgId, envelope: env, fromPublicKey: null, kind: "gchat", gid: msg.gid, ts: t });
+      if (online) ctx.safeSend(cl.ws, { type: "deliver", from: myId, msgId: msg.msgId, envelope: env, fromPublicKey: null, kind: "gchat", gid: msg.gid, queued: false });
+      else if (ctx.schedulePush && pushes < LIM.pushes) { pushes++; ctx.schedulePush(id, myId, msg.msgId); }
+      sent++;
     }
     ctx.scheduleSave();
-    return ack({ live, queued, dropped }), true;
+    // Ответ не различает онлайн/офлайн/скрытых/не-участников поимённо (оракул присутствия): только общее число принятых
+    return ack(limited ? { error: "rate", sent } : { sent, dropped: to.size - sent }), true;
   }
   return { onMessage, load, save, groups, LIM };
 }

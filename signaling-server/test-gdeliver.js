@@ -15,7 +15,7 @@ const env = (n, tag) => ({ v: "sk1", cid: "chain0001", n, iv: "aXYxMjM0NTY3OA=="
   check("реестр: первая регистрация принята", A.ev.some((e) => e.type === "group-roster-ack" && !e.error && e.ver === 1));
   A.send({ type: "gdeliver", gid: GID, msgId: "m1", to: ids.filter((i) => i !== "u-a"), envelope: env(0) }); await w(250);
   const ack = A.ev.find((e) => e.type === "gdeliver-ack" && e.msgId === "m1");
-  check("ack: 2 онлайн, 1 в ящик", ack && ack.live === 2 && ack.queued === 1 && !ack.error);
+  check("ack: принято 3 получателя, без поимённого online/offline (D4)", ack && ack.sent === 3 && ack.live === undefined && ack.queued === undefined && !ack.error);
   const b1 = B.ev.find((e) => e.type === "deliver" && e.msgId === "m1"), c1 = C.ev.find((e) => e.type === "deliver" && e.msgId === "m1");
   check("онлайн получают один и тот же конверт kind=gchat с gid и from", b1 && c1 && b1.kind === "gchat" && b1.gid === GID && b1.from === "u-a" && b1.envelope.ct === c1.envelope.ct && b1.envelope.cid === "chain0001");
   check("отправитель не получает свою копию", !A.ev.some((e) => e.type === "deliver" && e.msgId === "m1"));
@@ -29,7 +29,7 @@ const env = (n, tag) => ({ v: "sk1", cid: "chain0001", n, iv: "aXYxMjM0NTY3OA=="
   // отправитель добавил постороннего в список
   A.send({ type: "gdeliver", gid: GID, msgId: "m3", to: [...ids, "u-x"], envelope: env(1) }); await w(200);
   const a3 = A.ev.find((e) => e.type === "gdeliver-ack" && e.msgId === "m3");
-  check("получатели вне реестра отброшены (dropped=1)", a3 && a3.dropped === 1 && !X.ev.some((e) => e.type === "deliver" && e.msgId === "m3"));
+  check("получатели вне реестра отброшены (dropped=1, sent=3)", a3 && a3.dropped === 1 && a3.sent === 3 && !X.ev.some((e) => e.type === "deliver" && e.msgId === "m3"));
   // отправитель вправе исключить
   A.send({ type: "gdeliver", gid: GID, msgId: "m4", to: ["u-b"], envelope: env(2) }); await w(150);
   check("подмножество получателей допустимо", B.ev.some((e) => e.msgId === "m4") && !C.ev.some((e) => e.msgId === "m4"));
@@ -55,14 +55,22 @@ const env = (n, tag) => ({ v: "sk1", cid: "chain0001", n, iv: "aXYxMjM0NTY3OA=="
   for (let i = 0; i < 14; i++) A.send({ type: "gdeliver", gid: GID, msgId: "r" + i, to: ["u-b"], envelope: env(10 + i) });
   await w(300);
   check("лимит частоты на отправителя", A.ev.some((e) => e.type === "gdeliver-ack" && e.error === "rate"));
-  // авто-регистрация новой группы
+  // D4: неявных групп больше нет — незнакомец не может завести группу чужими id первым gdeliver
   const E = await open("u-e");
   E.send({ type: "gdeliver", gid: "grp-auto-0001", msgId: "n1", to: ["u-b"], envelope: env(0) }); await w(150);
-  check("неизвестная группа регистрируется первым отправителем", E.ev.some((e) => e.type === "gdeliver-ack" && e.msgId === "n1" && !e.error) && B.ev.some((e) => e.msgId === "n1"));
+  check("неизвестная группа без group-roster отвергнута (no-group), получатель ничего не получил", E.ev.some((e) => e.type === "gdeliver-ack" && e.msgId === "n1" && e.error === "no-group") && !B.ev.some((e) => e.msgId === "n1"));
+  // D4: скрытый онлайн-получатель, не знающий отправителя, не получает и не выдаётся в ack
+  const H = await new Promise((resolve) => { const ws = new WebSocket("ws://localhost:8812"); const ev = []; ws.on("message", (r) => ev.push(JSON.parse(r))); ws.on("open", () => { ws.send(JSON.stringify({ type: "register", id: "u-hid", name: "h", visible: false, caps: ["sk1"] })); ws.send(JSON.stringify({ type: "watch", ids: [] })); setTimeout(() => resolve({ ws, ev }), 200); }); });
+  E.send({ type: "group-roster", gid: "grp-hid-0001", members: ["u-e", "u-hid", "u-nobody"], ver: 1 }); await w(100);
+  E.send({ type: "gdeliver", gid: "grp-hid-0001", msgId: "h1", to: ["u-hid", "u-nobody"], envelope: env(0) }); await w(150);
+  const ah = E.ev.find((e) => e.type === "gdeliver-ack" && e.msgId === "h1");
+  check("скрытый онлайн не получает чужой gdeliver (canReach)", !H.ev.some((e) => e.msgId === "h1"));
+  check("ack не различает скрытого онлайн и офлайн-id: sent=1 (офлайн в ящике), поимённых live/queued нет", ah && ah.sent === 1 && ah.live === undefined && ah.queued === undefined);
+  H.ws.close();
   // совместимость: старое поведение deliver не затронуто
   A.send({ type: "deliver", to: "u-b", msgId: "old1", envelope: { iv: "aXY=", ct: "Y3Q=" }, kind: "chat" }); await w(150);
   check("обычный deliver работает как раньше", B.ev.some((e) => e.type === "deliver" && e.msgId === "old1" && e.kind === "chat" && !e.gid));
-  // неявная регистрация заменяется явным ростером участника (а явный чужой не перехватить)
+  // явный ростер участника (чужой не перехватить)
   E.send({ type: "group-roster", gid: "grp-auto-0001", members: ["u-e", "u-b"], ver: 1 }); await w(100);
   check("явный ростер участника заменяет неявно созданный", E.ev.filter((e) => e.type === "group-roster-ack").pop().ver === 1);
   B.send({ type: "group-roster", gid: "grp-auto-0001", members: ["u-b"], ver: 9 }); await w(100);

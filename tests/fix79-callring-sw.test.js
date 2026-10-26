@@ -172,3 +172,16 @@ test("deep-link учитывает подпапку scope (GitHub Pages)", async
   await push(t, ring());
   assert.equal(t.shown[0].data.url, "/ether/#answer=c1abcdef&from=peer1");
 });
+
+test("D6: notificationclick открывает только адрес своего origin; чужой/javascript:/мусор -> ./", async () => {
+  const t = load({ clients: [] });
+  const click = (data) => { let p; t.handlers.notificationclick({ notification: { data, close() {} }, action: "", waitUntil: (x) => { p = x; } }); return p; };
+  for (const bad of ["https://evil.example/phish", "//evil.example/x", "javascript:alert(1)", "data:text/html,x", 42, {}, "https://x.test.evil.example/"]) await click({ contactId: "c1", navigate: bad });
+  assert.deepEqual(t.opened, ["./", "./", "./", "./", "./", "./", "./"]);
+  t.opened.length = 0;
+  await click({ contactId: "c1", navigate: "/#chat=c1" }); await click({ contactId: "c1", navigate: "https://x.test/#chat=c2" });
+  assert.deepEqual(t.opened, ["/#chat=c1", "https://x.test/#chat=c2"]);
+  t.opened.length = 0;
+  await click({ ring: true, callId: "c1abcdef", from: "p", url: "https://evil.example/#answer=1" });
+  assert.deepEqual(t.opened, ["./"]);
+});

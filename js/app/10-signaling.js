@@ -118,7 +118,7 @@ function srvOpenSession(url, onDeliver) {
     let s = null, done = false;
     const fin = (err) => { if (done) return; done = true; clearTimeout(t); if (err) { try { s.stop(); } catch (e) {} reject(err); } else resolve(s); };
     const t = setTimeout(() => fin(new Error("timeout")), 9000);
-    claimProof().catch(() => "").then((proof) => {
+    claimProofFor(url).catch(() => "").then((proof) => {
       if (done) return;
       s = new SignalingClient(url, Store.myId, { name: Store.name, visible: false, publicKey: Store.myPublicKeyJwk });
       s.claim = proof || undefined;
@@ -264,11 +264,38 @@ function initSignaling() {
   { const c1 = wireSignalingEvents(sig), c2 = wireServerFailover(sig); signalingCleanup = () => { c1(); c2(); }; }
   sig.addEventListener("slow-connect", () => { if (!sig.connected) updateSignalingStatusUI("connecting", T("status.waking")); });
   // Доказательство владения id (claim) считается асинхронно (SHA-256); результат кешируется, поэтому повторные подключения стартуют синхронно.
-  const cached = claimProofCached();
+  const cached = claimProofCachedFor(url);
   if (cached !== null) { sig.claim = cached || undefined; sig.start(); }
-  else claimProof().then((p) => p, () => "").then((p) => { if (signaling !== sig) return; sig.claim = p || undefined; sig.start(); });
+  else claimProofFor(url).then((p) => p, () => "").then((p) => { if (signaling !== sig) return; sig.claim = p || undefined; sig.start(); });
 }
 let __claimProofCache = null, __claimProofFor = "";
+const __claimProofPer = new Map(); // "token|origin" -> proof
+// D1: доказательство владения id привязано к серверу. Прежний (v1) proof = sha256("ether-claim-v1|"+токен) отдаётся только серверам, которым
+// человек доверил id: встроенным и явно введённому в поле «Сервер» (там id уже закреплён этим значением). Остальным (добавленным вручную в список,
+// из подсказок контактов, вторым ретрансляторам) уходит sha256("ether-claim-v2|"+токен+"|"+origin) — злонамеренный сервер не может предъявить его на других.
+function claimLegacyServer(url) {
+  try {
+    let legacy = ""; try { legacy = (Store.signalingUrl || "").trim(); } catch (e) {}
+    if (legacy && ServerList.sameServer(legacy, url)) return true;
+    return srvDefaults().some((d) => ServerList.sameServer(d.url, url));
+  } catch (e) { return false; }
+}
+function claimOrigin(url) { try { return new URL(String(url).replace(/^ws/i, "http")).origin.toLowerCase(); } catch (e) { return String(url || "").toLowerCase(); } }
+function claimProofCachedFor(url) {
+  const t = Store.claimToken; if (!t) return "";
+  if (claimLegacyServer(url)) return claimProofCached();
+  const v = __claimProofPer.get(t + "|" + claimOrigin(url)); return v === undefined ? null : v;
+}
+async function claimProofFor(url) {
+  const t = Store.claimToken; if (!t) return "";
+  if (claimLegacyServer(url)) return claimProof();
+  const o = claimOrigin(url), k = t + "|" + o;
+  if (__claimProofPer.has(k)) return __claimProofPer.get(k);
+  const d = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode("ether-claim-v2|" + t + "|" + o)));
+  const h = Array.from(d, (x) => x.toString(16).padStart(2, "0")).join("");
+  if (__claimProofPer.size > 32) __claimProofPer.clear();
+  __claimProofPer.set(k, h); return h;
+}
 function claimProofCached() { const t = Store.claimToken; if (!t) return ""; return __claimProofFor === t ? __claimProofCache : null; }
 async function claimProof() {
   const t = Store.claimToken; if (!t) return "";

@@ -168,12 +168,15 @@ async function decryptBackupPayload(password, salt, envelope) {
     return CryptoHelper.decryptJson(key, envelope);
   }
 }
+// D3: состояние Double Ratchet / Sender Keys не входит в файл копии и не восстанавливается из старых файлов: откат цепочки повторил бы (ключ, IV) уже отправленных сообщений.
+// После импорта сессии создаются заново (X3DH; при расхождении — служебный rc-reset), история и контакты сохраняются.
+const RATCHET_STATE_KEYS = ["ether.ratchet", "ether.groupkeys"];
 async function exportBackup() {
   persistContactsNow(); // гарантируем, что дебаунс-таймер не "съест" последние изменения
   const data = {};
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
-    if (k && k.startsWith("ether.") && !k.startsWith("ether.sec.")) data[k] = localStorage.getItem(k); // значения — уже расшифрованные (кэш SecureStore); соль/проверка PIN в файл не кладём
+    if (k && k.startsWith("ether.") && !k.startsWith("ether.sec.") && !RATCHET_STATE_KEYS.includes(k)) data[k] = localStorage.getItem(k); // значения — уже расшифрованные (кэш SecureStore); соль/проверка PIN в файл не кладём
   }
   let payload = data;
   let password = null;
@@ -252,7 +255,7 @@ async function applyImportedData(data) {
       if (k && k.startsWith("ether.")) localStorage.removeItem(k);
     }
     for (const k of SecureStore.KEYS) localStorage.removeItem(k); // значения, ещё не дошедшие до диска, живут только в кэше SecureStore
-    for (const k of Object.keys(data)) if (k.startsWith("ether.") && !k.startsWith("ether.sec.") && typeof data[k] === "string") localStorage.setItem(k, data[k]);
+    for (const k of Object.keys(data)) if (k.startsWith("ether.") && !k.startsWith("ether.sec.") && !RATCHET_STATE_KEYS.includes(k) && typeof data[k] === "string") localStorage.setItem(k, data[k]);
   } catch (e) {
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const k = localStorage.key(i);

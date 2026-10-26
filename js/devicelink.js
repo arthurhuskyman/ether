@@ -10,7 +10,8 @@ const DeviceLink = (() => {
   const te = new TextEncoder(), td = new TextDecoder();
   const ECDH = { name: "ECDH", namedCurve: "P-256" };
   const SECRET_TTL_MS = 5 * 60_000, POLL_MS = 1500, GET_TIMEOUT_MS = 10 * 60_000;
-  const EXCLUDED = /^(ether\.sec\.|ether\.pushSubscription$|ether\.vapidPublicKey$)/; // шифрование «в покое» и push привязаны к устройству
+  // D3: состояние Double Ratchet и цепочки Sender Keys не копируются: две живые копии одной цепочки повторяют пары (ключ, IV); на новом устройстве сессии начнутся заново (X3DH / rc-reset)
+  const EXCLUDED = /^(ether\.sec\.|ether\.pushSubscription$|ether\.vapidPublicKey$|ether\.ratchet$|ether\.groupkeys$)/; // шифрование «в покое» и push привязаны к устройству
   const CODE_PREFIX = "ether://link?";
 
   function b64u(u8) { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }

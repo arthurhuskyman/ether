@@ -362,7 +362,7 @@ const CRITICAL_LS_KEYS = [
   "ether.pinHash", "ether.pinSalt", "ether.pinEnabled",
   "ether.contacts",
   "ether.outbox", "ether.pendingNoKey", "ether.recentlyDeleted",
-  "ether.theme", "ether.skin", "ether.glassAlpha", "ether.sec.on", "ether.sec.salt", "ether.sec.check", "ether.ratchet", "ether.heldDeliveries", "ether.seenMsgIds", "ether.scheduledMessages", "ether.groupDeliveryMap",
+  "ether.theme", "ether.skin", "ether.glassAlpha", "ether.sec.on", "ether.sec.salt", "ether.sec.check", "ether.heldDeliveries", "ether.seenMsgIds", "ether.scheduledMessages", "ether.groupDeliveryMap",
   "ether.notifications", "ether.sounds", "ether.ringtone", "ether.linkPreviews", "ether.linkPreviewMode",
   "ether.vapidPublicKey", "ether.pushSubscription",
   "ether.callLog", "ether.lastSeen", "ether.drafts",
@@ -10011,7 +10011,7 @@ function srvOpenSession(url, onDeliver) {
     let s = null, done = false;
     const fin = (err) => { if (done) return; done = true; clearTimeout(t); if (err) { try { s.stop(); } catch (e) {} reject(err); } else resolve(s); };
     const t = setTimeout(() => fin(new Error("timeout")), 9000);
-    claimProof().catch(() => "").then((proof) => {
+    claimProofFor(url).catch(() => "").then((proof) => {
       if (done) return;
       s = new SignalingClient(url, Store.myId, { name: Store.name, visible: false, publicKey: Store.myPublicKeyJwk });
       s.claim = proof || undefined;
@@ -10157,11 +10157,38 @@ function initSignaling() {
   { const c1 = wireSignalingEvents(sig), c2 = wireServerFailover(sig); signalingCleanup = () => { c1(); c2(); }; }
   sig.addEventListener("slow-connect", () => { if (!sig.connected) updateSignalingStatusUI("connecting", T("status.waking")); });
   // Доказательство владения id (claim) считается асинхронно (SHA-256); результат кешируется, поэтому повторные подключения стартуют синхронно.
-  const cached = claimProofCached();
+  const cached = claimProofCachedFor(url);
   if (cached !== null) { sig.claim = cached || undefined; sig.start(); }
-  else claimProof().then((p) => p, () => "").then((p) => { if (signaling !== sig) return; sig.claim = p || undefined; sig.start(); });
+  else claimProofFor(url).then((p) => p, () => "").then((p) => { if (signaling !== sig) return; sig.claim = p || undefined; sig.start(); });
 }
 let __claimProofCache = null, __claimProofFor = "";
+const __claimProofPer = new Map(); // "token|origin" -> proof
+// D1: доказательство владения id привязано к серверу. Прежний (v1) proof = sha256("ether-claim-v1|"+токен) отдаётся только серверам, которым
+// человек доверил id: встроенным и явно введённому в поле «Сервер» (там id уже закреплён этим значением). Остальным (добавленным вручную в список,
+// из подсказок контактов, вторым ретрансляторам) уходит sha256("ether-claim-v2|"+токен+"|"+origin) — злонамеренный сервер не может предъявить его на других.
+function claimLegacyServer(url) {
+  try {
+    let legacy = ""; try { legacy = (Store.signalingUrl || "").trim(); } catch (e) {}
+    if (legacy && ServerList.sameServer(legacy, url)) return true;
+    return srvDefaults().some((d) => ServerList.sameServer(d.url, url));
+  } catch (e) { return false; }
+}
+function claimOrigin(url) { try { return new URL(String(url).replace(/^ws/i, "http")).origin.toLowerCase(); } catch (e) { return String(url || "").toLowerCase(); } }
+function claimProofCachedFor(url) {
+  const t = Store.claimToken; if (!t) return "";
+  if (claimLegacyServer(url)) return claimProofCached();
+  const v = __claimProofPer.get(t + "|" + claimOrigin(url)); return v === undefined ? null : v;
+}
+async function claimProofFor(url) {
+  const t = Store.claimToken; if (!t) return "";
+  if (claimLegacyServer(url)) return claimProof();
+  const o = claimOrigin(url), k = t + "|" + o;
+  if (__claimProofPer.has(k)) return __claimProofPer.get(k);
+  const d = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode("ether-claim-v2|" + t + "|" + o)));
+  const h = Array.from(d, (x) => x.toString(16).padStart(2, "0")).join("");
+  if (__claimProofPer.size > 32) __claimProofPer.clear();
+  __claimProofPer.set(k, h); return h;
+}
 function claimProofCached() { const t = Store.claimToken; if (!t) return ""; return __claimProofFor === t ? __claimProofCache : null; }
 async function claimProof() {
   const t = Store.claimToken; if (!t) return "";
@@ -17385,12 +17412,15 @@ async function decryptBackupPayload(password, salt, envelope) {
     return CryptoHelper.decryptJson(key, envelope);
   }
 }
+// D3: состояние Double Ratchet / Sender Keys не входит в файл копии и не восстанавливается из старых файлов: откат цепочки повторил бы (ключ, IV) уже отправленных сообщений.
+// После импорта сессии создаются заново (X3DH; при расхождении — служебный rc-reset), история и контакты сохраняются.
+const RATCHET_STATE_KEYS = ["ether.ratchet", "ether.groupkeys"];
 async function exportBackup() {
   persistContactsNow(); // гарантируем, что дебаунс-таймер не "съест" последние изменения
   const data = {};
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
-    if (k && k.startsWith("ether.") && !k.startsWith("ether.sec.")) data[k] = localStorage.getItem(k); // значения — уже расшифрованные (кэш SecureStore); соль/проверка PIN в файл не кладём
+    if (k && k.startsWith("ether.") && !k.startsWith("ether.sec.") && !RATCHET_STATE_KEYS.includes(k)) data[k] = localStorage.getItem(k); // значения — уже расшифрованные (кэш SecureStore); соль/проверка PIN в файл не кладём
   }
   let payload = data;
   let password = null;
@@ -17469,7 +17499,7 @@ async function applyImportedData(data) {
       if (k && k.startsWith("ether.")) localStorage.removeItem(k);
     }
     for (const k of SecureStore.KEYS) localStorage.removeItem(k); // значения, ещё не дошедшие до диска, живут только в кэше SecureStore
-    for (const k of Object.keys(data)) if (k.startsWith("ether.") && !k.startsWith("ether.sec.") && typeof data[k] === "string") localStorage.setItem(k, data[k]);
+    for (const k of Object.keys(data)) if (k.startsWith("ether.") && !k.startsWith("ether.sec.") && !RATCHET_STATE_KEYS.includes(k) && typeof data[k] === "string") localStorage.setItem(k, data[k]);
   } catch (e) {
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const k = localStorage.key(i);

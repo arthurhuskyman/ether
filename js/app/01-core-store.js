@@ -269,7 +269,7 @@ const CRITICAL_LS_KEYS = [
   "ether.pinHash", "ether.pinSalt", "ether.pinEnabled",
   "ether.contacts",
   "ether.outbox", "ether.pendingNoKey", "ether.recentlyDeleted",
-  "ether.theme", "ether.skin", "ether.glassAlpha", "ether.sec.on", "ether.sec.salt", "ether.sec.check", "ether.ratchet", "ether.heldDeliveries", "ether.seenMsgIds", "ether.scheduledMessages", "ether.groupDeliveryMap",
+  "ether.theme", "ether.skin", "ether.glassAlpha", "ether.sec.on", "ether.sec.salt", "ether.sec.check", "ether.heldDeliveries", "ether.seenMsgIds", "ether.scheduledMessages", "ether.groupDeliveryMap",
   "ether.notifications", "ether.sounds", "ether.ringtone", "ether.linkPreviews", "ether.linkPreviewMode",
   "ether.vapidPublicKey", "ether.pushSubscription",
   "ether.callLog", "ether.lastSeen", "ether.drafts",

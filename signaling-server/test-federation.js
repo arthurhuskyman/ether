@@ -40,6 +40,7 @@ const ENV = { v: 2, h: { d: ["AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "BBB
   const dis = await open(PC, "dis"); check("по умолчанию fed0 не объявляется, а адрес вида id@имя — обычный id", dis.ev.some((e) => e.type === "registered" && !e.features.includes("fed0"))); dis.ws.close();
   const alice = await open(PA, "alice"), bob = await open(PB, "bob");
   check("сервер объявляет возможность fed0 только при включении", alice.ev.some((e) => e.type === "registered" && e.features.includes("fed0")));
+  const spoof = await open(PA, "mallory@beta"); check("D8: при включённой федерации id с '@' не регистрируется", spoof.ev.some((e) => e.type === "register-error" && e.error === "invalid-id") && !spoof.ev.some((e) => e.type === "registered")); spoof.ws.close();
   alice.send({ type: "deliver", to: "bob@beta", msgId: "f1", envelope: ENV, fromPublicKey: { kty: "EC", crv: "P-256", x: "xx", y: "yy" }, kind: "chat" }); await w(500);
   check("alpha -> beta: отправитель получил ack без ошибки", alice.ev.some((e) => e.type === "deliver-ack" && e.msgId === "f1" && !e.error));
   const got = bob.ev.find((e) => e.type === "deliver" && e.msgId === "f1");

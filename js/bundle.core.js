@@ -539,7 +539,7 @@ const CryptoHelper = (() => {
 // =====================================================================
 const SecureStore = (() => {
   const KEYS = ["ether.contacts", "ether.outbox", "ether.ratchet", "ether.pendingNoKey", "ether.heldDeliveries", "ether.drafts", "ether.stories",
-    "ether.privKey", "ether.callLog", "ether.scheduledMessages", "ether.groupDeliveryMap", "ether.recentlyDeleted", "ether.lastSeen", "ether.translateApiKey", "ether.claimToken", "ether.sigKey"];
+    "ether.privKey", "ether.callLog", "ether.scheduledMessages", "ether.groupDeliveryMap", "ether.recentlyDeleted", "ether.lastSeen", "ether.translateApiKey", "ether.claimToken", "ether.sigKey", "ether.groupkeys"];
   const PREFIX = "enc1:", DPREFIX = "encd1:", ITER = 250000, MIN_PIN = 6;
   const KDB = "ether-keys", KSTORE = "k", KREC = "device";
   const FLAG = "ether.sec.on", SALT = "ether.sec.salt", CHECK = "ether.sec.check";
@@ -2990,6 +2990,8 @@ const ServerList = (function () {
     const u = normalizeUrl(url); if (!u) return "";
     let p; try { p = new URL(u.replace(/^wss:/, "https:").replace(/^ws:/, "http:")); } catch (e) { return ""; }
     if (p.protocol === "http:" && !(allowLocal && isLoopback(p.hostname))) return "";
+    // D7: подсказка от контакта не должна заставлять браузер стучаться во внутреннюю сеть: IP-литералы и служебные имена только при allowLocal
+    if (!allowLocal && (/^\d{1,3}(\.\d{1,3}){3}$/.test(p.hostname) || /^\[/.test(p.hostname) || /(^|\.)(local|localhost|internal|lan|home|corp|intranet)$/.test(p.hostname))) return "";
     return (p.protocol === "https:" ? "wss://" : "ws://") + p.host;
   }
   function normalizeHints(arr, opts) {

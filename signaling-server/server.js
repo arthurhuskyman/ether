@@ -1572,6 +1572,8 @@ const channelsMod = require("./channels").create({
 channelsMod.load();
 const gdeliverMod = require("./gdeliver").create({
   safeSend, clientsGet: (id) => clients.get(id), mailboxPut, scheduleSave: scheduleMailboxSave,
+  canReach: (fromId, toId, target) => canReach(fromId, clients.get(fromId), toId, target),
+  rateOk: (from, to) => wsRateLimitPairOk(from, to, DELIVER_RATE_LIMIT_PER_MIN) && wsRateLimitOk(deliverTotalHits, from, DELIVER_TOTAL_LIMIT_PER_MIN),
   file: process.env.GROUPS_PERSIST === "0" ? null : (process.env.GROUPS_FILE || path.join(process.env.DATA_DIR || __dirname, ".ether-groups.json")),
   schedulePush: (to, from, mid) => setTimeout(() => {
     const box = mailbox.get(to); if (!box || !box.has(mid) || pushSentForMsgId.has(mid + "|" + to)) return;
@@ -1864,7 +1866,7 @@ wss.on("connection", (ws, req) => {
     // Всё, кроме register/ping, — только от текущего (не вытесненного) соединения зарегистрированного id.
     if (msg.type !== "register" && (!myId || !clients.get(myId) || clients.get(myId).ws !== ws)) return;
 
-    if (msg.type === "register" && typeof msg.id === "string" && msg.id.includes("#") && msg.id.length <= 128) {
+    if (msg.type === "register" && typeof msg.id === "string" && (msg.id.includes("#") || (federation.enabled && msg.id.includes("@"))) && msg.id.length <= 128) { // "@" занят адресом "id@пир" федерации (D8)
       safeSend(ws, { type: "register-error", error: "invalid-id", id: msg.id });
       return;
     }

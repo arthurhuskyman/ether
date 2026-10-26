@@ -13,7 +13,7 @@ const Devices = (() => {
     get(k) { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch (e) { return null; } },
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
   };
-  const NOT_FOR_COMPANION = ["ether.privKey", "ether.ratchet", "ether.claimToken", "ether.sigKey", "ether.outbox", "ether.pendingNoKey", "ether.heldDeliveries",
+  const NOT_FOR_COMPANION = ["ether.privKey", "ether.ratchet", "ether.groupkeys", "ether.claimToken", "ether.sigKey", "ether.outbox", "ether.pendingNoKey", "ether.heldDeliveries",
     "ether.dev.list", "ether.dev.peers", "ether.dev.self", "ether.dev.revoked", "ether.dev.ops", "ether.dev.wantAt", "ether.idMig", "ether.pushSubscription", "ether.pinHash", "ether.pinSalt", "ether.pinEnabled", "ether.groupDeliveryMap"];
   const self = () => ls.get(K_SELF);
   const isCompanion = () => !!self();
