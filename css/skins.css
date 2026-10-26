@@ -70,7 +70,7 @@ html[data-skin] .bubble, html[data-skin] .chat-row-name, html[data-skin] .chat-r
 html:not([data-skin]) #skin-deco { display: none; }
 @media (prefers-reduced-motion: reduce) { #skin-deco * { animation: none !important; } }
 /* частицы Skins.fx: позиция --x/--y, анимация только transform/opacity; без движения (спокойный режим, reduced-motion) стоят на месте */
-.sk-p { position: absolute; left: var(--x, 0); top: var(--y, 0); font-size: var(--s, 16px); line-height: 1; opacity: var(--o, .5); font-style: normal; user-select: none; animation: var(--a) var(--t, 20s) linear var(--dl, 0s) infinite; }
+.sk-p { position: absolute; left: var(--x, 0); top: var(--y, 0); font-size: var(--s, 1rem); line-height: 1; opacity: var(--o, .5); font-style: normal; user-select: none; animation: var(--a) var(--t, 20s) linear var(--dl, 0s) infinite; }
 .sk-fall { --a: skFall; } .sk-rise { --a: skRise; } .sk-drift { --a: skDrift; } .sk-roll { --a: skRoll; } .sk-twinkle { --a: skTwinkle; } .sk-bob { --a: skBob; animation-timing-function: ease-in-out; } .sk-blink { --a: skBlink; animation-timing-function: step-end; }
 html[data-calm-mode="1"] #skin-deco .sk-p { animation: none; }
 @keyframes skFall { from { transform: translate3d(0, calc(-14vh - var(--y, 0px)), 0) rotate(0); } to { transform: translate3d(var(--w, 20px), calc(112vh - var(--y, 0px)), 0) rotate(40deg); } }
