@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["my"] = {
     "wide.card": "အဆက်အသွယ်အသေးစိတ်",
     "wide.pick": "စာရင်းမှ ချတ်တစ်ခုကို ရွေးပါ",
     "onboarding.lang.change": "ဘာသာစကားပြောင်းမည်",
+    "call.guard.lock": "ဖန်သားပြင်ကို လော့ခ်ချရန်",
+    "call.guard.hint": "လော့ခ်ဖွင့်ရန် စက်ဝိုင်းကို ၁ စက္ကန့် ဖိထားပါ",
+    "call.guard.on": "ဖန်သားပြင် လော့ခ်ချထားသည်။ လော့ခ်ဖွင့်ရန် ခလုတ်ကို တစ်စက္ကန့် ဖိထားပါ။",
+    "call.guard.off": "ဖန်သားပြင် လော့ခ်ဖွင့်ပြီးပါပြီ",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("my");

@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["sq"] = {
     "wide.card": "Të dhënat e kontaktit",
     "wide.pick": "Zgjidhni një bisedë nga lista",
     "onboarding.lang.change": "ndrysho gjuhën",
+    "call.guard.lock": "Blloko ekranin",
+    "call.guard.hint": "Mbaj shtypur rrethin për 1 sekondë për ta zhbllokuar",
+    "call.guard.on": "Ekrani u bllokua. Mbaj shtypur butonin e zhbllokimit për një sekondë.",
+    "call.guard.off": "Ekrani u zhbllokua",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("sq");

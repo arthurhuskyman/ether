@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["da"] = {
     "wide.card": "Kontaktoplysninger",
     "wide.pick": "Vælg en chat fra listen",
     "onboarding.lang.change": "skift sprog",
+    "call.guard.lock": "Lås skærmen",
+    "call.guard.hint": "Hold cirklen nede i 1 sekund for at låse op",
+    "call.guard.on": "Skærmen er låst. Hold oplåsningsknappen nede i et sekund for at låse op.",
+    "call.guard.off": "Skærmen er låst op",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("da");

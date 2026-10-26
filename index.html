@@ -65,6 +65,7 @@
 <link rel="stylesheet" href="css/tokens.css" />
 <link rel="stylesheet" href="css/styles.css" />
 <link rel="stylesheet" href="css/skins.css" />
+<link rel="stylesheet" href="css/callguard.css" />
 <script src="js/textscale.js"></script>
 </head>
 <body>
@@ -639,6 +640,8 @@
         <button type="button" id="devicecheck-btn" class="settings-row link-row"><span data-i18n="devicecheck.title">Device check</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
         <button type="button" id="report-problem-btn" class="settings-row link-row"><span>Report a problem</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
         <button type="button" id="ringlab-btn" class="settings-row link-row"><span>Ring Lab</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
+        <label class="settings-row"><span>Auto touch guard (audio calls, tilt heuristic)</span><input id="cg-auto-toggle" type="checkbox" class="switch" checked /></label>
+        <pre id="callguard-diag" class="fine muted" style="white-space:pre-wrap;margin:6px 4px 10px;user-select:text;-webkit-user-select:text;">wake lock / touch guard: no call</pre>
       </div>
             <div class="settings-group flat-content">
         <button type="button" id="reset-all-btn" class="settings-row destructive" data-i18n="debug.dropConnections">Drop all connections</button>
@@ -879,6 +882,10 @@
       <svg data-icon="video" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"></svg>
       <span data-i18n="call.video">Video</span>
     </button>
+    <button type="button" id="call-guard-btn" class="call-btn hidden" aria-pressed="false">
+      <svg data-icon="lock" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"></svg>
+      <span data-i18n="call.guard.lock">Lock screen</span>
+    </button>
     <!-- Основных кнопок звонка четыре (микрофон, динамик, видео, завершить). Редкие действия — показ экрана, рисование на видео —
          убраны в меню «ещё»; сама кнопка «ещё» видна, только если в меню есть что показать. Показ экрана (getDisplayMedia)
          скрыт, если браузер его не поддерживает (см. wireCallScreen в app.js). -->
@@ -919,6 +926,13 @@
   </div>
   </div>
 </div>
+
+<!-- V.80.2: оверлей «Блокировка экрана» на звонке — на уровне body, чтобы перекрывать шапку и таб-бар -->
+<div id="call-guard" class="call-guard hidden" role="group" aria-hidden="true" data-i18n-aria="call.guard.lock" aria-label="Lock screen">
+    <p class="call-guard-hint" data-i18n="call.guard.hint">Hold the circle for 1 second to unlock</p>
+    <button type="button" id="call-guard-unlock" class="call-guard-unlock" aria-label="Unlock" data-i18n-aria="call.guard.hint"><span class="call-guard-ring"></span></button>
+</div>
+<div id="call-guard-live" class="sr-only" role="status" aria-live="polite"></div>
 
 <!-- Меню «+» композера: эмодзи, камера, файл. Кнопки сохраняют прежние id — на них повешены обработчики пикера, камеры и выбора файла. -->
 <div id="skin-sheet" class="sheet hidden" role="dialog" aria-modal="true" aria-labelledby="skin-sheet-title">

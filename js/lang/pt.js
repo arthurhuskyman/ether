@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["pt"] = {
     "wide.card": "Dados do contato",
     "wide.pick": "Escolha uma conversa na lista",
     "onboarding.lang.change": "mudar idioma",
+    "call.guard.lock": "Bloquear tela",
+    "call.guard.hint": "Mantenha o círculo pressionado por 1 segundo para desbloquear",
+    "call.guard.on": "Tela bloqueada. Mantenha o botão de desbloqueio pressionado por um segundo.",
+    "call.guard.off": "Tela desbloqueada",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("pt");

@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["fr"] = {
     "wide.card": "Informations du contact",
     "wide.pick": "Choisissez une conversation dans la liste",
     "onboarding.lang.change": "changer de langue",
+    "call.guard.lock": "Verrouiller l’écran",
+    "call.guard.hint": "Maintenez le cercle 1 seconde pour déverrouiller",
+    "call.guard.on": "Écran verrouillé. Maintenez le bouton de déverrouillage une seconde.",
+    "call.guard.off": "Écran déverrouillé",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("fr");

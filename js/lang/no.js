@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["no"] = {
     "wide.card": "Kontaktinformasjon",
     "wide.pick": "Velg en samtale fra listen",
     "onboarding.lang.change": "bytt språk",
+    "call.guard.lock": "Lås skjermen",
+    "call.guard.hint": "Hold sirkelen inne i 1 sekund for å låse opp",
+    "call.guard.on": "Skjermen er låst. Hold opplåsingsknappen inne i ett sekund.",
+    "call.guard.off": "Skjermen er låst opp",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("no");

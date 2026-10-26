@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["cs"] = {
     "wide.card": "Údaje kontaktu",
     "wide.pick": "Vyberte chat ze seznamu",
     "onboarding.lang.change": "změnit jazyk",
+    "call.guard.lock": "Zamknout obrazovku",
+    "call.guard.hint": "Podržte kruh 1 sekundu pro odemknutí",
+    "call.guard.on": "Obrazovka je zamknutá. Odemknete ji podržením tlačítka na jednu sekundu.",
+    "call.guard.off": "Obrazovka je odemknutá",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("cs");

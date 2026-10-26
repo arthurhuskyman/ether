@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["ka"] = {
     "wide.card": "საკონტაქტო ინფორმაცია",
     "wide.pick": "აირჩიეთ ჩატი სიიდან",
     "onboarding.lang.change": "ენის შეცვლა",
+    "call.guard.lock": "ეკრანის დაბლოკვა",
+    "call.guard.hint": "განსაბლოკად დააჭირეთ და 1 წამი ეჭირეთ წრეს",
+    "call.guard.on": "ეკრანი დაბლოკილია. განსაბლოკად ერთი წამი ეჭირეთ განბლოკვის ღილაკს.",
+    "call.guard.off": "ეკრანი განიბლოკა",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ka");

@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["te"] = {
     "wide.card": "కాంటాక్ట్ వివరాలు",
     "wide.pick": "జాబితా నుండి చాట్‌ను ఎంచుకోండి",
     "onboarding.lang.change": "భాష మార్చు",
+    "call.guard.lock": "స్క్రీన్‌ను లాక్ చేయండి",
+    "call.guard.hint": "అన్‌లాక్ చేయడానికి వృత్తాన్ని 1 సెకను నొక్కి ఉంచండి",
+    "call.guard.on": "స్క్రీన్ లాక్ అయింది. అన్‌లాక్ చేయడానికి అన్‌లాక్ బటన్‌ను ఒక సెకను నొక్కి ఉంచండి.",
+    "call.guard.off": "స్క్రీన్ అన్‌లాక్ అయింది",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("te");

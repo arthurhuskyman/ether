@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["hi"] = {
     "wide.card": "संपर्क विवरण",
     "wide.pick": "सूची से कोई चैट चुनें",
     "onboarding.lang.change": "भाषा बदलें",
+    "call.guard.lock": "स्क्रीन लॉक करें",
+    "call.guard.hint": "अनलॉक करने के लिए घेरे को 1 सेकंड दबाए रखें",
+    "call.guard.on": "स्क्रीन लॉक हो गई। अनलॉक करने के लिए अनलॉक बटन को एक सेकंड दबाए रखें।",
+    "call.guard.off": "स्क्रीन अनलॉक हो गई",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("hi");

@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["lo"] = {
     "wide.card": "ລາຍລະອຽດລາຍຊື່ຕິດຕໍ່",
     "wide.pick": "ເລືອກແຊັດຈາກລາຍການ",
     "onboarding.lang.change": "ປ່ຽນພາສາ",
+    "call.guard.lock": "ລັອກໜ້າຈໍ",
+    "call.guard.hint": "ກົດວົງມົນຄ້າງໄວ້ 1 ວິນາທີ ເພື່ອປົດລັອກ",
+    "call.guard.on": "ໜ້າຈໍຖືກລັອກແລ້ວ. ກົດປຸ່ມປົດລັອກຄ້າງໄວ້ໜຶ່ງວິນາທີ.",
+    "call.guard.off": "ປົດລັອກໜ້າຈໍແລ້ວ",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("lo");

@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["ml"] = {
     "wide.card": "കോൺടാക്റ്റ് വിവരങ്ങൾ",
     "wide.pick": "പട്ടികയിൽ നിന്ന് ഒരു ചാറ്റ് തിരഞ്ഞെടുക്കുക",
     "onboarding.lang.change": "ഭാഷ മാറ്റുക",
+    "call.guard.lock": "സ്ക്രീൻ ലോക്ക് ചെയ്യുക",
+    "call.guard.hint": "അൺലോക്ക് ചെയ്യാൻ വൃത്തം 1 സെക്കൻഡ് അമർത്തിപ്പിടിക്കുക",
+    "call.guard.on": "സ്ക്രീൻ ലോക്ക് ആയി. അൺലോക്ക് ചെയ്യാൻ അൺലോക്ക് ബട്ടൺ ഒരു സെക്കൻഡ് അമർത്തിപ്പിടിക്കുക.",
+    "call.guard.off": "സ്ക്രീൻ അൺലോക്ക് ആയി",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ml");

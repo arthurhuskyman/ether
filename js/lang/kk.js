@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["kk"] = {
     "wide.card": "Байланыс деректері",
     "wide.pick": "Тізімнен чатты таңдаңыз",
     "onboarding.lang.change": "тілді өзгерту",
+    "call.guard.lock": "Экранды құлыптау",
+    "call.guard.hint": "Ашу үшін шеңберді 1 секунд басып тұрыңыз",
+    "call.guard.on": "Экран құлыптаулы. Ашу үшін ашу түймесін бір секунд басып тұрыңыз.",
+    "call.guard.off": "Экран құлпы ашылды",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("kk");

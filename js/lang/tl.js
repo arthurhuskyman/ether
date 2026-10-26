@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["tl"] = {
     "wide.card": "Mga detalye ng contact",
     "wide.pick": "Pumili ng chat mula sa listahan",
     "onboarding.lang.change": "palitan ang wika",
+    "call.guard.lock": "I-lock ang screen",
+    "call.guard.hint": "Pindutin at hawakan ang bilog nang 1 segundo para i-unlock",
+    "call.guard.on": "Naka-lock ang screen. Pindutin at hawakan ang unlock button nang isang segundo.",
+    "call.guard.off": "Na-unlock ang screen",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("tl");

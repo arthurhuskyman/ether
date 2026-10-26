@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["az"] = {
     "wide.card": "Kontakt məlumatı",
     "wide.pick": "Siyahıdan söhbət seçin",
     "onboarding.lang.change": "dili dəyiş",
+    "call.guard.lock": "Ekranı kilidlə",
+    "call.guard.hint": "Kilidi açmaq üçün dairəni 1 saniyə basıb saxlayın",
+    "call.guard.on": "Ekran kilidləndi. Açmaq üçün kilid açma düyməsini bir saniyə basıb saxlayın.",
+    "call.guard.off": "Ekranın kilidi açıldı",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("az");

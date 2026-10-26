@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["hr"] = {
     "wide.card": "Podaci o kontaktu",
     "wide.pick": "Odaberite chat s popisa",
     "onboarding.lang.change": "promijeni jezik",
+    "call.guard.lock": "Zaključaj zaslon",
+    "call.guard.hint": "Držite krug 1 sekundu za otključavanje",
+    "call.guard.on": "Zaslon je zaključan. Držite gumb za otključavanje jednu sekundu.",
+    "call.guard.off": "Zaslon je otključan",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("hr");

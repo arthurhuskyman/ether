@@ -1583,5 +1583,9 @@ window.__LANG_DICTS["ru"] = {
     "wide.card": "О контакте",
     "wide.pick": "Выберите чат в списке",
     "onboarding.lang.change": "сменить язык",
+    "call.guard.lock": "Блокировка экрана",
+    "call.guard.hint": "Удерживайте круг 1 секунду, чтобы разблокировать",
+    "call.guard.on": "Экран заблокирован. Чтобы разблокировать, удерживайте кнопку разблокировки одну секунду.",
+    "call.guard.off": "Экран разблокирован",
 };
 if (window.__onLangDictReady) window.__onLangDictReady("ru");

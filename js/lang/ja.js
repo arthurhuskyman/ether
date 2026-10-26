@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["ja"] = {
     "wide.card": "連絡先の詳細",
     "wide.pick": "リストからチャットを選んでください",
     "onboarding.lang.change": "言語を変更",
+    "call.guard.lock": "画面ロック",
+    "call.guard.hint": "ロック解除するには丸を1秒間長押ししてください",
+    "call.guard.on": "画面をロックしました。解除ボタンを1秒間長押ししてください。",
+    "call.guard.off": "画面ロックを解除しました",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ja");

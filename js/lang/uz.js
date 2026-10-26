@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["uz"] = {
     "wide.card": "Kontakt ma’lumotlari",
     "wide.pick": "Ro‘yxatdan suhbatni tanlang",
     "onboarding.lang.change": "tilni o‘zgartirish",
+    "call.guard.lock": "Ekranni qulflash",
+    "call.guard.hint": "Qulfni ochish uchun doirani 1 soniya bosib turing",
+    "call.guard.on": "Ekran qulflandi. Qulfni ochish uchun tugmani bir soniya bosib turing.",
+    "call.guard.off": "Ekran qulfi ochildi",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("uz");

@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["hu"] = {
     "wide.card": "Névjegy adatai",
     "wide.pick": "Válassz egy csevegést a listából",
     "onboarding.lang.change": "nyelv módosítása",
+    "call.guard.lock": "Képernyő zárolása",
+    "call.guard.hint": "Tartsa lenyomva a kört 1 másodpercig a feloldáshoz",
+    "call.guard.on": "A képernyő zárolva. A feloldáshoz tartsa lenyomva a feloldó gombot egy másodpercig.",
+    "call.guard.off": "A képernyő feloldva",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("hu");

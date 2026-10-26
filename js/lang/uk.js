@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["uk"] = {
     "wide.card": "Дані контакту",
     "wide.pick": "Оберіть чат зі списку",
     "onboarding.lang.change": "змінити мову",
+    "call.guard.lock": "Блокування екрана",
+    "call.guard.hint": "Утримуйте коло 1 секунду, щоб розблокувати",
+    "call.guard.on": "Екран заблоковано. Щоб розблокувати, утримуйте кнопку розблокування одну секунду.",
+    "call.guard.off": "Екран розблоковано",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("uk");

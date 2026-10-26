@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["ar"] = {
     "wide.card": "تفاصيل جهة الاتصال",
     "wide.pick": "اختر محادثة من القائمة",
     "onboarding.lang.change": "تغيير اللغة",
+    "call.guard.lock": "قفل الشاشة",
+    "call.guard.hint": "اضغط على الدائرة مطولًا لثانية واحدة لفتح القفل",
+    "call.guard.on": "الشاشة مقفلة. اضغط مطولًا على زر الفتح لثانية واحدة لفتحها.",
+    "call.guard.off": "تم فتح الشاشة",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ar");

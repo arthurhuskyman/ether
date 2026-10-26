@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["si"] = {
     "wide.card": "සම්බන්ධතා විස්තර",
     "wide.pick": "ලැයිස්තුවෙන් කතාබසක් තෝරන්න",
     "onboarding.lang.change": "භාෂාව වෙනස් කරන්න",
+    "call.guard.lock": "තිරය අගුළු දමන්න",
+    "call.guard.hint": "අගුළු හැරීමට රවුම තත්පර 1ක් අල්ලාගෙන සිටින්න",
+    "call.guard.on": "තිරය අගුළු දමා ඇත. අගුළු හැරීමට අගුළු හැරීමේ බොත්තම තත්පරයක් අල්ලාගෙන සිටින්න.",
+    "call.guard.off": "තිරය අගුළු හැර ඇත",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("si");

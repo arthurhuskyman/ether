@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["tg"] = {
     "wide.card": "Маълумоти тамос",
     "wide.pick": "Аз феҳрист чатро интихоб кунед",
     "onboarding.lang.change": "тағйири забон",
+    "call.guard.lock": "Қуфл кардани экран",
+    "call.guard.hint": "Барои кушодан давраро 1 сония пахш карда доред",
+    "call.guard.on": "Экран қуфл шуд. Барои кушодан тугмаи кушодро як сония пахш карда доред.",
+    "call.guard.off": "Қуфли экран кушода шуд",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("tg");

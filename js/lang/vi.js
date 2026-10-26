@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["vi"] = {
     "wide.card": "Thông tin liên hệ",
     "wide.pick": "Chọn một cuộc trò chuyện trong danh sách",
     "onboarding.lang.change": "đổi ngôn ngữ",
+    "call.guard.lock": "Khóa màn hình",
+    "call.guard.hint": "Giữ vòng tròn 1 giây để mở khóa",
+    "call.guard.on": "Màn hình đã khóa. Giữ nút mở khóa trong một giây.",
+    "call.guard.off": "Đã mở khóa màn hình",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("vi");

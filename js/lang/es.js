@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["es"] = {
     "wide.card": "Datos del contacto",
     "wide.pick": "Elige un chat de la lista",
     "onboarding.lang.change": "cambiar idioma",
+    "call.guard.lock": "Bloquear pantalla",
+    "call.guard.hint": "Mantén pulsado el círculo 1 segundo para desbloquear",
+    "call.guard.on": "Pantalla bloqueada. Mantén pulsado el botón de desbloqueo durante un segundo.",
+    "call.guard.off": "Pantalla desbloqueada",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("es");

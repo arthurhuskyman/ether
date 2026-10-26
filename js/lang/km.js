@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["km"] = {
     "wide.card": "ព័ត៌មានលម្អិតទំនាក់ទំនង",
     "wide.pick": "ជ្រើសរើសការជជែកពីបញ្ជី",
     "onboarding.lang.change": "ប្តូរភាសា",
+    "call.guard.lock": "ចាក់សោអេក្រង់",
+    "call.guard.hint": "ចុចរង្វង់ឱ្យជាប់ 1 វិនាទី ដើម្បីដោះសោ",
+    "call.guard.on": "អេក្រង់ត្រូវបានចាក់សោ។ ចុចប៊ូតុងដោះសោឱ្យជាប់មួយវិនាទី។",
+    "call.guard.off": "អេក្រង់ត្រូវបានដោះសោ",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("km");

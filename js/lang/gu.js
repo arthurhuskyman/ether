@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["gu"] = {
     "wide.card": "સંપર્ક વિગતો",
     "wide.pick": "યાદીમાંથી ચૅટ પસંદ કરો",
     "onboarding.lang.change": "ભાષા બદલો",
+    "call.guard.lock": "સ્ક્રીન લોક કરો",
+    "call.guard.hint": "અનલૉક કરવા વર્તુળને 1 સેકન્ડ દબાવી રાખો",
+    "call.guard.on": "સ્ક્રીન લૉક થઈ. અનલૉક કરવા અનલૉક બટનને એક સેકન્ડ દબાવી રાખો.",
+    "call.guard.off": "સ્ક્રીન અનલૉક થઈ",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("gu");

@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["he"] = {
     "wide.card": "פרטי איש קשר",
     "wide.pick": "בחר צ'אט מהרשימה",
     "onboarding.lang.change": "שנה שפה",
+    "call.guard.lock": "נעילת מסך",
+    "call.guard.hint": "החזיקו את העיגול לחוץ שנייה אחת כדי לפתוח",
+    "call.guard.on": "המסך נעול. החזיקו את כפתור הפתיחה לחוץ שנייה אחת כדי לפתוח.",
+    "call.guard.off": "המסך נפתח",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("he");

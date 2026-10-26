@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["bg"] = {
     "wide.card": "Данни за контакта",
     "wide.pick": "Изберете чат от списъка",
     "onboarding.lang.change": "смяна на езика",
+    "call.guard.lock": "Заключване на екрана",
+    "call.guard.hint": "Задръжте кръга 1 секунда, за да отключите",
+    "call.guard.on": "Екранът е заключен. Задръжте бутона за отключване една секунда.",
+    "call.guard.off": "Екранът е отключен",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("bg");

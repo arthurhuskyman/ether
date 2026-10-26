@@ -1,4 +1,4 @@
-const CACHE_VERSION = "ether-shell-v244";
+const CACHE_VERSION = "ether-shell-v245";
 // В предзагрузке только ядро. css/skins/<id>.css и fonts/skins/*.woff2 подтягиваются по требованию (активный скин) и
 // кладутся в кэш обработчиком fetch ниже (runtime-cache, stale-while-revalidate).
 const SHELL_FILES = [
@@ -9,6 +9,7 @@ const SHELL_FILES = [
   "./css/tokens.css",
   "./css/styles.css",
   "./css/skins.css",
+  "./css/callguard.css",
   "./js/languages-meta.js",
   "./js/lang/en.js",
   "./config.js",

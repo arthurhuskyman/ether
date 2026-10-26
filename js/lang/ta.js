@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["ta"] = {
     "wide.card": "தொடர்பு விவரங்கள்",
     "wide.pick": "பட்டியலிலிருந்து ஓர் அரட்டையைத் தேர்ந்தெடுக்கவும்",
     "onboarding.lang.change": "மொழியை மாற்று",
+    "call.guard.lock": "திரையைப் பூட்டு",
+    "call.guard.hint": "திறக்க வட்டத்தை 1 வினாடி அழுத்திப் பிடிக்கவும்",
+    "call.guard.on": "திரை பூட்டப்பட்டது. திறக்க திறப்பு பொத்தானை ஒரு வினாடி அழுத்திப் பிடிக்கவும்.",
+    "call.guard.off": "திரை திறக்கப்பட்டது",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ta");

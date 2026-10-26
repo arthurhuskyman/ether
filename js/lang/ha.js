@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["ha"] = {
     "wide.card": "Bayanan abokin hulɗa",
     "wide.pick": "Zaɓi hira daga jerin",
     "onboarding.lang.change": "canza harshe",
+    "call.guard.lock": "Kulle allo",
+    "call.guard.hint": "Danna ka riƙe da'irar na daƙiƙa 1 don buɗewa",
+    "call.guard.on": "An kulle allo. Danna ka riƙe maɓallin buɗewa na daƙiƙa ɗaya.",
+    "call.guard.off": "An buɗe allo",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ha");

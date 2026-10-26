@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["fi"] = {
     "wide.card": "Yhteystiedot",
     "wide.pick": "Valitse keskustelu luettelosta",
     "onboarding.lang.change": "vaihda kieli",
+    "call.guard.lock": "Lukitse näyttö",
+    "call.guard.hint": "Avaa lukitus pitämällä ympyrää painettuna 1 sekunti",
+    "call.guard.on": "Näyttö on lukittu. Avaa pitämällä avauspainiketta painettuna sekunti.",
+    "call.guard.off": "Näytön lukitus avattu",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("fi");

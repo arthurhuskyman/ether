@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["yo"] = {
     "wide.card": "Àwọn àlàyé olùbáṣepọ̀",
     "wide.pick": "Yan ìfọ̀rọ̀wérọ̀ láti inú àtòjọ",
     "onboarding.lang.change": "yí èdè padà",
+    "call.guard.lock": "Tii ìṣàfihàn pa",
+    "call.guard.hint": "Di àyíká mú fún ìṣẹ́jú-àáyá 1 láti ṣí",
+    "call.guard.on": "A ti tì ìṣàfihàn. Di bọ́tìnì ṣíṣí mú fún ìṣẹ́jú-àáyá kan.",
+    "call.guard.off": "A ti ṣí ìṣàfihàn",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("yo");

@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["tr"] = {
     "wide.card": "Kişi bilgileri",
     "wide.pick": "Listeden bir sohbet seçin",
     "onboarding.lang.change": "dili değiştir",
+    "call.guard.lock": "Ekranı kilitle",
+    "call.guard.hint": "Kilidi açmak için daireye 1 saniye basılı tutun",
+    "call.guard.on": "Ekran kilitlendi. Kilidi açmak için kilit açma düğmesine bir saniye basılı tutun.",
+    "call.guard.off": "Ekran kilidi açıldı",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("tr");

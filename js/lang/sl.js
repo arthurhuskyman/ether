@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["sl"] = {
     "wide.card": "Podatki o stiku",
     "wide.pick": "Izberite klepet s seznama",
     "onboarding.lang.change": "spremeni jezik",
+    "call.guard.lock": "Zakleni zaslon",
+    "call.guard.hint": "Za odklep držite krog 1 sekundo",
+    "call.guard.on": "Zaslon je zaklenjen. Za odklep držite gumb za odklepanje eno sekundo.",
+    "call.guard.off": "Zaslon je odklenjen",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("sl");

@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["ne"] = {
     "wide.card": "सम्पर्क विवरण",
     "wide.pick": "सूचीबाट च्याट छान्नुहोस्",
     "onboarding.lang.change": "भाषा बदल्नुहोस्",
+    "call.guard.lock": "स्क्रिन लक गर्नुहोस्",
+    "call.guard.hint": "अनलक गर्न सर्कललाई १ सेकेन्ड थिचिराख्नुहोस्",
+    "call.guard.on": "स्क्रिन लक भयो। अनलक गर्न अनलक बटनलाई एक सेकेन्ड थिचिराख्नुहोस्।",
+    "call.guard.off": "स्क्रिन अनलक भयो",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ne");

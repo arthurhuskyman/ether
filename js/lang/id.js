@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["id"] = {
     "wide.card": "Detail kontak",
     "wide.pick": "Pilih obrolan dari daftar",
     "onboarding.lang.change": "ganti bahasa",
+    "call.guard.lock": "Kunci layar",
+    "call.guard.hint": "Tahan lingkaran selama 1 detik untuk membuka kunci",
+    "call.guard.on": "Layar terkunci. Tahan tombol buka kunci selama satu detik.",
+    "call.guard.off": "Layar tidak lagi terkunci",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("id");

@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["lv"] = {
     "wide.card": "Kontaktpersonas dati",
     "wide.pick": "Izvēlieties sarunu no saraksta",
     "onboarding.lang.change": "mainīt valodu",
+    "call.guard.lock": "Bloķēt ekrānu",
+    "call.guard.hint": "Lai atbloķētu, turiet apli nospiestu 1 sekundi",
+    "call.guard.on": "Ekrāns bloķēts. Turiet atbloķēšanas pogu nospiestu vienu sekundi.",
+    "call.guard.off": "Ekrāns atbloķēts",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("lv");

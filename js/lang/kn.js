@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["kn"] = {
     "wide.card": "ಸಂಪರ್ಕ ವಿವರಗಳು",
     "wide.pick": "ಪಟ್ಟಿಯಿಂದ ಚಾಟ್ ಆಯ್ಕೆಮಾಡಿ",
     "onboarding.lang.change": "ಭಾಷೆ ಬದಲಿಸಿ",
+    "call.guard.lock": "ಪರದೆಯನ್ನು ಲಾಕ್ ಮಾಡಿ",
+    "call.guard.hint": "ಅನ್‌ಲಾಕ್ ಮಾಡಲು ವೃತ್ತವನ್ನು 1 ಸೆಕೆಂಡ್ ಒತ್ತಿ ಹಿಡಿಯಿರಿ",
+    "call.guard.on": "ಪರದೆ ಲಾಕ್ ಆಗಿದೆ. ಅನ್‌ಲಾಕ್ ಮಾಡಲು ಅನ್‌ಲಾಕ್ ಬಟನ್ ಅನ್ನು ಒಂದು ಸೆಕೆಂಡ್ ಒತ್ತಿ ಹಿಡಿಯಿರಿ.",
+    "call.guard.off": "ಪರದೆ ಅನ್‌ಲಾಕ್ ಆಗಿದೆ",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("kn");

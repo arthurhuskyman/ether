@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["pl"] = {
     "wide.card": "Dane kontaktu",
     "wide.pick": "Wybierz czat z listy",
     "onboarding.lang.change": "zmień język",
+    "call.guard.lock": "Zablokuj ekran",
+    "call.guard.hint": "Przytrzymaj koło przez 1 sekundę, aby odblokować",
+    "call.guard.on": "Ekran zablokowany. Przytrzymaj przycisk odblokowania przez sekundę.",
+    "call.guard.off": "Ekran odblokowany",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("pl");

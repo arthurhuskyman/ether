@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["am"] = {
     "wide.card": "የእውቂያ ዝርዝሮች",
     "wide.pick": "ከዝርዝሩ ውስጥ ውይይት ይምረጡ",
     "onboarding.lang.change": "ቋንቋ ቀይር",
+    "call.guard.lock": "ማያ ገጽን ቆልፍ",
+    "call.guard.hint": "ለመክፈት ክቡን ለ1 ሰከንድ ተጭነው ይያዙ",
+    "call.guard.on": "ማያ ገጹ ተቆልፏል። ለመክፈት የመክፈቻ አዝራሩን ለአንድ ሰከንድ ተጭነው ይያዙ።",
+    "call.guard.off": "ማያ ገጹ ተከፍቷል",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("am");

@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["sv"] = {
     "wide.card": "Kontaktuppgifter",
     "wide.pick": "Välj en chatt i listan",
     "onboarding.lang.change": "byt språk",
+    "call.guard.lock": "Lås skärmen",
+    "call.guard.hint": "Håll cirkeln nedtryckt i 1 sekund för att låsa upp",
+    "call.guard.on": "Skärmen är låst. Håll upplåsningsknappen nedtryckt i en sekund.",
+    "call.guard.off": "Skärmen är upplåst",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("sv");

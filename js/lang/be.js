@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["be"] = {
     "wide.card": "Звесткі пра кантакт",
     "wide.pick": "Абярыце чат са спіса",
     "onboarding.lang.change": "змяніць мову",
+    "call.guard.lock": "Заблакаваць экран",
+    "call.guard.hint": "Утрымлівайце круг 1 секунду, каб разблакаваць",
+    "call.guard.on": "Экран заблакаваны. Утрымлівайце кнопку разблакоўкі адну секунду.",
+    "call.guard.off": "Экран разблакаваны",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("be");

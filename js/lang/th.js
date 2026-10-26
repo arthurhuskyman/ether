@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["th"] = {
     "wide.card": "รายละเอียดผู้ติดต่อ",
     "wide.pick": "เลือกแชตจากรายการ",
     "onboarding.lang.change": "เปลี่ยนภาษา",
+    "call.guard.lock": "ล็อกหน้าจอ",
+    "call.guard.hint": "กดวงกลมค้างไว้ 1 วินาทีเพื่อปลดล็อก",
+    "call.guard.on": "หน้าจอถูกล็อกแล้ว กดปุ่มปลดล็อกค้างไว้หนึ่งวินาที",
+    "call.guard.off": "ปลดล็อกหน้าจอแล้ว",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("th");

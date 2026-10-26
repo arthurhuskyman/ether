@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["el"] = {
     "wide.card": "Στοιχεία επαφής",
     "wide.pick": "Επιλέξτε μια συνομιλία από τη λίστα",
     "onboarding.lang.change": "αλλαγή γλώσσας",
+    "call.guard.lock": "Κλείδωμα οθόνης",
+    "call.guard.hint": "Κρατήστε πατημένο τον κύκλο για 1 δευτερόλεπτο για ξεκλείδωμα",
+    "call.guard.on": "Η οθόνη κλειδώθηκε. Κρατήστε πατημένο το κουμπί ξεκλειδώματος για ένα δευτερόλεπτο.",
+    "call.guard.off": "Η οθόνη ξεκλειδώθηκε",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("el");

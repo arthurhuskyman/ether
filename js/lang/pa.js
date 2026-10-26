@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["pa"] = {
     "wide.card": "ਸੰਪਰਕ ਵੇਰਵੇ",
     "wide.pick": "ਸੂਚੀ ਵਿੱਚੋਂ ਇੱਕ ਚੈਟ ਚੁਣੋ",
     "onboarding.lang.change": "ਭਾਸ਼ਾ ਬਦਲੋ",
+    "call.guard.lock": "ਸਕ੍ਰੀਨ ਲਾਕ ਕਰੋ",
+    "call.guard.hint": "ਅਨਲਾਕ ਕਰਨ ਲਈ ਚੱਕਰ ਨੂੰ 1 ਸਕਿੰਟ ਦਬਾ ਕੇ ਰੱਖੋ",
+    "call.guard.on": "ਸਕ੍ਰੀਨ ਲਾਕ ਹੋ ਗਈ। ਅਨਲਾਕ ਕਰਨ ਲਈ ਅਨਲਾਕ ਬਟਨ ਨੂੰ ਇੱਕ ਸਕਿੰਟ ਦਬਾ ਕੇ ਰੱਖੋ।",
+    "call.guard.off": "ਸਕ੍ਰੀਨ ਅਨਲਾਕ ਹੋ ਗਈ",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("pa");

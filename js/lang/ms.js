@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["ms"] = {
     "wide.card": "Butiran kenalan",
     "wide.pick": "Pilih sembang daripada senarai",
     "onboarding.lang.change": "tukar bahasa",
+    "call.guard.lock": "Kunci skrin",
+    "call.guard.hint": "Tahan bulatan selama 1 saat untuk membuka kunci",
+    "call.guard.on": "Skrin dikunci. Tahan butang buka kunci selama satu saat.",
+    "call.guard.off": "Skrin dibuka kunci",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ms");

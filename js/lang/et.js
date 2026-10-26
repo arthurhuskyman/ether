@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["et"] = {
     "wide.card": "Kontakti andmed",
     "wide.pick": "Vali loendist vestlus",
     "onboarding.lang.change": "muuda keelt",
+    "call.guard.lock": "Lukusta ekraan",
+    "call.guard.hint": "Avamiseks hoidke ringi 1 sekund all",
+    "call.guard.on": "Ekraan on lukustatud. Avamiseks hoidke avamisnuppu üks sekund all.",
+    "call.guard.off": "Ekraan on avatud",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("et");

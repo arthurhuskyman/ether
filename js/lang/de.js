@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["de"] = {
     "wide.card": "Kontaktdaten",
     "wide.pick": "Wähle einen Chat aus der Liste",
     "onboarding.lang.change": "Sprache ändern",
+    "call.guard.lock": "Bildschirm sperren",
+    "call.guard.hint": "Kreis 1 Sekunde gedrückt halten zum Entsperren",
+    "call.guard.on": "Bildschirm gesperrt. Entsperren-Taste eine Sekunde gedrückt halten.",
+    "call.guard.off": "Bildschirm entsperrt",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("de");

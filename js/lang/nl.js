@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["nl"] = {
     "wide.card": "Contactgegevens",
     "wide.pick": "Kies een chat uit de lijst",
     "onboarding.lang.change": "taal wijzigen",
+    "call.guard.lock": "Scherm vergrendelen",
+    "call.guard.hint": "Houd de cirkel 1 seconde ingedrukt om te ontgrendelen",
+    "call.guard.on": "Scherm vergrendeld. Houd de ontgrendelknop één seconde ingedrukt.",
+    "call.guard.off": "Scherm ontgrendeld",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("nl");

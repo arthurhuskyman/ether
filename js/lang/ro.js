@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["ro"] = {
     "wide.card": "Detaliile contactului",
     "wide.pick": "Alege o conversație din listă",
     "onboarding.lang.change": "schimbă limba",
+    "call.guard.lock": "Blochează ecranul",
+    "call.guard.hint": "Ține apăsat cercul 1 secundă pentru a debloca",
+    "call.guard.on": "Ecran blocat. Ține apăsat butonul de deblocare o secundă.",
+    "call.guard.off": "Ecran deblocat",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ro");

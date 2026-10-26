@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["ko"] = {
     "wide.card": "연락처 정보",
     "wide.pick": "목록에서 채팅을 선택하세요",
     "onboarding.lang.change": "언어 변경",
+    "call.guard.lock": "화면 잠금",
+    "call.guard.hint": "잠금을 해제하려면 원을 1초 동안 길게 누르세요",
+    "call.guard.on": "화면이 잠겼습니다. 해제 버튼을 1초 동안 길게 누르세요.",
+    "call.guard.off": "화면 잠금이 해제되었습니다",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ko");

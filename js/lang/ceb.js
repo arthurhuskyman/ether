@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["ceb"] = {
     "wide.card": "Mga detalye sa kontak",
     "wide.pick": "Pagpili og chat gikan sa listahan",
     "onboarding.lang.change": "usba ang pinulongan",
+    "call.guard.lock": "I-lock ang screen",
+    "call.guard.hint": "Pindota ug ayoha ang lingin sulod sa 1 segundo aron ma-unlock",
+    "call.guard.on": "Na-lock ang screen. Pindota ug ayoha ang unlock button sulod sa usa ka segundo.",
+    "call.guard.off": "Na-unlock ang screen",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ceb");

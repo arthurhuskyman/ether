@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["hy"] = {
     "wide.card": "Կոնտակտի տվյալներ",
     "wide.pick": "Ընտրեք զրույցը ցանկից",
     "onboarding.lang.change": "փոխել լեզուն",
+    "call.guard.lock": "Արգելափակել էկրանը",
+    "call.guard.hint": "Բացելու համար սեղմած պահեք շրջանը 1 վայրկյան",
+    "call.guard.on": "Էկրանն արգելափակված է։ Բացելու համար մեկ վայրկյան սեղմած պահեք բացման կոճակը։",
+    "call.guard.off": "Էկրանը բացված է",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("hy");

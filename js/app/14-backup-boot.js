@@ -442,6 +442,7 @@ if (payload && payload.kind === "call-state") {
     if (state.callId) {
       const l = mesh.get(id);
       if (l) { try { l.declineCall("busy"); } catch (e) {} }
+      try { CallGuard.onCritical("second-call"); } catch (e) {}
       return;
     }
     state.callWantsVideo = !!payload.video;
@@ -917,7 +918,7 @@ document.addEventListener("visibilitychange", () => {
     // момент идёт видеозвонок. Без этого экран начинал гаснуть по
     // таймауту ОС после каждого переключения в другое приложение и
     // обратно, хотя видеозвонок продолжался.
-    if (state.callId && state.callWantsVideo) requestWakeLock();
+    if (state.callId) requestWakeLock(); // страховка; основной повторный захват — слушатель visibilitychange в 21-callguard.js
     if (state.chatId) {
       const c = state.contacts.get(state.chatId);
       const wrap = $("#chat-messages");

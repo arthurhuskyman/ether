@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["mk"] = {
     "wide.card": "Податоци за контактот",
     "wide.pick": "Изберете разговор од списокот",
     "onboarding.lang.change": "промени јазик",
+    "call.guard.lock": "Заклучи го екранот",
+    "call.guard.hint": "Држете го кругот 1 секунда за да отклучите",
+    "call.guard.on": "Екранот е заклучен. Држете го копчето за отклучување една секунда.",
+    "call.guard.off": "Екранот е отклучен",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("mk");

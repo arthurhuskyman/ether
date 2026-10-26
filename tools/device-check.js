@@ -151,6 +151,8 @@ async function audit(page) {
       // Звонок: полный экран, свёрнутая полоска над списком/чатом/клавиатурой. Полоска не должна перекрывать композер, «+» и таб-бар.
       const fakeCall = () => page.evaluate(() => { const id = DEMO_CHAT_ID; state.callId = null; openCallScreen(id, "active"); setCallPhaseActive(); });
       await step("call-screen", async () => { await fakeCall(); });
+      await step("call-guard", async () => { await page.evaluate(() => { CallGuard.lock(); }); }); // V.80.2: чёрный оверлей «Блокировка экрана»
+      await page.evaluate(() => { CallGuard.unlock(); });
       await step("call-mini-list", async () => { await page.evaluate(() => { minimizeCallScreen(); state.chatId = null; renderTab(); }); });
       await step("call-mini-chat", async () => { await page.evaluate(() => { state.tab = "chats"; state.chatId = DEMO_CHAT_ID; renderTab(); }); });
       if (wantKb) await step("call-mini-chat-kb", async () => { await page.evaluate(() => { document.documentElement.classList.add("kb-open"); }); await page.focus("#chat-input").catch(() => {}); });

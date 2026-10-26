@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["sr"] = {
     "wide.card": "Подаци о контакту",
     "wide.pick": "Одаберите чет са листе",
     "onboarding.lang.change": "промени језик",
+    "call.guard.lock": "Закључај екран",
+    "call.guard.hint": "Држите круг 1 секунду да откључате",
+    "call.guard.on": "Екран је закључан. Држите дугме за откључавање једну секунду.",
+    "call.guard.off": "Екран је откључан",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("sr");

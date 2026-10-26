@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["zh"] = {
     "wide.card": "联系人详情",
     "wide.pick": "请从列表中选择一个聊天",
     "onboarding.lang.change": "更改语言",
+    "call.guard.lock": "锁定屏幕",
+    "call.guard.hint": "按住圆圈 1 秒即可解锁",
+    "call.guard.on": "屏幕已锁定。按住解锁按钮 1 秒即可解锁。",
+    "call.guard.off": "屏幕已解锁",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("zh");

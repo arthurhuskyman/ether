@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["ur"] = {
     "wide.card": "رابطے کی تفصیلات",
     "wide.pick": "فہرست سے کوئی چیٹ چنیں",
     "onboarding.lang.change": "زبان بدلیں",
+    "call.guard.lock": "اسکرین لاک کریں",
+    "call.guard.hint": "اَن لاک کرنے کے لیے دائرے کو 1 سیکنڈ دبائے رکھیں",
+    "call.guard.on": "اسکرین لاک ہو گئی۔ اَن لاک کرنے کے لیے اَن لاک بٹن کو ایک سیکنڈ دبائے رکھیں۔",
+    "call.guard.off": "اسکرین اَن لاک ہو گئی",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ur");

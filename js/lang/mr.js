@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["mr"] = {
     "wide.card": "संपर्क तपशील",
     "wide.pick": "यादीतून चॅट निवडा",
     "onboarding.lang.change": "भाषा बदला",
+    "call.guard.lock": "स्क्रीन लॉक करा",
+    "call.guard.hint": "अनलॉक करण्यासाठी वर्तुळ १ सेकंद दाबून ठेवा",
+    "call.guard.on": "स्क्रीन लॉक झाली. अनलॉक करण्यासाठी अनलॉक बटण एक सेकंद दाबून ठेवा.",
+    "call.guard.off": "स्क्रीन अनलॉक झाली",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("mr");

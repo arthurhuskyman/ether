@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["ky"] = {
     "wide.card": "Байланыш маалыматы",
     "wide.pick": "Тизмеден чатты тандаңыз",
     "onboarding.lang.change": "тилди өзгөртүү",
+    "call.guard.lock": "Экранды кулпулоо",
+    "call.guard.hint": "Ачуу үчүн тегеректи 1 секунд басып туруңуз",
+    "call.guard.on": "Экран кулпуланды. Ачуу үчүн ачуу баскычын бир секунд басып туруңуз.",
+    "call.guard.off": "Экрандын кулпусу ачылды",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ky");

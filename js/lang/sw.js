@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["sw"] = {
     "wide.card": "Maelezo ya anwani",
     "wide.pick": "Chagua gumzo kutoka kwenye orodha",
     "onboarding.lang.change": "badilisha lugha",
+    "call.guard.lock": "Funga skrini",
+    "call.guard.hint": "Shikilia duara kwa sekunde 1 ili kufungua",
+    "call.guard.on": "Skrini imefungwa. Shikilia kitufe cha kufungua kwa sekunde moja.",
+    "call.guard.off": "Skrini imefunguliwa",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("sw");

@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["lt"] = {
     "wide.card": "Kontakto duomenys",
     "wide.pick": "Pasirinkite pokalbį iš sąrašo",
     "onboarding.lang.change": "keisti kalbą",
+    "call.guard.lock": "Užrakinti ekraną",
+    "call.guard.hint": "Norėdami atrakinti, palaikykite apskritimą 1 sekundę",
+    "call.guard.on": "Ekranas užrakintas. Palaikykite atrakinimo mygtuką vieną sekundę.",
+    "call.guard.off": "Ekranas atrakintas",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("lt");

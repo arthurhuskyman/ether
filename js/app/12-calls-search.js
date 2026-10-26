@@ -193,7 +193,8 @@ async function beginCall(id, withVideo) {
   state._callMuteOnAnswer = false;
   state._callDeadSeconds = 0;
   state.callWantsVideo = !!withVideo;
-  if (withVideo) requestWakeLock();
+  requestWakeLock(); // V.80.2: Wake Lock держим весь звонок (аудио и видео), не только видео
+  try { CallGuard.primeMotion(); } catch (e) {} // iOS: разрешение на датчики движения — из жеста «Позвонить» (для авто-блокировки у уха)
 
   openCallScreen(id, "calling");
   playDialingSound();
@@ -345,6 +346,7 @@ function openCallScreen(id, phase, opts) {
   state.callId = id;
   state.callPhase = phase;
   try { ensureAudioCtx(); } catch (e) {}
+  requestWakeLock(); // звонит/набирается/идёт — экран не гасим (V.80.2)
   updateCallButtonsSupport();
   const muteBtn = $("#call-mute-btn");
   if (muteBtn) {
@@ -395,6 +397,8 @@ function setCallPhaseActive() {
   clearPendingCall();
   stopCallSounds();
   setCallAudioSession(speakerOn ? "playback" : "play-and-record");
+  requestWakeLock();
+  try { CallGuard.onCallActive(); } catch (e) {}
   const ci = $("#call-controls-incoming"); if (ci) ci.classList.add("hidden");
   const ca = $("#call-controls-active"); if (ca) ca.classList.remove("hidden");
   const cv = $(".call-volume"); if (cv) cv.classList.remove("hidden");
@@ -1043,6 +1047,7 @@ function closeCallScreen(reason, opts) {
   state._callMuteOnAnswer = false;
   state.callWantsVideo = false;
   releaseWakeLock();
+  try { CallGuard.onCallEnd(); } catch (e) {}
   clearPendingCall();
   stopRingtone();
   stopCallSounds();
@@ -1231,10 +1236,7 @@ function wireCallScreen() {
       const remoteActive = rv && rv.srcObject && !rv.classList.contains("hidden");
       const overlays = $("#call-video-overlays");
       if (!remoteActive && overlays) overlays.classList.add("hidden");
-      // Видео выключено (но звонок продолжается) — экран больше не
-      // обязан гореть сам по себе, отдаём управление системе (на
-      // Android это снова уход в сон через её собственный таймаут).
-      releaseWakeLock();
+      // V.80.2: Wake Lock НЕ отпускаем при выключении камеры — он держится весь звонок.
     }
   });
   // Screen sharing (раздел 7 роадмапа) — кнопка показывается только если
@@ -1346,6 +1348,7 @@ function setCallAudioSession(type) {
   try { if (navigator.audioSession && navigator.audioSession.type !== type) navigator.audioSession.type = type; } catch (e) {}
 }
 async function acceptCall(withMute) {
+  try { if (!state.callWantsVideo) CallGuard.primeMotion(); } catch (e) {} // iOS: requestPermission() только из жеста — до любых await
   { const ci = state.callId && state.contacts.get(state.callId);
     if (ci && !ci.ephemeral && Store.requireVerifiedCalls && !isContactVerified(ci)) { toast(T("call.needVerifyIncoming", { name: ci.name || T("sys.someone") })); return; } }
   if (state._callUserAccepted) return;

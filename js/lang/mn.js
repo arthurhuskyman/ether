@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["mn"] = {
     "wide.card": "Хаягийн мэдээлэл",
     "wide.pick": "Жагсаалтаас чат сонгоно уу",
     "onboarding.lang.change": "хэл солих",
+    "call.guard.lock": "Дэлгэцийг түгжих",
+    "call.guard.hint": "Тайлахын тулд тойргийг 1 секунд дарж барина уу",
+    "call.guard.on": "Дэлгэц түгжигдлээ. Тайлахын тулд тайлах товчийг нэг секунд дарж барина уу.",
+    "call.guard.off": "Дэлгэцийн түгжээ тайлагдлаа",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("mn");

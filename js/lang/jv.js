@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["jv"] = {
     "wide.card": "Rincian kontak",
     "wide.pick": "Pilih obrolan saka dhaptar",
     "onboarding.lang.change": "ganti basa",
+    "call.guard.lock": "Konci layar",
+    "call.guard.hint": "Tahan bunderan 1 detik kanggo mbukak konci",
+    "call.guard.on": "Layar dikunci. Tahan tombol mbukak konci sedetik.",
+    "call.guard.off": "Layar wis dibukak",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("jv");

@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["fa"] = {
     "wide.card": "اطلاعات مخاطب",
     "wide.pick": "یک گفتگو را از فهرست انتخاب کنید",
     "onboarding.lang.change": "تغییر زبان",
+    "call.guard.lock": "قفل صفحه",
+    "call.guard.hint": "برای باز کردن قفل، دایره را ۱ ثانیه نگه دارید",
+    "call.guard.on": "صفحه قفل شد. برای باز کردن قفل، دکمه بازکردن را یک ثانیه نگه دارید.",
+    "call.guard.off": "قفل صفحه باز شد",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("fa");

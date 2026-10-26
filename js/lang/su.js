@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["su"] = {
     "wide.card": "Rincian kontak",
     "wide.pick": "Pilih obrolan tina daptar",
     "onboarding.lang.change": "ganti basa",
+    "call.guard.lock": "Konci layar",
+    "call.guard.hint": "Tahan bunderan 1 detik pikeun muka konci",
+    "call.guard.on": "Layar dikonci. Tahan tombol muka konci sadetik.",
+    "call.guard.off": "Layar geus dibuka konci",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("su");

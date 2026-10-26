@@ -1578,6 +1578,10 @@ window.__LANG_DICTS["bn"] = {
     "wide.card": "পরিচিতির বিবরণ",
     "wide.pick": "তালিকা থেকে একটি চ্যাট বেছে নিন",
     "onboarding.lang.change": "ভাষা বদলান",
+    "call.guard.lock": "স্ক্রিন লক করুন",
+    "call.guard.hint": "আনলক করতে বৃত্তটি ১ সেকেন্ড চেপে ধরুন",
+    "call.guard.on": "স্ক্রিন লক হয়েছে। আনলক করতে আনলক বোতামটি এক সেকেন্ড চেপে ধরুন।",
+    "call.guard.off": "স্ক্রিন আনলক হয়েছে",
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("bn");
