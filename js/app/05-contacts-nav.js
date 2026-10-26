@@ -42,7 +42,7 @@ function loadContacts() {
       online: false, status: "disconnected",
       messages: Array.isArray(c.messages) ? c.messages : [],
       lastActivity: c.lastActivity || 0,
-      archived: !!c.archived, muted: !!c.muted, muteUntil: c.muteUntil || null, blocked: !!c.blocked, vibrateOnly: !!c.vibrateOnly,
+      archived: !!c.archived, muted: !!c.muted, muteUntil: c.muteUntil || null, blocked: !!c.blocked, vibrateOnly: !!c.vibrateOnly, phoneLocal: typeof c.phoneLocal === "string" ? c.phoneLocal.slice(0, 20) : undefined, ftLink: typeof c.ftLink === "string" ? c.ftLink.slice(0, 500) : undefined,
       pinned: !!c.pinned, pinnedMessageId: c.pinnedMessageId || null,
       pinOrder: typeof c.pinOrder === "number" ? c.pinOrder : null,
       servers: Array.isArray(c.servers) ? ServerList.normalizeHints(c.servers, { allowLocal: srvAllowLocal() }) : undefined, // домашние серверы контакта (srv)
@@ -216,7 +216,7 @@ function persistContacts() {
     id: c.id, name: c.name, raw: c.raw, publicKey: c.publicKey,
     rc: c.rc || undefined, e2: c.e2 || undefined, verifiedKey: c.verifiedKey || undefined, pendingKey: c.pendingKey || undefined, rejectedKey: c.rejectedKey || undefined, authSeen: c.authSeen || undefined,
     messages: c.messages, lastActivity: c.lastActivity,
-    archived: c.archived, muted: c.muted, muteUntil: c.muteUntil || undefined, blocked: c.blocked, vibrateOnly: c.vibrateOnly || undefined,
+    archived: c.archived, muted: c.muted, muteUntil: c.muteUntil || undefined, blocked: c.blocked, vibrateOnly: c.vibrateOnly || undefined, phoneLocal: c.phoneLocal || undefined, ftLink: c.ftLink || undefined,
     pinned: c.pinned || undefined, pinnedMessageId: c.pinnedMessageId || undefined,
     pinOrder: typeof c.pinOrder === "number" ? c.pinOrder : undefined,
     servers: Array.isArray(c.servers) && c.servers.length ? c.servers.slice(0, 3) : undefined,

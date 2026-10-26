@@ -1749,7 +1749,7 @@ const DeviceCheck = (() => {
     return rows;
   }
   // Тест: просим сервер прислать push-звонок на это устройство и ждём 15 с (сообщение от SW или свежая отметка в кэше)
-  function runRingTest(ms) {
+  function runRingTest(ms, mode) {
     const sig = typeof signaling !== "undefined" ? signaling : null;
     const t0 = Date.now(), limit = ms || 15000;
     if (!sig || !sig.connected || !sig.pushTestRing) return Promise.resolve({ ok: false, reason: "noserver" });
@@ -1762,7 +1762,7 @@ const DeviceCheck = (() => {
       sig.addEventListener("push-test-error", onErr); errOff = () => sig.removeEventListener("push-test-error", onErr);
       poll = setInterval(async () => { const l = await readLastPush(); if (l && l.ts >= t0 && (l.t === "call-ring")) fin(true); }, 1000);
       const tm = setTimeout(() => fin(false), limit);
-      if (!sig.pushTestRing()) fin(false);
+      if (!sig.pushTestRing(mode)) fin(false);
     });
   }
   function openNotifCheck() {

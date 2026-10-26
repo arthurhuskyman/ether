@@ -2744,7 +2744,7 @@ class SignalingClient extends EventTarget {
   linkcallAllow(room, guestRef) { return this.send("linkcall-allow", { room, guestRef }); }
   linkcallDeny(room, guestRef) { return this.send("linkcall-deny", { room, guestRef }); }
   linkcallEnd(room) { return this.send("linkcall-end", { room }); }
-  pushTestRing() { return this.send("push-test-ring", {}); }
+  pushTestRing(mode) { return this.send("push-test-ring", mode === "hybrid" ? { mode: "hybrid" } : {}); }
 
   // Копии для других устройств получателя/аккаунта: [{dev, envelope}] (dev "" = основное); sync-sent себе — только копии, без envelope
   deliverMulti(to, msgId, envelope, fromPublicKey, kind, copies) {

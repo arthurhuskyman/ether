@@ -917,7 +917,7 @@ function wireServiceWorker() {
     }
     if (data.type === "answer-call") { try { answerFromNotification(data); } catch (e) { etherLog("warn", "[answer] " + String(e)); } }
     if (data.type === "update-rejected") { try { Integrity.onUpdateRejected(data); } catch (e) {} }
-    if (data.type === "ring-received") { try { if (typeof notifCheckOnRing === "function") notifCheckOnRing(data); } catch (e) {} }
+    if (data.type === "ring-received") { try { if (typeof notifCheckOnRing === "function") notifCheckOnRing(data); } catch (e) {} try { if (typeof RingLab !== "undefined") RingLab.onRing(data); } catch (e) {} }
     if (data.type === "push-subscription-changed") {
       ensurePushSubscription().catch(() => {});
     }

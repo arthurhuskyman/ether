@@ -811,6 +811,7 @@ function paintCallTimer(started) {
 }
 function startCallTimer() {
   const started = Date.now();
+  try { if (typeof RingLab !== "undefined") RingLab.callHelpStart(); } catch (e) {} // только при включённом флаге в Лаборатории
   clearInterval(callTimerInterval);
   clearInterval(callTimerDisplayInterval);
   paintCallTimer(started);
@@ -1026,6 +1027,7 @@ async function offerVoicemail(contactId) {
 }
 function closeCallScreen(reason, opts) {
   clearCallEscalation();
+  try { if (typeof RingLab !== "undefined") RingLab.callHelpStop(); } catch (e) {}
   state._peerRinging = false;
   const lcId = isLinkCallId(state.callId) ? state.callId : null; // link-call: виртуального собеседника убираем после завершения
   const rec = state.currentCallRecord;
@@ -1705,6 +1707,8 @@ function startCallEscalation(id) {
     if (state.callId !== id || state.callPhase !== "calling") return;
     const a = $("#call-noanswer-actions"); if (a) a.classList.remove("hidden");
   }, CALL_ESCALATE_MS);
+  // эксперимент (флаг в Отладке → Лаборатория звонка, по умолчанию выкл.): через 12 с без «звонит у собеседника» — «Позвонить громко»
+  setTimeout(() => { if (state.callId === id && state.callPhase === "calling" && !state._peerRinging) { try { if (typeof RingLab !== "undefined") RingLab.autoLoudHook(id); } catch (e) {} } }, 12000);
 }
 // call-ringing от сервера (протокол C): push доставлен, у собеседника звонит
 function callRingingFromServer() {
@@ -1830,7 +1834,7 @@ async function linkCallCreateAndShare(opts) {
   e.text = LinkCall.shareText(T("lc.shareText"), Store.name || T("lc.guest"), e.link, e.code);
   e.expTimer = setTimeout(() => { if (e.status === "waiting") { const h = $("#linkcall-wait-hint"); if (h && lcWaiting === e) h.textContent = T("lc.expired"); lcDrop(e, { notify: true, keepSheet: true }); } }, Math.max(1000, e.expiresAt - Date.now()));
   lcShowWait(e);
-  lcShare(e);
+  if (!opts.noShare) lcShare(e); // noShare: Лаборатория звонка сама отдаёт текст в sms:/.ics
   return e;
 }
 function lcDrop(e, o) {
