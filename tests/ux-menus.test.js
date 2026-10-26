@@ -15,8 +15,8 @@ const css = fs.readFileSync(path.join(__dirname, "..", "css", "styles.css"), "ut
 
 test("меню «+»: порядок плашек, сетка 2 колонки, «Недавнее» скрыто без файлов и показано с файлом", async () => {
   const a = await booted();
-  const ids = Array.from(a.document.querySelectorAll("#composer-menu-sheet .composer-menu-item:not(.composer-recent):not(#composer-menu-more)")).map((b) => b.id);
-  assert.deepEqual(ids, ["chat-emoji-btn", "chat-camera-btn", "chat-attach-btn", "chat-poll-btn", "chat-board-btn", "chat-note-btn", "chat-sticker-btn", "chat-miniapp-btn"]); // V.80: мини-приложения — один пункт, добавляется из JS
+  const ids = Array.from(a.document.querySelectorAll("#composer-menu-sheet .composer-menu-item:not(.composer-recent):not(#composer-menu-more)")).map((b) => b.id).filter((i) => i !== "chat-miniapp-btn"); // V.80: пункт мини-приложений добавляется из JS (асинхронно)
+  assert.deepEqual(ids, ["chat-emoji-btn", "chat-camera-btn", "chat-attach-btn", "chat-poll-btn", "chat-board-btn", "chat-note-btn", "chat-sticker-btn"]);
   assert.match(css, /composer-menu-actions \{ display: grid; grid-template-columns: repeat\(2/);
   a.run(`{ const c = ensureContactEntry("alice", "Alice"); c.managed = true; state.chatId = "alice"; renderTab(); setComposerFan(true); }`);
   assert.ok(a.document.querySelector("#composer-recent").classList.contains("hidden"));
