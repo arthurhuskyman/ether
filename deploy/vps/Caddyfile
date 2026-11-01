@@ -1,0 +1,9 @@
+{
+	email {$ACME_EMAIL}
+}
+{$DOMAIN} {
+	encode gzip
+	reverse_proxy signaling:8787
+}
+# V.85: зеркало приложения (файл пустой, если домен зеркала не задан)
+import /etc/caddy/Caddyfile.app

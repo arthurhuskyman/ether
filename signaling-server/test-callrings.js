@@ -33,7 +33,7 @@ const inv = (A, to, callId, extra) => A.send({ type: "signal", to: id(to), data:
   inv(A, "b", "callAAAA1111", { video: true }); await wait(60);
   check("push #1 уходит сразу", rings("sub-b").length === 1);
   const r1 = rings("sub-b")[0];
-  check("payload call-ring: callId/from/name/seq/total/video/ackToken", r1.body.callId === "callAAAA1111" && r1.body.from === id("a") && r1.body.name === "Alice" && r1.body.seq === 1 && r1.body.total === 6 && r1.body.video === true && typeof r1.body.ackToken === "string");
+  check("payload call-ring: callId/from/без имени/seq/total/video/ackToken", r1.body.callId === "callAAAA1111" && r1.body.from === id("a") && r1.body.name === undefined /* V.82: имени в push нет (PUSH_NAMES) */ && r1.body.seq === 1 && r1.body.total === 6 && r1.body.video === true && typeof r1.body.ackToken === "string");
   check("заголовки: urgency high, TTL 30, topic ring-<id8>-<seq>", r1.opts.urgency === "high" && r1.opts.TTL === 30 && r1.opts.topic === "ring-callAAAA-1");
   await wait(900);
   check("серия не больше 6", rings("sub-b").length === 6);

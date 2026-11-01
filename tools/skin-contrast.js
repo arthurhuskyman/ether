@@ -7,7 +7,7 @@
 //  - иконок (svg) и значков с фоном (порог --ui, 3:1).
 // Итог: сгруппированный список нарушений, код выхода 1 при наличии. Математика — tools/skin-contrast-lib.js.
 const path = require("path"), http = require("http"), fs = require("fs");
-const { chromium } = require("/opt/node-tools/node_modules/playwright");
+const { chromium } = require(process.env.PLAYWRIGHT_PATH || "playwright");
 const ROOT = path.resolve(__dirname, "..");
 const LIB = fs.readFileSync(path.join(__dirname, "skin-contrast-lib.js"), "utf8");
 const MIME = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".woff2": "font/woff2", ".ttf": "font/ttf", ".svg": "image/svg+xml", ".png": "image/png", ".webmanifest": "application/json", ".wav": "audio/wav", ".mp3": "audio/mpeg" };

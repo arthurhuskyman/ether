@@ -165,7 +165,14 @@ const Ratchet = (() => {
 
   // ---------- возможности (битовая маска) и дополнение до корзин ----------
   // A3 — AAD v3 (возможности и начальный заголовок под AEAD), PQ1 — гибридный старт ML-KEM-768, PAD1 — выравнивание размера открытого текста.
-  const CAP = { A3: 1, PQ1: 2, PAD1: 4 }, LOCAL_CAPS = 7;
+  const CAP = { A3: 1, PQ1: 2, PAD1: 4, PQR: 8 }, LOCAL_CAPS = 15;
+  // V.88: PQR — постквантовое обновление внутри идущей сессии («тройной храповик», упрощённо). Время от времени при шаге DH
+  // отправитель инкапсулирует ML-KEM-768 на свежий ключ собеседника и подмешивает общий секрет в корневой ключ; получатель
+  // делает то же на своём шаге. Шифртекст KEM (h.q.k) и новые ключи (h.q.p) едут в заголовке под AEAD (только уровень v3).
+  // Включается, только если собеседник подтвердил PQR (проверенные возможности) и сервер не вырезает h.q (setQOk).
+  const Q_INTERVAL_MS = 60 * 60 * 1000, KQ_OLD = 3;
+  let qOk = false;
+  function setQOk(v) { qOk = !!v; }
   const PAD_BUCKETS = [256, 1024, 4096, 16384], PAD_STEP = 65536, PAD_MAX = 2 * 1024 * 1024; // сверх PAD_MAX не дополняем: серверный потолок конверта не должен превышаться
   function padBucket(n) {
     for (const b of PAD_BUCKETS) if (n <= b) return b;
@@ -222,7 +229,9 @@ const Ratchet = (() => {
     if (level === 3) {
       const p = h.p && typeof h.p === "object" ? h.p : null;
       const px = p ? ["p", Array.isArray(p.e) ? p.e.join(".") : "", p.s == null ? "" : p.s, p.o == null ? "" : p.o, p.k == null ? "" : p.k, p.v == null ? "" : p.v].join(",") : "-";
-      return te.encode(["ether-dr3", from, to, h.d[0], h.d[1], h.pn, h.n, h.i === 1 ? 1 : 0, px, Number.isInteger(h.c) ? h.c : -1].join("|"));
+      const base = ["ether-dr3", from, to, h.d[0], h.d[1], h.pn, h.n, h.i === 1 ? 1 : 0, px, Number.isInteger(h.c) ? h.c : -1];
+      if (h.q && typeof h.q === "object") base.push(["q", h.q.i || "", h.q.k || "", h.q.j || "", h.q.p || ""].join(","));
+      return te.encode(base.join("|"));
     }
     const v2 = level === 2;
     if (!v2) return te.encode(["ether-dr1", from, to, h.d[0], h.d[1], h.pn, h.n].join("|"));
@@ -338,6 +347,13 @@ const Ratchet = (() => {
     if (s.init) { h.i = 1; if (s.px) h.p = s.px; }
     const level = lv ? lv.level : 1;
     if (level === 3) h.c = LOCAL_CAPS;
+    if (level === 3 && pqrWith(to)) {
+      if (!s.kq) { const k = await Kem.keygen(); s.kq = { id: b64(crypto.getRandomValues(new Uint8Array(6))), seed: b64(k.seed), pub: b64(k.pub) }; s.kqAck = false; }
+      const q = {};
+      if (s.qPend) { q.k = s.qPend.k; q.i = s.qPend.i; }
+      if (!s.kqAck && h.n < 3) { q.j = s.kq.id; q.p = s.kq.pub; } // свой ключ — в первых конвертах каждой цепочки, пока собеседник им не воспользовался
+      if (q.k || q.p) h.q = q;
+    }
     const { key, iv } = await aeadKey(mk);
     const json = JSON.stringify(plain);
     const data = level === 3 ? frameEncode(json, LOCAL_CAPS, !!(lv.caps & CAP.PAD1)) : te.encode(json);
@@ -347,6 +363,22 @@ const Ratchet = (() => {
     return env;
   }
 
+  function pqrWith(contactId) { return qOk && Kem.available() && !!((getDb().cp[contactId] | 0) & CAP.PQR); }
+  function mix(dhOut, ss) { if (!ss) return dhOut; const a = new Uint8Array(dhOut), b = new Uint8Array(ss), o = new Uint8Array(a.length + b.length); o.set(a); o.set(b, a.length); return o; }
+  function qSeed(s, id) {
+    if (typeof id !== "string") return null;
+    if (s.kq && s.kq.id === id) return s.kq.seed;
+    const o = (s.kqOld || []).find((x) => x.id === id); return o ? o.seed : null;
+  }
+  // Заголовок проверен (AEAD сошёлся): запоминаем новый ключ KEM собеседника; если он воспользовался нашим — меняем свой
+  function qAfterOpen(s, h) {
+    const q = h.q; if (!q || typeof q !== "object") return;
+    if (typeof q.j === "string" && q.j.length <= 16 && typeof q.p === "string" && q.p.length === 1580 && (!s.kpr || s.kpr.id !== q.j)) { s.kpr = { id: q.j, pub: q.p }; s.qAt = 0; }
+    if (typeof q.i === "string" && s.kq && q.i === s.kq.id) {
+      s.kqOld = [{ id: s.kq.id, seed: s.kq.seed }].concat(s.kqOld || []).slice(0, KQ_OLD);
+      s.kq = null; s.kqAck = false; // следующий отправленный конверт понесёт новый ключ
+    }
+  }
   async function skipKeys(s, until) {
     if (s.ckr === null) return;
     if (until - s.nr > MAX_SKIP) throw new Error("too many skipped messages");
@@ -381,6 +413,7 @@ const Ratchet = (() => {
       const mk = unb64(s.sk[skId]);
       const plain = await open(mk);
       delete s.sk[skId]; s.skOrder = s.skOrder.filter((x) => x !== skId);
+      if (level === 3) qAfterOpen(s, h);
       return plain;
     }
     if (!s.dhr || dhKey(s.dhr) !== dhKey(h.d)) {
@@ -388,10 +421,19 @@ const Ratchet = (() => {
       s.pn = s.ns; s.ns = 0; s.nr = 0;
       s.dhr = [h.d[0], h.d[1]];
       s.hist = [dhKey(s.dhr)].concat(s.hist.filter((x) => x !== dhKey(s.dhr))).slice(0, HIST);
-      const [rk1, ckr] = await kdfRK(unb64(s.rk), await dh(s.dhs, s.dhr));
+      let ss1 = null;
+      if (h.q && typeof h.q.k === "string") { // собеседник подмешал KEM в этот шаг — повторяем
+        const seed = qSeed(s, h.q.i); if (!seed) throw new Error("ratchet: pq key unknown");
+        ss1 = await Kem.decaps(unb64(seed), unb64(h.q.k));
+      }
+      const [rk1, ckr] = await kdfRK(unb64(s.rk), mix(await dh(s.dhs, s.dhr), ss1));
       s.ckr = b64(ckr);
       s.dhs = await genPair();
-      const [rk2, cks] = await kdfRK(rk1, await dh(s.dhs, s.dhr));
+      let ss2 = null; s.qPend = null;
+      if (pqrWith(from) && s.kpr && Date.now() - (s.qAt || 0) >= Q_INTERVAL_MS) {
+        const e = await Kem.encaps(unb64(s.kpr.pub)); ss2 = e.ss; s.qPend = { k: b64(e.ct), i: s.kpr.id }; s.qAt = Date.now();
+      }
+      const [rk2, cks] = await kdfRK(rk1, mix(await dh(s.dhs, s.dhr), ss2));
       s.rk = b64(rk2); s.cks = b64(cks);
       s.init = false; delete s.px; // prekey-заголовок нужен только пока ответа нет
       
@@ -401,6 +443,7 @@ const Ratchet = (() => {
     const [nextCk, mk] = await kdfCK(unb64(s.ckr));
     const plain = await open(mk);
     s.ckr = b64(nextCk); s.nr++;
+    if (level === 3) qAfterOpen(s, h);
     return plain;
   }
 
@@ -569,7 +612,7 @@ const Ratchet = (() => {
   }
   function info(contactId) { const l = (getDb().s[contactId] || []); return l.length ? l.length + " сесс., основная: ns=" + l[0].ns + " nr=" + l[0].nr + (l[0].init ? " (ждёт ответа)" : "") : "нет"; }
 
-  return { encrypt, decrypt, reset, resetAll, resetTrust, status, setStore, info, needsPrekeys, prekeyUploadPayload, verifySpk, signSpk, verifySpk2, signSpk2, Kem, CAP, LOCAL_CAPS, padBucket, frameEncode, frameDecode,
+  return { encrypt, decrypt, reset, resetAll, resetTrust, status, setStore, info, setQOk, needsPrekeys, prekeyUploadPayload, verifySpk, signSpk, verifySpk2, signSpk2, Kem, CAP, LOCAL_CAPS, padBucket, frameEncode, frameDecode,
     onWarn(fn) { warnHook = typeof fn === "function" ? fn : null; } };
 })();
 if (typeof module !== "undefined") module.exports = Ratchet;

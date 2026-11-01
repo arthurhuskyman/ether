@@ -257,7 +257,7 @@ class SignalingClient extends EventTarget {
         this.dispatchEvent(new CustomEvent("prekey-low", { detail: { count: this.prekeyCount } }));
       } else if (msg.type === "linkcall-signal" && typeof msg.room === "string") {
         this.dispatchEvent(new CustomEvent("linkcall-signal", { detail: { room: msg.room.slice(0, 64), data: msg.data } }));
-      } else if (/^(channel-|gdeliver-ack$|group-roster-ack$)/.test(msg.type)) {
+      } else if (/^(channel-|gdeliver-ack$|group-roster-ack$|blob-ticket$|sfu-|sealed$)/.test(msg.type)) { // V.87: + хранилище вложений и SFU
         // V.80: каналы (channels.js) и групповая доставка Sender Keys: ответы/рассылки сервера уходят подписчикам как есть
         this.dispatchEvent(new CustomEvent(msg.type, { detail: msg }));
       } else if (/^(linkcall-|call-ringing$|push-test)/.test(msg.type)) {
@@ -389,7 +389,7 @@ class SignalingClient extends EventTarget {
   getDevices(to, rid) { return this.send("devices-get", { to, rid }); }
   putDevices(list) { return this.send("devices-put", { list }); }
 
-  deliver(to, msgId, envelope, fromPublicKey, kind) {
+  deliver(to, msgId, envelope, fromPublicKey, kind, nb) {
     // v1: {iv, ct}; v2 (Double Ratchet): {v:2, h, ct} — у v2 нет iv, заголовок h несёт номера и ключи храповика
     if (!envelope || typeof envelope.ct !== "string") return false;
     if (typeof envelope.iv !== "string" && !(envelope.v === 2 && envelope.h && typeof envelope.h === "object")) return false;
@@ -399,9 +399,11 @@ class SignalingClient extends EventTarget {
       envelope,
       fromPublicKey,
       kind: typeof kind === "string" ? kind : "chat",
+      ...(Number.isFinite(nb) && nb > 0 ? { nb } : {}), // V.82: отложенная доставка (сервер с feature "deferred")
       ...this._asFor(to),
     });
   }
+  mailboxCancel(to, msgId) { return this.send("mailbox-cancel", { to, msgId, ...this._asFor(to) }); }
 
   mailboxAck(msgId) { return this.send("mailbox-ack", { msgId }); }
 

@@ -1030,6 +1030,8 @@ async function handleDeliver(detail, replay) {
 function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind) {
   const kind = (payload && payload.kind) || openKind || "chat";
   if (kind === "chat" && (!payload || typeof payload !== "object")) return; // расшифровка могла дать null/не-объект — не падаем
+  // V.84: «без звука» от отправителя — на время обработки этого сообщения звук и вибрация уведомления выключены
+  if (kind === "chat" && payload.silent === true) { state._incomingSilent = true; setTimeout(() => { state._incomingSilent = false; }, 0); }
   if (kind === "chat") {
     const groupId = payload.groupId;
     const c = groupId ? state.contacts.get(groupId) : ensureContactEntry(from, null);
@@ -1164,7 +1166,9 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
         if (state.tab === "chats") renderChatsList();
         updateAppBadge();
       });
-   } else if (kind === "group-invite") {
+   } else if (kind === "fpart") {
+    receiveFilePart(from, payload, envelopeMsgId).catch((e) => etherLog("error", "[fpart] failed:", String(e)));
+  } else if (kind === "group-invite") {
     // Дедупликация по payload.id. group-invite — особый случай: у него
     // нет ack-механизма (получатель не отвечает "получил"), поэтому
     // отправитель всегда дублирует отправку через сервер через
@@ -1298,7 +1302,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
     const c = resolveEditDeleteTarget(from, payload);
     if (!c) return;
     const m = c.messages.find((x) => x.id === payload.id && (c.isGroup ? x.fromId === from : x.from === "them"));
-    if (m && typeof payload.text === "string") { m.text = payload.text.slice(0, MAX_MESSAGE_LENGTH * 2); m.edited = true; c.lastActivity = Date.now(); persistContacts(); // время сообщения правкой не меняется: иначе его можно «переставить» и сдвинуть срок исчезновения
+    if (m && typeof payload.text === "string") { if (typeof m.text === "string" && m.text !== payload.text) m.editHistory = (Array.isArray(m.editHistory) ? m.editHistory : []).concat({ t: m.text, at: m.editedAt || m.ts }).slice(-10); m.text = payload.text.slice(0, MAX_MESSAGE_LENGTH * 2); m.edited = true; m.editedAt = Date.now(); c.lastActivity = Date.now(); persistContacts(); // время сообщения правкой не меняется: иначе его можно «переставить» и сдвинуть срок исчезновения
       if (state.chatId === c.id) renderChatThread(); if (state.tab === "chats") renderChatsList(); }
   } else if (kind === "delete") {
     const c = resolveEditDeleteTarget(from, payload);
@@ -1320,7 +1324,8 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
       if (typeof Devices !== "undefined") { try { Devices.syncAckIn(from, payload.state, ids); } catch (e) {} } // другие мои устройства тоже увидят «доставлено/прочитано»
     }
   } else if (kind === "typing") {
-    handleIncomingTyping(from, !!payload.active);
+    if (typeof payload.groupId === "string" && payload.groupId) handleIncomingGroupTyping(from, payload.groupId, !!payload.active);
+    else handleIncomingTyping(from, !!payload.active);
   } else if (kind === "privacy-pref") {
     const c = state.contacts.get(from);
     if (c) {
@@ -1333,6 +1338,7 @@ function applyIncomingPayload(from, envelopeMsgId, payload, fromServer, openKind
       c.peerLastSeenVisible = payload.lastSeenVisible !== false;
       c.peerPresenceVisible = payload.presenceVisible !== false;
       if (typeof payload.status === "string") c.peerStatus = payload.status.slice(0, 140);
+      if (typeof payload.ak === "string" && /^[A-Za-z0-9+/]{22}==$/.test(payload.ak)) { if (c.ak !== payload.ak) { c.ak = payload.ak; persistContacts(); } } // V.87: ключ доступа для запечатанной доставки
       // Собственное фото собеседника (до ~20 КБ, строгая проверка формата): показывается, пока вы не выбрали контакту своё
       if (typeof payload.avatar === "string") {
         if (payload.avatar === "") delete c.peerAvatar;

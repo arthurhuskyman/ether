@@ -387,7 +387,7 @@ test("Настройки: названия категорий перерисов
   a.window.__LANG_DICTS.de = Object.assign({}, a.window.__LANG_DICTS.en, { "settings.category.profile": "Profil-DE", "settings.category.help": "Hilfe-DE" });
   a.run(`I18N.setLang("de"); applyStaticTranslations();`);
   assert.equal(labels()[0], "Profil-DE");
-  assert.equal(labels()[5], "Hilfe-DE");
+  assert.equal(labels().at(-1), "Hilfe-DE");
   a.run(`openSettingsCategory("help")`);
   assert.equal(a.document.querySelector("#settings-category-title").textContent, "Hilfe-DE");
   a.close();

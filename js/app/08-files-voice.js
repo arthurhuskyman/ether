@@ -203,8 +203,11 @@ async function sendFileMessage(contactId, file, opts) {
   // где size > 0) молча его отбрасывал. Симметрично отклоняем уже
   // здесь, с понятным сообщением, а не тихим расхождением.
   if (file.size === 0) { toast(T("toast.fileEmpty")); return; }
+  file = await stripImageFileMeta(file); // V.84 (п. 1): EXIF/GPS/XMP из JPEG не уходят собеседнику
+  const keepOriginal = typeof P84 !== "undefined" && P84.get("sendOriginal") && /^image\//.test(file.type || ""); // V.84 (п. 26): фото без сжатия
   // V.80: в личном чате файлы больше офлайн-потолка (2 МБ) идут по прямому P2P бинарным протоколом, до P2P_MAX_FILE_SIZE (4 ГБ); группы — как раньше
   const bigOk = !inGroup && file.size > MAX_FILE_SIZE && file.size <= EtherFileLimits.P2P_MAX_FILE_SIZE && !!bigHubGet();
+  const partOk = !inGroup && file.size > MAX_FILE_SIZE && file.size <= EtherFileLimits.OFFLINE_MAX_FILE_SIZE; // V.81: офлайн частями через ящик
   if (file.size > MAX_FILE_SIZE_INPUT && !bigOk) { toast(T("toast.fileTooLarge", { size: formatFileSize(!inGroup && typeof EtherBigFile !== "undefined" ? EtherFileLimits.P2P_MAX_FILE_SIZE : MAX_FILE_SIZE_INPUT) })); return; }
   // Целевой потолок того, что реально уходит — 2МБ. Если исходник
   // больше и это изображение — пробуем сжать автоматически, вместо
@@ -212,13 +215,18 @@ async function sendFileMessage(contactId, file, opts) {
   // file для всего остального пути (P2P/офлайн-очередь его не
   // различают — им важен только размер и содержимое).
   if (file.size > sizeCap) {
-    const compressed = file.size <= MAX_FILE_SIZE_INPUT ? await compressImageToTarget(file, sizeCap) : null;
+    const compressed = file.size <= MAX_FILE_SIZE_INPUT && !(keepOriginal && (bigOk || partOk)) ? await compressImageToTarget(file, sizeCap) : null;
     if (compressed) {
       const origName = file.name || "photo.jpg";
       const newName = origName.replace(/\.[^.]+$/, "") + ".jpg";
       file = new File([compressed], newName, { type: "image/jpeg" });
-    } else if (bigOk) {
-      await sendBigFile(contactId, file, { caption });
+    } else if (bigOk || partOk) {
+      // Живая P2P-связь — быстрый двоичный путь (до 4 ГБ). Нет связи (или есть другие мои устройства) — частями через ящик (до 16 МБ).
+      const l0 = mesh && mesh.get(contactId), live = !!(l0 && (l0.status === "connected" || l0.status === "in-call"));
+      const needsServer = typeof Devices !== "undefined" && Devices.needsServer(c);
+      if (partOk && (!bigOk || !live || needsServer)) { await sendFileOfflineParts(contactId, file, { caption }); return; }
+      if (bigOk) { await sendBigFile(contactId, file, { caption }); return; }
+      toast(T("toast.fileTooLarge", { size: formatFileSize(EtherFileLimits.OFFLINE_MAX_FILE_SIZE) }));
       return;
     } else {
       toast(T("toast.fileTooLarge", { size: formatFileSize(sizeCap) }));
@@ -361,6 +369,114 @@ async function sendFileOffline(contactId, file, opts) {
   persistContacts();
   if (state.chatId === contactId) renderChatThreadInner();
   if (state.tab === "chats") renderChatsList();
+}
+// V.81: файл 2–16 МБ, когда собеседник офлайн. Каждая часть — отдельный зашифрованный конверт ящика (kind "fpart") со всеми
+// метаданными (порядок прихода не важен) и SHA-256 всего файла; получатель собирает части в IndexedDB и проверяет хэш.
+// В сохранённой очереди части лежат без base64: slimPayload/hydratePayload берут срез из блоба "file:<id>".
+function bytesToHex(buf) { return Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, "0")).join(""); }
+async function sendFileOfflineParts(contactId, file, opts) {
+  opts = opts || {};
+  const caption = typeof opts.caption === "string" ? opts.caption.trim().slice(0, 200) : "";
+  const c = state.contacts.get(contactId); if (!c) return;
+  const L = EtherFileLimits;
+  if (!(file.size > 0 && file.size <= L.OFFLINE_MAX_FILE_SIZE)) { toast(T("toast.fileTooLarge", { size: formatFileSize(L.OFFLINE_MAX_FILE_SIZE) })); return; }
+  const msgId = crypto.randomUUID();
+  const ts = Date.now();
+  const mime = file.type || "application/octet-stream";
+  const rec = { id: msgId, from: "me", text: "", ts, ack: "sent", serverAcked: false,
+    file: { name: file.name || "file", mime, size: file.size, kind: fileKindFromMime(mime), pending: true, progress: 0 } };
+  if (caption) rec.file.caption = caption;
+  if (c.disappearingTimer) rec.ttl = c.disappearingTimer;
+  c.messages.push(rec); trimMessages(c); c.lastActivity = ts; persistContacts();
+  if (state.chatId === contactId) { renderChatThreadInner(); const wrap = $("#chat-messages"); if (wrap) wrap.scrollTop = wrap.scrollHeight; }
+  if (state.tab === "chats") renderChatsList();
+  let buffer;
+  try { buffer = await file.arrayBuffer(); }
+  catch (e) { rec.file.pending = false; rec.ack = "failed"; persistContacts(); if (state.chatId === contactId) renderChatThreadInner(); return; }
+  try { await IDB.set("file:" + msgId, new Blob([buffer], { type: mime })); } catch (e) {}
+  const h = bytesToHex(await crypto.subtle.digest("SHA-256", buffer));
+  const parts = Math.ceil(file.size / L.OFFLINE_PART_SIZE);
+  for (let i = 0; i < parts; i++) {
+    const off = i * L.OFFLINE_PART_SIZE;
+    const payload = { kind: "fpart", id: msgId, ts, part: i, parts, name: rec.file.name, mime, size: file.size, h, dataB64: arrayBufferToBase64(buffer.slice(off, off + L.filePartLength(file.size, i))) };
+    if (i === 0 && caption) payload.caption = caption;
+    if (rec.ttl) payload.ttl = rec.ttl;
+    await trySendOrQueue(c, msgId + ".p" + i, payload);
+    rec.file.progress = (i + 1) / parts;
+    const el = document.querySelector(`.file-bubble[data-msg-id="${CSS.escape(msgId)}"] .file-progress-fill`);
+    if (el) el.style.width = (rec.file.progress * 100).toFixed(1) + "%";
+  }
+  rec.file.pending = false; delete rec.file.progress;
+  persistContacts();
+  if (state.chatId === contactId) renderChatThreadInner();
+  if (state.tab === "chats") renderChatsList();
+}
+const fpartAssembling = new Set();
+async function receiveFilePart(from, p, envelopeMsgId) {
+  const L = EtherFileLimits;
+  if (!p || typeof p.id !== "string" || !/^[A-Za-z0-9_-]{8,64}$/.test(p.id) || p.groupId) return;
+  if (!L.isValidFilePartMeta(p) || typeof p.h !== "string" || !/^[0-9a-f]{64}$/.test(p.h) || typeof p.dataB64 !== "string") return;
+  const c = ensureContactEntry(from, null); if (!c || c.blocked || isGroup(c)) return;
+  for (const oc of state.contacts.values()) { if (oc !== c && oc.messages && oc.messages.some((m) => m.id === p.id)) return; } // IDB-ключ общий: чужой id не принимаем
+  let rec = c.messages.find((m) => m.id === p.id);
+  if (rec && (!rec.file || !rec.file.parting || rec.from !== "them")) return; // уже собран (повтор из ящика) или чужая запись
+  if (rec && (rec.file.h !== p.h || rec.file.parts !== p.parts || rec.file.size !== p.size)) return; // части разных файлов под одним id
+  let bytes;
+  try { bytes = base64ToUint8Array(p.dataB64); } catch (e) { return; }
+  if (bytes.length !== L.filePartLength(p.size, p.part)) return;
+  try { await IDB.set("fpart:" + p.id + ":" + p.part, new Blob([bytes])); } catch (e) { etherLog("error", "[fpart] IDB.set failed:", String(e)); return; }
+  rec = c.messages.find((m) => m.id === p.id);
+  if (!rec) {
+    const mime = typeof p.mime === "string" ? p.mime.slice(0, 120) : "application/octet-stream";
+    rec = { id: p.id, from: "them", text: "", ts: safeMsgTs(p.ts), readAckSent: false, deliveryId: envelopeMsgId,
+      file: { name: typeof p.name === "string" ? p.name.slice(0, 200) : "file", mime, size: p.size, kind: fileKindFromMime(mime), pending: true, parting: true, h: p.h, parts: p.parts, got: [], progress: 0 } };
+    if (safeTtl(p.ttl)) rec.ttl = safeTtl(p.ttl);
+    if (!rec.ttl && c.disappearingTimer) rec.ttl = c.disappearingTimer;
+    c.messages.push(rec); trimMessages(c);
+  }
+  if (p.part === 0 && typeof p.caption === "string" && p.caption) rec.file.caption = p.caption.slice(0, 200);
+  if (!rec.file.got.includes(p.part)) rec.file.got.push(p.part);
+  rec.file.progress = rec.file.got.length / rec.file.parts;
+  c.lastActivity = Date.now(); persistContacts();
+  if (state.chatId === c.id) renderChatThread();
+  if (state.tab === "chats") renderChatsList();
+  if (rec.file.got.length === rec.file.parts) await assembleFileParts(c, rec);
+}
+async function assembleFileParts(c, rec) {
+  if (fpartAssembling.has(rec.id)) return;
+  fpartAssembling.add(rec.id);
+  const keys = Array.from({ length: rec.file.parts }, (_, i) => "fpart:" + rec.id + ":" + i);
+  const cleanup = () => Promise.all(keys.map((k) => Promise.resolve(IDB.del(k)).catch(() => {})));
+  try {
+    const blobs = await Promise.all(keys.map((k) => IDB.get(k)));
+    if (blobs.some((b) => !b)) { rec.file.got = rec.file.got.filter((i) => blobs.at(i)); persistContacts(); return; }
+    const whole = new Blob(blobs, { type: rec.file.mime });
+    const h = bytesToHex(await crypto.subtle.digest("SHA-256", await whole.arrayBuffer()));
+    if (whole.size !== rec.file.size || h !== rec.file.h) {
+      rec.file.pending = false; rec.file.failed = true; delete rec.file.parting; delete rec.file.got;
+      persistContacts(); await cleanup();
+      if (state.chatId === c.id) renderChatThread();
+      toast(T("toast.fileCorrupted"));
+      return;
+    }
+    await IDB.set("file:" + rec.id, whole);
+    await cleanup();
+    rec.file.pending = false; delete rec.file.parting; delete rec.file.got; delete rec.file.h; delete rec.file.parts; delete rec.file.progress;
+    c.lastActivity = Date.now(); persistContacts();
+    if (state.chatId === c.id) { renderChatThread(); playMessageSound(c.id); vibrate([80, 40, 80]); }
+    else {
+      const label = T("chat.file.preview." + rec.file.kind);
+      toast(`${c.name}: ${label}`);
+      if (!isContactMuted(c)) showNotification(c.name || T("app.name"), label, { tag: "ether-msg-" + c.id, contactId: c.id, kind: "message", forceSilent: c.vibrateOnly });
+      playMessageSound(c.id);
+    }
+    if (state.tab === "chats") renderChatsList();
+    updateAppBadge();
+  } catch (e) {
+    etherLog("error", "[fpart] assemble failed:", String(e));
+  } finally {
+    fpartAssembling.delete(rec.id);
+  }
 }
 // Переиспользует ровно ту же инфраструктуру, что и обычные файлы (P2P
 // только "вживую", хранение блоба в IndexedDB) — отличается только UI
@@ -1583,6 +1699,11 @@ function wireChatInputKeys() {
     if (desc && desc.set) Object.defineProperty(el, "value", { configurable: true, get() { return desc.get.call(this); }, set(v) { desc.set.call(this, v); autoGrowChatInput(); } });
   } catch (e) {}
   el.addEventListener("keydown", (e) => {
+    // V.84 (п. 34): режим «Ctrl/⌘+Enter отправляет» — Enter переносит строку, отправка только с модификатором
+    if (e.key === "Enter" && !e.isComposing && typeof P84 !== "undefined" && P84.get("ctrlEnter")) {
+      if (e.ctrlKey || e.metaKey) { e.preventDefault(); const f = $("#chat-form"); if (f && el.value.trim()) { if (f.requestSubmit) f.requestSubmit(); else f.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true })); } }
+      return;
+    }
     if (e.key !== "Enter" || e.shiftKey || e.isComposing || e.keyCode === 229 || e.ctrlKey || e.altKey || e.metaKey) return;
     const coarse = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
     if (coarse) return;

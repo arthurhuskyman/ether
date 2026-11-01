@@ -29,7 +29,7 @@ test("тред: рендер разных сообщений и клики по 
   const a = await boot(); const t = fakeTimers(a); installTouch(a); seedThread(a);
   assert.ok(a.document.querySelectorAll("#chat-messages .bubble").length >= 9);
   // ссылка
-  const link = bubble(a, "t1").querySelector("a[href]"); assert.ok(link); link.click(); assert.ok(a.window.__link && a.window.__link.includes("example.com"));
+  a.run(`P84.set("linkConfirm", false)`); const link = bubble(a, "t1").querySelector("a[href]"); assert.ok(link); link.click(); assert.ok(a.window.__link && a.window.__link.includes("example.com"));
   // цитата ответа: оригинал есть → подсветка; нет → ensure + тост
   const q = bubble(a, "t2").querySelector(".bubble-reply[data-reply-to-id]"); assert.ok(q); q.click(); t.tick(2000);
   bubble(a, "t8").querySelector(".bubble-reply[data-reply-to-id]").click(); assert.equal(a.window.__ens, "missing");

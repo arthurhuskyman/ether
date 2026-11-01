@@ -803,10 +803,10 @@ function fx2InjectSettings() {
 // Пресет задаёт набор декоративных эффектов (и «Спокойный режим»); точная настройка — под кнопкой «Расширенные эффекты».
 // Функции с разрешениями и приватностью (погода, Vision Loop, рисование на видео, вибрации, сгорание) пресетом не меняются.
 // ---------------------------------------------------------------------
-const FX_PRESET_KEYS = ["sonic", "dance", "vault", "patina", "easter", "farewell", "silence", "ritual", "breathing", "season", "skin", "sigil", "veil", "wave", "composer", "ambient", "presence", "pulse"];
+const FX_PRESET_KEYS = ["sonic", "dance", "vault", "patina", "easter", "farewell", "silence", "ritual", "breathing", "season", "skin", "sigil", "veil", "wave", "composer", "ambient", "presence", "pulse", "skinwow"];
 const FX_PRESETS = {
-  calm: { sonic: false, dance: false, vault: false, patina: false, easter: false, farewell: false, silence: false, ritual: false, breathing: false, season: false, skin: false, sigil: true, veil: false, wave: false, composer: false, ambient: false, presence: true, pulse: false, calmMode: true },
-  playful: { sonic: true, dance: true, vault: true, patina: true, easter: true, farewell: true, silence: true, ritual: true, breathing: true, season: true, skin: true, sigil: true, veil: true, wave: true, composer: true, ambient: false, presence: true, pulse: true, calmMode: false },
+  calm: { sonic: false, dance: false, vault: false, patina: false, easter: false, farewell: false, silence: false, ritual: false, breathing: false, season: false, skin: false, sigil: true, veil: false, wave: false, composer: false, ambient: false, presence: true, pulse: false, skinwow: false, calmMode: true },
+  playful: { sonic: true, dance: true, vault: true, patina: true, easter: true, farewell: true, silence: true, ritual: true, breathing: true, season: true, skin: true, sigil: true, veil: true, wave: true, composer: true, ambient: false, presence: true, pulse: true, skinwow: true, calmMode: false },
 };
 function fxDefaultOf(k) { if (k === "breathing") return !isIOS(); const d = FX_DEFAULTS[k]; return !!d; }
 function fxPresetValues(id) {

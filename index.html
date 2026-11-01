@@ -69,6 +69,8 @@
 </head>
 <body>
 <a class="skip-link" href="#content" data-i18n="a11y.skip">Skip to content</a>
+<!-- V.82: заставка рисуется сразу из HTML/CSS, пока грузится JavaScript (раньше до конца загрузки скриптов экран был пустым) -->
+<div id="boot-splash" aria-hidden="true"><img src="icons/logo-256.png" width="88" height="88" alt="" /><div class="boot-splash-name">The Messenger</div><div class="boot-splash-dots"><i></i><i></i><i></i></div></div>
 <div id="rotate-lock" aria-hidden="true"><div data-i18n="rotate.lock">Rotate your phone to portrait</div></div>
 
 <div id="lock-screen" class="hidden">
@@ -78,7 +80,7 @@
     </div>
     <h1 class="lock-title" data-i18n="lock.title">The Messenger locked</h1>
     <p class="onboarding-sub" data-i18n="lock.sub">Enter PIN code</p>
-    <input id="lock-pin" type="password" inputmode="numeric" maxlength="8" placeholder="••••" class="pin-input" autocomplete="off" />
+    <input id="lock-pin" type="password" inputmode="numeric" maxlength="64" placeholder="••••" class="pin-input" autocomplete="off" />
     <button type="button" id="lock-submit" class="btn-primary" data-i18n="lock.unlock">Unlock</button>
     <button type="button" id="lock-forgot" class="btn-tertiary" data-i18n="lock.forgot">Forgot PIN?</button>
   </div>
@@ -260,6 +262,8 @@
       <button type="button" class="chat-filter-chip" data-filter="unread" data-i18n="chats.filter.unread">Unread</button>
       <button type="button" class="chat-filter-chip" data-filter="groups" data-i18n="chats.filter.groups">Groups</button>
       <button type="button" class="chat-filter-chip" data-filter="direct" data-i18n="chats.filter.direct">Direct</button>
+      <button type="button" class="chat-filter-chip" data-filter="drafts" data-i18n="p84.filterDrafts">Drafts</button>
+      <button type="button" class="chat-filter-chip" id="p84-read-all" data-i18n="p84.readAll">Read all</button>
       <!-- Раздел 4 роадмапа: кастомные папки чатов — рендерятся сюда
            динамически (renderChatFolderChips), чипы берут вид/логику
            переключения у .chat-filter-chip выше бесплатно. -->
@@ -502,6 +506,7 @@
         </label>
         <button data-settings-adv type="button" id="settings-ringtone-preview" class="settings-row link-row"><span data-i18n="settings.ringtone.preview">Play preview</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
         <label class="settings-row"><span data-i18n="settings.pinlock">PIN code on start</span><input id="settings-pinlock" type="checkbox" class="switch" /></label>
+        <label class="settings-row hidden" id="settings-autolock-row"><span data-i18n="settings.autolock">Lock when away</span><select id="settings-autolock" class="settings-select"><option value="0" data-i18n="settings.autolock.off">Never</option><option value="1" data-i18n="settings.autolock.1">After 1 min</option><option value="5" data-i18n="settings.autolock.5">After 5 min</option><option value="15" data-i18n="settings.autolock.15">After 15 min</option></select></label>
         <label data-settings-adv class="settings-row"><span data-i18n="settings.encrypt">Encrypt data on this device</span><input id="settings-encrypt-store" type="checkbox" class="switch" /></label>
         <p data-settings-adv class="fine muted settings-hint" data-i18n="settings.encrypt.hint">Messages, keys and files are stored encrypted with a key made from your PIN (6+ digits). Protects against someone copying the device storage. If you forget the PIN, the data cannot be recovered. A short digit PIN can still be guessed offline — use a long one.</p>
         <button type="button" id="change-pin-btn" class="settings-row link-row hidden"><span data-i18n="settings.pin.change">Change PIN</span><span class="chevron"><svg data-icon="chevron-right" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"></svg></span></button>
@@ -719,7 +724,7 @@
         <button type="button" id="chat-plus-btn" class="icon-btn composer-plus-btn" aria-label="More" aria-haspopup="menu" aria-expanded="false" data-i18n-aria="chat.composerPlus"><svg data-icon="plus" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"></svg></button>
         <input id="chat-file-input" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.rtf,.csv,.odt,.ods,.epub,.zip,.rar,.7z,.json,.xml,.apk,.jpg,.jpeg,.png,.gif,.webp,.heic,.mp4,.mov,.m4v,.webm,.mp3,.m4a,.wav,.ogg,application/*,text/*,audio/*" multiple style="display:none;" />
         <input id="chat-camera-input" type="file" accept="image/*,video/*" capture="environment" style="display:none;" />
-        <textarea id="chat-input" rows="1" placeholder="Message" data-i18n-ph="chat.placeholder" autocomplete="off" maxlength="4000" enterkeyhint="enter"></textarea>
+        <textarea id="chat-input" rows="1" placeholder="Message" aria-label="Message" data-i18n-ph="chat.placeholder" data-i18n-aria="chat.placeholder" autocomplete="off" maxlength="4000" enterkeyhint="enter"></textarea>
         <div class="send-mic-slot">
           <button type="submit" class="send-btn" aria-label="Send" data-i18n-aria="chat.send"><svg data-icon="send" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"></svg></button>
           <button type="button" id="voice-record-btn" class="send-btn hidden" aria-label="Record voice message" data-i18n-aria="chat.voice.record"><svg data-icon="mic" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"></svg></button>
@@ -887,6 +892,10 @@
     </button>
     <div id="call-more-menu" class="call-more-menu hidden" role="menu">
 
+    <button type="button" id="call-audiomode-btn" class="call-menu-item hidden" role="menuitem">
+      <svg data-icon="mic" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"></svg>
+      <span data-i18n="call.audio.toMusic">Music mode (no processing)</span>
+    </button>
     <button type="button" id="call-screenshare-btn" class="call-menu-item hidden" role="menuitem">
       <svg data-icon="monitor" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"></svg>
       <span data-i18n="call.screenShare">Share screen</span>
@@ -1423,7 +1432,8 @@
     <div class="sheet-handle"></div>
     <h2 id="set-pin-title">New PIN</h2>
     <p class="fine muted" data-i18n="settings.pin.disclaimer" style="margin:-8px 0 14px;">The PIN only locks the screen from a casual glance — it does not encrypt what's stored on this device.</p>
-    <input id="set-pin-input" type="password" inputmode="numeric" maxlength="8" placeholder="••••" class="pin-input" />
+    <input id="set-pin-input" type="password" inputmode="numeric" maxlength="64" placeholder="••••" class="pin-input" autocomplete="off" />
+    <button type="button" id="set-pin-kind-btn" class="btn-tertiary" data-i18n="pin.usePassword">Use a password instead</button>
     <button type="button" id="set-pin-save-btn" class="btn-primary" data-i18n="sys.save">Save</button>
     <button type="button" class="btn-tertiary sheet-cancel" data-close-sheet="set-pin-sheet" data-i18n="sys.cancel">Cancel</button>
   </div>
@@ -1728,7 +1738,6 @@
 </script>
 <script src="js/vendor/qrcode-generator.js"></script>
 <script src="js/vendor/qrcode-generator-utf8.js"></script>
-<script src="js/vendor/jsQR.js"></script>
 <script src="config.js"></script>
 <script src="js/release-key.js"></script>
 <!-- js/bundle.*.js — генерируются: node tools/build-bundles.js (см. README «Сборка бандлов») -->

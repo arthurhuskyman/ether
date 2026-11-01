@@ -73,9 +73,9 @@ test("производительность ML-KEM-768 в node (разумные 
 
 test("гибрид: новый<->новый, подписанный пакет -> v3 + PQ с первого сообщения; классика не затронута", async () => {
   const { a, b } = await pair(); const pb = await bundleFor(b);
-  assert.ok(pb.up.spk.kem && pb.up.spk.sig2 && pb.up.spk.c === 7);
+  assert.ok(pb.up.spk.kem && pb.up.spk.sig2 && pb.up.spk.c === 15);
   const e1 = await send(a, b, { t: 1 }, { getBundle: async () => pb.get() });
-  assert.equal(e1.a, 3); assert.equal(e1.h.c, 7); assert.equal(e1.h.p.v, 3); assert.equal(e1.h.p.k.length, 1452);
+  assert.equal(e1.a, 3); assert.equal(e1.h.c, 15); // V.88: + PQR assert.equal(e1.h.p.v, 3); assert.equal(e1.h.p.k.length, 1452);
   assert.deepEqual(await recv(b, a, e1), { t: 1 });
   assert.equal(a.R.status("bob-id").pq, true); assert.equal(b.R.status("alice-id").pq, true); assert.equal(b.R.status("alice-id").sticky, 3);
   const r = await send(b, a, { t: 2 }); assert.equal(r.a, 3);

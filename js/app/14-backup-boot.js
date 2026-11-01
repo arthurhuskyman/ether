@@ -301,6 +301,7 @@ function wireMeshEvents() {
     }, 400);
   });
   mesh.addEventListener("link-dc-open", (ev) => { try { startLinkAuth(ev.detail.id); } catch (e) { etherLog("warn", "[auth] старт проверки:", String(e)); } });
+  mesh.addEventListener("ice-connection-state", (ev) => { try { onCallIceState(ev.detail && ev.detail.id, ev.detail && ev.detail.state); } catch (e) {} }); // V.82
   mesh.addEventListener("link-caps", (ev) => {
     const c = state.contacts.get(ev.detail.id);
     if (c && ev.detail.rc) markContactRatchet(c);
@@ -552,6 +553,7 @@ function wireChatScreen() {
     const cc = state.contacts.get(state.chatId);
     if (isGroup(cc)) sendGroupMessage(state.chatId, text, state.replyTo);
     else sendChatMessage(state.chatId, text, state.replyTo);
+    try { if (typeof SkinFX !== "undefined") SkinFX.onSend(); } catch (e) {} // V.81: салют отправки в духе скина
     cancelReply();
     input.value = "";
     delete state.drafts[state.chatId];
@@ -642,15 +644,21 @@ if (cameraInput) {
   const pinnedJump = $("#pinned-msg-jump");
   if (pinnedJump) pinnedJump.addEventListener("click", () => {
     const c = state.chatId && state.contacts.get(state.chatId); if (!c || !c.pinnedMessageId) return;
-    ensureMessageRendered(c.id, c.pinnedMessageId);
-    const el = document.querySelector(`.bubble[data-msg-id="${CSS.escape(c.pinnedMessageId)}"]`);
+    const jumpTo = c.pinnedMessageId;
+    // V.84: несколько закреплённых — каждое нажатие переходит к текущему и переключает баннер на предыдущее
+    if (Array.isArray(c.pinIds) && c.pinIds.length > 1) { const k = c.pinIds.indexOf(jumpTo); c.pinnedMessageId = c.pinIds[(k - 1 + c.pinIds.length) % c.pinIds.length]; persistContacts(); setTimeout(() => { try { renderChatThreadInner(); } catch (e) {} }, 900); }
+    c.pinnedMessageId = c.pinnedMessageId; // (для читаемости: ниже переход к jumpTo)
+    ensureMessageRendered(c.id, jumpTo);
+    const el = document.querySelector(`.bubble[data-msg-id="${CSS.escape(jumpTo)}"]`);
     if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.classList.add("jump-highlight"); setTimeout(() => el.classList.remove("jump-highlight"), 1200); }
   });
   const pinnedUnpin = $("#pinned-msg-unpin");
   if (pinnedUnpin) pinnedUnpin.addEventListener("click", () => {
     const id = state.chatId; if (!id) return;
     const c = state.contacts.get(id); if (!c) return;
-    c.pinnedMessageId = null; persistContacts(); renderChatThreadInner();
+    if (Array.isArray(c.pinIds) && c.pinnedMessageId) { c.pinIds = c.pinIds.filter((x) => x !== c.pinnedMessageId); c.pinnedMessageId = c.pinIds[c.pinIds.length - 1] || null; } // V.84: снять текущее, показать следующее
+    else c.pinnedMessageId = null;
+    persistContacts(); renderChatThreadInner();
   });
   const msCancel = $("#multiselect-cancel-btn");
   if (msCancel) msCancel.addEventListener("click", () => exitMultiSelect());

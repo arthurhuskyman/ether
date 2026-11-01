@@ -35,6 +35,8 @@ function isSimpleUi() { return UiMode.isSimple(); }
 // Онбординг и запуск
 // =====================================================================
 let __fastBoot = false; // V.79: старт по уведомлению о звонке — сначала экран «Входящий звонок», второстепенная инициализация позже
+// V.82: убрать заставку загрузки, как только показан любой экран (в браузерах с :has() это делает и CSS)
+function hideBootSplash() { const s = document.getElementById("boot-splash"); if (s) s.remove(); }
 function bootAfterUnlock() {
   if (__appStarted) return;
   if (Store.name && Store.myId) {
@@ -62,8 +64,9 @@ function bootAfterUnlock() {
     // уже ПОСЛЕ заполнения формы. #lang-offer вынесен из #app-shell
     // специально для этого (см. комментарий в CSS) — иначе физически
     // не мог бы показаться раньше.
-    try { maybeOfferSystemLanguage(); } catch (e) {}
+    // V.82: в онбординге язык выбирается на первом слайде — отдельный баннер «Сменить язык?» поверх него лишний
     const o = $("#onboarding"); if (o) o.classList.remove("hidden");
+    hideBootSplash();
     wireOnboardingOnce();
   }
 }
@@ -307,7 +310,9 @@ async function ensureKeyPair(opts) {
     let info = {}; try { info = JSON.parse(localStorage.getItem("ether.keyInfo") || "{}") || {}; } catch (e) {}
     info = { at: Date.now(), count: (info.count || 0) + 1, existing: hadProfile };
     try { localStorage.setItem("ether.keyInfo", JSON.stringify(info)); scheduleIDBBackup(); } catch (e) {}
-    if (hadProfile) {
+    // V.82: тост про новую руну — только если есть контакты, с которыми её сверять (новому пользователю он ничего не говорит)
+    let hasContacts = false; try { const arr = JSON.parse(localStorage.getItem("ether.contacts") || "[]"); hasContacts = Array.isArray(arr) && arr.length > 0; } catch (e) {}
+    if (hadProfile && hasContacts) {
       etherLog("warn", "[crypto] ключи СОЗДАНЫ ЗАНОВО для существующего профиля (в хранилище и в копии IndexedDB их не было); руна изменилась");
       setTimeout(() => { try { toast(T("toast.keysRegenerated")); } catch (e) {} }, 2500);
     }
@@ -338,6 +343,11 @@ function startApp() {
     return;
   }
   __appStarted = true;
+  hideBootSplash();
+  try { p84Wire(); } catch (e) {} // V.84
+  try { p85Wire(); } catch (e) {} // V.85
+  try { p86Wire(); } catch (e) {} // V.86
+  try { p87Wire(); } catch (e) {} // V.87
   tryLockPortraitOrientation();
   const o = $("#onboarding"); if (o) o.classList.add("hidden");
   const l = $("#lock-screen"); if (l) l.classList.add("hidden");
@@ -662,9 +672,19 @@ function forceViewportRecalc() {
 // Запрет масштабирования и поворота. iOS Safari игнорирует user-scalable=no для щипка, поэтому
 // блокируем жесты явно; ориентацию пытаемся зафиксировать API (iOS его не поддерживает — там
 // портретный режим держит оверлей #rotate-lock, см. CSS).
+// V.85: «Разрешить масштаб» (Внешний вид → Доступность) снимает запрет: viewport без maximum-scale, жесты не глотаются,
+// поля ввода не мельче 16px (иначе iOS сам увеличивает страницу при фокусе — ради этого запрет и вводился).
+function zoomAllowed() { try { return localStorage.getItem("ether.a11y.zoom") === "1"; } catch (e) { return false; } }
+function applyZoomPolicy() {
+  const on = zoomAllowed();
+  const vp = document.querySelector('meta[name="viewport"]');
+  if (vp) vp.setAttribute("content", on ? "width=device-width, initial-scale=1, viewport-fit=cover" : "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover");
+  document.documentElement.classList.toggle("a11y-zoom", on);
+}
 function lockViewportGestures() {
-  ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
-  document.addEventListener("touchmove", (e) => { if (e.touches && e.touches.length > 1) e.preventDefault(); }, { passive: false });
+  applyZoomPolicy();
+  ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => { if (!zoomAllowed()) e.preventDefault(); }, { passive: false }));
+  document.addEventListener("touchmove", (e) => { if (e.touches && e.touches.length > 1 && !zoomAllowed()) e.preventDefault(); }, { passive: false });
   let lastTouchEnd = 0;
   document.addEventListener("touchend", (e) => {
     const now = Date.now();
@@ -672,7 +692,7 @@ function lockViewportGestures() {
     const onTitle = e.target && e.target.closest && e.target.closest("#nav-title, #about-app-logo");
     // быстрые повторные тапы по кнопкам/полям/ссылкам (±, реакции, счётчики) не глотаем — зум по двойному тапу гасит touch-action в CSS
     const interactive = e.target && e.target.closest && e.target.closest("button, a, input, select, textarea, label, summary, [role=button], [role=switch], [role=tab], [onclick]");
-    if (now - lastTouchEnd < 300 && e.cancelable && !onTitle && !interactive) e.preventDefault();
+    if (now - lastTouchEnd < 300 && e.cancelable && !onTitle && !interactive && !zoomAllowed()) e.preventDefault();
     lastTouchEnd = now;
   }, { passive: false });
   try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock("portrait").catch(() => {}); } catch (e) {}
@@ -791,7 +811,7 @@ function handleNotificationNavigateParams() {
     const callId = params.get("call");
     const chatId = params.get("chat");
     if (callId) openFromNotification(callId, "call", false, { ts: params.get("ts") });
-    else if (chatId) openFromNotification(chatId, "message");
+    else if (chatId) { openFromNotification(chatId, "message"); if (params.get("callback") === "1") setTimeout(() => { try { beginCall(chatId, false); } catch (e) {} }, 1500); } // V.84 (п. 19)
     if (callId || chatId) {
       const url = new URL(window.location.href);
       url.search = "";
@@ -875,6 +895,7 @@ function wireServiceWorker() {
     swRegistration = reg;
     setTimeout(() => { ensurePushSubscription().catch(() => {}); }, 1000);
     setTimeout(() => { __ringCfgKey = ""; try { syncRingConfigToSW(); } catch (e) {} }, 1500);
+    setTimeout(() => { __cnamesKey = ""; try { syncContactNamesIndex(); } catch (e) {} }, 1600); // V.82: имена для push без имени отправителя
     watchForWaitingSW(reg);
   }).catch(() => {});
 
@@ -904,6 +925,7 @@ function wireServiceWorker() {
 
   navigator.serviceWorker.addEventListener("message", (ev) => {
     const data = ev.data || {};
+    if (data.type === "callback" && data.contactId) { try { openFromNotification(data.contactId, "message"); setTimeout(() => beginCall(data.contactId, false), 600); } catch (e) {} return; } // V.84 (п. 19)
     if (data.type === "open-contact" && data.contactId) {
       openFromNotification(data.contactId, data.kind, data.focusInput, { ts: data.ts });
     }
@@ -1033,7 +1055,7 @@ function showUpdateBanner(reg) {
 // V.79: SW не видит localStorage/i18n — отдаём ему HTTP-адрес сервера (push-ack) и локализованные тексты уведомлений о звонке
 let __ringCfgKey = "";
 function syncRingConfigToSW() {
-  const msg = { type: "ring-config", httpBase: signalingHttpBase(), strings: { ringTitle: T("ring.title"), ringBody: T("ring.body"), missed: T("ring.missed"), ended: T("ring.ended") } };
+  const msg = { type: "ring-config", httpBase: signalingHttpBase(), strings: { ringTitle: T("ring.title"), ringBody: T("ring.body"), missed: T("ring.missed"), ended: T("ring.ended"), callback: T("p84.callback") } };
   const key = JSON.stringify(msg);
   if (key === __ringCfgKey) return;
   const target = (navigator.serviceWorker && navigator.serviceWorker.controller) || (swRegistration && swRegistration.active);
@@ -1080,6 +1102,7 @@ function showNotification(title, body, opts) {
   if (Store.hideNotifContent && opts.kind !== "call") {
     body = T("notif.newMessage");
   }
+  if (state._incomingSilent) opts = Object.assign({}, opts, { forceSilent: true }); // V.84: сообщение «без звука»
   const payload = {
     type: "show-notification", title, body,
     tag: opts.tag || "ether",
@@ -1185,6 +1208,7 @@ function updateNotifBanner() {
 function updateAppBadge() {
   let total = 0;
   for (const c of state.contacts.values()) { if (c.isSelf) continue; total += unreadCount(c); }
+  try { const base = T("app.name"); document.title = total > 0 ? `(${total > 99 ? "99+" : total}) ${base}` : base; } catch (e) {} // V.84 (п. 33)
   const tabBadge = $("#tab-chats-badge");
   if (tabBadge) {
     if (total > 0) { tabBadge.textContent = total > 99 ? "99+" : String(total); tabBadge.classList.remove("hidden"); }

@@ -34,6 +34,8 @@ jobs:
         working-directory: signaling-server
       - name: CSP is up to date
         run: node tools/csp-hash.js --check
+      - name: Design system
+        run: node tools/design-lint.js
       - name: Bundles are up to date
         run: node tools/build-bundles.js --check
       - name: Client tests

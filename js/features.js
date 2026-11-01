@@ -13,6 +13,7 @@ const FX_KEY = "ether.fx";
 const FX_DEFAULTS = {
   sonic: false, dance: true, vault: true, patina: true, easter: true, farewell: true, silence: true,
   ritual: true, breathing: null, season: true, skin: false, sigil: true, voiceStyle: "default", burn: "off",
+  skinwow: true, // V.81: салют отправки и камео скина (js/skinfx.js)
 };
 const FX = {
   _c: null,
@@ -773,7 +774,7 @@ function fxInjectSettings() {
   const anchor = document.querySelector('[data-settings-category="appearance"]:last-of-type') || document.querySelector('[data-settings-category="appearance"]');
   if (!anchor) return;
   const grp = document.createElement("div"); grp.className = "settings-group flat-content"; grp.id = "fx-settings-group"; grp.setAttribute("data-settings-category", "appearance");
-  const toggles = [["sonic", "fx.sonic"], ["dance", "fx.dance"], ["vault", "fx.vault"], ["patina", "fx.patina"], ["easter", "fx.easter"], ["farewell", "fx.farewell"], ["silence", "fx.silence"], ["ritual", "fx.ritual"], ["breathing", "fx.breathing"], ["season", "fx.season"], ["skin", "fx.skin"], ["sigil", "fx.sigilToggle"]];
+  const toggles = [["sonic", "fx.sonic"], ["dance", "fx.dance"], ["vault", "fx.vault"], ["patina", "fx.patina"], ["easter", "fx.easter"], ["farewell", "fx.farewell"], ["silence", "fx.silence"], ["ritual", "fx.ritual"], ["breathing", "fx.breathing"], ["season", "fx.season"], ["skin", "fx.skin"], ["sigil", "fx.sigilToggle"], ["skinwow", "fx.skinwow"]];
   const sel = (key, label, opts) => `<label class="settings-row"><span data-i18n="${label}">${escapeHtml(T(label))}</span><select id="fxs-${key}" class="settings-select">${opts.map(([v, l]) => `<option value="${v}" data-i18n="${l}">${escapeHtml(T(l))}</option>`).join("")}</select></label>`;
   grp.innerHTML = `<div class="settings-row column"><span class="settings-group-title" data-i18n="fx.group">${escapeHtml(T("fx.group"))}</span><p class="fine muted" style="margin:0;" data-i18n="fx.group.note">${escapeHtml(T("fx.group.note"))}</p></div>`
     + toggles.map(([k, l]) => `<label class="settings-row"><span data-i18n="${l}">${escapeHtml(T(l))}</span><input id="fxs-${k}" type="checkbox" class="switch" /></label>`).join("")

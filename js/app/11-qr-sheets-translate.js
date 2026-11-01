@@ -45,13 +45,26 @@ function parseQrAddPayload(text) {
     return r;
   } catch (e) { return null; }
 }
+// Загрузка скрипта своего origin по требованию (CSP: script-src 'self'); повторный вызов ждёт тот же промис
+const __scriptLoads = new Map();
+function loadScriptOnce(src) {
+  if (__scriptLoads.has(src)) return __scriptLoads.get(src);
+  const p = new Promise((resolve, reject) => { const s = document.createElement("script"); s.src = src; s.async = true; s.onload = () => resolve(); s.onerror = () => { __scriptLoads.delete(src); reject(new Error("load " + src)); }; document.head.appendChild(s); });
+  __scriptLoads.set(src, p); return p;
+}
 let qrScanStream = null, qrScanRafId = null, qrScanCanvas = null, qrScanVerifyMode = false, qrScanSigilMode = false, qrScanToken = 0;
 async function startQrScan() {
   const myToken = ++qrScanToken; // stopQrScan() инвалидирует токен: камера, полученная после закрытия шторки, не должна остаться включённой
   const sheet = $("#scan-qr-sheet"); if (sheet) sheet.classList.remove("hidden");
   const video = $("#qr-scan-video");
   const statusEl = $("#qr-scan-status");
-  if (!video || typeof jsQR !== "function") return;
+  if (!video) return;
+  if (typeof jsQR !== "function") { // V.82: распознаватель QR (127 КБ) грузится только при первом сканировании, не при старте
+    if (statusEl) statusEl.textContent = T("connect.qr.scan.loading");
+    try { await loadScriptOnce("js/vendor/jsQR.js"); } catch (e) {}
+    if (myToken !== qrScanToken) return;
+    if (typeof jsQR !== "function") { if (statusEl) statusEl.textContent = T("connect.qr.scan.unsupported"); return; }
+  }
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     if (statusEl) statusEl.textContent = T("connect.qr.scan.unsupported");
     return;
@@ -480,7 +493,7 @@ async function handleIncomingCode(code) {
 }
 function copyText(text, msg) {
   if (navigator.clipboard) {
-    try { navigator.clipboard.writeText(text).then(() => toast(msg)).catch(() => toast(T("toast.copyFailed"))); }
+    try { navigator.clipboard.writeText(text).then(() => { toast(msg); try { p84AfterCopy(text); } catch (e) {} }).catch(() => toast(T("toast.copyFailed"))); }
     catch (e) { toast(T("toast.copyFailed")); }
   }
   else {
@@ -673,12 +686,18 @@ function openMessageSheet(msgId, contactId) {
   rare.push(act("favorite", m.favorite ? T("chat.unfavorite") : T("chat.favorite")));
   if (!m.board || m.text) { rare.push(act("task", T("chat.toTask"))); rare.push(act("remind", T("chat.remind"))); }
   rare.push(act("thread", T("chat.thread.open")));
+  if (c.isGroup && !c.isChannel && m.from !== "me" && m.fromId && m.fromId !== Store.myId) rare.push(act("reply-private", T("p84.replyPrivate"))); // V.84 (п. 12)
+  if (!c.isSelf && (m.text || m.file)) rare.push(act("to-saved", T("p84.toSaved"))); // V.84 (п. 13)
+  if (typeof p86SheetActions === "function") p86SheetActions(c, m, rare, act); // V.86
   if (typeof LocalAI !== "undefined" && messageSummarySource(m).length >= 200) rare.push(act("summary", T("ai.summary")));
   rare.push(act("select", T("chat.selectMsgs")));
   if (isOwn && !m.file && !m.sticker && !m.contactCard && !m.poll && !m.board && !m.note) rare.push(act("edit", T("chat.edit")));
   rare.push(act("delete-local", T("chat.delete.local"), "destructive"));
   if (isOwn) rare.push(act("delete-both", T("chat.delete.both"), "destructive"));
-  const actions = [...main, `<div class="sheet-divider" role="separator"></div>`, ...rare];
+  if (isOwn && !m.file && m.text) rare.push(act("save-template", T("p84.saveTemplate"))); // V.84 (п. 14)
+  // V.84 (п. 21): кто прочитал моё сообщение в группе
+  const readers = c.isGroup && isOwn && Array.isArray(m.readBy) && m.readBy.length ? `<p class="fine muted" style="margin:4px 4px 8px;">${escapeHtml(T("p84.readBy", { names: m.readBy.slice(0, 30).map((id) => { const mm = (c.members || []).find((x) => x && x.id === id); return (mm && mm.name) || (state.contacts.get(id) && state.contacts.get(id).name) || id.slice(0, 6); }).join(", ") }))}</p>` : "";
+  const actions = [readers, ...main, `<div class="sheet-divider" role="separator"></div>`, ...rare];
   body.innerHTML = actions.join("");
   body.querySelectorAll(".sheet-action").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -707,6 +726,10 @@ async function handleMessageAction(action, msgId, contactId) {
   } else if (action === "forward") openForwardSheet((toId) => forwardMessage(msgId, contactId, toId));
   else if (action === "retry") retryMessage(contactId, msgId);
   else if (action === "pin") togglePinnedMessage(contactId, msgId);
+  else if (action === "reply-private") replyPrivately(c, m);
+  else if (action === "to-saved") saveToSaved(c, m);
+  else if (action === "save-template") saveTemplate(m.text);
+  else if (typeof p86SheetAction === "function" && p86SheetAction(action, c, m)) { /* V.86 */ }
   else if (action === "select") enterMultiSelect(msgId);
   else if (action === "favorite") toggleMessageFavorite(contactId, msgId);
   else if (action === "translate") translateMessage(contactId, msgId);
@@ -1015,7 +1038,11 @@ function updateMultiSelectBanner() {
 function togglePinnedMessage(contactId, msgId) {
   const c = state.contacts.get(contactId); if (!c) return;
   if (c.isGroup && !c.isChannel && !c.pinLocal) { groupAdminPin(c, msgId); return; } // в группе закрепляют по роли, у всех
-  c.pinnedMessageId = c.pinnedMessageId === msgId ? null : msgId;
+  // V.84 (п. 17): до 5 закреплённых; баннер показывает текущее, нажатие на «↻» листает
+  const ids = Array.isArray(c.pinIds) ? c.pinIds.slice() : (c.pinnedMessageId ? [c.pinnedMessageId] : []);
+  const i = ids.indexOf(msgId);
+  if (i >= 0) ids.splice(i, 1); else { ids.push(msgId); while (ids.length > 5) ids.shift(); }
+  c.pinIds = ids; c.pinnedMessageId = i >= 0 ? (ids[ids.length - 1] || null) : msgId;
   persistContacts();
   if (state.chatId === contactId) renderChatThread();
 }

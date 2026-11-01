@@ -243,6 +243,7 @@ function wireProfileAvatar() {
 }
 let __settingsWired = false;
 function wireSettingsScreen() {
+  try { p84InjectSettings(); } catch (e) {} // V.84
   if (__settingsWired) return; // повторный вызов (например, после смены языка или повторного входа) не должен вешать обработчики дважды
   __settingsWired = true;
   renderSettingsCategories();
@@ -457,10 +458,17 @@ function wireSettingsScreen() {
   const translateKeyEl = $("#settings-translate-key");
   if (translateKeyEl) translateKeyEl.addEventListener("change", (e) => { Store.translateApiKey = e.target.value; });
   let pinSheetMode = "new"; // "new" | "verify-old" | "enter-new" | "disable"
+  function savePinKind(v) { try { localStorage.setItem("ether.pinKind", /^\d+$/.test(v) && v.length <= 8 ? "pin" : "pass"); } catch (e) {} }
   function updateChangePinBtnVisibility() {
     const btn = $("#change-pin-btn"); if (btn) btn.classList.toggle("hidden", !Store.pinEnabled);
+    const alr = $("#settings-autolock-row"); if (alr) alr.classList.toggle("hidden", !Store.pinEnabled); // V.82: автоблокировка — только с PIN/паролем
   }
   updateChangePinBtnVisibility();
+  const autoLockSel = $("#settings-autolock");
+  if (autoLockSel) {
+    autoLockSel.value = String(autoLockMinutes());
+    autoLockSel.addEventListener("change", () => { try { localStorage.setItem(AUTOLOCK_KEY, String(AUTOLOCK_CHOICES.includes(+autoLockSel.value) ? +autoLockSel.value : 0)); } catch (e) {} });
+  }
   const pinlock = $("#settings-pinlock");
   if (pinlock) pinlock.addEventListener("change", (e) => {
     if (e.target.checked) {
@@ -495,11 +503,19 @@ function wireSettingsScreen() {
     setTimeout(() => { const i = $("#set-pin-input"); if (i) i.focus(); }, 50);
   });
   let pinOldValue = "";
+  // V.81: переключатель «цифры / пароль» в шторке PIN (меняет клавиатуру и минимальную длину нового секрета)
+  let pinSheetPass = false;
+  const kindBtn = $("#set-pin-kind-btn");
+  const syncKindUi = () => {
+    const i = $("#set-pin-input"); if (i) { i.setAttribute("inputmode", pinSheetPass ? "text" : "numeric"); i.classList.toggle("pin-input-pass", pinSheetPass); i.setAttribute("placeholder", pinSheetPass ? "••••••••" : "••••"); }
+    if (kindBtn) kindBtn.textContent = T(pinSheetPass ? "pin.useDigits" : "pin.usePassword");
+  };
+  if (kindBtn) kindBtn.addEventListener("click", () => { pinSheetPass = !pinSheetPass; syncKindUi(); const i = $("#set-pin-input"); if (i) i.focus(); });
   // Шторку PIN можно закрыть отменой, фоном или Esc — тогда переключатели («PIN при запуске», «Шифровать данные») должны вернуться
   // к реальному состоянию, а не показывать «включено» там, где ничего не включилось
   const pinSheetEl = $("#set-pin-sheet");
   if (pinSheetEl && typeof MutationObserver !== "undefined") new MutationObserver(() => {
-    if (!pinSheetEl.classList.contains("hidden")) return;
+    if (!pinSheetEl.classList.contains("hidden")) { pinSheetPass = typeof pinKindIsPass === "function" && pinKindIsPass() && pinSheetMode !== "new"; syncKindUi(); return; }
     if (pinlock) pinlock.checked = Store.pinEnabled;
     syncEncUi(); pinOldValue = "";
   }).observe(pinSheetEl, { attributes: true, attributeFilter: ["class"] });
@@ -509,7 +525,11 @@ function wireSettingsScreen() {
     const inp = $("#set-pin-input"); if (!inp) return;
     const v = inp.value.trim();
     if (!v || v.length < 4) { toast(T("toast.pinShort")); return; }
-    if (!/^\d+$/.test(v)) { toast(T("toast.pinDigits")); return; }
+    const vIsDigits = /^\d+$/.test(v);
+    const settingNew = pinSheetMode === "new" || pinSheetMode === "enter-new";
+    // V.81: новый секрет — либо PIN из цифр, либо пароль от 8 символов (в режиме «пароль» цифры тоже допустимы, но не короче 8)
+    if (settingNew && (pinSheetPass || !vIsDigits) && v.length < 8) { toast(T("toast.passShort")); return; }
+    if (v.length > 64) { toast(T("toast.passLong")); return; }
 
     if (pinSheetMode === "encrypt-enable" || pinSheetMode === "encrypt-disable") {
       const h = await pbkdf2Hex(v, Store.pinSalt, PIN_ITERATIONS);
@@ -541,6 +561,7 @@ function wireSettingsScreen() {
       Store.pinSalt = randomSaltHex(16);
       Store.pinHash = await pbkdf2Hex(v, Store.pinSalt, PIN_ITERATIONS);
       Store.pinEnabled = true;
+      savePinKind(v);
       updateChangePinBtnVisibility();
       const ss = $("#set-pin-sheet"); if (ss) ss.classList.add("hidden");
       toast(T("toast.pinOn"));
@@ -553,6 +574,7 @@ function wireSettingsScreen() {
       Store.pinEnabled = false;
       Store.pinHash = "";
       Store.pinSalt = "";
+      try { localStorage.removeItem("ether.pinKind"); } catch (e) {}
       updateChangePinBtnVisibility();
       const pl = $("#settings-pinlock"); if (pl) pl.checked = false;
       const ss = $("#set-pin-sheet"); if (ss) ss.classList.add("hidden");
@@ -587,6 +609,7 @@ function wireSettingsScreen() {
       pinOldValue = "";
       Store.pinSalt = randomSaltHex(16);
       Store.pinHash = await pbkdf2Hex(v, Store.pinSalt, PIN_ITERATIONS);
+      savePinKind(v);
       const ss = $("#set-pin-sheet"); if (ss) ss.classList.add("hidden");
       toast(T("toast.pinChanged"));
       return;

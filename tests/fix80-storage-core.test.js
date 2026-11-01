@@ -45,6 +45,7 @@ test("миграция открытого текста (крупная исто�
 
 test("миграция IndexedDB: файлы file:* и снимки contactsPrev из открытого вида переходят в шифрованный, читаются обратно", async () => {
   const a = await boot();
+  await new Promise((r) => setTimeout(r, 1800)); // фоновая миграция при старте (1,5 с) не должна гоняться с проверкой
   await a.run(`(async () => { await IDB.set("file:old1", new Blob([new Uint8Array([9, 8, 7])], { type: "image/png" }), { plain: true }); await IDB.set("contactsPrev", "ПРЕЖНИЙ-СНИМОК", { plain: true }); })()`);
   const rawBefore = await a.run(`new Promise((res) => { const db = null; IDB.open().then((d) => { const r = d.transaction("kv").objectStore("kv").get("file:old1"); r.onsuccess = () => res(!r.result.__enc); }); })`);
   assert.equal(rawBefore, true, "до миграции — открытый Blob");

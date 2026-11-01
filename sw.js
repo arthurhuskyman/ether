@@ -1,4 +1,4 @@
-const CACHE_VERSION = "ether-shell-v243";
+const CACHE_VERSION = "ether-shell-v251";
 // В предзагрузке только ядро. css/skins/<id>.css и fonts/skins/*.woff2 подтягиваются по требованию (активный скин) и
 // кладутся в кэш обработчиком fetch ниже (runtime-cache, stale-while-revalidate).
 const SHELL_FILES = [
@@ -23,7 +23,6 @@ const SHELL_FILES = [
   "./js/crypto-worker.js",
   "./js/vendor/qrcode-generator.js",
   "./js/vendor/qrcode-generator-utf8.js",
-  "./js/vendor/jsQR.js",
   "./js/release-key.js",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
@@ -31,9 +30,7 @@ const SHELL_FILES = [
   "./icons/apple-touch-icon.png",
   "./icons/favicon-32.png",
   "./fonts/InterVariable.woff2",
-  "./sounds/ring-classic.mp3",
-  "./sounds/ring-soft.mp3",
-  "./sounds/ring-bell.mp3",
+  "./sounds/ring-classic.mp3", // V.86: остальные мелодии кэшируются при первом прослушивании (бюджет предзагрузки)
   "./sounds/msg.mp3",
   "./sounds/msg-chime.mp3",
   "./sounds/msg-pop.mp3",
@@ -187,6 +184,14 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(handleManifestRequest(event.request));
     return;
   }
+  // V.87: мелодии (кроме основной) не входят в предзагрузку — кэшируем при первом прослушивании, чтобы играли и без сети
+  if (/\/sounds\/[\w-]+\.mp3$/.test(url.pathname) && !url.search && !event.request.headers.get("range")) {
+    event.respondWith(caches.match(event.request).then((hit) => hit || fetch(event.request).then((res) => {
+      if (res && res.ok) { const copy = res.clone(); caches.open("ether-media").then((c) => c.put(event.request, copy)).catch(() => {}); }
+      return res;
+    })));
+    return;
+  }
   if (url.search) {
     if (event.request.mode === "navigate") {
       event.respondWith(
@@ -235,6 +240,13 @@ self.addEventListener("message", (event) => {
     return;
   }
 
+  // V.82: индекс id -> имя для push без имени отправителя (сервер имён в push не кладёт, телефон подставляет их сам)
+  if (data.type === "names-index") {
+    const o = {};
+    if (data.names && typeof data.names === "object") { let n = 0; for (const k of Object.keys(data.names)) { if (typeof data.names[k] === "string" && k.length <= 200) { o[k] = data.names[k].slice(0, 40); if (++n >= 400) break; } } }
+    event.waitUntil(metaPut("./__names.json", o));
+    return;
+  }
   // Список заблокированных контактов — Web Push от них не должен показываться (сервер о блокировке не знает)
   if (data.type === "blocked-ids") {
     const ids = Array.isArray(data.ids) ? data.ids.filter((x) => typeof x === "string").slice(0, 2000) : [];
@@ -244,7 +256,7 @@ self.addEventListener("message", (event) => {
   // V.79: настройки для push-звонков (HTTP-адрес сервера для push-ack и локализованные строки) — SW не видит localStorage/i18n
   if (data.type === "ring-config") {
     const cfg = { httpBase: typeof data.httpBase === "string" ? data.httpBase.slice(0, 300) : "", strings: {} };
-    if (data.strings && typeof data.strings === "object") for (const k of ["ringTitle", "ringBody", "missed", "ended"]) if (typeof data.strings[k] === "string") cfg.strings[k] = data.strings[k].slice(0, 120);
+    if (data.strings && typeof data.strings === "object") for (const k of ["ringTitle", "ringBody", "missed", "ended", "callback"]) if (typeof data.strings[k] === "string") cfg.strings[k] = data.strings[k].slice(0, 120);
     event.waitUntil(metaPut("./__ringcfg.json", cfg));
     return;
   }
@@ -298,12 +310,13 @@ function closeCallNotifications(callId) {
 function handleCallPush(raw) {
   const callId = String(raw.callId || "").slice(0, 80);
   if (!callId) return Promise.resolve();
-  return Promise.all([metaGet("./__ringcfg.json"), metaGet("./__blocked.json"), metaPut("./__lastpush.json", { ts: Date.now(), t: raw.t, callId })]).then(([cfg, blocked]) => {
+  return Promise.all([metaGet("./__ringcfg.json"), metaGet("./__blocked.json"), metaGet("./__names.json"), metaPut("./__lastpush.json", { ts: Date.now(), t: raw.t, callId })]).then(([cfg, blocked, names]) => {
     cfg = cfg || {};
     const str = Object.assign({}, RING_DEFAULT_STRINGS, cfg.strings || {});
     const from = String(raw.from || "").slice(0, 200);
     if (from && Array.isArray(blocked) && blocked.indexOf(from) >= 0) return null; // заблокирован: ни звонка, ни пропущенного
-    const nameOf = (n) => String(n || raw.name || "").slice(0, 60) || (from ? from.slice(0, 8) : "?");
+    const local = names && from && typeof names[from] === "string" ? names[from] : ""; // V.82: имя из своих контактов, сервер его не присылает
+    const nameOf = (n) => String(n || local || raw.name || "").slice(0, 60) || (from ? from.slice(0, 8) : "?");
     if (raw.t === "call-ring") {
       // push-ack — fire-and-forget (не блокирует показ), keepalive переживает закрытие SW
       let ack = Promise.resolve();
@@ -335,6 +348,7 @@ function handleCallPush(raw) {
           return self.registration.showNotification(ringFill(str.missed, name), {
             tag: "missed-" + callId, badge: "./icons/icon-192.png", icon: "./icons/icon-192.png",
             data: { callId, contactId: fromId || null, from: fromId, name, kind: "missed-call" },
+            actions: fromId ? [{ action: "callback", title: str.callback || "Call back" }] : undefined, // V.84 (п. 19): «Перезвонить»
           });
         }
         return self.registration.showNotification(str.ended, {
@@ -359,8 +373,10 @@ self.addEventListener("push", (event) => {
   if (!n) n = { title: "Мессенджер", body: "", tag: "ether", data: {} };
   const data = n.data || {};
   event.waitUntil(
-    caches.open("ether-meta").then((c) => c.match("./__blocked.json")).then((r) => r ? r.json() : []).catch(() => []).then((blockedIds) => {
+    Promise.all([caches.open("ether-meta").then((c) => c.match("./__blocked.json")).then((r) => r ? r.json() : []).catch(() => []), metaGet("./__names.json")]).then(([blockedIds, names]) => {
       if (data.contactId && blockedIds.indexOf(data.contactId) >= 0) return null; // заблокирован: ни звонка, ни сообщения
+      // V.82: сервер не присылает имя отправителя — подставляем его из своего индекса контактов (заголовок остаётся общим, если имени нет)
+      if (names && data.contactId && typeof names[data.contactId] === "string" && names[data.contactId]) n = Object.assign({}, n, { title: names[data.contactId] });
       return self.clients.matchAll({ type: "window", includeUncontrolled: true });
     }).then((clientList) => {
       if (!clientList) return;
@@ -372,7 +388,7 @@ self.addEventListener("push", (event) => {
       // n.actions — используем нейтральный англ. текст "Reply" как
       // разумный фолбэк, а не оставляем кнопку без неё вовсе.
       const actions = Array.isArray(n.actions) ? n.actions.slice(0, 2)
-        : (data.kind !== "call" && data.contactId ? [{ action: "reply", title: "Reply" }] : undefined);
+        : (data.kind !== "call" && data.contactId ? [{ action: "reply", title: "Reply" }, { action: "mark-read", title: "Mark read" }] : undefined); // V.85: и «Прочитано»
       return self.registration.showNotification(n.title || "Мессенджер", {
         body: n.body || "",
         tag: n.tag || "ether",
@@ -435,10 +451,24 @@ self.addEventListener("notificationclick", (event) => {
   // уже где-то открыто, хотя бы в фоне — помечать прочитанным без живой
   // страницы, которая держит state.contacts, негде (честно, не "почти
   // то же самое, но тихо не работает" — см. P2.37 выше по тому же duху).
+  // V.84 (п. 19): «Перезвонить» из уведомления о пропущенном — открыть приложение и сразу позвонить
+  if (event.action === "callback" && contactId) {
+    event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+      for (const c of list) { if ("focus" in c) { c.postMessage({ type: "callback", contactId }); return c.focus(); } }
+      if (self.clients.openWindow) return self.clients.openWindow("./?chat=" + encodeURIComponent(contactId) + "&callback=1");
+    }));
+    return;
+  }
   if (event.action === "mark-read") {
     event.waitUntil(
       self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
         for (const c of list) c.postMessage({ type: "mark-read", contactId });
+        if (list.length || !contactId) return;
+        // V.85: приложение закрыто — запоминаем, приложение применит при следующем открытии (p85ApplyPendingReads)
+        return caches.open("ether-pending").then((cache) => cache.match("./__pending-read.json").then((r) => (r ? r.json() : [])).catch(() => []).then((ids) => {
+          const next = Array.from(new Set((Array.isArray(ids) ? ids : []).concat(String(contactId)))).slice(-200);
+          return cache.put("./__pending-read.json", new Response(JSON.stringify(next), { headers: { "Content-Type": "application/json" } }));
+        }));
       })
     );
     return;

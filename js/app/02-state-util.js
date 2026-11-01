@@ -435,6 +435,9 @@ function applyMarkdown(html) {
   // определению должен показываться буквально, как есть. Вынимаем
   // содержимое code-спанов во временный массив на время bold/italic и
   // возвращаем обратно их точный текст в конце.
+  // V.86: блок кода ```…``` (многострочный, показывается как есть) — до однострочного кода
+  const codeBlocks = [];
+  html = html.replace(/```(?:<br\s*\/?>|\n)?([\s\S]+?)```/g, (m, inner) => { codeBlocks.push(inner); return "\u0000BLOCK" + (codeBlocks.length - 1) + "\u0000"; });
   const codeSpans = [];
   let out = html.replace(/`([^`\n]+?)`/g, (m, inner) => {
     codeSpans.push(inner);
@@ -446,7 +449,13 @@ function applyMarkdown(html) {
   // одиночные "*" уже гарантированно не являются половинками "**".
   out = out.replace(/\*\*([^*\n]+?)\*\*/g, "<strong>$1</strong>");
   out = out.replace(/\*([^*\n]+?)\*/g, "<em>$1</em>");
+  // V.84 (п. 10, 11): ~~зачёркнутый~~ и ||спойлер|| (скрыт до нажатия)
+  out = out.replace(/~~([^~\n]+?)~~/g, "<s>$1</s>");
+  out = out.replace(/\|\|([^|\n]+?)\|\|/g, '<span class="spoiler" tabindex="0" role="button">$1</span>');
   out = out.replace(/\u0000CODE(\d+)\u0000/g, (m, i) => "<code>" + codeSpans[Number(i)] + "</code>");
+  // V.86: цитата — строка, начинающаяся с «> » (в уже экранированном тексте это «&gt; »)
+  out = out.replace(/(^|\n|<br\s*\/?>)&gt; ([^\n<]+)/g, '$1<span class="md-quote">$2</span>');
+  out = out.replace(/\u0000BLOCK(\d+)\u0000/g, (m, i) => '<pre class="md-pre"><code>' + codeBlocks[Number(i)] + "</code></pre>");
   return out;
 }
 // =====================================================================

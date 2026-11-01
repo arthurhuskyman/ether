@@ -32,6 +32,16 @@ function ackGlyph(ack) {
 const NEAR_BOTTOM_PX = 80;
 function isNearBottom(el) { if (!el) return true; return el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX; }
 
+// V.82: прогрев при открытии личного чата — свежие ICE/TURN и P2P-связь заранее, чтобы звонок и файлы шли без ожидания соединения.
+// Не чаще раза в 20 с на контакт; ничего не делает, если связь уже есть или идёт.
+const __chatPrewarmAt = new Map();
+function prewarmLink(id) {
+  const now = Date.now(); if (now - (__chatPrewarmAt.get(id) || 0) < 20000) return; __chatPrewarmAt.set(id, now);
+  try { if (typeof maybeRefreshIceServers === "function") maybeRefreshIceServers(); } catch (e) {}
+  const l = mesh && mesh.get(id);
+  if (l && (l.status === "connected" || l.status === "in-call" || l.status === "connecting")) return;
+  try { attemptConnect(id).catch(() => {}); } catch (e) {}
+}
 function renderChatHeaderSoft() { renderChatThreadInner(); } // шапка обновляется до проверки «подписи» ленты, поэтому ленту это не перестраивает
 function renderChatThread() { try { renderKeyChangeBanner(); renderChatThreadInner(); if (state.threadRoot) renderThreadSheet(); if (typeof roomRenderBar === "function") roomRenderBar(); } catch (e) { __lastChatSig = ""; etherLog("error", "[renderChatThread]", String(e)); const w = $("#chat-messages"); if (w) w.innerHTML = `<div class="empty-state"><p>Error.</p></div>`; } }
 
@@ -101,13 +111,17 @@ function renderChatThreadInner() {
     ensureGroupConnections(c);
   } else if (c.managed && !isReachable(c)) {
     attemptConnectViaRelay(c.id).catch(() => {}); // на всякий случай — вдруг найдётся общий контакт, даже если сервер цель не видит
-  }
+  } else if (c.managed && !c.blocked && !c.isSelf) prewarmLink(c.id);
   const nm = $("#chat-peer-name"); if (nm) nm.textContent = c.name || T("sys.someone");
   const avEl = $("#chat-peer-avatar"); if (avEl) avEl.innerHTML = avatarCircleHtml(c, null, "");
   const statusEl = $("#chat-peer-status");
   const typing = !isGroup(c) && state.typingTimers.has(c.id);
   if (statusEl) {
-    if (isGroup(c)) { statusEl.textContent = T("group.memberCount", { n: c.members.length }); statusEl.classList.remove("typing"); }
+    if (isGroup(c)) {
+      const gt = typeof groupTypingLabel === "function" ? groupTypingLabel(c) : "";
+      if (gt) { statusEl.innerHTML = `<span class="typing-dots" aria-hidden="true"><span></span><span></span><span></span></span><span class="typing-group">${escapeHtml(gt)}</span>`; statusEl.classList.add("typing"); }
+      else { statusEl.textContent = T("group.memberCount", { n: c.members.length }); statusEl.classList.remove("typing"); }
+    }
     else if (typing) {
       // Оба печатают одновременно — отдельная подпись (общее «присутствие» в разговоре)
       const both = !!state.typingSendingState.get(c.id);
@@ -121,13 +135,15 @@ function renderChatThreadInner() {
   const retryAllBtn = $("#chat-retry-all-btn");
   if (retryAllBtn) retryAllBtn.classList.toggle("hidden", !c.messages.some((m) => m.from === "me" && m.ack === "failed"));
   updateMultiSelectBanner();
+  try { applyChatWallpaper(c); } catch (e) {} // V.84 (п. 18)
   const pinnedBanner = $("#pinned-msg-banner");
   if (pinnedBanner) {
     const pinnedMsg = c.pinnedMessageId ? c.messages.find((m) => m.id === c.pinnedMessageId) : null;
     pinnedBanner.classList.toggle("hidden", !pinnedMsg);
     if (pinnedMsg) {
       const textEl = $("#pinned-msg-text");
-      if (textEl) textEl.textContent = pinnedMsg.file ? T("chat.file.preview." + pinnedMsg.file.kind) : truncate(pinnedMsg.text || "", 60);
+      const pn = Array.isArray(c.pinIds) && c.pinIds.length > 1 ? `${c.pinIds.indexOf(pinnedMsg.id) + 1}/${c.pinIds.length} · ` : ""; // V.84
+      if (textEl) textEl.textContent = pn + (pinnedMsg.file ? T("chat.file.preview." + pinnedMsg.file.kind) : truncate(pinnedMsg.text || "", 60));
     } else if (c.pinnedMessageId) {
       // Сообщение удалено — чистим висячую ссылку. Раньше это не
       // сохранялось через persistContacts(): после перезагрузки страницы
@@ -366,10 +382,10 @@ function renderChatThreadInner() {
     // композитинг (20+ blur-слоёв).
     inner.className = "bubble" + (m.mentionMe ? " bubble-mentioned" : "") + (m.sticker ? " bubble-sticker" : "");
     inner.setAttribute("data-msg-id", m.id); // для прокрутки к оригиналу по тапу на цитате ответа
-    const body = m.sticker && window.EtherStickers && EtherStickers.bubbleHtml ? EtherStickers.bubbleHtml(m) : m.chMedia ? channelMediaHtml(m) : m.file ? fileBubbleHtml(m.id, m.file) : m.poll ? pollBubbleHtml(c, m) : m.board ? boardBubbleHtml(m) : m.note ? noteBubbleHtml(m) : (m.contactCard ? contactCardBubbleHtml(m.contactCard) : linkifyAndHighlight(m.text, q));
+    const body = m.sticker && window.EtherStickers && EtherStickers.bubbleHtml ? EtherStickers.bubbleHtml(m) : m.chMedia ? channelMediaHtml(m) : m.file ? fileBubbleHtml(m.id, m.file) : m.poll ? pollBubbleHtml(c, m) : m.board ? boardBubbleHtml(m) : m.note ? noteBubbleHtml(m) : (m.contactCard ? contactCardBubbleHtml(m.contactCard) : (isEmojiOnly(m.text) ? `<span class="emoji-jumbo">${escapeHtml(m.text.trim())}</span>` : linkifyAndHighlight(m.text, q))); // V.84 (п. 25): крупные эмодзи
     const isFirstOfGroupBlock = !prevMsg || prevMsg.fromId !== m.fromId || prevMsg.from !== "them";
     const senderLabel = (isGroup(c) && m.from === "them" && m.fromId && isFirstOfGroupBlock)
-      ? `<div class="bubble-sender">${escapeHtml(m.fromName || T("sys.someone"))}</div>` : "";
+      ? `<div class="bubble-sender" style="color:${senderColor(m.fromId || m.fromName || "")}">${escapeHtml(m.fromName || T("sys.someone"))}</div>` : ""; // V.84 (п. 36)
     let previewSlotHtml = "";
     let previewUrl = null;
     if (Store.linkPreviewMode !== "off" && !m.deleted) {
@@ -407,7 +423,7 @@ if (m.replyTo) {
     if (typeof m.text === "string" && (m.text.length > 140 || (m.text.match(/\n/g) || []).length >= 3)) inner.classList.add("bubble-long");
     const thUnread = replyCounts.get(m.id) ? threadUnreadCount(c, m.id) : 0;
     const threadChip = replyCounts.get(m.id) ? `<button type="button" class="thread-chip${thUnread ? " has-unread" : ""}" data-thread="${escapeHtml(m.id)}" aria-haspopup="dialog" aria-label="${escapeHtml(thUnread ? T("chat.thread.aria.unread", { n: replyCounts.get(m.id), n2: thUnread }) : T("chat.thread.aria", { n: replyCounts.get(m.id) }))}">${Icons.html("chat", 13)}<span>${escapeHtml(T("chat.thread.replies", { n: replyCounts.get(m.id) }))}</span>${thUnread ? `<span class="thread-unread" aria-hidden="true">${thUnread}</span>` : ""}</button>` : "";
-    inner.innerHTML = `${senderLabel}${fwdMark}${replyHtml}${body}${threadChip}${translationHtml}${previewSlotHtml}<span class="bubble-time">${ttlMark}${favMark}${formatTime(m.ts)}${editedMark}${tick}</span>${reactionsHtml}`;
+    inner.innerHTML = `${senderLabel}${fwdMark}${replyHtml}${body}${threadChip}${translationHtml}${previewSlotHtml}<span class="bubble-time" title="${escapeHtml(new Date(m.ts || 0).toLocaleString())}">${ttlMark}${favMark}${formatTime(m.ts)}${editedMark}${tick}</span>${reactionsHtml}`;
     // Долгое нажатие — открывает обычное меню действий (ответить/
     // переслать/удалить), для ЛЮБОГО типа сообщения, как в большинстве
     // мессенджеров. Обычный тап при этом делает контентно-зависимое
@@ -819,6 +835,8 @@ function openChatHeaderMenu() {
     { label: isContactMuted(c) ? T("chats.action.unmute") : T("chat.contact.mute"), icon: "bell", fn: () => toggleChatMute(c, () => { try { renderChatThreadInner(); } catch (e) {} }) },
     { label: T("chat.disappearing"), icon: "clock", rare: true, fn: () => openActionSheet(T("chat.disappearing"), [["chat.disappearing.off", 0], ["chat.disappearing.1h", 3600000], ["chat.disappearing.1d", 86400000], ["chat.disappearing.1w", 604800000]].map(([k, ms]) => ({ label: ((c.disappearingTimer || 0) === ms ? "✓ " : "") + T(k), icon: "clock", fn: () => setDisappearingTimer(id, ms) }))) },
     { label: T("summary.menu"), icon: "sparkle", rare: true, fn: () => { if (typeof openChatSummary === "function") openChatSummary(id); } },
+    { label: T("p84.exportTxt"), icon: "download", rare: true, fn: () => exportChatTxt(c) }, // V.84 (п. 16)
+    { label: T("p84.wallpaper"), icon: "image", rare: true, fn: () => openActionSheet(T("p84.wallpaper"), [["p84.wp.default", ""], ["p84.wp.dots", "dots"], ["p84.wp.grid", "grid"], ["p84.wp.gradient", "gradient"], ["p84.wp.none", "none"]].map(([k, v]) => ({ label: T(k), fn: () => { c.wp = v || undefined; persistContacts(); applyChatWallpaper(c); } }))) }, // V.84 (п. 18)
     { label: T("chat.contact.clear"), icon: "trash", danger: true, fn: async () => {
       if (!await confirmSheet(T("toast.confirmDeleteChat", { name: c.name }), { destructive: true })) return;
       cleanupExpiredFileBlobs(c.messages); c.messages = []; c.lastActivity = Date.now(); persistContacts();

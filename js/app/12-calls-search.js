@@ -400,6 +400,7 @@ function setCallPhaseActive() {
   const cv = $(".call-volume"); if (cv) cv.classList.remove("hidden");
   const sfb = $("#call-sound-fix-btn"); if (sfb) sfb.classList.remove("hidden");
   startCallTimer();
+  try { vibrate([40, 60, 40]); } catch (e) {} // V.82: тактильный сигнал «соединились» — можно говорить, не глядя на экран
   resumeCallAudio("active");
   updateCallRecordStatus("active");
   if (state.callId && pendingRemoteStreams.has(state.callId)) {
@@ -599,11 +600,44 @@ const __callNotices = new Map();
 function setCallNotice(key, text) {
   if (text) __callNotices.set(key, text); else __callNotices.delete(key);
   const el = $("#call-notice"); if (!el) return;
-  const first = Array.from(__callNotices.values())[0] || "";
+  const first = __callNotices.get("reconnect") || Array.from(__callNotices.values())[0] || ""; // «Переподключение…» важнее остальных плашек
   el.textContent = first;
   el.classList.toggle("hidden", !first);
 }
-function clearCallNotices() { __callNotices.clear(); setCallNotice("x", null); }
+function clearCallNotices() { __callNotices.clear(); setCallNotice("x", null); __callReconnectingAt = 0; const cs = $("#call-screen"); if (cs) cs.classList.remove("call-reconnecting"); }
+// V.82: смена сети / обрыв ICE в активном звонке — не сбрасываем звонок, а показываем «Переподключение…» (ICE restart делает webrtc.js);
+// когда связь вернулась — короткая вибрация и «Связь восстановлена».
+let __callReconnectingAt = 0;
+function onCallIceState(id, s) {
+  if (!id || id !== state.callId || state.callPhase !== "active") return;
+  const cs = $("#call-screen");
+  if (s === "disconnected" || s === "failed" || s === "checking" && __callReconnectingAt) {
+    if (!__callReconnectingAt) { __callReconnectingAt = Date.now(); setCallNotice("reconnect", T("call.reconnecting")); if (cs) cs.classList.add("call-reconnecting"); try { vibrate([20]); } catch (e) {} }
+  } else if ((s === "connected" || s === "completed") && __callReconnectingAt) {
+    __callReconnectingAt = 0; setCallNotice("reconnect", null); if (cs) cs.classList.remove("call-reconnecting");
+    try { vibrate([30, 40, 30]); } catch (e) {}
+    toast(T("call.reconnected"));
+  }
+}
+// V.82: режим звука в звонке. «Голос» — шумоподавление, эхоподавление и автоусиление (по умолчанию); «Музыка» — без обработки
+// (инструмент, пение, живой звук). Применяется к текущему треку микрофона на лету и запоминается для следующих звонков.
+function callAudioMode() { try { return localStorage.getItem("ether.callAudioMode") === "music" ? "music" : "voice"; } catch (e) { return "voice"; } }
+async function setCallAudioMode(mode) {
+  mode = mode === "music" ? "music" : "voice";
+  try { localStorage.setItem("ether.callAudioMode", mode); } catch (e) {}
+  const on = mode === "voice";
+  const link = state.callId && mesh ? mesh.get(state.callId) : null;
+  const tr = link && link.localAudioTrack;
+  if (tr && typeof tr.applyConstraints === "function") { try { await tr.applyConstraints({ echoCancellation: on, noiseSuppression: on, autoGainControl: on }); } catch (e) {} }
+  syncCallAudioModeBtn();
+  toast(T(on ? "call.audio.voiceOn" : "call.audio.musicOn"));
+}
+function syncCallAudioModeBtn() {
+  const b = $("#call-audiomode-btn"); if (!b) return;
+  const music = callAudioMode() === "music";
+  const sp = b.querySelector("span"); if (sp) sp.textContent = T(music ? "call.audio.toVoice" : "call.audio.toMusic");
+  b.classList.toggle("active", music);
+}
 // Всё, что можно сделать с аудио звонка без участия пользователя: контекст Web Audio, <audio>, маршрут iOS, микрофон.
 // Вызывается при возврате в приложение, по жесту после отказа autoplay, после смены маршрута и по кнопке «проблема со звуком».
 function resumeCallAudio(reason) {
@@ -851,6 +885,8 @@ function callQualityStart() {
     link.addEventListener("quality", (ev) => {
       if (link !== __cqLink) return;
       const d = ev.detail || {};
+      // V.82: собеседник теряет заметную часть нашего звука (по его отчёту RTCP) — предупреждаем «Вас плохо слышно»
+      { const lf = d.sample && d.sample.raw && d.sample.raw.remoteLostFrac; setCallNotice("heard", typeof lf === "number" && lf >= 0.12 ? T("call.heardBadly") : null); }
       if (d.audioOnly) setCallNotice("quality", T("call.quality.audioOnly"));
       else if (d.restored && !d.audioOnly) setCallNotice("quality", d.level === 0 ? null : T("call.quality.reduced"));
       else if (d.level > 0) setCallNotice("quality", T("call.quality.reduced"));
@@ -1123,7 +1159,15 @@ function wireCallGestures() {
       if (t && t.closest && t.closest("button, input, a, canvas, .call-more-menu")) return;
       x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; track = true;
     }, { passive: true });
+    let lastTap = 0;
     cs.addEventListener("touchend", (e) => {
+      // V.82: двойной тап по свободному месту экрана звонка — включить/выключить видео (как кнопка «Видео»)
+      const tgt = e.target;
+      if (state.callPhase === "active" && !(tgt && tgt.closest && tgt.closest("button, input, a, canvas, .call-more-menu, video#call-local-video"))) {
+        const now = Date.now();
+        if (now - lastTap < 320) { lastTap = 0; const vb = $("#call-video-btn"); if (vb && !vb.disabled) { try { haptic("light"); } catch (er) {} vb.click(); } }
+        else lastTap = now;
+      }
       if (!track) return; track = false;
       const t = e.changedTouches && e.changedTouches[0]; if (!t) return;
       const dx = t.clientX - x0, dy = t.clientY - y0;
@@ -1162,6 +1206,7 @@ function wireCallMoreMenu() {
 }
 function wireCallScreen() {
   try { wireCallAlternatives(); } catch (e) { etherLog("warn", "[call] alternatives: " + String(e)); }
+  { const am = $("#call-audiomode-btn"); if (am && !am.dataset.wired) { am.dataset.wired = "1"; am.classList.remove("hidden"); am.addEventListener("click", () => setCallAudioMode(callAudioMode() === "music" ? "voice" : "music")); syncCallAudioModeBtn(); } }
   wireCallMoreMenu();
   wireCallAudioResilience();
   wireCallGestures();

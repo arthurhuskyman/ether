@@ -93,7 +93,7 @@ test("смоук: ввод в поля, переключатели, select, ст
     for (const o of Array.from(sel.options).slice(0, 3)) { sel.value = o.value; sel.dispatchEvent(ev("change")); await tick(2); }
   }
   // отправка сообщения в открытом чате
-  a.run(`state.chatId = "alice"; renderTab();`);
+  a.run(`state.chatId = "alice"; renderTab(); if (typeof P86 !== "undefined") P86.set("undoSend", false);`); // V.86: переключатели выше могли включить отмену отправки
   await tick(30);
   const input = a.document.querySelector("#chat-input");
   if (input) {

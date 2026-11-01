@@ -36,7 +36,7 @@ function loadContacts() {
     state.contacts.set(c.id, {
       id: c.id, name: c.name || "", raw: c.raw || "",
       managed: true, publicKey: c.publicKey || null,
-      rc: !!c.rc || undefined, e2: !!c.e2 || undefined, verifiedKey: c.verifiedKey || undefined,
+      rc: !!c.rc || undefined, e2: !!c.e2 || undefined, ak: c.ak || undefined, verifiedKey: c.verifiedKey || undefined,
       pendingKey: c.pendingKey && c.pendingKey.key ? { key: c.pendingKey.key, at: c.pendingKey.at || 0 } : undefined,
       rejectedKey: c.rejectedKey || undefined, authSeen: !!c.authSeen || undefined,
       online: false, status: "disconnected",
@@ -44,6 +44,7 @@ function loadContacts() {
       lastActivity: c.lastActivity || 0,
       archived: !!c.archived, muted: !!c.muted, muteUntil: c.muteUntil || null, blocked: !!c.blocked, vibrateOnly: !!c.vibrateOnly,
       pinned: !!c.pinned, pinnedMessageId: c.pinnedMessageId || null,
+      pinIds: Array.isArray(c.pinIds) ? c.pinIds.filter((x) => typeof x === "string").slice(-5) : undefined, keyHistory: Array.isArray(c.keyHistory) ? c.keyHistory.slice(-20) : undefined, wp: typeof c.wp === "string" ? c.wp.slice(0, 20) : undefined, // V.84
       pinOrder: typeof c.pinOrder === "number" ? c.pinOrder : null,
       servers: Array.isArray(c.servers) ? ServerList.normalizeHints(c.servers, { allowLocal: srvAllowLocal() }) : undefined, // домашние серверы контакта (srv)
       // Группы — без этих полей запись после перезагрузки превращается в
@@ -207,6 +208,12 @@ function syncContactNamesIndex() {
   const j = JSON.stringify(o);
   if (j === __cnamesKey) return; __cnamesKey = j;
   try { localStorage.setItem("ether.cnames", j); } catch (e) {}
+  // V.82: тот же индекс — service worker'у: push приходит без имени отправителя, имя подставляется на телефоне
+  try {
+    const msg = { type: "names-index", names: o };
+    if (navigator.serviceWorker && navigator.serviceWorker.controller) navigator.serviceWorker.controller.postMessage(msg);
+    else if (typeof swRegistration !== "undefined" && swRegistration && swRegistration.active) swRegistration.active.postMessage(msg);
+  } catch (e) {}
 }
 function persistContacts() {
   try { syncBlockedToSW(); } catch (e) {}
@@ -214,10 +221,11 @@ function persistContacts() {
   try { syncWatch(false); } catch (e) {}
   __contactsPersistPending = Array.from(state.contacts.values()).filter((c) => c.managed).map((c) => ({
     id: c.id, name: c.name, raw: c.raw, publicKey: c.publicKey,
-    rc: c.rc || undefined, e2: c.e2 || undefined, verifiedKey: c.verifiedKey || undefined, pendingKey: c.pendingKey || undefined, rejectedKey: c.rejectedKey || undefined, authSeen: c.authSeen || undefined,
+    rc: c.rc || undefined, e2: c.e2 || undefined, ak: typeof c.ak === "string" && c.ak.length < 40 ? c.ak : undefined, verifiedKey: c.verifiedKey || undefined, pendingKey: c.pendingKey || undefined, rejectedKey: c.rejectedKey || undefined, authSeen: c.authSeen || undefined,
     messages: c.messages, lastActivity: c.lastActivity,
     archived: c.archived, muted: c.muted, muteUntil: c.muteUntil || undefined, blocked: c.blocked, vibrateOnly: c.vibrateOnly || undefined,
     pinned: c.pinned || undefined, pinnedMessageId: c.pinnedMessageId || undefined,
+    pinIds: c.pinIds && c.pinIds.length ? c.pinIds : undefined, keyHistory: c.keyHistory && c.keyHistory.length ? c.keyHistory : undefined, wp: c.wp || undefined, // V.84
     pinOrder: typeof c.pinOrder === "number" ? c.pinOrder : undefined,
     servers: Array.isArray(c.servers) && c.servers.length ? c.servers.slice(0, 3) : undefined,
     isGroup: c.isGroup || undefined, room: c.isGroup && c.room || undefined,
@@ -370,6 +378,8 @@ function ensureContactEntry(id, suggestedName) {
     };
     state.contacts.set(id, c);
     persistContacts();
+    // V.84 (п. 7): таймер исчезновения по умолчанию для новых личных чатов
+    try { const ttl = typeof P84 !== "undefined" ? P84.get("defaultTtl") : 0; if (ttl > 0 && !c.isGroup) setTimeout(() => { if (state.contacts.get(id) === c && !c.disappearingTimer) setDisappearingTimer(id, ttl).catch(() => {}); }, 0); } catch (e) {}
   } else if (suggestedName && (!c.name || c.name === T("sys.someone"))) {
     c.name = suggestedName;
     persistContacts();
@@ -825,6 +835,16 @@ function demoOnSend(c, payload) {
   }, 700);
 }
 function setPinReorder(on) { state.pinReorder = !!on; renderChatsList(); }
+const CHAT_LIST_STEP = 80;
+let __chatListShown = CHAT_LIST_STEP;
+function chatListMoreButton(rest) {
+  const b = document.createElement("button"); b.type = "button"; b.className = "btn-tertiary chat-list-more"; b.id = "chat-list-more";
+  b.textContent = T("p85.more", { n: rest });
+  const more = () => { if (!b.isConnected) return; __chatListShown += CHAT_LIST_STEP; renderChatsList(); };
+  b.addEventListener("click", more);
+  try { if (typeof IntersectionObserver === "function") { const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) { io.disconnect(); more(); } }, { rootMargin: "400px" }); io.observe(b); } } catch (e) {}
+  return b;
+}
 function renderChatsList() {
   const list = $("#chats-list"), empty = $("#chats-empty"), archivedToggle = $("#chats-archived-toggle");
   if (!list) return;
@@ -845,6 +865,7 @@ function renderChatsList() {
   const activeFolder = state.chatFilter.startsWith("folder:") ? state.folders.find((f) => f.id === state.chatFilter.slice(7)) : null;
   const passesChatFilter = (c) => {
     if (state.chatFilter === "unread") return unreadCount(c) > 0;
+    if (state.chatFilter === "drafts") return !!(state.drafts[c.id] && state.drafts[c.id].trim()); // V.84 (п. 27)
     if (state.chatFilter === "groups") return isGroup(c);
     if (state.chatFilter === "direct") return !isGroup(c);
     if (state.chatFilter.startsWith("folder:")) return !!activeFolder && activeFolder.contactIds.includes(c.id);
@@ -930,7 +951,10 @@ function renderChatsList() {
   }
   const pinnedPairs = [];
   let unreadHeaderShown = false;
+  let __shownRows = 0, __truncated = false; // V.85: длинный список рисуется порциями (CHAT_LIST_STEP), остальное — по прокрутке
   for (const c of items) {
+    if (__shownRows >= __chatListShown && !c.pinned) { __truncated = true; break; }
+    __shownRows++;
     if (showUnreadSection && !c.pinned && !unreadHeaderShown && unreadCount(c) > 0) {
       const header = document.createElement("div");
       header.className = "chats-section-header";
@@ -944,7 +968,7 @@ function renderChatsList() {
     wrapper.className = "chat-row-wrapper";
     const row = document.createElement("button");
     row.type = "button";
-    row.className = "chat-row flat-content" + (c.archived ? " archived" : "");
+    row.className = "chat-row flat-content" + (c.archived ? " archived" : "") + (!isGroup(c) && !c.isSelf && c.online && c.peerPresenceVisible !== false ? " is-online" : ""); // V.84 (п. 35)
     row.dataset.chatId = c.id;
     const __rowMutedForBadge = isContactMuted(c);
     const badge = unread > 0 ? `<span class="unread-badge${__rowMutedForBadge ? " is-muted" : ""}">${unread > 99 ? "99+" : unread}</span>` : "";
@@ -963,9 +987,10 @@ function renderChatsList() {
     // "Печатает…" перекрывает обычное превью — раньше это было видно
     // только в шапке уже открытого треда, хотя состояние (typingTimers)
     // уже отслеживалось и для списка чатов, просто не использовалось.
-    const isTyping = !isGroup(c) && state.typingTimers.has(c.id);
+    const groupTyping = isGroup(c) && typeof groupTypingLabel === "function" ? groupTypingLabel(c) : "";
+    const isTyping = groupTyping || (!isGroup(c) && state.typingTimers.has(c.id));
     if (isTyping) {
-      preview = `<span class="chat-row-typing"><span class="typing-dots" aria-label="${escapeHtml(T("chat.typing"))}"><span></span><span></span><span></span></span></span>`;
+      preview = `<span class="chat-row-typing"><span class="typing-dots" aria-label="${escapeHtml(groupTyping || T("chat.typing"))}"><span></span><span></span><span></span></span>${groupTyping ? " " + escapeHtml(truncate(groupTyping, 34)) : ""}</span>`;
     } else {
       // Черновик перекрывает обычное превью (но не "печатает") — только
       // если он не пуст. Хранится отдельно от самого текста сообщения,
@@ -973,7 +998,7 @@ function renderChatsList() {
       const draft = state.drafts[c.id];
       if (draft && draft.trim()) {
         preview = `<span class="chat-row-draft">${escapeHtml(T("chats.draft"))}:</span> ` + escapeHtml(truncate(draft, 34));
-      }
+      } else if (last && typeof P84 !== "undefined" && P84.get("hidePreviews")) preview = escapeHtml(T("p84.previewHidden")); // V.84 (п. 3)
     }
     // "Не доставлено" — последнее МОЁ сообщение в чате зависло в ack=failed.
     const lastMine = c.messages.length ? [...c.messages].reverse().find((m) => m.from === "me") : null;
@@ -1050,6 +1075,7 @@ function renderChatsList() {
     if (showDragHandle) pinnedPairs.push({ wrapper, c });
     list.appendChild(wrapper);
   }
+  if (__truncated) list.appendChild(chatListMoreButton(items.length - __shownRows));
   // Навешиваем обработчики перетаскивания одним проходом после того, как
   // все строки закреплённых чатов уже в DOM — attachPinDragHandle нужны
   // itemBoundingClientRect() соседних строк, а они известны только когда
@@ -1339,6 +1365,7 @@ function setGroupWriteRestricted(groupId, restricted) {
 function renderContactCard() {
   const c = state.contacts.get(state.contactCardId);
   if (!c) { state.contactCardId = null; renderTab(); return; }
+  try { p84ContactExtras(c); } catch (e) {} // V.84 (п. 8, 29): общие группы и история ключа
   const av = $("#contact-avatar");
   if (av) {
     // Раньше после backgroundImage шло присваивание av.style.background = "" — сокращённое свойство сбрасывало и картинку,

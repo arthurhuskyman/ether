@@ -8,6 +8,7 @@
   },
   "devDependencies": {
     "@roamhq/wrtc": "^0.10.0",
+    "acorn": "^8.14.0",
     "c8": "^10.1.2",
     "fake-indexeddb": "^6.0.0",
     "jsdom": "^26.0.0"

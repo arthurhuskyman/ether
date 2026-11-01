@@ -18,6 +18,11 @@ let ICE_SERVERS = [];
 // Параметры захвата: без них браузер отдаёт 640×480 и «сырой» микрофон без шумо-/эхоподавления — на звонке это выглядит
 // и звучит заметно хуже. Идеал просим мягко (ideal), чтобы устройство не падало с OverconstrainedError.
 const AUDIO_CAPTURE = { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1, sampleRate: { ideal: 48000 } };
+// V.82: «музыкальный режим» звонка (ether.callAudioMode = "music") — захват без шумо-/эхоподавления и автоусиления
+function audioCaptureForMode() {
+  let music = false; try { music = typeof localStorage !== "undefined" && localStorage.getItem("ether.callAudioMode") === "music"; } catch (e) {}
+  return music ? Object.assign({}, AUDIO_CAPTURE, { echoCancellation: false, noiseSuppression: false, autoGainControl: false }) : AUDIO_CAPTURE;
+}
 function videoCapture(facingMode) {
   return { facingMode: facingMode || "user", width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } };
 }
@@ -1083,7 +1088,7 @@ class PeerLink extends EventTarget {
     if (this._audioCapP) return this._audioCapP;
     const p = (async () => {
       let stream;
-      try { stream = await navigator.mediaDevices.getUserMedia({ audio: AUDIO_CAPTURE }); }
+      try { stream = await navigator.mediaDevices.getUserMedia({ audio: audioCaptureForMode() }); }
       catch (e) { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
       if (this._closed || this.localAudioTrack) { try { stream.getTracks().forEach((t) => t.stop()); } catch (e) {} if (this._closed) throw new Error("link closed"); return; } // микрофон не должен «зависать» после закрытия линка
       this.localAudioTrack = stream.getAudioTracks()[0];

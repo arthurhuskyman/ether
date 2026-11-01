@@ -26,6 +26,7 @@ async function sendChatMessage(contactId, text, replyTo) {
   playOutgoingSound();
   haptic("light");
   const payload = { kind: "chat", id: msgId, text, ts };
+  if (state._silentNext) { payload.silent = true; state._silentNext = false; } // V.84 (п. 28): «Отправить без звука»
   if (replyTo) payload.replyTo = { id: replyTo.msgId, text: replyTo.text, authorName: replyTo.authorName };
   if (c.disappearingTimer) payload.ttl = c.disappearingTimer;
   await trySendOrQueue(c, msgId, payload);
@@ -76,7 +77,39 @@ function sweepScheduledMessages() {
   const now = Date.now();
   const due = state.scheduledMessages.filter((s) => s.sendAt <= now && !s.failed && !scheduledInFlight.has(s.id));
   if (due.length === 0) return;
-  for (const s of due) sendScheduledOne(s);
+  for (const s of due) { if (s.serverMsgId) revealServerScheduled(s); else sendScheduledOne(s); }
+}
+// V.82: отложенное сообщение в личный чат сразу уходит на сервер с отметкой «не раньше» (feature "deferred") и доходит вовремя,
+// даже если приложение отправителя закрыто. У отправителя оно появляется в чате в назначенное время (повторно не отправляется).
+const DEFER_MAX_MS_CLIENT = 7 * 24 * 3600 * 1000;
+function serverDeferAvailable(c, sendAt) {
+  return !!(c && !isGroup(c) && !c.isSelf && !c.blocked && c.publicKey && signaling && signaling.registered && Array.isArray(signaling.features) && signaling.features.includes("deferred")
+    && sendAt - Date.now() > 10000 && sendAt - Date.now() <= DEFER_MAX_MS_CLIENT);
+}
+async function handScheduledToServer(s) {
+  const c = state.contacts.get(s.contactId); if (!c) return false;
+  const msgId = crypto.randomUUID();
+  const payload = { kind: "chat", id: msgId, text: s.text, ts: s.sendAt };
+  if (s.replyTo) payload.replyTo = { id: s.replyTo.msgId, text: s.replyTo.text, authorName: s.replyTo.authorName };
+  if (c.disappearingTimer) payload.ttl = c.disappearingTimer;
+  s.serverMsgId = msgId; persistScheduledMessages();
+  addToOutbox(msgId, c.id, payload);
+  const e = outbox.get(msgId); if (e) e.nb = s.sendAt;
+  persistOutbox();
+  await flushOutboxItem(msgId);
+  return true;
+}
+function revealServerScheduled(s) {
+  const c = state.contacts.get(s.contactId);
+  state.scheduledMessages = state.scheduledMessages.filter((x) => x.id !== s.id);
+  persistScheduledMessages(); renderScheduleBanner();
+  if (!c || c.messages.some((m) => m.id === s.serverMsgId)) return;
+  const rec = { id: s.serverMsgId, from: "me", text: s.text, ts: s.sendAt, ack: "sent", serverAcked: true };
+  if (s.replyTo) rec.replyTo = s.replyTo;
+  if (c.disappearingTimer) rec.ttl = c.disappearingTimer;
+  c.messages.push(rec); trimMessages(c); c.lastActivity = Date.now(); persistContacts();
+  if (state.chatId === c.id) renderChatThreadInner();
+  if (state.tab === "chats") renderChatsList();
 }
 function scheduledCountFor(contactId) {
   return state.scheduledMessages.filter((s) => s.contactId === contactId).length;
@@ -89,6 +122,13 @@ function renderScheduleBanner() {
 }
 function openScheduleSheet() {
   const sheet = $("#schedule-sheet"); if (!sheet) return;
+  // V.84 (п. 28): в той же шторке (долгое нажатие «Отправить») — «Отправить без звука»
+  if (!document.getElementById("p84-silent-btn")) {
+    const b = document.createElement("button"); b.type = "button"; b.id = "p84-silent-btn"; b.className = "sheet-action"; b.textContent = T("p84.sendSilent");
+    b.addEventListener("click", () => { sheet.classList.add("hidden"); state._silentNext = true; const f = $("#chat-form"); if (f) { if (f.requestSubmit) f.requestSubmit(); else f.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true })); } setTimeout(() => { state._silentNext = false; }, 0); });
+    const panel = sheet.querySelector(".sheet-panel"), h = panel && panel.querySelector("h2, h3");
+    if (h) h.insertAdjacentElement("afterend", b); else if (panel) panel.prepend(b);
+  }
   const input = $("#schedule-custom-input");
   if (input) { const d = new Date(Date.now() + 3600000); d.setSeconds(0, 0); input.value = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); }
   sheet.classList.remove("hidden");
@@ -102,6 +142,7 @@ function queueScheduledMessage(sendAt) {
   const rec = { id: crypto.randomUUID(), contactId: state.chatId, isGroup: isGroup(c), text, replyTo: state.replyTo || null, sendAt };
   state.scheduledMessages.push(rec);
   persistScheduledMessages();
+  if (serverDeferAvailable(c, sendAt)) handScheduledToServer(rec).catch((e) => etherLog("warn", "[scheduled] server defer:", String(e)));
   input.value = "";
   delete state.drafts[state.chatId]; persistDrafts();
   cancelReply();
@@ -125,10 +166,28 @@ function openScheduleListSheet() {
       retryBtn.addEventListener("click", async () => { await retryScheduledMessage(row.id); openScheduleListSheet(); });
       item.appendChild(retryBtn);
     }
+    // V.84 (п. 20): правка текста отложенного сообщения (переданное серверу — снимается и передаётся заново)
+    const editBtn = document.createElement("button");
+    editBtn.type = "button"; editBtn.className = "icon-btn small schedule-row-edit-btn"; editBtn.setAttribute("aria-label", T("chat.edit"));
+    editBtn.innerHTML = `${Icons.html("edit", 18)}`;
+    editBtn.addEventListener("click", () => openTextSheet({ title: T("chat.edit"), value: row.text, onOk: async (v) => {
+      v = String(v || "").trim().slice(0, MAX_MESSAGE_LENGTH); if (!v) return;
+      const s = state.scheduledMessages.find((x) => x.id === row.id); if (!s) return;
+      if (s.serverMsgId) { try { if (signaling) signaling.mailboxCancel(s.contactId, s.serverMsgId); } catch (e) {} if (outbox.has(s.serverMsgId)) { outbox.delete(s.serverMsgId); persistOutbox(); } delete s.serverMsgId; }
+      s.text = v; persistScheduledMessages();
+      const c = state.contacts.get(s.contactId);
+      if (serverDeferAvailable(c, s.sendAt)) await handScheduledToServer(s).catch(() => {});
+      openScheduleListSheet();
+    } }));
+    item.appendChild(editBtn);
     const cancelBtn = document.createElement("button");
     cancelBtn.type = "button"; cancelBtn.className = "icon-btn small schedule-row-cancel-btn"; cancelBtn.setAttribute("aria-label", T("sys.cancel"));
     cancelBtn.innerHTML = `${Icons.html("x", 18)}`;
     cancelBtn.addEventListener("click", () => {
+      if (row.serverMsgId) { // V.82: снять с сервера и из своей очереди отправки
+        try { if (signaling) signaling.mailboxCancel(row.contactId, row.serverMsgId); } catch (e) {}
+        if (outbox.has(row.serverMsgId)) { outbox.delete(row.serverMsgId); persistOutbox(); }
+      }
       state.scheduledMessages = state.scheduledMessages.filter((s) => s.id !== row.id);
       persistScheduledMessages();
       renderScheduleBanner();
@@ -205,6 +264,7 @@ async function commitEdit(contactId, msgId, newText) {
   const m = c.messages.find((x) => x.id === msgId); if (!m) return;
   newText = applyEmojiAutoReplace(String(newText)).slice(0, MAX_MESSAGE_LENGTH);
   const editTs = Date.now();
+  if (typeof m.text === "string" && m.text !== newText) m.editHistory = (Array.isArray(m.editHistory) ? m.editHistory : []).concat({ t: m.text, at: m.editedAt || m.ts }).slice(-10); // V.86: история правок (локально)
   m.text = newText; m.edited = true; m.editedAt = editTs; // m.ts не трогаем: у получателя он при правке не меняется
   c.lastActivity = editTs;
   persistContacts();

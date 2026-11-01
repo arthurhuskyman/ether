@@ -678,6 +678,7 @@ const httpServer = http.createServer(async (req, res) => {
   if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
 
   if (url.startsWith("/link/") && await require("./devicelink").handle(req, res, clientIp(req))) return; // перенос на новое устройство (docs/MULTIDEVICE.md)
+  if (url.startsWith("/blob/") && blobsMod.handle(req, res)) return; // V.87
   if (federation.enabled && url.startsWith("/federation/") && await federation.handle(req, res)) return; // ЭКСПЕРИМЕНТАЛЬНО, по умолчанию выключено (federation.js)
   if (req.method === "GET" && (url === "/ice" || url.startsWith("/ice?"))) {
     const ip = clientIp(req);
@@ -1055,6 +1056,10 @@ function pushText(lang, key, params) {
   return resolved === undefined ? key : resolved;
 }
 
+// V.82: имя отправителя в push не кладём по умолчанию — push-сервисы (Apple, Google, Mozilla) видели бы, кто кому пишет и звонит.
+// Телефон подставляет имя сам из своего индекса контактов (sw.js, ./__names.json). PUSH_NAMES=1 возвращает прежнее поведение.
+const PUSH_NAMES = process.env.PUSH_NAMES === "1";
+function pushTitle(lang, name) { return (PUSH_NAMES && name) || pushText(lang, "newMessage"); }
 function buildDeclarativePush(payload, lang) {
   const isCall = payload.kind === "call";
   // Раньше: APP_ORIGIN + "/" + "?call=..." — сейчас APP_BASE_URL всегда без
@@ -1077,7 +1082,8 @@ function buildDeclarativePush(payload, lang) {
     renotify: isCall,
     data: { contactId: payload.contactId || null, kind: payload.kind || "message", navigate, ts: now },
   };
-  return { web_push: 8030, notification, mutable: false };
+  // mutable: для сообщений service worker может подставить имя из локального индекса; звонок показывается платформой как есть
+  return { web_push: 8030, notification, mutable: !isCall };
 }
 
 async function actuallySendPush(subEntry, payload) {
@@ -1168,7 +1174,7 @@ function notifyDevice(ownerId, devId, fromId, msgId, key) {
     pushSentForMsgId.set(dk, Date.now());
     const lang = (pushSubs.get(key) || {}).lang;
     const fr = clients.get(fromId);
-    sendPushTo(key, fromId, { title: (fr && fr.name) || pushText(lang, "newMessage"), body: pushText(lang, "newMessage"), tag: "ether-msg-" + fromId, contactId: fromId, kind: "message" }).catch(() => {});
+    sendPushTo(key, fromId, { title: pushTitle(lang, fr && fr.name), body: pushText(lang, "newMessage"), tag: "ether-msg-" + fromId, contactId: fromId, kind: "message" }).catch(() => {});
   }, PUSH_AFTER_MS);
 }
 
@@ -1454,10 +1460,18 @@ function broadcastPresence(id, online, extra = {}) {
     }
   }
 }
+// V.82: отложенная доставка (feature "deferred"). Конверт с nb (not before, мс) лежит в ящике, но получатель его не видит до nb:
+// ни живой пересылки, ни выдачи из ящика, ни push. Раз в DEFER_SWEEP_MS созревшие записи отдаются онлайн-получателю и вызывают push.
+// Отправитель может снять ещё не созревшую запись (mailbox-cancel). Потолок — DEFER_MAX_MS вперёд.
+const DEFER_MAX_MS = 7 * 24 * 3600 * 1000, DEFER_SWEEP_MS = envInt("DEFER_SWEEP_MS", 15 * 1000);
+const deferredDue = (entry, now) => !entry.nb || entry.nb <= now;
 function flushMailbox(id, ws) {
   const box = mailbox.get(id);
   if (!box || box.size === 0) return;
+  const now = Date.now();
   for (const [msgId, entry] of box) {
+    if (!deferredDue(entry, now)) continue;
+    if (entry.sealed) { safeSend(ws, { type: "sealed", msgId, s: entry.sealed, queued: true }); continue; } // V.87
     safeSend(ws, {
       type: "deliver",
       from: entry.from,
@@ -1495,6 +1509,12 @@ function isValidEnvelope(env) {
     if (h.p != null && (typeof h.p !== "object" || JSON.stringify(h.p).length > 2000)) return false;
     if (h.p != null && h.p.k != null && !(typeof h.p.k === "string" && h.p.k.length === 1452 && /^[A-Za-z0-9+/]+={0,2}$/.test(h.p.k))) return false;
     if (h.c != null && !(Number.isInteger(h.c) && h.c >= 0 && h.c <= 255)) return false;
+    if (h.q != null) { // V.88: PQR — шифртекст KEM (k), ключ KEM (p) и их id (i, j); только эти поля, строгие размеры
+      const q = h.q, b64re = /^[A-Za-z0-9+/]+={0,2}$/, idre = /^[A-Za-z0-9+/=_-]{1,16}$/;
+      if (typeof q !== "object" || Array.isArray(q) || Object.keys(q).some((k) => !["i", "k", "j", "p"].includes(k))) return false;
+      if (q.k != null && !(typeof q.k === "string" && q.k.length === 1452 && b64re.test(q.k) && typeof q.i === "string" && idre.test(q.i))) return false;
+      if (q.p != null && !(typeof q.p === "string" && q.p.length === 1580 && b64re.test(q.p) && typeof q.j === "string" && idre.test(q.j))) return false;
+    }
     return true;
   }
   return typeof env.iv === "string" && env.iv.length < 200;
@@ -1562,12 +1582,12 @@ const federation = require("./federation").create({
     if (target && target.ws.readyState === WebSocket.OPEN) safeSend(target.ws, { type: "deliver", ...p, queued: false });
   },
 });
-const SERVER_FEATURES = ["ratchet2", "prekeys", "watch", "claim", "env2", "devicelink", "devlist", "devmail", "devsync", "devpush", "devnotify", "alias", "channels", "gdeliver", "sk1", "pq1"].concat(DISCOVERY_ENABLED ? ["discovery"] : [], federation.enabled ? ["fed0"] : []);
+const SERVER_FEATURES = ["ratchet2", "prekeys", "watch", "claim", "env2", "devicelink", "devlist", "devmail", "devsync", "devpush", "devnotify", "alias", "channels", "gdeliver", "sk1", "pq1", "deferred"].concat(DISCOVERY_ENABLED ? ["discovery"] : [], federation.enabled ? ["fed0"] : []);
 
 // ---------- Каналы и групповая доставка Sender Keys (channels.js, gdeliver.js) ----------
 const channelsMod = require("./channels").create({
   safeSend, clientsGet: (id) => clients.get(id), file: process.env.CHANNELS_PERSIST === "0" ? null : (process.env.CHANNELS_FILE || path.join(process.env.DATA_DIR || __dirname, ".ether-channels.json")),
-  push: (uid, c) => sendPushTo(uid, "ch-" + c.id, { title: (c.meta && c.meta.name) || pushText((pushSubs.get(uid) || {}).lang, "newMessage"), body: pushText((pushSubs.get(uid) || {}).lang, "newMessage"), tag: "ether-ch-" + c.id, contactId: "ch-" + c.id, kind: "message" }).catch(() => {}),
+  push: (uid, c) => sendPushTo(uid, "ch-" + c.id, { title: pushTitle((pushSubs.get(uid) || {}).lang, c.meta && c.meta.name), body: pushText((pushSubs.get(uid) || {}).lang, "newMessage"), tag: "ether-ch-" + c.id, contactId: "ch-" + c.id, kind: "message" }).catch(() => {}),
 });
 channelsMod.load();
 const gdeliverMod = require("./gdeliver").create({
@@ -1579,10 +1599,27 @@ const gdeliverMod = require("./gdeliver").create({
     const box = mailbox.get(to); if (!box || !box.has(mid) || pushSentForMsgId.has(mid + "|" + to)) return;
     pushSentForMsgId.set(mid + "|" + to, Date.now());
     const lang = (pushSubs.get(to) || {}).lang, me = clients.get(from);
-    sendPushTo(to, from, { title: (me && me.name) || pushText(lang, "newMessage"), body: pushText(lang, "newMessage"), tag: "ether-msg-" + from, contactId: from, kind: "message" }).catch(() => {});
+    sendPushTo(to, from, { title: pushTitle(lang, me && me.name), body: pushText(lang, "newMessage"), tag: "ether-msg-" + from, contactId: from, kind: "message" }).catch(() => {});
   }, PUSH_AFTER_MS),
 });
 gdeliverMod.load();
+// ---------- V.87: зашифрованные вложения для групп (blobs.js) и SFU для групповых звонков (sfu.js) ----------
+const blobsMod = require("./blobs").create({ safeSend, dir: process.env.BLOBS === "0" ? null : (process.env.BLOBS_DIR || path.join(process.env.DATA_DIR || __dirname, ".ether-blobs")) });
+blobsMod.load();
+let sfuMod = null;
+if (process.env.SFU === "1") {
+  try { sfuMod = require("./sfu").create({ safeSend, isMember: (gid, id) => { const g = gdeliverMod.groups.get(gid); return !!(g && g.members && g.members.has(id)); } }); }
+  catch (e) { console.warn("[sfu] не запущен: " + e.message); }
+}
+if (process.env.BLOBS !== "0") SERVER_FEATURES.push("blob");
+// V.87: «запечатанный отправитель» — конверт кладётся в ящик получателя с анонимного соединения: сервер не знает, кто
+// отправил. От спама — ключ доступа получателя (его хэш получатель регистрирует сам, сам ключ знают только его контакты).
+const uakByUser = new Map(); // id -> sha256(hex) ключа доступа
+const sealedIpHits = new Map();
+const SEALED_MAX = 300 * 1024, SEALED_PER_IP_MIN = 120;
+SERVER_FEATURES.push("sealed", "pqr");
+function sealedOk(ip) { const t = Date.now(); let h = sealedIpHits.get(ip); if (!h || t - h.t > 60000) { h = { t, n: 0 }; sealedIpHits.set(ip, h); if (sealedIpHits.size > 50000) sealedIpHits.delete(sealedIpHits.keys().next().value); } return ++h.n <= SEALED_PER_IP_MIN; }
+if (sfuMod) SERVER_FEATURES.push("sfu");
 // ---------- Prekey-пакеты для начала Double Ratchet (3DH/4DH) ----------
 // Клиент заранее выкладывает подписанный-по-смыслу prekey (spk, меняется раз в неделю) и пачку одноразовых (opks).
 // Сервер хранит только ПУБЛИЧНЫЕ части в памяти и отдаёт желающим начать переписку: spk + один opk (который тут же удаляется).
@@ -1648,7 +1685,7 @@ function ringOnce(rec) {
   const callerRec = clients.get(rec.fromReal);
   const subHash = ringSubHash(entry.subscription);
   rec.subHash = subHash;
-  const payload = { t: "call-ring", callId: rec.callId, from: rec.from, name: rec.name, seq, total: rec.total, video: rec.video, ackToken: ringToken(rec.callId, seq, subHash) };
+  const payload = { t: "call-ring", callId: rec.callId, from: rec.from, name: PUSH_NAMES ? rec.name : undefined, seq, total: rec.total, video: rec.video, ackToken: ringToken(rec.callId, seq, subHash) };
   void callerRec;
   ringSendPush(rec, payload, { topic: "ring-" + rec.callId.slice(0, 8).replace(/[^A-Za-z0-9_-]/g, "x") + "-" + seq }).then((r) => { if (r === "gone") { rec.sent = rec.total; ringStop(rec, "gone"); } }).catch(() => {});
 }
@@ -1660,7 +1697,7 @@ function ringStop(rec, reason) {
   if (ringPairIdx.get(rec.pk) === rec.callId) ringPairIdx.delete(rec.pk);
   const loud = reason === "answered" || reason === "declined" || reason === "cancelled" || reason === "timeout";
   if (loud && !rec.test && rec.sent > 0 && pushSubs.has(rec.to)) {
-    ringSendPush(rec, { t: "call-cancel", callId: rec.callId, reason, from: rec.from, name: rec.name }, { topic: "cancel-" + rec.callId.slice(0, 8).replace(/[^A-Za-z0-9_-]/g, "x") }).catch(() => {});
+    ringSendPush(rec, { t: "call-cancel", callId: rec.callId, reason, from: rec.from, name: PUSH_NAMES ? rec.name : undefined }, { topic: "cancel-" + rec.callId.slice(0, 8).replace(/[^A-Za-z0-9_-]/g, "x") }).catch(() => {});
   }
   if (loud && !rec.test) { const t = clients.get(rec.to); if (t) safeSend(t.ws, { type: "call-cancel", callId: rec.callId, from: rec.from, reason }); }
   rec.gc = setTimeout(() => ringDrop(rec), RING_TOMBSTONE_MS); rec.gc.unref();
@@ -1786,6 +1823,7 @@ function cleanEnvelope(env) {
     if (h.i != null) { let l = 1e9; try { l = JSON.stringify(h.i).length; } catch (e) {} if (l > 400) return null; nh.i = h.i; }
     if (h.p != null) nh.p = h.p;
     if (h.c != null) nh.c = h.c; // биты возможностей v3 (под AEAD получателя)
+    if (h.q != null) { nh.q = {}; for (const k of ["i", "k", "j", "p"]) if (h.q[k] != null) nh.q[k] = h.q[k]; } // V.88: PQR
     out.v = 2; out.h = nh; out.ct = env.ct;
   } else {
     out.iv = env.iv; out.ct = env.ct;
@@ -1806,6 +1844,21 @@ const PREKEY_MAX_OPKS = 100, PREKEY_MAX_UPLOAD = 50, PREKEY_LOW = 10, PREKEY_TTL
 function validPrekeyPub(p) { return Array.isArray(p) && p.length === 2 && p.every((s) => typeof s === "string" && s.length >= 20 && s.length <= 100 && /^[A-Za-z0-9_-]+$/.test(s)); }
 function validPrekeyId(s) { return typeof s === "string" && s.length >= 1 && s.length <= 32 && /^[A-Za-z0-9_-]+$/.test(s); }
 function prekeyCount(id) { const e = prekeys.get(id); return e ? e.opks.size : 0; }
+// V.82: созревшие отложенные записи — онлайн-получателю сразу, офлайн — push (как обычное сообщение через PUSH_AFTER_MS не нужен: время уже пришло)
+const deferredFired = new Set();
+setInterval(() => {
+  const now = Date.now();
+  for (const [to, box] of mailbox) {
+    for (const [msgId, e] of box) {
+      if (!e.nb || e.nb > now || deferredFired.has(to + "|" + msgId)) continue;
+      deferredFired.add(to + "|" + msgId);
+      const target = clients.get(to);
+      if (target && target.ws.readyState === WebSocket.OPEN) safeSend(target.ws, { type: "deliver", from: e.from, msgId, envelope: e.envelope, fromPublicKey: e.fromPublicKey || null, kind: e.kind || "chat", queued: true });
+      else { const lang = (pushSubs.get(to) || {}).lang, fr = clients.get(e.from); sendPushTo(to, e.from, { title: pushTitle(lang, fr && fr.name), body: pushText(lang, "newMessage"), tag: "ether-msg-" + e.from, contactId: e.from, kind: "message" }).catch(() => {}); }
+    }
+  }
+  if (deferredFired.size > 50000) deferredFired.clear();
+}, DEFER_SWEEP_MS).unref();
 setInterval(() => { const now = Date.now(); for (const [id, e] of prekeys) if (now - e.ts > PREKEY_TTL_MS) prekeys.delete(id); }, 3600 * 1000).unref();
 function shortId(s) { return sanitizeForLog(String(s || "").slice(0, 10), 10) + "…"; }
 
@@ -1853,6 +1906,23 @@ wss.on("connection", (ws, req) => {
     // Каналы и групповая доставка Sender Keys
     if (myId && typeof msg.type === "string" && (msg.type.startsWith("channel-") || msg.type === "gdeliver" || msg.type === "group-roster")) {
       if (channelsMod.onMessage(ws, msg, myId) || gdeliverMod.onMessage(ws, msg, myId)) return;
+    }
+    if (msg.type === "set-uak" && myId) { if (typeof msg.h === "string" && /^[0-9a-f]{64}$/.test(msg.h)) uakByUser.set(myId, msg.h); else uakByUser.delete(myId); return; }
+    if (msg.type === "sealed-deliver") { // V.87: можно и без регистрации — так и задумано
+      const rid = typeof msg.msgId === "string" ? msg.msgId.slice(0, 128) : "";
+      const deny = (e) => safeSend(ws, { type: "sealed-ack", msgId: rid, error: e });
+      if (!sealedOk(ipAddr)) return deny("rate");
+      if (typeof msg.to !== "string" || !validPeerId(msg.to) || !rid || typeof msg.s !== "string" || msg.s.length > SEALED_MAX || typeof msg.ak !== "string" || msg.ak.length > 64) return deny("invalid");
+      const h = uakByUser.get(msg.to);
+      if (!h || require("crypto").createHash("sha256").update(Buffer.from(msg.ak, "base64")).digest("hex") !== h) return deny("denied");
+      mailboxPut(msg.to, rid, { from: "~sealed", sealed: msg.s, envelope: { v: "sealed", ct: msg.s }, kind: "sealed", ts: Date.now() }); scheduleMailboxSave();
+      const target = clients.get(msg.to);
+      if (target && target.ws) safeSend(target.ws, { type: "sealed", msgId: rid, s: msg.s });
+      safeSend(ws, { type: "sealed-ack", msgId: rid });
+      return;
+    }
+    if (myId && typeof msg.type === "string" && (msg.type === "blob-ticket" || msg.type.startsWith("sfu-"))) { // V.87
+      if (msg.type === "blob-ticket" ? blobsMod.onMessage(ws, msg, myId) : (sfuMod ? sfuMod.onMessage(ws, msg, myId) : (safeSend(ws, { type: "sfu-joined", gid: String(msg.gid || "").slice(0, 80), error: "disabled" }), true))) return;
     }
 
     // Звонок по ссылке: join/signal/end допустимы и с НЕзарегистрированного сокета (гость); create/allow/deny — только от зарегистрированного.
@@ -2096,8 +2166,12 @@ wss.on("connection", (ws, req) => {
         safeSend(ws, { type: "deliver-ack", msgId: msg.msgId });
         return;
       }
-      mailboxPut(msg.to, msg.msgId, { ...payload, ts: Date.now() }); // потолки (на получателя и общие) проверяются при вставке
+      const nbNow = Date.now();
+      const nb = Number.isFinite(msg.nb) && msg.nb > nbNow + 5000 && msg.nb <= nbNow + DEFER_MAX_MS && !syncOnly && msg.copies == null ? Math.floor(msg.nb) : 0;
+      // ts отложенной записи = момент созревания: срок хранения в ящике отсчитывается с него
+      mailboxPut(msg.to, msg.msgId, nb ? { ...payload, ts: nb, nb } : { ...payload, ts: Date.now() }); // потолки (на получателя и общие) проверяются при вставке
       scheduleMailboxSave();
+      if (nb) { safeSend(ws, { type: "deliver-ack", msgId: msg.msgId, deferred: nb }); return; } // V.82: до nb получатель ничего не видит
 
       if (target && target.ws.readyState === WebSocket.OPEN) {
         safeSend(target.ws, { type: "deliver", ...payload, queued: false });
@@ -2114,9 +2188,8 @@ wss.on("connection", (ws, req) => {
           pushSentForMsgId.set(mid, Date.now());
           const me = clients.get(myId);
           const recipientLang = (pushSubs.get(msg.to) || {}).lang;
-          const myName = (me && me.name) || pushText(recipientLang, "newMessage");
           sendPushTo(msg.to, sid, {
-            title: myName,
+            title: pushTitle(recipientLang, me && me.name),
             body: pushText(recipientLang, "newMessage"),
             tag: "ether-msg-" + sid,
             contactId: sid,
@@ -2242,6 +2315,14 @@ wss.on("connection", (ws, req) => {
       return done({ found });
     }
 
+    // V.82: отправитель снимает свою ещё не доставленную отложенную запись
+    if (msg.type === "mailbox-cancel" && myId && typeof msg.to === "string" && validPeerId(msg.to) && typeof msg.msgId === "string" && msg.msgId.length <= 128) {
+      const to = aliasResolve(msg.to), box = mailbox.get(to), e = box && box.get(msg.msgId);
+      const ok = !!(e && e.nb && e.nb > Date.now() && (e.from === myId || e.from === aliasSender(myId, msg.as)));
+      if (ok && mailboxRemove(to, msg.msgId)) scheduleMailboxSave();
+      safeSend(ws, { type: "mailbox-cancelled", msgId: msg.msgId, ok });
+      return;
+    }
     if (msg.type === "mailbox-ack" && myId && typeof msg.msgId === "string") {
       { const e0 = mailbox.get(myId) && mailbox.get(myId).get(msg.msgId); if (e0) rememberAcked(deliverDupKey(myId, e0.from, msg.msgId, e0.envelope)); }
       if (mailboxRemove(myId, msg.msgId)) scheduleMailboxSave();
@@ -2251,6 +2332,7 @@ wss.on("connection", (ws, req) => {
 
   ws.on("close", () => {
     clearTimeout(regTimer);
+    if (sfuMod && myId) { try { sfuMod.onClose(myId); } catch (e) {} } // V.87
     devicesMod.onClose(ws);
     linkcall.onClose(ws);
     const left = (ipConnCount.get(ipAddr) || 1) - 1;
@@ -2339,7 +2421,7 @@ function shutdown() {
   try { if (DISCOVERY_ENABLED) saveDiscovery(); } catch (e) {}
   try { savePushSubs(); } catch (e) {}
   try { saveDeviceLists(); } catch (e) {}
-  try { channelsMod.save(); gdeliverMod.save(); } catch (e) {}
+  try { channelsMod.save(); gdeliverMod.save(); blobsMod.save(); } catch (e) {}
   try { saveMailbox(); } catch (e) {}
   for (const ws of wss.clients) { try { ws.close(1001, "server shutdown"); } catch (e) {} }
   wss.close(() => {

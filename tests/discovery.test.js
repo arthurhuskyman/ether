@@ -49,7 +49,7 @@ test("включение: подтверждение, публикация хэ�
   cb.checked = true; cb.dispatchEvent(new a.window.Event("change")); await sleep(30);
   assert.equal(a.run(`Store.phoneDiscover`), false, "отказ в подтверждении = не включено"); assert.equal(cb.checked, false);
   a.run(`window.confirmSheet = async () => true;`);
-  cb.checked = true; cb.dispatchEvent(new a.window.Event("change")); await sleep(60);
+  cb.checked = true; cb.dispatchEvent(new a.window.Event("change")); await sleep(60); for (let i = 0; i < 40 && !a.run(`__sig.sent.some((x) => x[0] === "pub")`); i++) await sleep(50);
   assert.equal(a.run(`Store.phoneDiscover`), true);
   const pub = JSON.parse(JSON.stringify(a.run(`__sig.sent.filter((x) => x[0] === "pub")`)));
   assert.equal(pub.length, 1); assert.deepEqual(pub[0][1], [hm("+79990001122")]); assert.equal(pub[0][2], false); assert.equal(pub[0][3], "", "имя не уходит без разрешения");

@@ -64,7 +64,8 @@ function checkBundles() {
   const { BUNDLES, build } = require("./build-bundles.js");
   for (const b of BUNDLES) {
     const p = path.join(ROOT, b.out);
-    if (!fs.existsSync(p) || fs.readFileSync(p, "utf8") !== build(b)) throw new Error("бандл устарел: " + b.out + " — запустите node tools/build-bundles.js");
+    let fresh; try { fresh = build(b); } catch (e) { if (/нужен acorn/.test(e.message)) { console.warn("acorn не найден — сверка бандлов пропущена, берутся закоммиченные"); return; } throw e; }
+    if (!fs.existsSync(p) || fs.readFileSync(p, "utf8") !== fresh) throw new Error("бандл устарел: " + b.out + " — запустите node tools/build-bundles.js");
   }
 }
 function checkReferences(out) {

@@ -159,7 +159,7 @@ function quietNow(date) {
   return a < b ? (cur >= a && cur < b) : (cur >= a || cur < b);
 }
 function playMessageSound(contactId) {
-  if (!Store.soundsEnabled || quietNow()) return;
+  if (!Store.soundsEnabled || quietNow() || state._incomingSilent) return;
   if (typeof Skins !== "undefined" && Skins.sfx("in")) return; // у скина свой звук входящего
   const style = messageSoundStyleForContact(contactId);
   // Гибридная схема: в foreground (приложение видно) играем через Web Audio
@@ -437,10 +437,46 @@ function stopCallSounds() {
 // =====================================================================
 // Пин-код
 // =====================================================================
+// V.82: автоблокировка. Пока приложение в фоне дольше выбранного времени (1/5/15 мин), при возврате снова спрашиваем PIN/пароль
+// (данные в памяти не перезагружаются — это экран-замок поверх работающего приложения). В фоне содержимое размывается
+// (html.privacy-veil), чтобы в переключателе приложений не было видно переписку. Во время звонка не блокируем.
+const AUTOLOCK_KEY = "ether.autoLockMin", AUTOLOCK_CHOICES = [0, 1, 5, 15];
+function autoLockMinutes() { let v = 0; try { v = parseInt(localStorage.getItem(AUTOLOCK_KEY) || "0", 10); } catch (e) {} return AUTOLOCK_CHOICES.includes(v) ? v : 0; }
+let __hiddenAt = 0;
+function relockApp() {
+  state._relocked = true;
+  const l = $("#lock-screen"); if (l) l.classList.remove("hidden");
+  const a = $("#app-shell"); if (a) a.classList.add("hidden");
+  applyPinKindToLock();
+  setTimeout(() => { const p = $("#lock-pin"); if (p) p.focus(); }, 100);
+}
+function onAutoLockVisibility() {
+  const on = !!(Store.pinEnabled && autoLockMinutes() > 0);
+  if (document.hidden) {
+    __hiddenAt = Date.now();
+    if (on) document.documentElement.classList.add("privacy-veil");
+    return;
+  }
+  const away = __hiddenAt ? Date.now() - __hiddenAt : 0; __hiddenAt = 0;
+  const started = typeof __appStarted !== "undefined" && __appStarted;
+  if (on && started && !state._relocked && !state.callId && away >= autoLockMinutes() * 60000) relockApp();
+  document.documentElement.classList.remove("privacy-veil");
+}
+document.addEventListener("visibilitychange", onAutoLockVisibility);
+// V.81: вместо PIN из цифр можно задать пароль (любые символы, от 8). Вид клавиатуры экрана блокировки — по сохранённому типу.
+function pinKindIsPass() { try { return localStorage.getItem("ether.pinKind") === "pass"; } catch (e) { return false; } }
+function applyPinKindToLock() {
+  const pass = pinKindIsPass();
+  const p = $("#lock-pin"); if (p) { p.setAttribute("inputmode", pass ? "text" : "numeric"); p.classList.toggle("pin-input-pass", pass); }
+  const sub = document.querySelector("#lock-screen .onboarding-sub"); if (sub) sub.textContent = T(pass ? "lock.subPass" : "lock.sub");
+  const f = $("#lock-forgot"); if (f) f.textContent = T(pass ? "lock.forgotPass" : "lock.forgot");
+}
 function showLockScreen() {
   const l = $("#lock-screen"); if (l) l.classList.remove("hidden");
+  try { hideBootSplash(); } catch (e) {}
   const o = $("#onboarding"); if (o) o.classList.add("hidden");
   const a = $("#app-shell"); if (a) a.classList.add("hidden");
+  applyPinKindToLock();
   setTimeout(() => { const p = $("#lock-pin"); if (p) p.focus(); }, 100);
   // счётчик неверных PIN и пауза переживают перезагрузку страницы
   try {
@@ -460,6 +496,7 @@ async function tryUnlock(pin) {
   // pbkdf2Hex с 120000 итерациями занимает 200-500мс на мобильном.
   // Кнопка в это время не отвечает — показываем спиннер поверх неё,
   // чтобы не казалось, что нажатие не сработало.
+  if (typeof duressSet === "function" && duressSet() && await isDuressPin(pin)) { wipeEverythingAndReload(); return; } // V.84 (п. 2): PIN паники
   const btn = $("#lock-submit");
   if (btn) btn.classList.add("loading");
   let h;
@@ -469,6 +506,14 @@ async function tryUnlock(pin) {
     if (btn) btn.classList.remove("loading");
   }
   if (h === Store.pinHash) {
+    if (state._relocked) { // V.82: автоблокировка — приложение уже запущено, просто снимаем экран-замок
+      state._relocked = false; state.unlockAttempts = 0;
+      try { localStorage.removeItem("ether.unlockAttempts"); localStorage.removeItem("ether.unlockLockedUntil"); } catch (e) {}
+      const p0 = $("#lock-pin"); if (p0) p0.value = "";
+      const l0 = $("#lock-screen"); if (l0) l0.classList.add("hidden");
+      const a0 = $("#app-shell"); if (a0) a0.classList.remove("hidden");
+      return;
+    }
     if (SecureStore.isOn()) { // данные зашифрованы PIN'ом — расшифровываем в память до старта приложения
       let ok = false;
       try { ok = await SecureStore.unlock(pin); } catch (e) { toast(T("secure.corrupt")); return; }
@@ -482,6 +527,7 @@ async function tryUnlock(pin) {
   } else {
     state.unlockAttempts++;
     try { localStorage.setItem("ether.unlockAttempts", String(state.unlockAttempts)); } catch (e) {}
+    if (typeof p86AfterUnlockAttempt === "function" && p86AfterUnlockAttempt()) return; // V.86: авто-стирание после 10 ошибок (если включено)
     const p = $("#lock-pin"); if (p) p.value = "";
     if (state.unlockAttempts >= UNLOCK_ATTEMPTS_LIMIT) {
       // Раньше при отказе от жёсткого сброса счётчик попыток тихо

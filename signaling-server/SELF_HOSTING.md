@@ -15,6 +15,10 @@ docker compose up -d
 
 Сервер слушает на `PORT` (по умолчанию 8787) внутри контейнера, `docker-compose.yml` публикует тот же порт наружу.
 
+## Свой VPS одной командой (V.82)
+
+`sudo bash deploy/vps-install.sh <домен> <email>` на чистом Ubuntu/Debian: ставит Docker, генерирует ключи VAPID и секрет TURN (`deploy/vps/.env`, права 0600), поднимает Caddy (HTTPS с Let's Encrypt), сервер (ящик и push-подписки в `deploy/vps/data` — переживают перезапуск) и coturn (TURN 3478 UDP/TCP, временные креды по TURN REST). Нужны A-запись домена и открытые порты 80, 443, 3478, 49160–49460/UDP. Подходит российский VPS: сервер и TURN на российском IP не режутся фильтрацией иностранных TURN. Адрес для приложения — `wss://<домен>`.
+
 ## Без Docker
 
 ```bash

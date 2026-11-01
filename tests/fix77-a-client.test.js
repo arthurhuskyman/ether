@@ -98,5 +98,5 @@ test("A12: highlightRaw корректен для символов, меняющ
 });
 
 test("A13: lockViewportGestures не глотит двойной тап по интерактивным элементам", () => {
-  assert.match(SRC, /!onTitle && !interactive\) e\.preventDefault\(\)/);
+  assert.match(SRC, /!onTitle && !interactive( && !zoomAllowed\(\))?\) e\.preventDefault\(\)/);
 });

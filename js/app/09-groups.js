@@ -40,6 +40,7 @@ function setGroupMemberRole(groupId, memberId, role) {
 // регистра. Простая, но достаточная эвристика — полноценный токенайзер
 // избыточен для мессенджера на 10 участников.
 function isMentioned(text, name) {
+  if (text && /(^|\s)@(all|все|everyone)(?![\p{L}\p{N}_])/iu.test(text)) return true; // V.84 (п. 22): @all / @все упоминает всех
   if (!text || !name) return false;
   const escaped = String(name).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   if (!escaped) return false;
@@ -643,25 +644,27 @@ function slimPayload(payload) {
   if (!payload || typeof payload.dataB64 !== "string") return payload;
   const { dataB64, ...rest } = payload;
   rest.idbKey = "file:" + payload.id;
+  if (payload.kind === "fpart") { rest.idbOff = payload.part * EtherFileLimits.OFFLINE_PART_SIZE; rest.idbLen = EtherFileLimits.filePartLength(payload.size, payload.part); } // часть: срез общего блоба
   return rest;
 }
 async function hydratePayload(payload) {
   if (!payload || payload.dataB64 || !payload.idbKey) return payload;
-  const blob = await IDB.get(payload.idbKey);
+  let blob = await IDB.get(payload.idbKey);
   if (!blob || typeof blob.arrayBuffer !== "function") return null;
-  const { idbKey, ...rest } = payload;
+  const { idbKey, idbOff, idbLen, ...rest } = payload;
+  if (Number.isInteger(idbOff) && Number.isInteger(idbLen)) blob = blob.slice(idbOff, idbOff + idbLen);
   rest.dataB64 = arrayBufferToBase64(await blob.arrayBuffer());
   return rest;
 }
 function persistOutbox() {
-  const arr = Array.from(outbox.values()).map((e) => ({ msgId: e.msgId, to: e.to, payload: slimPayload(e.payload), sentAt: e.sentAt, attempts: e.attempts, serverAcked: !!e.serverAcked }));
+  const arr = Array.from(outbox.values()).map((e) => ({ msgId: e.msgId, to: e.to, payload: slimPayload(e.payload), sentAt: e.sentAt, attempts: e.attempts, serverAcked: !!e.serverAcked, ...(e.nb ? { nb: e.nb } : {}) }));
   try { Store.outboxJson = JSON.stringify(arr); } catch (e) { handlePersistError(e, "outbox"); }
 }
 function restoreOutbox() {
   let arr = []; try { arr = JSON.parse(Store.outboxJson) || []; } catch (e) { arr = []; }
   if (!Array.isArray(arr)) arr = [];
   for (const e of arr) if (e && typeof e.msgId === "string" && typeof e.to === "string" && e.payload) {
-    outbox.set(e.msgId, { msgId: e.msgId, to: e.to, payload: e.payload, sentAt: e.sentAt || Date.now(), attempts: e.attempts || 0, serverAcked: !!e.serverAcked });
+    outbox.set(e.msgId, { msgId: e.msgId, to: e.to, payload: e.payload, sentAt: e.sentAt || Date.now(), attempts: e.attempts || 0, serverAcked: !!e.serverAcked, ...(Number.isFinite(e.nb) ? { nb: e.nb } : {}) });
   }
 }
 // См. комментарий у Store.groupDeliveryMapJson и groupDeliveryMap: эта
@@ -805,6 +808,7 @@ function noteContactKey(c, newKey) {
 async function confirmContactKey(id) {
   const c = state.contacts.get(id); if (!c || !c.pendingKey) return;
   c.publicKey = c.pendingKey.key; c.pendingKey = undefined; c.rejectedKey = undefined;
+  c.keyHistory = (Array.isArray(c.keyHistory) ? c.keyHistory : []).concat([{ at: Date.now() }]).slice(-20); // V.84 (п. 8): история смены ключа
   try { Ratchet.reset(id); } catch (e) {}
   envelopeCache.clear();
   persistContacts();
@@ -940,11 +944,12 @@ async function flushOutboxItem(msgId) {
     const kind = (entry.payload && entry.payload.kind) || "chat";
     let devCopies = null; // копии другим устройствам получателя (js/devices.js)
     if (typeof Devices !== "undefined") { try { devCopies = await Devices.copiesFor(contact, entry.payload); } catch (e) { etherLog("warn", "[devices] copies:", String(e)); } }
-    const sent = signaling && (devCopies && devCopies.length ? signaling.deliverMulti(entry.to, entry.msgId, envelope, Store.myPublicKeyJwk, kind, devCopies) : signaling.deliver(entry.to, entry.msgId, envelope, Store.myPublicKeyJwk, kind));
-    if (sent && typeof Devices !== "undefined") Devices.syncSent(contact, entry.payload).catch(() => {}); // зеркалим отправленное на другие устройства аккаунта
+    if (entry.nb) devCopies = null; // V.82: отложенная доставка — только получателю (копии на свои устройства — при созревании, локально)
+    const sent = signaling && (entry.nb ? signaling.deliver(entry.to, entry.msgId, envelope, Store.myPublicKeyJwk, kind, entry.nb) : devCopies && devCopies.length ? signaling.deliverMulti(entry.to, entry.msgId, envelope, Store.myPublicKeyJwk, kind, devCopies) : signaling.deliver(entry.to, entry.msgId, envelope, Store.myPublicKeyJwk, kind));
+    if (sent && !entry.nb && typeof Devices !== "undefined") Devices.syncSent(contact, entry.payload).catch(() => {}); // зеркалим отправленное на другие устройства аккаунта
     // Домашние серверы получателя (srv): если активный сервер не среди них или не принял — кладём конверт (тот же, уже зашифрованный) на них по порядку
     const remoteUrls = srvRemoteTargets(contact);
-    const needRemote = remoteUrls.length > 0 && (!sent || !contact.servers.some((u) => ServerList.sameServer(u, effectiveSignalingUrl())));
+    const needRemote = !entry.nb && remoteUrls.length > 0 && (!sent || !contact.servers.some((u) => ServerList.sameServer(u, effectiveSignalingUrl())));
     if (needRemote) {
       entry.needRemote = true;
       if (!entry._remoteBusy) {
@@ -1122,6 +1127,8 @@ function markMessageAck(contactId, msgId, ack) {
   if (targetMsg && ((rank[ack] ?? 0) >= (rank[targetMsg.ack] ?? 0) || (ack === "failed" && !groupAlreadyOk))) {
     targetMsg.ack = ack;
     if (ack === "read") startExpiryOnRead(targetMsg);
+    // V.84 (п. 21): кто прочитал групповое сообщение
+    if (ack === "read" && ownerChat && ownerChat.isGroup && targetMsg && contactId && contactId !== Store.myId) { if (!Array.isArray(targetMsg.readBy)) targetMsg.readBy = []; if (!targetMsg.readBy.includes(contactId) && targetMsg.readBy.length < 300) targetMsg.readBy.push(contactId); }
     // B7: собеседник отключил квитанции прочтения — «read» не придёт никогда и ttl висел бы 30 суток: считаем от «доставлено»
     else if (ack === "delivered" && ownerChat && !ownerChat.isGroup && ownerChat.peerReceiptsEnabled === false) startExpiryOnRead(targetMsg);
     persistContacts();
@@ -1141,6 +1148,7 @@ function sendTypingStart(contactId) {
   state.typingSendingState.set(contactId, true);
   const c = state.contacts.get(contactId); if (!c) return;
   if (state.typingTimers.has(contactId) && state.chatId === contactId) { try { renderChatHeaderSoft(); } catch (e) {} }
+  if (isGroup(c)) { sendGroupTyping(c, true); return; }
   const link = mesh.get(contactId);
   // Typing — временный статус. Если P2P-связи нет, отправлять его через
   // сервер (в офлайн-очередь mailbox) смысла нет: получатель получит
@@ -1157,10 +1165,48 @@ function sendTypingStop(contactId) {
   state.typingSendingState.delete(contactId);
   const c = state.contacts.get(contactId); if (!c) return;
   if (state.typingTimers.has(contactId) && state.chatId === contactId) { try { renderChatHeaderSoft(); } catch (e) {} }
+  if (isGroup(c)) { sendGroupTyping(c, false); return; }
   const link = mesh.get(contactId);
   if (link && (link.status === "connected" || link.status === "in-call")) {
     link.send({ kind: "typing", active: false });
   }
+}
+// V.81: «печатает…» в группах. Только по живым P2P-связям (как в 1:1): через сервер временный статус не шлём.
+// Каналы — без статуса (подписчики не пишут). Большие группы ограничены GROUP_TYPING_MAX_FANOUT прямыми связями.
+const GROUP_TYPING_MAX_FANOUT = 32;
+function sendGroupTyping(g, active) {
+  if (!g || g.isChannel || !Array.isArray(g.members)) return;
+  let sent = 0;
+  for (const mem of g.members) {
+    if (!mem || mem.id === Store.myId) continue;
+    const link = mesh.get(mem.id);
+    if (!link || (link.status !== "connected" && link.status !== "in-call")) continue;
+    try { link.send({ kind: "typing", active: !!active, groupId: g.id }); } catch (e) {}
+    if (++sent >= GROUP_TYPING_MAX_FANOUT) break;
+  }
+}
+// state.groupTyping: groupId → Map(memberId → таймер автосброса)
+function handleIncomingGroupTyping(from, groupId, active) {
+  const g = state.contacts.get(groupId);
+  if (!g || !isGroup(g) || g.isChannel || !Array.isArray(g.members) || !g.members.some((m) => m && m.id === from)) return;
+  if (!state.groupTyping) state.groupTyping = new Map();
+  let per = state.groupTyping.get(groupId);
+  if (!per) { per = new Map(); state.groupTyping.set(groupId, per); }
+  const t = per.get(from); if (t) clearTimeout(t);
+  per.delete(from);
+  if (active) per.set(from, setTimeout(() => { const m = state.groupTyping && state.groupTyping.get(groupId); if (m) { m.delete(from); if (!m.size) state.groupTyping.delete(groupId); } if (state.chatId === groupId) { try { renderChatHeaderSoft(); } catch (e) {} } if (state.tab === "chats") renderChatsList(); }, TYPING_AUTO_CLEAR_MS));
+  if (!per.size) state.groupTyping.delete(groupId);
+  if (state.chatId === groupId) { try { renderChatHeaderSoft(); } catch (e) {} }
+  if (state.tab === "chats") renderChatsList();
+}
+// Подпись для шапки группы: «Аня печатает…», «Аня и Борис печатают…», «Печатают: 3»; пусто — никто не печатает
+function groupTypingLabel(g) {
+  const per = state.groupTyping && state.groupTyping.get(g.id);
+  if (!per || !per.size) return "";
+  const names = Array.from(per.keys()).map((id) => { const m = g.members.find((x) => x && x.id === id); return (m && m.name) || T("sys.someone"); });
+  if (names.length === 1) return T("group.typing.single", { name: names[0] });
+  if (names.length === 2) return T("group.typing.pair", { a: names[0], b: names[1] });
+  return T("group.typing.count", { n: names.length });
 }
 // Три тумблера приватности сообщаются собеседнику через P2P (тот же
 // принцип, что и typing-статус) — сервер тут ни при чём, это прямое
@@ -1169,7 +1215,7 @@ function sendPrivacyPrefsTo(contactId) {
   { const bc = state.contacts.get(contactId); if (bc && bc.blocked) return; }
   const link = mesh.get(contactId);
   if (!link || (link.status !== "connected" && link.status !== "in-call")) return;
-  link.send({ kind: "privacy-pref", receiptsEnabled: Store.receiptsEnabled, lastSeenVisible: Store.lastSeenVisible, presenceVisible: Store.presenceVisible, status: Store.myStatus || "", avatar: Store.myAvatar || "" });
+  link.send({ kind: "privacy-pref", ak: typeof sealedAccessKey === "function" ? sealedAccessKey() : undefined, receiptsEnabled: Store.receiptsEnabled, lastSeenVisible: Store.lastSeenVisible, presenceVisible: Store.presenceVisible, status: Store.myStatus || "", avatar: Store.myAvatar || "" });
 }
 function broadcastPrivacyPrefs() {
   for (const c of state.contacts.values()) if (!isGroup(c)) sendPrivacyPrefsTo(c.id);

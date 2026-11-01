@@ -35,5 +35,19 @@
     return Number.isInteger(size) && size > 0 && size <= (max || P2P_MAX_FILE_SIZE);
   }
 
-  return { MAX_FILE_SIZE, isValidFileMetaSize, chunkExceedsBudget, P2P_MAX_FILE_SIZE, BIG_MEMORY_CAP, BIG_RESUME_TTL_MS, isValidBigFileMetaSize };
+  // V.81: офлайн-файлы больше MAX_FILE_SIZE — частями через ящик сервера (kind "fpart"). Часть 1,5 МиБ (base64 ≈ 2 МиБ,
+  // с запасом до кадра сервера 8 МиБ); потолок файла 16 МиБ = 11 частей (лимит ящика 250 записей на отправителя).
+  const OFFLINE_PART_SIZE = 1536 * 1024;
+  const OFFLINE_MAX_FILE_SIZE = 16 * 1024 * 1024;
+  const OFFLINE_MAX_PARTS = Math.ceil(OFFLINE_MAX_FILE_SIZE / OFFLINE_PART_SIZE);
+  function filePartLength(size, part) { return Math.min(OFFLINE_PART_SIZE, size - part * OFFLINE_PART_SIZE); }
+  // Метаданные части: целые числа, число частей строго выводится из размера, номер части в пределах.
+  function isValidFilePartMeta(p) {
+    if (!p || !Number.isInteger(p.size) || p.size <= 0 || p.size > OFFLINE_MAX_FILE_SIZE) return false;
+    const parts = Math.ceil(p.size / OFFLINE_PART_SIZE);
+    return Number.isInteger(p.parts) && p.parts === parts && parts <= OFFLINE_MAX_PARTS && Number.isInteger(p.part) && p.part >= 0 && p.part < parts;
+  }
+
+  return { MAX_FILE_SIZE, isValidFileMetaSize, chunkExceedsBudget, P2P_MAX_FILE_SIZE, BIG_MEMORY_CAP, BIG_RESUME_TTL_MS, isValidBigFileMetaSize,
+    OFFLINE_PART_SIZE, OFFLINE_MAX_FILE_SIZE, OFFLINE_MAX_PARTS, filePartLength, isValidFilePartMeta };
 });

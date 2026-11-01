@@ -1,0 +1,41 @@
+# V.82: сигнальный сервер на своём VPS — HTTPS (Caddy, сертификат Let's Encrypt автоматически), TURN (coturn), ящик и push-подписки на диске.
+# Ставится скриптом deploy/vps-install.sh, который создаёт .env рядом с этим файлом.
+services:
+  signaling:
+    build: ../../signaling-server
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "8787"
+      DATA_DIR: /data
+      TRUST_PROXY: "1"          # перед сервером стоит Caddy: IP клиента берётся из X-Forwarded-For
+      SFU: "1"                 # V.87: групповые звонки через сервер (медиа зашифровано на устройствах)
+      SFU_PORT_MIN: "40000"
+      SFU_PORT_MAX: "40100"
+      STRICT_ROSTER: "1"       # V.85: присутствие видят только те, кто держит контакт в списке watch (новые клиенты так и делают)
+    volumes:
+      - ./data:/data
+    expose: ["8787"]
+    ports: ["40000-40100:40000-40100/udp"]
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./Caddyfile.app:/etc/caddy/Caddyfile.app:ro
+      - ./app:/srv/app:ro
+      - ./caddy-data:/data
+    depends_on: [signaling]
+  turn:
+    image: coturn/coturn:4.6
+    restart: unless-stopped
+    network_mode: host           # UDP-диапазон реле без NAT Docker
+    command: >
+      -n --listening-port=3478 --fingerprint --use-auth-secret --static-auth-secret=${TURN_SECRET}
+      --realm=${DOMAIN} --min-port=49160 --max-port=49460 --no-cli --no-multicast-peers
+      --denied-peer-ip=10.0.0.0-10.255.255.255 --denied-peer-ip=172.16.0.0-172.31.255.255 --denied-peer-ip=192.168.0.0-192.168.255.255
+      --denied-peer-ip=127.0.0.0-127.255.255.255 --denied-peer-ip=169.254.0.0-169.254.255.255

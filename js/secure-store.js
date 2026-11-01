@@ -18,7 +18,9 @@
 // =====================================================================
 const SecureStore = (() => {
   const KEYS = ["ether.contacts", "ether.outbox", "ether.ratchet", "ether.pendingNoKey", "ether.heldDeliveries", "ether.drafts", "ether.stories",
-    "ether.privKey", "ether.callLog", "ether.scheduledMessages", "ether.groupDeliveryMap", "ether.recentlyDeleted", "ether.lastSeen", "ether.translateApiKey", "ether.claimToken", "ether.sigKey", "ether.groupkeys"];
+    "ether.privKey", "ether.callLog", "ether.scheduledMessages", "ether.groupDeliveryMap", "ether.recentlyDeleted", "ether.lastSeen", "ether.translateApiKey", "ether.claimToken", "ether.sigKey", "ether.groupkeys",
+    // V.81 (D9 из AUDIT-V80): напоминания, состояние и входящие мини-приложений, названия папок чатов
+    "ether.reminders", "ether.miniapps.state", "ether.miniapps.inbox", "ether.miniapps.perms", "ether.chatFolders"];
   const PREFIX = "enc1:", DPREFIX = "encd1:", ITER = 250000, MIN_PIN = 6;
   const KDB = "ether-keys", KSTORE = "k", KREC = "device";
   const FLAG = "ether.sec.on", SALT = "ether.sec.salt", CHECK = "ether.sec.check";

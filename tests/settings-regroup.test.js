@@ -19,7 +19,7 @@ test("вверху экрана — блок «Часто используемы
   const tiles = Array.from(d.querySelectorAll("#settings-category-list .settings-quick-tile"));
   assert.deepEqual(tiles.map((t) => t.dataset.quick), ["theme", "skin", "sounds", "notifications", "pin", "backup", "uimode"]);
   assert.match(d.querySelector(".settings-quick-title").textContent, /Часто используемые/);
-  assert.equal(d.querySelectorAll("#settings-category-list .settings-category-row").length, 6);
+  assert.equal(d.querySelectorAll("#settings-category-list .settings-category-row").length, 8); // V.85: + «Чаты», «Связь»
   assert.ok(d.querySelector(".settings-quick").compareDocumentPosition(d.querySelector(".settings-category-row")) & 4, "блок выше категорий");
   a.close();
 });
