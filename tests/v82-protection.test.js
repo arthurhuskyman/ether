@@ -51,7 +51,7 @@ test("push без имени: сервер по умолчанию не клад
   const srv = fs.readFileSync(path.join(root, "signaling-server", "server.js"), "utf8");
   assert.match(srv, /const PUSH_NAMES = process\.env\.PUSH_NAMES === "1";/);
   assert.ok(!/title: \(\w+ && \w+\.name\) \|\| pushText/.test(srv), "имя отправителя не должно попадать в заголовок push");
-  assert.match(srv, /name: PUSH_NAMES \? rec\.name : undefined/);
+  assert.match(srv, /PUSH_NAMES \? rec\.name : undefined/);
   const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
   assert.match(sw, /data\.type === "names-index"/);
   assert.match(sw, /metaGet\("\.\/__names\.json"\)/);

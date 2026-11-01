@@ -24,5 +24,5 @@ test("все статические скрипты index.html, кроме тяж
 
 test("шрифт Inter предзагружается в head, CSS скинов не блокирует первую отрисовку", () => {
   assert.match(html, /<link rel="preload" href="fonts\/InterVariable\.woff2" as="font"/);
-  assert.equal((html.match(/<link rel="stylesheet"/g) || []).length, 3, "tokens, styles, skins; остальное лениво");
+  assert.equal((html.match(/<link rel="stylesheet"/g) || []).length, 4, "tokens, styles, skins, callguard (V.80.2); остальное лениво");
 });

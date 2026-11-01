@@ -51,7 +51,7 @@ test("порядок выполнения сохранён: бандлы в по
   const rest = flat.slice(expected.length);
   assert.ok(rest[0] === "js/app/01-core-store.js" || rest[1] === "js/app/01-core-store.js");
   const iApp = flat.indexOf("js/app/17-search.js"); // V.80: после 14-backup-boot идут 15-channels, 16-groupadmin, 17-search
-  assert.deepEqual(flat.slice(iApp + 1, iApp + 15).filter((f) => f !== "js/app/19-wave84.js" && f !== "js/app/20-wave85.js" && f !== "js/app/21-wave86.js" && f !== "js/framecrypt.js" && f !== "js/app/22-wave87.js"), ["js/app/18-desktop-ux.js", "js/stickers.js", "js/group-call.js", "js/rooms.js", "js/localai.js", "js/devicecheck.js", "js/devicecert.js", "js/devicelink.js", "js/devices.js"].slice(0, 9)); // V.84: 19-wave84 после 18-desktop-ux
+  assert.deepEqual(flat.slice(iApp + 1, iApp + 18).filter((f) => f !== "js/app/19-wave84.js" && f !== "js/app/20-wave85.js" && f !== "js/app/21-wave86.js" && f !== "js/framecrypt.js" && f !== "js/app/22-wave87.js" && !/^js\/app\/(19-ringlab-core|20-ringlab-ui|21-callguard)\.js$/.test(f)), ["js/app/18-desktop-ux.js", "js/stickers.js", "js/group-call.js", "js/rooms.js", "js/localai.js", "js/devicecheck.js", "js/devicecert.js", "js/devicelink.js", "js/devices.js"].slice(0, 9)); // V.84: 19-wave84 после 18-desktop-ux
   assert.deepEqual(flat.slice(-4), ["js/skins/blueprint.js", "js/skinfx.js", "js/features.js", "js/features2.js"]); // V.81: «вау-слой» скинов сразу после скинов
 });
 
