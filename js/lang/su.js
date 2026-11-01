@@ -1744,7 +1744,11 @@ window.__LANG_DICTS["su"] = {
     "p87.sfu.auto": "Otomatis pikeun grup badag",
     "p87.sfu.on": "Salawasna",
     "p87.sfu.off": "Henteu (sacara langsung wungkul)",
-    "p87.sfu.hint": "Kalayan server, unggal jalma ngajaga hiji sambungan tinimbang hiji per pamilon. Video sareng sora énkripsi dina alat  server ngan ukur ngirimkeun aranjeunna."
+    "p87.sfu.hint": "Kalayan server, unggal jalma ngajaga hiji sambungan tinimbang hiji per pamilon. Video sareng sora énkripsi dina alat  server ngan ukur ngirimkeun aranjeunna.",
+    "call.guard.lock": "Konci layar",
+    "call.guard.hint": "Tahan bunderan 1 detik pikeun muka konci",
+    "call.guard.on": "Layar dikonci. Tahan tombol muka konci sadetik.",
+    "call.guard.off": "Layar geus dibuka konci"
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("su");

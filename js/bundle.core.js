@@ -2298,7 +2298,7 @@ linkcallJoin(p) { return this.send("linkcall-join", p && p.room ? { room: p.room
 linkcallAllow(room, guestRef) { return this.send("linkcall-allow", { room, guestRef }); }
 linkcallDeny(room, guestRef) { return this.send("linkcall-deny", { room, guestRef }); }
 linkcallEnd(room) { return this.send("linkcall-end", { room }); }
-pushTestRing() { return this.send("push-test-ring", {}); }
+pushTestRing(mode) { return this.send("push-test-ring", mode === "hybrid" ? { mode: "hybrid" } : {}); }
 deliverMulti(to, msgId, envelope, fromPublicKey, kind, copies) {
 if (!Array.isArray(copies) || !copies.length || copies.length > 8) return false;
 return this.send("deliver", { to, msgId, envelope: envelope || undefined, fromPublicKey, kind: typeof kind === "string" ? kind : "chat", copies, ...this._asFor(to) });

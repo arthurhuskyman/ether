@@ -1744,7 +1744,11 @@ window.__LANG_DICTS["no"] = {
     "p87.sfu.auto": "Automatisk for store grupper",
     "p87.sfu.on": "Alltid.",
     "p87.sfu.off": "Aldrig (kun direkte)",
-    "p87.sfu.hint": "Med serveren holder hver person en tilkobling i stedet for en per deltaker. Video og lyd er kryptert på enhetene  serveren bare sender dem videre."
+    "p87.sfu.hint": "Med serveren holder hver person en tilkobling i stedet for en per deltaker. Video og lyd er kryptert på enhetene  serveren bare sender dem videre.",
+    "call.guard.lock": "Lås skjermen",
+    "call.guard.hint": "Hold sirkelen inne i 1 sekund for å låse opp",
+    "call.guard.on": "Skjermen er låst. Hold opplåsingsknappen inne i ett sekund.",
+    "call.guard.off": "Skjermen er låst opp"
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("no");

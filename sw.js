@@ -9,6 +9,7 @@ const SHELL_FILES = [
   "./css/tokens.css",
   "./css/styles.css",
   "./css/skins.css",
+  "./css/callguard.css",
   "./js/languages-meta.js",
   "./js/lang/en.js",
   "./config.js",
@@ -366,6 +367,9 @@ self.addEventListener("push", (event) => {
     try { raw = event.data.json(); } catch (e) { raw = null; }
   }
   if (raw && (raw.t === "call-ring" || raw.t === "call-cancel")) { event.waitUntil(handleCallPush(raw)); return; }
+  // V.80.1: гибридный «гудок» — декларативный payload (mutable:true), данные звонка в notification.data: та же обработка, что у raw
+  const hd = raw && raw.notification && typeof raw.notification === "object" && raw.notification.data;
+  if (hd && (hd.t === "call-ring" || hd.t === "call-cancel")) { event.waitUntil(handleCallPush(Object.assign({}, hd))); return; }
   event.waitUntil(metaPut("./__lastpush.json", { ts: Date.now(), t: "push" })); // для экрана «Проверка уведомлений»
   let n = raw && raw.notification && typeof raw.notification === "object"
     ? raw.notification
@@ -374,7 +378,11 @@ self.addEventListener("push", (event) => {
   const data = n.data || {};
   event.waitUntil(
     Promise.all([caches.open("ether-meta").then((c) => c.match("./__blocked.json")).then((r) => r ? r.json() : []).catch(() => []), metaGet("./__names.json")]).then(([blockedIds, names]) => {
-      if (data.contactId && blockedIds.indexOf(data.contactId) >= 0) return null; // заблокирован: ни звонка, ни сообщения
+      if (data.contactId && blockedIds.indexOf(data.contactId) >= 0) { // заблокирован: ни звонка, ни сообщения
+        // declarative+mutable:true: платформа покажет уведомление сама, если SW его не показал; закрыть можно только event.notification (если есть)
+        try { if (event.notification && event.notification.close) event.notification.close(); } catch (e) {}
+        return null;
+      }
       // V.82: сервер не присылает имя отправителя — подставляем его из своего индекса контактов (заголовок остаётся общим, если имени нет)
       if (names && data.contactId && typeof names[data.contactId] === "string" && names[data.contactId]) n = Object.assign({}, n, { title: names[data.contactId] });
       return self.clients.matchAll({ type: "window", includeUncontrolled: true });

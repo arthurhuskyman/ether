@@ -1744,7 +1744,11 @@ window.__LANG_DICTS["hu"] = {
     "p87.sfu.auto": "Automatikusan a nagy csoportok esetében",
     "p87.sfu.on": "Mindig.",
     "p87.sfu.off": "Soha (csak közvetlenül)",
-    "p87.sfu.hint": "A szerverrel minden személy egy kapcsolatot tart fenn, nem egy résztvevő helyett. A videót és hangot titkosítják a készülékeken."
+    "p87.sfu.hint": "A szerverrel minden személy egy kapcsolatot tart fenn, nem egy résztvevő helyett. A videót és hangot titkosítják a készülékeken.",
+    "call.guard.lock": "Képernyő zárolása",
+    "call.guard.hint": "Tartsa lenyomva a kört 1 másodpercig a feloldáshoz",
+    "call.guard.on": "A képernyő zárolva. A feloldáshoz tartsa lenyomva a feloldó gombot egy másodpercig.",
+    "call.guard.off": "A képernyő feloldva"
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("hu");

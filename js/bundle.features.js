@@ -1630,7 +1630,7 @@ const last = await readLastPush();
 rows.push({ id: "last", ok: last && last.ts ? true : null, label: nc.last, detail: last && last.ts ? nc.lastAgo.replace("{a}", ageText(Date.now() - last.ts, nc)) : nc.lastNone });
 return rows;
 }
-function runRingTest(ms) {
+function runRingTest(ms, mode) {
 const sig = typeof signaling !== "undefined" ? signaling : null;
 const t0 = Date.now(), limit = ms || 15000;
 if (!sig || !sig.connected || !sig.pushTestRing) return Promise.resolve({ ok: false, reason: "noserver" });
@@ -1643,7 +1643,7 @@ const onErr = (ev) => { const why = ev && ev.detail && ev.detail.reason; fin(fal
 sig.addEventListener("push-test-error", onErr); errOff = () => sig.removeEventListener("push-test-error", onErr);
 poll = setInterval(async () => { const l = await readLastPush(); if (l && l.ts >= t0 && (l.t === "call-ring")) fin(true); }, 1000);
 const tm = setTimeout(() => fin(false), limit);
-if (!sig.pushTestRing()) fin(false);
+if (!sig.pushTestRing(mode)) fin(false);
 });
 }
 function openNotifCheck() {

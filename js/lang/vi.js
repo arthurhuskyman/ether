@@ -1744,7 +1744,11 @@ window.__LANG_DICTS["vi"] = {
     "p87.sfu.auto": "Tự động cho các nhóm lớn",
     "p87.sfu.on": "Luôn luôn",
     "p87.sfu.off": "Không bao giờ (chỉ trực tiếp)",
-    "p87.sfu.hint": "Với máy chủ, mỗi người giữ một kết nối thay vì mỗi người tham gia. Video và âm thanh được mã hóa trên các thiết bị  máy chủ chỉ chuyển chúng."
+    "p87.sfu.hint": "Với máy chủ, mỗi người giữ một kết nối thay vì mỗi người tham gia. Video và âm thanh được mã hóa trên các thiết bị  máy chủ chỉ chuyển chúng.",
+    "call.guard.lock": "Khóa màn hình",
+    "call.guard.hint": "Giữ vòng tròn 1 giây để mở khóa",
+    "call.guard.on": "Màn hình đã khóa. Giữ nút mở khóa trong một giây.",
+    "call.guard.off": "Đã mở khóa màn hình"
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("vi");

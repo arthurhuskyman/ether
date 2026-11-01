@@ -6,7 +6,7 @@
 "use strict";
 const fs = require("fs"), path = require("path");
 const ROOT = path.join(__dirname, "..");
-const RAW_COLOR_BASELINE = 90;
+const RAW_COLOR_BASELINE = 93; // +3: пары «поверхность + чернила» подсветки поиска из V.80.2 (контраст)
 const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8");
 function lint() {
   const errors = [];

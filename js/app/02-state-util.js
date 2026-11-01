@@ -167,27 +167,7 @@ let globalAudioCtx = null;
 let ringtoneTimer = null;
 let ringtoneAudioEl = null;
 
-// Screen Wake Lock API — удерживает экран включённым во время
-// видеозвонка (на Android экран иначе гаснет через ~30с бездействия,
-// что обрывает видеопревью у собеседника тёмным кадром). Для
-// аудиозвонка НЕ запрашиваем — экран должен гаснуть сам, иначе ухо,
-// поднесённое к телефону, нажимает кнопки на экране.
-let wakeLock = null;
-async function requestWakeLock() {
-  if (!("wakeLock" in navigator)) return;
-  try {
-    wakeLock = await navigator.wakeLock.request("screen");
-    wakeLock.addEventListener("release", () => { wakeLock = null; });
-  } catch (e) {
-    etherLog("warn", "[wakelock] failed:", String(e));
-  }
-}
-function releaseWakeLock() {
-  if (wakeLock) {
-    try { wakeLock.release(); } catch (e) {}
-    wakeLock = null;
-  }
-}
+// Screen Wake Lock (requestWakeLock/releaseWakeLock) теперь в js/app/21-callguard.js: держится на ВРЕМЯ ЛЮБОГО звонка.
 
 // Настоящие аудиофайлы вместо синтезированных на лету осцилляторов —
 // на iPhone Web Audio-осцилляторы, запущенные из асинхронного события

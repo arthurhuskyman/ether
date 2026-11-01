@@ -1744,7 +1744,11 @@ window.__LANG_DICTS["fr"] = {
     "p87.sfu.auto": "Automatiquement pour les grands groupes",
     "p87.sfu.on": "Toujours",
     "p87.sfu.off": "Nullement (uniquement directement)",
-    "p87.sfu.hint": "Avec le serveur, chaque personne conserve une connexion au lieu d'une par participant."
+    "p87.sfu.hint": "Avec le serveur, chaque personne conserve une connexion au lieu d'une par participant.",
+    "call.guard.lock": "Verrouiller l’écran",
+    "call.guard.hint": "Maintenez le cercle 1 seconde pour déverrouiller",
+    "call.guard.on": "Écran verrouillé. Maintenez le bouton de déverrouillage une seconde.",
+    "call.guard.off": "Écran déverrouillé"
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("fr");

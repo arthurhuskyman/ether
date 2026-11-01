@@ -1,0 +1,13 @@
+/* V.80.2: «Блокировка экрана» на звонке (защита от щеки/уха). Чёрный оверлей независимо от скина/темы: на OLED выглядит как погасший экран. */
+.call-guard { position: fixed; inset: 0; z-index: 10000; background: #000; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 18px; padding: 0 16px calc(48px + env(safe-area-inset-bottom, 0px)); touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.call-guard.hidden { display: none; }
+.call-guard-hint { margin: 0; max-width: 28ch; text-align: center; font-size: 0.8125rem; color: rgba(255, 255, 255, 0.55); }
+.call-guard-unlock { position: relative; width: 64px; height: 64px; min-width: 44px; min-height: 44px; padding: 0; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.4); background: transparent; color: #fff; cursor: pointer; overflow: hidden; touch-action: none; }
+.call-guard-ring { position: absolute; inset: 0; border-radius: 50%; background: rgba(255, 255, 255, 0.5); transform: scale(0); transition: transform 1s linear; }
+.call-guard-unlock.holding .call-guard-ring { transform: scale(1); }
+.call-guard-unlock:focus-visible { outline: 3px solid #fff; outline-offset: 4px; }
+#call-guard-btn.active svg { filter: none; }
+@media (prefers-reduced-motion: reduce) {
+  .call-guard-ring { transition: none; }
+  .call-guard-unlock.holding { background: rgba(255, 255, 255, 0.5); }
+}

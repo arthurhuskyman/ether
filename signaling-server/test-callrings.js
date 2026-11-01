@@ -159,6 +159,16 @@ const inv = (A, to, callId, extra) => A.send({ type: "signal", to: id(to), data:
   check("cancel push для теста не шлётся", cancels("sub-tt").length === 0);
   T.send({ type: "push-test-ring" }); T.send({ type: "push-test-ring" }); T.send({ type: "push-test-ring" }); await wait(100);
   check("лимит тестов в минуту", T.ev.some((e) => e.type === "push-test-error" && e.reason === "ratelimit"));
+  // V.80.1: mode:"hybrid" — декларативный payload с mutable:true; по умолчанию формат raw не меняется (проверено выше)
+  const HY = await reg("th", "Hy"); HY.send({ type: "push-subscribe", subscription: subOf("sub-th") }); await wait(100);
+  HY.send({ type: "push-test-ring", mode: "hybrid" }); await wait(500);
+  const hy = forSub("sub-th").filter((p) => p.body.web_push === 8030);
+  check("hybrid: 3 декларативных гудка (web_push 8030, mutable)", hy.length === 3 && hy.every((p) => p.body.mutable === true));
+  check("hybrid: data.t call-ring + ackToken + tag ring-<callId>", hy[0].body.notification.data.t === "call-ring" && !!hy[0].body.notification.data.ackToken && hy[0].body.notification.tag === "ring-" + hy[0].body.notification.data.callId);
+  check("hybrid: push-test-started с mode hybrid", HY.ev.some((e) => e.type === "push-test-started" && e.mode === "hybrid"));
+  await post({ callId: hy[0].body.notification.data.callId, seq: 1, ackToken: hy[0].body.notification.data.ackToken }, { "X-Forwarded-For": "10.9.9.7" });
+  await wait(80);
+  check("hybrid: ack токеном из data даёт call-ringing", HY.ev.some((e) => e.type === "call-ringing"));
   const U = await open({ type: "push-test-ring" }); await wait(100);
   check("незарегистрированный push-test-ring игнорируется", U.ev.length === 0);
 

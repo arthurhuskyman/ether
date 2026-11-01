@@ -1744,7 +1744,11 @@ window.__LANG_DICTS["lv"] = {
     "p87.sfu.auto": "Automatiski lielām grupām",
     "p87.sfu.on": "Visu laiku.",
     "p87.sfu.off": "Nekad (tik tieši)",
-    "p87.sfu.hint": "Ar serveru katrs cilvēks saglabā vienu savienojumu, nevis vienu vienam dalībniekam."
+    "p87.sfu.hint": "Ar serveru katrs cilvēks saglabā vienu savienojumu, nevis vienu vienam dalībniekam.",
+    "call.guard.lock": "Bloķēt ekrānu",
+    "call.guard.hint": "Lai atbloķētu, turiet apli nospiestu 1 sekundi",
+    "call.guard.on": "Ekrāns bloķēts. Turiet atbloķēšanas pogu nospiestu vienu sekundi.",
+    "call.guard.off": "Ekrāns atbloķēts"
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("lv");

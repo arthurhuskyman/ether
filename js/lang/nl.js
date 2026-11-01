@@ -1744,7 +1744,11 @@ window.__LANG_DICTS["nl"] = {
     "p87.sfu.auto": "Automatisch voor grote groepen",
     "p87.sfu.on": "Altijd.",
     "p87.sfu.off": "Nooit (alleen direct)",
-    "p87.sfu.hint": "Met de server houdt elke persoon één verbinding in plaats van één per deelnemer. Video en geluid worden gecodeerd op de apparaten  de server stuurt ze alleen door."
+    "p87.sfu.hint": "Met de server houdt elke persoon één verbinding in plaats van één per deelnemer. Video en geluid worden gecodeerd op de apparaten  de server stuurt ze alleen door.",
+    "call.guard.lock": "Scherm vergrendelen",
+    "call.guard.hint": "Houd de cirkel 1 seconde ingedrukt om te ontgrendelen",
+    "call.guard.on": "Scherm vergrendeld. Houd de ontgrendelknop één seconde ingedrukt.",
+    "call.guard.off": "Scherm ontgrendeld"
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("nl");

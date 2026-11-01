@@ -1744,7 +1744,11 @@ window.__LANG_DICTS["sq"] = {
     "p87.sfu.auto": "Automatikisht për grupe të mëdha",
     "p87.sfu.on": "Gjithmonë.",
     "p87.sfu.off": "Asnjëherë ( vetëm drejtpërdrejt)",
-    "p87.sfu.hint": "Me serverin, secili person mban një lidhje në vend të një për çdo pjesëmarrës. Video dhe tingull janë të enkriptuar në pajisjet  serveri i dërgon vetëm ato."
+    "p87.sfu.hint": "Me serverin, secili person mban një lidhje në vend të një për çdo pjesëmarrës. Video dhe tingull janë të enkriptuar në pajisjet  serveri i dërgon vetëm ato.",
+    "call.guard.lock": "Blloko ekranin",
+    "call.guard.hint": "Mbaj shtypur rrethin për 1 sekondë për ta zhbllokuar",
+    "call.guard.on": "Ekrani u bllokua. Mbaj shtypur butonin e zhbllokimit për një sekondë.",
+    "call.guard.off": "Ekrani u zhbllokua"
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("sq");

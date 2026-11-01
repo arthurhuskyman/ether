@@ -15,7 +15,7 @@
 | Подключение | Join by code, New group, New channel, имя/значение + Find by phone + Add contact, My QR, Scan QR, ручное подключение (invite/answer) |
 | Настройки: плитки | Theme, Skin, Sounds, Notifications, PIN, Backup, Simple mode (ярлыки на строки ниже) |
 | Настройки: категории | Profile (имя, id, about, sigil, Help), Privacy (Servers, Host own server, Security, видимость, квитанции, last seen, presence, discovery, Blocked, Dead man), Notifications & security (notif, verified-only, hide IP, call report, previews, translate, sounds, quiet, ringtone, PIN, encrypt), Appearance (theme, text size, skins, readable, calm, bubbles, wallpaper, эффекты fx/fx2), Data & backup (Local AI, Export/Import, Move device, My devices, Delete account), Help & about |
-| Debug | Diagnostics, WebRTC, TURN, Event log, Storage, Export diagnostics, Device check, Report, Drop connections, Hide tab |
+| Debug | Diagnostics, WebRTC, TURN, Event log, Storage, Export diagnostics, Device check, Report, **Ring Lab** (одна строка; мастер, эксперименты, «Позвонить громко», поля телефон/FaceTime — внутри листа, docs/RING-LAB.md), Drop connections, Hide tab |
 | Звонок | mute, speaker, video, more (screen share), draw, end; accept/decline (код звонков правит другой агент, не менялось) |
 
 ## Найденные дубли и решения

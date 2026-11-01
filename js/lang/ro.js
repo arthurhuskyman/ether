@@ -1744,7 +1744,11 @@ window.__LANG_DICTS["ro"] = {
     "p87.sfu.auto": "Automatic pentru grupuri mari",
     "p87.sfu.on": "Întotdeauna.",
     "p87.sfu.off": "Niciodată (numai direct)",
-    "p87.sfu.hint": "Cu serverul, fiecare persoană păstrează o conexiune în loc de una pe participant. Video și sunet sunt criptate pe dispozitive."
+    "p87.sfu.hint": "Cu serverul, fiecare persoană păstrează o conexiune în loc de una pe participant. Video și sunet sunt criptate pe dispozitive.",
+    "call.guard.lock": "Blochează ecranul",
+    "call.guard.hint": "Ține apăsat cercul 1 secundă pentru a debloca",
+    "call.guard.on": "Ecran blocat. Ține apăsat butonul de deblocare o secundă.",
+    "call.guard.off": "Ecran deblocat"
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ro");

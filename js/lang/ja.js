@@ -1744,7 +1744,11 @@ window.__LANG_DICTS["ja"] = {
     "p87.sfu.auto": "大型グループでは自動",
     "p87.sfu.on": "いつも",
     "p87.sfu.off": "決して (直接のみ)",
-    "p87.sfu.hint": "ビデオと音声はデバイスで暗号化されます サーバーはそれらを転送するだけです."
+    "p87.sfu.hint": "ビデオと音声はデバイスで暗号化されます サーバーはそれらを転送するだけです.",
+    "call.guard.lock": "画面ロック",
+    "call.guard.hint": "ロック解除するには丸を1秒間長押ししてください",
+    "call.guard.on": "画面をロックしました。解除ボタンを1秒間長押ししてください。",
+    "call.guard.off": "画面ロックを解除しました"
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ja");

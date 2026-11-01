@@ -1744,7 +1744,11 @@ window.__LANG_DICTS["id"] = {
     "p87.sfu.auto": "Otomatis untuk kelompok besar",
     "p87.sfu.on": "Selalu",
     "p87.sfu.off": "Tidak pernah (hanya langsung)",
-    "p87.sfu.hint": "Dengan server, setiap orang menyimpan satu koneksi alih-alih satu per peserta. Video dan suara dienkripsi pada perangkat  server hanya mengirimkan mereka."
+    "p87.sfu.hint": "Dengan server, setiap orang menyimpan satu koneksi alih-alih satu per peserta. Video dan suara dienkripsi pada perangkat  server hanya mengirimkan mereka.",
+    "call.guard.lock": "Kunci layar",
+    "call.guard.hint": "Tahan lingkaran selama 1 detik untuk membuka kunci",
+    "call.guard.on": "Layar terkunci. Tahan tombol buka kunci selama satu detik.",
+    "call.guard.off": "Layar tidak lagi terkunci"
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("id");

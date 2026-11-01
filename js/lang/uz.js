@@ -1744,7 +1744,11 @@ window.__LANG_DICTS["uz"] = {
     "p87.sfu.auto": "Katta guruhlar uchun avtomatik ravishda",
     "p87.sfu.on": "Doimo",
     "p87.sfu.off": "Hech qachon (faqat to'g'ridan-to'g'ri)",
-    "p87.sfu.hint": "Server bilan har bir kishi har bir ishtirokchi uchun bitta aloqa o'rnatadi."
+    "p87.sfu.hint": "Server bilan har bir kishi har bir ishtirokchi uchun bitta aloqa o'rnatadi.",
+    "call.guard.lock": "Ekranni qulflash",
+    "call.guard.hint": "Qulfni ochish uchun doirani 1 soniya bosib turing",
+    "call.guard.on": "Ekran qulflandi. Qulfni ochish uchun tugmani bir soniya bosib turing.",
+    "call.guard.off": "Ekran qulfi ochildi"
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("uz");

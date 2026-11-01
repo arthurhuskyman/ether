@@ -1744,7 +1744,11 @@ window.__LANG_DICTS["az"] = {
     "p87.sfu.auto": "Böyük qruplar üçün avtomatik olaraq",
     "p87.sfu.on": "Həmişə",
     "p87.sfu.off": "Heç vaxt (yalnız birbaşa)",
-    "p87.sfu.hint": "Serverlə hər bir iştirakçı üçün bir bağlantı əvəzinə bir bağlantı saxlayır."
+    "p87.sfu.hint": "Serverlə hər bir iştirakçı üçün bir bağlantı əvəzinə bir bağlantı saxlayır.",
+    "call.guard.lock": "Ekranı kilidlə",
+    "call.guard.hint": "Kilidi açmaq üçün dairəni 1 saniyə basıb saxlayın",
+    "call.guard.on": "Ekran kilidləndi. Açmaq üçün kilid açma düyməsini bir saniyə basıb saxlayın.",
+    "call.guard.off": "Ekranın kilidi açıldı"
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("az");

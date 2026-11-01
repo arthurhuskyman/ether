@@ -1744,7 +1744,11 @@ window.__LANG_DICTS["de"] = {
     "p87.sfu.auto": "Automatisch für große Gruppen",
     "p87.sfu.on": "Immer.",
     "p87.sfu.off": "Nie (nur direkt)",
-    "p87.sfu.hint": "Mit dem Server hält jede Person eine Verbindung statt einer pro Teilnehmer. Video und Sound werden auf den Geräten verschlüsselt  der Server übermittelt sie nur weiter."
+    "p87.sfu.hint": "Mit dem Server hält jede Person eine Verbindung statt einer pro Teilnehmer. Video und Sound werden auf den Geräten verschlüsselt  der Server übermittelt sie nur weiter.",
+    "call.guard.lock": "Bildschirm sperren",
+    "call.guard.hint": "Kreis 1 Sekunde gedrückt halten zum Entsperren",
+    "call.guard.on": "Bildschirm gesperrt. Entsperren-Taste eine Sekunde gedrückt halten.",
+    "call.guard.off": "Bildschirm entsperrt"
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("de");

@@ -1744,7 +1744,11 @@ window.__LANG_DICTS["it"] = {
     "p87.sfu.auto": "Automaticamente per grandi gruppi",
     "p87.sfu.on": "Sempre.",
     "p87.sfu.off": "Mai (solo diretto)",
-    "p87.sfu.hint": "Con il server, ogni persona mantiene una connessione invece di una per partecipante."
+    "p87.sfu.hint": "Con il server, ogni persona mantiene una connessione invece di una per partecipante.",
+    "call.guard.lock": "Blocca schermo",
+    "call.guard.hint": "Tieni premuto il cerchio per 1 secondo per sbloccare",
+    "call.guard.on": "Schermo bloccato. Tieni premuto il pulsante di sblocco per un secondo.",
+    "call.guard.off": "Schermo sbloccato"
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("it");

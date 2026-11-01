@@ -1744,7 +1744,11 @@ window.__LANG_DICTS["sw"] = {
     "p87.sfu.auto": "Kiotomatiki kwa makundi makubwa",
     "p87.sfu.on": "Daima",
     "p87.sfu.off": "Kamwe (kawaida tu)",
-    "p87.sfu.hint": "Pamoja na seva, kila mtu anaunganisha moja badala ya moja kwa kila mshiriki. Video na sauti ni encrypted kwenye vifaa  seva tu kuhamisha yao."
+    "p87.sfu.hint": "Pamoja na seva, kila mtu anaunganisha moja badala ya moja kwa kila mshiriki. Video na sauti ni encrypted kwenye vifaa  seva tu kuhamisha yao.",
+    "call.guard.lock": "Funga skrini",
+    "call.guard.hint": "Shikilia duara kwa sekunde 1 ili kufungua",
+    "call.guard.on": "Skrini imefungwa. Shikilia kitufe cha kufungua kwa sekunde moja.",
+    "call.guard.off": "Skrini imefunguliwa"
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("sw");

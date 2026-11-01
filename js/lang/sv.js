@@ -1744,7 +1744,11 @@ window.__LANG_DICTS["sv"] = {
     "p87.sfu.auto": "Automatiskt för stora grupper",
     "p87.sfu.on": "Alltid.",
     "p87.sfu.off": "Aldrig (endast direkt)",
-    "p87.sfu.hint": "Med servern behåller varje person en anslutning i stället för en per deltagare."
+    "p87.sfu.hint": "Med servern behåller varje person en anslutning i stället för en per deltagare.",
+    "call.guard.lock": "Lås skärmen",
+    "call.guard.hint": "Håll cirkeln nedtryckt i 1 sekund för att låsa upp",
+    "call.guard.on": "Skärmen är låst. Håll upplåsningsknappen nedtryckt i en sekund.",
+    "call.guard.off": "Skärmen är upplåst"
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("sv");

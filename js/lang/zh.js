@@ -1744,7 +1744,11 @@ window.__LANG_DICTS["zh"] = {
     "p87.sfu.auto": "对于大型群体来说,自动",
     "p87.sfu.on": "总是如此.",
     "p87.sfu.off": "从来没有 (仅直接)",
-    "p87.sfu.hint": "在服务器上,每个参与者只保持一个连接,而不是一个.视频和声音在设备上加密."
+    "p87.sfu.hint": "在服务器上,每个参与者只保持一个连接,而不是一个.视频和声音在设备上加密.",
+    "call.guard.lock": "锁定屏幕",
+    "call.guard.hint": "按住圆圈 1 秒即可解锁",
+    "call.guard.on": "屏幕已锁定。按住解锁按钮 1 秒即可解锁。",
+    "call.guard.off": "屏幕已解锁"
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("zh");

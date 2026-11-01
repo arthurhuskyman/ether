@@ -1744,7 +1744,11 @@ window.__LANG_DICTS["yo"] = {
     "p87.sfu.auto": "Aṣiṣẹ fun awọn ẹgbẹ nla",
     "p87.sfu.on": "Gbogbo ìgbà ni",
     "p87.sfu.off": "Kò sígbà kankan (tí ó jẹ́ tààràtà nìkan)",
-    "p87.sfu.hint": "Pẹlu olupin, eniyan kọọkan n ṣetọju asopọ kan dipo ọkan fun olukopa kan. Awọn fidio ati ohùn ti wa ni titan lori awọn ẹrọ  olupin nikan firanṣẹ wọn."
+    "p87.sfu.hint": "Pẹlu olupin, eniyan kọọkan n ṣetọju asopọ kan dipo ọkan fun olukopa kan. Awọn fidio ati ohùn ti wa ni titan lori awọn ẹrọ  olupin nikan firanṣẹ wọn.",
+    "call.guard.lock": "Tii ìṣàfihàn pa",
+    "call.guard.hint": "Di àyíká mú fún ìṣẹ́jú-àáyá 1 láti ṣí",
+    "call.guard.on": "A ti tì ìṣàfihàn. Di bọ́tìnì ṣíṣí mú fún ìṣẹ́jú-àáyá kan.",
+    "call.guard.off": "A ti ṣí ìṣàfihàn"
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("yo");

@@ -1744,7 +1744,11 @@ window.__LANG_DICTS["ms"] = {
     "p87.sfu.auto": "Secara automatik untuk kumpulan besar",
     "p87.sfu.on": "Sentiasa",
     "p87.sfu.off": "Tidak pernah (hanya secara langsung)",
-    "p87.sfu.hint": "Dengan pelayan, setiap orang menyimpan satu sambungan bukannya satu setiap peserta. Video dan bunyi disulitkan pada peranti  pelayan hanya meneruskan mereka."
+    "p87.sfu.hint": "Dengan pelayan, setiap orang menyimpan satu sambungan bukannya satu setiap peserta. Video dan bunyi disulitkan pada peranti  pelayan hanya meneruskan mereka.",
+    "call.guard.lock": "Kunci skrin",
+    "call.guard.hint": "Tahan bulatan selama 1 saat untuk membuka kunci",
+    "call.guard.on": "Skrin dikunci. Tahan butang buka kunci selama satu saat.",
+    "call.guard.off": "Skrin dibuka kunci"
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ms");

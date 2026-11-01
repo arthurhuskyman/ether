@@ -1744,7 +1744,11 @@ window.__LANG_DICTS["fi"] = {
     "p87.sfu.auto": "Automaattisesti suurten ryhmien osalta",
     "p87.sfu.on": "Aina.",
     "p87.sfu.off": "Ei koskaan (vain suoraan)",
-    "p87.sfu.hint": "Palvelimella jokainen henkilö säilyttää yhden yhteyden osallistujan sijasta."
+    "p87.sfu.hint": "Palvelimella jokainen henkilö säilyttää yhden yhteyden osallistujan sijasta.",
+    "call.guard.lock": "Lukitse näyttö",
+    "call.guard.hint": "Avaa lukitus pitämällä ympyrää painettuna 1 sekunti",
+    "call.guard.on": "Näyttö on lukittu. Avaa pitämällä avauspainiketta painettuna sekunti.",
+    "call.guard.off": "Näytön lukitus avattu"
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("fi");

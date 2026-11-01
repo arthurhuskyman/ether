@@ -1744,7 +1744,11 @@ window.__LANG_DICTS["ko"] = {
     "p87.sfu.auto": "큰 그룹을 위해 자동으로",
     "p87.sfu.on": "항상",
     "p87.sfu.off": "절대 (일반적으로만)",
-    "p87.sfu.hint": "With the server, each person keeps one connection instead of one per participant. Video and sound are encrypted on the devices — the server only forwards them."
+    "p87.sfu.hint": "With the server, each person keeps one connection instead of one per participant. Video and sound are encrypted on the devices — the server only forwards them.",
+    "call.guard.lock": "화면 잠금",
+    "call.guard.hint": "잠금을 해제하려면 원을 1초 동안 길게 누르세요",
+    "call.guard.on": "화면이 잠겼습니다. 해제 버튼을 1초 동안 길게 누르세요.",
+    "call.guard.off": "화면 잠금이 해제되었습니다"
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ko");

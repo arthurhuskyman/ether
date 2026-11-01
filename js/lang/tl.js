@@ -1744,7 +1744,11 @@ window.__LANG_DICTS["tl"] = {
     "p87.sfu.auto": "Automatikong para sa malalaking grupo",
     "p87.sfu.on": "Palagi",
     "p87.sfu.off": "Hindi kailanman (diretso lamang)",
-    "p87.sfu.hint": "Sa server, ang bawat tao ay nagpapanatili ng isang koneksyon sa halip na isang bawat kalahok. Ang video at tunog ay naka-encrypt sa mga aparato  ang server lamang ang nag-iipon sa kanila."
+    "p87.sfu.hint": "Sa server, ang bawat tao ay nagpapanatili ng isang koneksyon sa halip na isang bawat kalahok. Ang video at tunog ay naka-encrypt sa mga aparato  ang server lamang ang nag-iipon sa kanila.",
+    "call.guard.lock": "I-lock ang screen",
+    "call.guard.hint": "Pindutin at hawakan ang bilog nang 1 segundo para i-unlock",
+    "call.guard.on": "Naka-lock ang screen. Pindutin at hawakan ang unlock button nang isang segundo.",
+    "call.guard.off": "Na-unlock ang screen"
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("tl");

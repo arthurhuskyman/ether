@@ -1744,7 +1744,11 @@ window.__LANG_DICTS["ha"] = {
     "p87.sfu.auto": "Ta atomatik ga manyan kungiyoyi",
     "p87.sfu.on": "Ko da yaushe",
     "p87.sfu.off": "Ba (kawai kai tsaye)",
-    "p87.sfu.hint": "Tare da uwar garken, kowane mutum yana riƙe da haɗi ɗaya maimakon ɗaya a kowane mahalarta. Ana ɓoye bidiyo da sauti akan na'urori  uwar garken kawai yana tura su."
+    "p87.sfu.hint": "Tare da uwar garken, kowane mutum yana riƙe da haɗi ɗaya maimakon ɗaya a kowane mahalarta. Ana ɓoye bidiyo da sauti akan na'urori  uwar garken kawai yana tura su.",
+    "call.guard.lock": "Kulle allo",
+    "call.guard.hint": "Danna ka riƙe da'irar na daƙiƙa 1 don buɗewa",
+    "call.guard.on": "An kulle allo. Danna ka riƙe maɓallin buɗewa na daƙiƙa ɗaya.",
+    "call.guard.off": "An buɗe allo"
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ha");

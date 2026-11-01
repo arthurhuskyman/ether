@@ -1744,7 +1744,11 @@ window.__LANG_DICTS["lt"] = {
     "p87.sfu.auto": "Automatiškai didelėms grupėms",
     "p87.sfu.on": "Visada.",
     "p87.sfu.off": "Niekada (tik tiesiogiai)",
-    "p87.sfu.hint": "Serveriui kiekvienas asmuo laikosi vieno ryšio vietoj vieno dalyvio."
+    "p87.sfu.hint": "Serveriui kiekvienas asmuo laikosi vieno ryšio vietoj vieno dalyvio.",
+    "call.guard.lock": "Užrakinti ekraną",
+    "call.guard.hint": "Norėdami atrakinti, palaikykite apskritimą 1 sekundę",
+    "call.guard.on": "Ekranas užrakintas. Palaikykite atrakinimo mygtuką vieną sekundę.",
+    "call.guard.off": "Ekranas atrakintas"
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("lt");

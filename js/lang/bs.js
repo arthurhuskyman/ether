@@ -1744,7 +1744,11 @@ window.__LANG_DICTS["bs"] = {
     "p87.sfu.auto": "Automatski za velike grupe",
     "p87.sfu.on": "Uvek",
     "p87.sfu.off": "Nikada (samo direktno)",
-    "p87.sfu.hint": "Sa serverom, svaka osoba zadržava jednu vezu umjesto jednu po učesniku."
+    "p87.sfu.hint": "Sa serverom, svaka osoba zadržava jednu vezu umjesto jednu po učesniku.",
+    "call.guard.lock": "Zaključaj ekran",
+    "call.guard.hint": "Držite krug 1 sekundu da otključate",
+    "call.guard.on": "Ekran je zaključan. Držite dugme za otključavanje jednu sekundu.",
+    "call.guard.off": "Ekran je otključan"
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("bs");

@@ -1744,7 +1744,11 @@ window.__LANG_DICTS["jv"] = {
     "p87.sfu.auto": "Otomatis kanggo klompok gedhe",
     "p87.sfu.on": "Tansah",
     "p87.sfu.off": "Ora (mung langsung)",
-    "p87.sfu.hint": "Kanthi server, saben wong njaga siji sambungan tinimbang siji saben peserta. Video lan swara dienkripsi ing piranti  server mung ngirim."
+    "p87.sfu.hint": "Kanthi server, saben wong njaga siji sambungan tinimbang siji saben peserta. Video lan swara dienkripsi ing piranti  server mung ngirim.",
+    "call.guard.lock": "Konci layar",
+    "call.guard.hint": "Tahan bunderan 1 detik kanggo mbukak konci",
+    "call.guard.on": "Layar dikunci. Tahan tombol mbukak konci sedetik.",
+    "call.guard.off": "Layar wis dibukak"
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("jv");

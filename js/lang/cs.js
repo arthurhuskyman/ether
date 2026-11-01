@@ -1744,7 +1744,11 @@ window.__LANG_DICTS["cs"] = {
     "p87.sfu.auto": "Automaticky pro velké skupiny",
     "p87.sfu.on": "Vždycky.",
     "p87.sfu.off": "Nikdy (pouze přímo)",
-    "p87.sfu.hint": "S serverem si každá osoba zachovává jedno připojení namísto jednoho na účastníka."
+    "p87.sfu.hint": "S serverem si každá osoba zachovává jedno připojení namísto jednoho na účastníka.",
+    "call.guard.lock": "Zamknout obrazovku",
+    "call.guard.hint": "Podržte kruh 1 sekundu pro odemknutí",
+    "call.guard.on": "Obrazovka je zamknutá. Odemknete ji podržením tlačítka na jednu sekundu.",
+    "call.guard.off": "Obrazovka je odemknutá"
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("cs");

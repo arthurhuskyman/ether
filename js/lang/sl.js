@@ -1744,7 +1744,11 @@ window.__LANG_DICTS["sl"] = {
     "p87.sfu.auto": "Samodejno za velike skupine",
     "p87.sfu.on": "Vedno.",
     "p87.sfu.off": "Nikoli (samo neposredno)",
-    "p87.sfu.hint": "S strežnikom ima vsaka oseba eno povezavo namesto enega na udeleženca."
+    "p87.sfu.hint": "S strežnikom ima vsaka oseba eno povezavo namesto enega na udeleženca.",
+    "call.guard.lock": "Zakleni zaslon",
+    "call.guard.hint": "Za odklep držite krog 1 sekundo",
+    "call.guard.on": "Zaslon je zaklenjen. Za odklep držite gumb za odklepanje eno sekundo.",
+    "call.guard.off": "Zaslon je odklenjen"
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("sl");

@@ -1744,7 +1744,11 @@ window.__LANG_DICTS["tr"] = {
     "p87.sfu.auto": "Büyük gruplar için otomatik olarak",
     "p87.sfu.on": "Her zaman.",
     "p87.sfu.off": "Asla (sadece doğrudan)",
-    "p87.sfu.hint": "Sunucu ile, her kişi katılımcı yerine bir bağlantı tutar."
+    "p87.sfu.hint": "Sunucu ile, her kişi katılımcı yerine bir bağlantı tutar.",
+    "call.guard.lock": "Ekranı kilitle",
+    "call.guard.hint": "Kilidi açmak için daireye 1 saniye basılı tutun",
+    "call.guard.on": "Ekran kilitlendi. Kilidi açmak için kilit açma düğmesine bir saniye basılı tutun.",
+    "call.guard.off": "Ekran kilidi açıldı"
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("tr");

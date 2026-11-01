@@ -1744,7 +1744,11 @@ window.__LANG_DICTS["et"] = {
     "p87.sfu.auto": "Automaatselt suurte rühmade jaoks",
     "p87.sfu.on": "Alati.",
     "p87.sfu.off": "Mitte kunagi (ainult otse)",
-    "p87.sfu.hint": "Serveri abil hoiab iga isik ühe ühenduse, mitte ühe osaleja kohta."
+    "p87.sfu.hint": "Serveri abil hoiab iga isik ühe ühenduse, mitte ühe osaleja kohta.",
+    "call.guard.lock": "Lukusta ekraan",
+    "call.guard.hint": "Avamiseks hoidke ringi 1 sekund all",
+    "call.guard.on": "Ekraan on lukustatud. Avamiseks hoidke avamisnuppu üks sekund all.",
+    "call.guard.off": "Ekraan on avatud"
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("et");

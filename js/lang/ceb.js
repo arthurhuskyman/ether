@@ -1744,7 +1744,11 @@ window.__LANG_DICTS["ceb"] = {
     "p87.sfu.auto": "Automatic alang sa dagkong mga grupo",
     "p87.sfu.on": "Kanunay",
     "p87.sfu.off": "Dili gayod (diretso lamang)",
-    "p87.sfu.hint": "Uban sa server, ang matag tawo magbantay sa usa ka koneksyon imbes sa usa sa matag magdudula. Ang video ug tingog gi-encrypt sa mga aparato  ang server lamang magpadala kanila."
+    "p87.sfu.hint": "Uban sa server, ang matag tawo magbantay sa usa ka koneksyon imbes sa usa sa matag magdudula. Ang video ug tingog gi-encrypt sa mga aparato  ang server lamang magpadala kanila.",
+    "call.guard.lock": "I-lock ang screen",
+    "call.guard.hint": "Pindota ug ayoha ang lingin sulod sa 1 segundo aron ma-unlock",
+    "call.guard.on": "Na-lock ang screen. Pindota ug ayoha ang unlock button sulod sa usa ka segundo.",
+    "call.guard.off": "Na-unlock ang screen"
 };
 
 if (window.__onLangDictReady) window.__onLangDictReady("ceb");
