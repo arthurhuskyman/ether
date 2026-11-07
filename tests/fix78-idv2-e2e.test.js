@@ -11,7 +11,12 @@ const PORT = 8797;
 let server;
 test.before(async () => {
   server = spawn(process.execPath, [path.join(__dirname, "..", "signaling-server", "server.js")], { env: { ...process.env, PORT: String(PORT), VAPID_PUBLIC: "", VAPID_PRIVATE: "", CLAIMS_PERSIST: "0", MAILBOX_PERSIST: "0", ALIASES_PERSIST: "0" }, stdio: "ignore" });
-  await new Promise((r) => setTimeout(r, 1200));
+  // ждём, пока сервер реально отвечает (на медленном CI фиксированных 1,2 с не хватало — все ожидания ниже уходили в таймаут файла)
+  const http = require("node:http");
+  for (let i = 0; i < 150; i++) {
+    const ok = await new Promise((r) => { const q = http.get("http://localhost:" + PORT + "/health", { agent: false, headers: { connection: "close" } }, (res) => { res.resume(); r(res.statusCode === 200); }); q.on("error", () => r(false)); q.setTimeout(1000, () => { q.destroy(); r(false); }); });
+    if (ok) break; await new Promise((r) => setTimeout(r, 100));
+  }
 });
 test.after(async () => { await closeAll(); try { server.kill(); } catch (e) {} });
 
