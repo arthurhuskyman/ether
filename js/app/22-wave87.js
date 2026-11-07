@@ -247,7 +247,11 @@ async function unseal(s) {
   const o = JSON.parse(atob(String(s)));
   if (!o || !o.e || typeof o.iv !== "string" || typeof o.ct !== "string") return null;
   const key = await CryptoHelper.deriveSharedKey(Store.myPrivateKeyJwk, o.e);
-  return CryptoHelper.decryptJson(key, { iv: o.iv, ct: o.ct, v: 2 }, new TextEncoder().encode("ether-sealed|" + Store.myId));
+  const ids = [Store.myId]; // V.88.2: после миграции id v1→v2 старые клиенты запечатывают на старый id (доставка через алиас)
+  try { const l = typeof idMigGet === "function" && idMigGet().legacyId; if (l && l !== Store.myId) ids.push(l); } catch (e) {}
+  for (let i = 0; i < ids.length; i++) {
+    try { return await CryptoHelper.decryptJson(key, { iv: o.iv, ct: o.ct, v: 2 }, new TextEncoder().encode("ether-sealed|" + ids[i])); } catch (e) { if (i === ids.length - 1) throw e; }
+  }
 }
 // Анонимное соединение — тот же сервер, но без регистрации (сервер не связывает его с нашим id)
 const ANON = { ws: null, url: "", q: [], wait: new Map() };
@@ -275,7 +279,7 @@ function sealedUsable(sig, to, kind, nb) {
   return c && !isGroup(c) && typeof c.ak === "string" && c.publicKey && typeof c.publicKey === "object" ? c : null;
 }
 async function sealedDeliver(sig, c, msgId, envelope, fromPublicKey, kind) {
-  const s = await sealFor(c, { from: Store.myId, msgId, envelope, fromPublicKey: fromPublicKey || null, kind: typeof kind === "string" ? kind : "chat" });
+  const s = await sealFor(c, { from: typeof myIdFor === "function" ? myIdFor(c.id) : Store.myId, msgId, envelope, fromPublicKey: fromPublicKey || null, kind: typeof kind === "string" ? kind : "chat" });
   const r = await anonSend({ type: "sealed-deliver", to: c.id, msgId, s, ak: c.ak });
   if (r && !r.error) { sig.dispatchEvent(new CustomEvent("deliver-ack", { detail: { msgId, error: null } })); return true; }
   return false;

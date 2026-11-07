@@ -1942,10 +1942,11 @@ wss.on("connection", (ws, req) => {
       const deny = (e) => safeSend(ws, { type: "sealed-ack", msgId: rid, error: e });
       if (!sealedOk(ipAddr)) return deny("rate");
       if (typeof msg.to !== "string" || !validPeerId(msg.to) || !rid || typeof msg.s !== "string" || msg.s.length > SEALED_MAX || typeof msg.ak !== "string" || msg.ak.length > 64) return deny("invalid");
-      const h = uakByUser.get(msg.to);
-      if (!h || require("crypto").createHash("sha256").update(Buffer.from(msg.ak, "base64")).digest("hex") !== h) return deny("denied");
-      mailboxPut(msg.to, rid, { from: "~sealed", sealed: msg.s, envelope: { v: "sealed", ct: msg.s }, kind: "sealed", ts: Date.now() }); scheduleMailboxSave();
-      const target = clients.get(msg.to);
+      const to = aliasResolve(msg.to); // V.88.2: старый id после миграции — доставляем на новый (как обычный deliver)
+      const akh = require("crypto").createHash("sha256").update(Buffer.from(msg.ak, "base64")).digest("hex");
+      if (akh !== uakByUser.get(msg.to) && akh !== uakByUser.get(to)) return deny("denied");
+      mailboxPut(to, rid, { from: "~sealed", sealed: msg.s, envelope: { v: "sealed", ct: msg.s }, kind: "sealed", ts: Date.now() }); scheduleMailboxSave();
+      const target = clients.get(to);
       if (target && target.ws) safeSend(target.ws, { type: "sealed", msgId: rid, s: msg.s });
       safeSend(ws, { type: "sealed-ack", msgId: rid });
       return;
