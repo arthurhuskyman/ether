@@ -19,6 +19,16 @@ docker compose up -d
 
 `sudo bash deploy/vps-install.sh <домен> <email>` на чистом Ubuntu/Debian: ставит Docker, генерирует ключи VAPID и секрет TURN (`deploy/vps/.env`, права 0600), поднимает Caddy (HTTPS с Let's Encrypt), сервер (ящик и push-подписки в `deploy/vps/data` — переживают перезапуск) и coturn (TURN 3478 UDP/TCP, временные креды по TURN REST). Нужны A-запись домена и открытые порты 80, 443, 3478, 49160–49460/UDP. Подходит российский VPS: сервер и TURN на российском IP не режутся фильтрацией иностранных TURN. Адрес для приложения — `wss://<домен>`.
 
+**VPS в России (V.88.4).** Основной сервер на Render стоит за Cloudflare, а соединения с Cloudflare у российских провайдеров часто режутся — без VPN приложение не подключается. Второй сервер на российском VPS решает это; приложение само переключается между серверами из `config.js`.
+
+```bash
+git clone https://github.com/arthurhuskyman/ether && cd ether
+sudo bash deploy/vps-install.sh - you@example.ru          # без домена: <ip>.sslip.io
+sudo bash deploy/vps-install.sh msg.example.ru you@example.ru   # со своим доменом (надёжнее)
+```
+
+Если `get.docker.com` недоступен, Docker ставится из репозитория дистрибутива; если Docker Hub не отдаёт образы — включаются зеркала реестра (`mirror.gcr.io`, `dockerhub.timeweb.cloud`; своё — `DOCKER_MIRROR=https://… sudo -E bash …`). Шифрование сквозное: сервер не видит содержимого, но видит метаданные (кто в сети и когда) — учитывайте юрисдикцию хостера.
+
 ## Без Docker
 
 ```bash
