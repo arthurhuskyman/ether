@@ -38,7 +38,10 @@ function fakeStream(a, withVideo = true) {
 const remoteTrack = (a, id, stream, track) => a.run(`mesh.dispatchEvent(new CustomEvent("remote-track", { detail: { id: "${id}", stream: window.__st, track: window.__tr } }))`, (a.window.__st = stream, a.window.__tr = track));
 const sh = (a, sel) => !a.document.querySelector(sel).classList.contains("hidden");
 
-for (const platform of ["desktop", "ios", "android"]) {
+// Платформа android вынесена в calls-ui-android.test.js (тот же код, отдельный процесс): один файл на три платформы не укладывался в --test-timeout 180 с.
+const ONLY = process.env.CALLS_UI_ONLY || "";
+const ptest = ONLY ? () => {} : test; // общие тесты ниже — только в основном файле
+for (const platform of ONLY ? [ONLY] : ["desktop", "ios"]) {
   test(`[${platform}] исходящий видеозвонок: экран звонка, startCall(true), локальное превью`, async () => {
     const a = await bootApp({ platform });
     const link = installFakeLink(a);
@@ -228,7 +231,7 @@ for (const platform of ["desktop", "ios", "android"]) {
   });
 }
 
-test("звонок: нельзя звонить группе, себе, заблокированному, второй звонок во время первого", async () => {
+ptest("звонок: нельзя звонить группе, себе, заблокированному, второй звонок во время первого", async () => {
   const a = await bootApp({});
   installFakeLink(a);
   a.run(`state.contacts.set("g1", {id:"g1", isGroup:true, name:"G", managed:true, members:[], messages:[]}); ensureContactEntry("bob","Bob").blocked = true;`);
@@ -241,16 +244,16 @@ test("звонок: нельзя звонить группе, себе, забл
   a.close();
 });
 
-test("звонок без P2P и без сервера: тост «нет сервера», звонок закрывается", async () => {
+ptest("звонок без P2P и без сервера: тост «нет сервера», звонок закрывается", async () => {
   const a = await bootApp({});
-  a.run(`ensureContactEntry("alice","Alice");`);
+  a.run(`ensureContactEntry("alice","Alice"); waitForSignaling = async () => false;`); // ожидание сервера (CALL_SERVER_WAIT_MS) не проверяется здесь — без заглушки тест шёл 22 с и файл выходил за 180 с
   await a.run(`beginCall("alice", true)`);
   assert.equal(a.run(`state.callId`), null);
   assert.ok(a.document.querySelector("#toast").textContent.length > 0);
   a.close();
 });
 
-test("отказ в разрешении на микрофон/камеру при старте звонка закрывает его с тостом", async () => {
+ptest("отказ в разрешении на микрофон/камеру при старте звонка закрывает его с тостом", async () => {
   const a = await bootApp({});
   const link = installFakeLink(a);
   link.startCall = async () => { const e = new Error("no"); e.name = "NotAllowedError"; throw e; };
