@@ -78,7 +78,8 @@ test("поиск: найденный контакт добавляется, чу
   a.document.querySelector("#discovery-input").value = "+1 555 123 0001\n+1 555 123 0002\n+7 999 000 11 22";
   a.document.querySelector("#find-by-phone-btn").click();
   assert.ok(!a.document.querySelector("#discovery-sheet").classList.contains("hidden"));
-  a.document.querySelector("#discovery-search-btn").click(); await sleep(150);
+  a.document.querySelector("#discovery-search-btn").click();
+  for (let i = 0; i < 100 && !a.document.querySelector("#discovery-results .forward-row"); i++) await sleep(50); // HMAC под нагрузкой полного прогона дольше 150 мс
   const asked = JSON.parse(JSON.stringify(a.run(`__sig.sent.filter((x) => x[0] === "lookup")`)));
   assert.equal(asked.length, 1); assert.deepEqual(asked[0][1].sort(), [hm("+15551230001"), hm("+15551230002")].sort(), "свой номер не отправляется, телефоны — только хэшами");
   const rows = a.document.querySelectorAll("#discovery-results .forward-row");

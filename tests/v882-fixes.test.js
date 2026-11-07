@@ -11,5 +11,5 @@ test("слот send/mic растягивается под кнопку, а не 
 });
 test("до 440px значок поиска скрыт, а в меню шапки есть пункт «Поиск»", () => {
   assert.match(css, /@media \(max-width: 440px\) \{[^}]*\}\s*#nav-chat-mode #chat-search-btn \{ display: none; \}|@media \(max-width: 440px\) \{\s*#nav-chat-mode \{ gap: 2px; \}\s*#nav-chat-mode #chat-search-btn \{ display: none; \}/);
-  assert.match(thread, /sb && !sb\.offsetParent \? \[\{ label: T\("a11y\.search"\), icon: "search", fn: \(\) => sb\.click\(\) \}\]/);
+  assert.match(thread, /sb && getComputedStyle\(sb\)\.display === "none" \? \[\{ label: T\("a11y\.search"\), icon: "search", fn: \(\) => sb\.click\(\) \}\]/);
 });

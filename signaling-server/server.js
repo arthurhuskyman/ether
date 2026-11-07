@@ -2052,6 +2052,8 @@ wss.on("connection", (ws, req) => {
       // Уже накопленная для старого id почта переезжает в ящик нового
       const oldBox = mailbox.get(old);
       if (oldBox && !clients.has(old)) { for (const [mid, entry] of Array.from(oldBox)) { mailboxPut(myId, mid, entry); mailboxRemove(old, mid); } scheduleMailboxSave(); flushMailbox(myId, ws); }
+      // V.88.2: те, кто следит за старым id, только что получили «офлайн» (старый сокет закрылся при миграции) — сразу сообщаем, что он снова онлайн через алиас
+      if (!clients.has(old)) { const entry = rosterEntry(old); if (entry) for (const [otherId, c] of clients) { if (otherId !== myId && c.watch && c.watch.has(old) && canSeePresence(c, otherId, myId, me)) safeSend(c.ws, { type: "presence", ...entry, id: old, online: true }); } }
       console.log("[alias] " + shortId(old) + " → " + shortId(myId) + " aliases=" + aliases.size);
       return reply({ ok: true, ttlDays: Math.round(ALIAS_TTL_MS / 86400_000) });
     }

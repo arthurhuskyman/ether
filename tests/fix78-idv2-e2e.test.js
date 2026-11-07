@@ -23,7 +23,8 @@ async function boot(id, name, contacts, extra) {
   for (let i = 0; i < 100 && !a.run(`typeof signaling !== "undefined" && signaling && signaling.registered === true`); i++) await new Promise((r) => setTimeout(r, 50));
   return a;
 }
-const until = async (fn, ms = 8000) => { const end = Date.now() + ms; while (Date.now() < end) { if (fn()) return true; await new Promise((r) => setTimeout(r, 50)); } return false; };
+// e2e с настоящим сервером и PBKDF2 600k: под нагрузкой полного прогона 8 с не хватало
+const until = async (fn, ms = 20000) => { const end = Date.now() + ms; while (Date.now() < end) { if (fn()) return true; await new Promise((r) => setTimeout(r, 50)); } return false; };
 const chat = (id, text) => ({ kind: "chat", id, text, ts: Date.now() });
 const has = (a, cid, id) => a.run(`(state.contacts.get(${JSON.stringify(cid)}) || {messages:[]}).messages.some((m) => m.id === ${JSON.stringify(id)})`);
 function send(a, to, msgId, payload) { a.run(`addToOutbox(${JSON.stringify(msgId)}, ${JSON.stringify(to)}, ${JSON.stringify(payload)}); flushOutboxItem(${JSON.stringify(msgId)});`); }
@@ -65,7 +66,7 @@ test("сквозная миграция: обновлённый контакт �
   send(A, "carol-new", "t2", chat("post-ac", "A→C")); assert.ok(await until(() => has(C, want, "post-ac")), "C получил от A под новым id");
   // звонки/сигналы: B может достучаться до A по старому id (сигнал пересылается алиасом)
   B.run(`window.__sigGot = 0;`);
-  A.run(`window.__sigGot = []; signaling.addEventListener("signal", (e) => window.__sigGot.push(e.detail.from));`);
+  A.run(`window.__sigGot = []; signaling.addEventListener("signal", (e) => { if (e.detail && e.detail.data && e.detail.data.t === "ping-test") window.__sigGot.push(e.detail.from); });`);
   B.run(`signaling.signal("${V1}", { t: "ping-test" })`);
   assert.ok(await until(() => A.run(`window.__sigGot.length`) > 0), "сигнал на старый id дошёл до A");
   assert.equal(A.run(`window.__sigGot[0]`), "bob-anon");
