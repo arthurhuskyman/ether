@@ -830,7 +830,9 @@ function attachChatRowContext(row, c) {
 function openChatHeaderMenu() {
   const id = state.chatId, c = id && state.contacts.get(id); if (!c) return;
   // V.80: убраны дубли — «Поиск» (значок в шапке), «Закреплённое» (баннер над перепиской), «Экспорт» (карточка контакта).
+  const sb = document.getElementById("chat-search-btn");
   const items = [
+    ...(sb && !sb.offsetParent ? [{ label: T("a11y.search"), icon: "search", fn: () => sb.click() }] : []), // V.88.2: на узких экранах значок поиска скрыт — пункт в меню
     { label: T("chat.contact.gallery"), icon: "image", fn: () => openContactCard(id) },
     { label: isContactMuted(c) ? T("chats.action.unmute") : T("chat.contact.mute"), icon: "bell", fn: () => toggleChatMute(c, () => { try { renderChatThreadInner(); } catch (e) {} }) },
     { label: T("chat.disappearing"), icon: "clock", rare: true, fn: () => openActionSheet(T("chat.disappearing"), [["chat.disappearing.off", 0], ["chat.disappearing.1h", 3600000], ["chat.disappearing.1d", 86400000], ["chat.disappearing.1w", 604800000]].map(([k, ms]) => ({ label: ((c.disappearingTimer || 0) === ms ? "✓ " : "") + T(k), icon: "clock", fn: () => setDisappearingTimer(id, ms) }))) },

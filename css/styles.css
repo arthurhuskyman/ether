@@ -1453,9 +1453,10 @@ input::placeholder, textarea::placeholder { color: var(--ink-3); opacity: 1; }
    .hidden (display:none) без transition. Слот фиксированного размера с
    обеими кнопками абсолютно друг над другом — кроссфейд+поворот вместо
    жёсткого щелчка. */
-.send-mic-slot { position: relative; width: 40px; height: 40px; flex-shrink: 0; }
+/* V.88.2: слот подстраивается под кнопку (скины clay/glass делают её 46px) — раньше она вылезала за край композера */
+.send-mic-slot { position: relative; display: grid; place-items: center; min-width: 40px; min-height: 40px; flex-shrink: 0; }
 .send-mic-slot .send-btn {
-  position: absolute; inset: 0;
+  grid-area: 1 / 1;
   transition: transform var(--motion-fast) var(--ease-out), opacity var(--motion-fast) var(--ease-out), box-shadow var(--motion-fast) var(--ease-out);
 }
 .send-mic-slot .send-btn.hidden {
@@ -2859,6 +2860,12 @@ html[data-calm-mode="1"] .settings-quick-tile:active { transform: none; }
 .settings-adv-toggle.open .chevron { transform: rotate(180deg); }
 html[data-calm-mode="1"] .settings-adv-toggle .chevron { transition: none; }
 
+/* V.88.2: телефоны до 440 px — «Поиск» уходит в меню «⋯», иконки 40 px: имени и статусу собеседника остаётся ~170 px вместо 100 */
+@media (max-width: 440px) {
+  #nav-chat-mode { gap: 2px; }
+  #nav-chat-mode #chat-search-btn { display: none; }
+  #nav-chat-mode .icon-btn { min-width: 40px; width: 40px; }
+}
 /* Узкие экраны (320–360 px): в шапке чата «назад», собеседник и 4 иконки по 44 px оставляли имени ~10 px — оно налезало на иконки. */
 @media (max-width: 360px) {
   #nav-bar { padding-inline: 6px; }
