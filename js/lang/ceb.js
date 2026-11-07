@@ -671,6 +671,7 @@ window.__LANG_DICTS["ceb"] = {
     "fx2.callFilm.title": "Call film",
     "fx2.callFilm.people": "ka partisipante: {n}",
     "fx2.callFilm.msgs": "ka mensahe atol sa call: {n}",
+    "status.noServerShort": "Walay koneksyon",
     "status.waking": "Nagmata na ang server…",
     "call.viaPush": "Offline ang kontak — napadala na ang notipikasyon…",
     "call.connecting": "Nagkonektar…",

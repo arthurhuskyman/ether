@@ -671,6 +671,7 @@ window.__LANG_DICTS["ha"] = {
     "fx2.callFilm.title": "Fim ɗin kira",
     "fx2.callFilm.people": "mahalarta {n}",
     "fx2.callFilm.msgs": "saƙonni {n} yayin kiran",
+    "status.noServerShort": "Babu dangantaka",
     "status.waking": "Sabar yana farkawa…",
     "call.viaPush": "Abokin hulɗa yana kan layi babu — an aika sanarwa…",
     "call.connecting": "Ana haɗawa…",

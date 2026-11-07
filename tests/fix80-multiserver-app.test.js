@@ -67,11 +67,14 @@ test("фейловер: 3 неудачных подключения -> новы�
 test("фейловер: единственный сервер не переключается и после сбоев остаётся на нём; id-claimed на запасном -> следующий", async () => {
   const a = await boot();
   fakeWebSocket(a); const fk = fakeTimers(a);
+  a.run(`window.fetch = async () => { throw new Error("down"); }`); // V.88.1: перед «нет сервера» — попытка разбудить через /health
   a.run(`initSignaling()`); await sleep(30);
   for (let i = 0; i < 5; i++) { a.run(`__sockets[__sockets.length - 1].__err()`); fk.tick(25000); }
+  await sleep(30);
   assert.equal(a.run(`__sockets[__sockets.length - 1].url`), DEF);
   assert.equal(a.run(`state._serversDown`), true, "показываем состояние «нет сервера»");
-  assert.match(a.run(`document.getElementById("nav-conn-indicator").textContent`), /No server reachable/);
+  assert.match(a.run(`document.getElementById("nav-conn-indicator").title`), /No server reachable/);
+  assert.equal(a.run(`document.getElementById("nav-conn-indicator").textContent`), "No connection", "в шапке — короткая метка");
   const b = await boot({ storage: { "ether.servers": sv(A, B) } });
   fakeWebSocket(b); const fk2 = fakeTimers(b);
   b.run(`initSignaling()`); await sleep(30);

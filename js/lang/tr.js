@@ -671,6 +671,7 @@ window.__LANG_DICTS["tr"] = {
     "fx2.callFilm.title": "Arama filmi",
     "fx2.callFilm.people": "katılımcı: {n}",
     "fx2.callFilm.msgs": "Arama sırasında {n} mesaj",
+    "status.noServerShort": "Bağlantı yok.",
     "status.waking": "Sunucu uyanıyor…",
     "call.viaPush": "Kişi çevrimdışı — bildirim gönderildi…",
     "call.connecting": "Bağlanılıyor…",

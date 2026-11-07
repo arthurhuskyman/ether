@@ -671,6 +671,7 @@ window.__LANG_DICTS["el"] = {
     "fx2.callFilm.title": "Ταινία κλήσης",
     "fx2.callFilm.people": "συμμετέχοντες: {n}",
     "fx2.callFilm.msgs": "μηνύματα κατά την κλήση: {n}",
+    "status.noServerShort": "Δεν υπάρχει σύνδεση.",
     "status.waking": "Ο διακομιστής ξυπνά…",
     "call.viaPush": "Η επαφή είναι εκτός σύνδεσης — στάλθηκε ειδοποίηση…",
     "call.connecting": "Σύνδεση…",

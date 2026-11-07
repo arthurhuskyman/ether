@@ -671,6 +671,7 @@ window.__LANG_DICTS["id"] = {
     "fx2.callFilm.title": "Film panggilan",
     "fx2.callFilm.people": "peserta: {n}",
     "fx2.callFilm.msgs": "pesan selama panggilan: {n}",
+    "status.noServerShort": "Tidak ada koneksi",
     "status.waking": "Server sedang bangun…",
     "call.viaPush": "Kontak sedang offline — notifikasi terkirim…",
     "call.connecting": "Menghubungkan…",

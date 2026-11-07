@@ -671,6 +671,7 @@ window.__LANG_DICTS["mk"] = {
     "fx2.callFilm.title": "Call film",
     "fx2.callFilm.people": "учесници: {n}",
     "fx2.callFilm.msgs": "пораки за време на повикот: {n}",
+    "status.noServerShort": "Нема врска.",
     "status.waking": "Серверот се буди…",
     "call.viaPush": "Контактот е офлајн — испратено е известување…",
     "call.connecting": "Се поврзува…",

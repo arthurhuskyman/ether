@@ -671,6 +671,7 @@ window.__LANG_DICTS["lt"] = {
     "fx2.callFilm.title": "Call film",
     "fx2.callFilm.people": "Dalyvių: {n}",
     "fx2.callFilm.msgs": "žinutės skambučio metu: {n}",
+    "status.noServerShort": "Nėra ryšio",
     "status.waking": "Serveris bunda…",
     "call.viaPush": "Kontaktas neprisijungęs — pranešimas išsiųstas…",
     "call.connecting": "Jungiamasi…",

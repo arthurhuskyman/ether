@@ -671,6 +671,7 @@ window.__LANG_DICTS["et"] = {
     "fx2.callFilm.title": "Kõnefilm",
     "fx2.callFilm.people": "osalejat: {n}",
     "fx2.callFilm.msgs": "sõnumit kõne ajal: {n}",
+    "status.noServerShort": "Ei mingit seost.",
     "status.waking": "Server ärkab…",
     "call.viaPush": "Kontakt on võrguühenduseta — teavitus saadetud…",
     "call.connecting": "Ühendamine…",

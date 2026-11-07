@@ -671,6 +671,7 @@ window.__LANG_DICTS["vi"] = {
     "fx2.callFilm.title": "Call film",
     "fx2.callFilm.people": "người tham gia: {n}",
     "fx2.callFilm.msgs": "tin nhắn trong cuộc gọi: {n}",
+    "status.noServerShort": "Không có liên kết",
     "status.waking": "Máy chủ đang khởi động…",
     "call.viaPush": "Liên hệ đang ngoại tuyến — đã gửi thông báo…",
     "call.connecting": "Đang kết nối…",

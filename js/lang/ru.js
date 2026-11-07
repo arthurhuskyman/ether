@@ -1182,6 +1182,7 @@ window.__LANG_DICTS["ru"] = {
     "fx2.callFilm.title": "Итоги звонка",
     "fx2.callFilm.people": "Участников: {n}",
     "fx2.callFilm.msgs": "Сообщений во время звонка: {n}",
+    "status.noServerShort": "Нет связи",
     "status.waking": "Сервер просыпается…",
     "call.viaPush": "Контакт не в сети — отправлено уведомление…",
     "call.connecting": "Соединение…",

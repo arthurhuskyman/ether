@@ -15,7 +15,12 @@ function updateSignalingStatusUI(kind, text) {
   const nav = $("#nav-conn-indicator");
   if (nav) {
     if (kind === "online") nav.classList.add("hidden");
-    else { nav.textContent = text; nav.classList.remove("hidden"); }
+    else {
+      // V.88.1: в шапке — короткая метка (длинная вытесняла заголовок экрана), полный текст — в подсказке и для диктора
+      const short = text === T("servers.allDown") ? T("status.noServerShort") : text;
+      let t = nav.querySelector(".nci-t"); if (!t) { nav.textContent = ""; t = document.createElement("span"); t.className = "nci-t"; nav.appendChild(t); }
+      t.textContent = short; nav.title = text; nav.setAttribute("aria-label", text); nav.classList.remove("hidden");
+    }
   }
 }
 // При смене языка статусная строка ("в сети"/"офлайн"/...) раньше не
@@ -210,7 +215,7 @@ function wireServerFailover(sig) {
   on("connect-failed", () => {
     __srvFailStreak++;
     const r = fo.reportFailure(sig.url);
-    if (!r.switched && __srvFailStreak >= 3) srvShowDown();
+    if (!r.switched && __srvFailStreak >= 3) srvWakeOrDown(sig.url);
   });
   on("registered", (ev) => {
     __srvFailStreak = 0; state._serversDown = false;
@@ -227,6 +232,26 @@ function wireServerFailover(sig) {
     }
   });
   return () => { for (const [t, w] of subs) sig.removeEventListener(t, w); };
+}
+// V.88.1: бесплатный хостинг усыпляет сервер, и первые подключения после сна обрываются по таймауту. Прежде чем
+// объявить «нет доступных серверов», будим его HTTP-запросом (до 60 с) и всё это время показываем «просыпается».
+let __srvWaking = null;
+function srvWakeOrDown(wsUrl) {
+  if (__srvWaking) return __srvWaking;
+  const base = String(wsUrl || "").replace(/^ws/i, "http").replace(/\/+$/, "");
+  if (!/^https?:\/\//i.test(base) || typeof fetch !== "function") { srvShowDown(); return Promise.resolve(false); }
+  try { updateSignalingStatusUI("connecting", T("status.waking")); } catch (e) {}
+  const ctl = typeof AbortController === "function" ? new AbortController() : null;
+  const timer = setTimeout(() => { try { if (ctl) ctl.abort(); } catch (e) {} }, 60000);
+  __srvWaking = fetch(base + "/health", { cache: "no-store", signal: ctl ? ctl.signal : undefined })
+    .then((res) => !!(res && res.ok)).catch(() => false)
+    .then((ok) => {
+      clearTimeout(timer); __srvWaking = null;
+      if (ok) { __srvFailStreak = 0; try { if (signaling && !signaling.connected && typeof signaling.connect === "function") signaling.connect(); } catch (e) {} }
+      else srvShowDown();
+      return ok;
+    });
+  return __srvWaking;
 }
 function srvShowDown() {
   state._serversDown = true;

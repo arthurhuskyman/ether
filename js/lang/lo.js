@@ -671,6 +671,7 @@ window.__LANG_DICTS["lo"] = {
     "fx2.callFilm.title": "Call film",
     "fx2.callFilm.people": "ຜູ້ເຂົ້າຮ່ວມ {n} ຄົນ",
     "fx2.callFilm.msgs": "ຂໍ້ຄວາມລະຫວ່າງໂທ: {n}",
+    "status.noServerShort": "ບໍ່ມີການເຊື່ອມຕໍ່",
     "status.waking": "ເຊີບເວີກຳລັງຕື່ນ…",
     "call.viaPush": "ຜູ້ຕິດຕໍ່ອອບໄລນ໌ — ສົ່ງການແຈ້ງເຕືອນແລ້ວ…",
     "call.connecting": "ກຳລັງເຊື່ອມຕໍ່…",

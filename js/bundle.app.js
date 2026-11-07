@@ -81,7 +81,7 @@ if (typeof window !== "undefined") window.Discovery = Discovery;
 ;
 /* ==== js/app/01-core-store.js ==== */
 "use strict";
-const APP_VERSION = "V.88.0.0";
+const APP_VERSION = "V.88.1.0";
 const DEFAULT_SIGNALING_URL = "wss://ether-1-baqy.onrender.com";
 const DEFAULT_TRANSLATE_ENDPOINT = "https://libretranslate.com/translate";
 const MAX_MESSAGE_LENGTH = 4000;
@@ -8246,7 +8246,11 @@ if (label) label.textContent = text;
 const nav = $("#nav-conn-indicator");
 if (nav) {
 if (kind === "online") nav.classList.add("hidden");
-else { nav.textContent = text; nav.classList.remove("hidden"); }
+else {
+const short = text === T("servers.allDown") ? T("status.noServerShort") : text;
+let t = nav.querySelector(".nci-t"); if (!t) { nav.textContent = ""; t = document.createElement("span"); t.className = "nci-t"; nav.appendChild(t); }
+t.textContent = short; nav.title = text; nav.setAttribute("aria-label", text); nav.classList.remove("hidden");
+}
 }
 }
 function refreshSignalingStatusText() {
@@ -8422,7 +8426,7 @@ const on = (type, fn) => { const w = (ev) => { try { fn(ev); } catch (e) { ether
 on("connect-failed", () => {
 __srvFailStreak++;
 const r = fo.reportFailure(sig.url);
-if (!r.switched && __srvFailStreak >= 3) srvShowDown();
+if (!r.switched && __srvFailStreak >= 3) srvWakeOrDown(sig.url);
 });
 on("registered", (ev) => {
 __srvFailStreak = 0; state._serversDown = false;
@@ -8439,6 +8443,24 @@ for (let i = 0; i < 3; i++) if (fo.reportFailure(sig.url).switched) break;
 }
 });
 return () => { for (const [t, w] of subs) sig.removeEventListener(t, w); };
+}
+let __srvWaking = null;
+function srvWakeOrDown(wsUrl) {
+if (__srvWaking) return __srvWaking;
+const base = String(wsUrl || "").replace(/^ws/i, "http").replace(/\/+$/, "");
+if (!/^https?:\/\//i.test(base) || typeof fetch !== "function") { srvShowDown(); return Promise.resolve(false); }
+try { updateSignalingStatusUI("connecting", T("status.waking")); } catch (e) {}
+const ctl = typeof AbortController === "function" ? new AbortController() : null;
+const timer = setTimeout(() => { try { if (ctl) ctl.abort(); } catch (e) {} }, 60000);
+__srvWaking = fetch(base + "/health", { cache: "no-store", signal: ctl ? ctl.signal : undefined })
+.then((res) => !!(res && res.ok)).catch(() => false)
+.then((ok) => {
+clearTimeout(timer); __srvWaking = null;
+if (ok) { __srvFailStreak = 0; try { if (signaling && !signaling.connected && typeof signaling.connect === "function") signaling.connect(); } catch (e) {} }
+else srvShowDown();
+return ok;
+});
+return __srvWaking;
 }
 function srvShowDown() {
 state._serversDown = true;

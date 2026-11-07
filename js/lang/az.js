@@ -671,6 +671,7 @@ window.__LANG_DICTS["az"] = {
     "fx2.callFilm.title": "Zəng filmi",
     "fx2.callFilm.people": "iştirakçı: {n}",
     "fx2.callFilm.msgs": "Zəng zamanı {n} mesaj",
+    "status.noServerShort": "Heç bir əlaqə yoxdur.",
     "status.waking": "Server oyanır…",
     "call.viaPush": "Kontakt oflayndır — bildiriş göndərildi…",
     "call.connecting": "Qoşulur…",

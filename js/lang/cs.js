@@ -671,6 +671,7 @@ window.__LANG_DICTS["cs"] = {
     "fx2.callFilm.title": "Film z hovoru",
     "fx2.callFilm.people": "účastníků: {n}",
     "fx2.callFilm.msgs": "zpráv během hovoru: {n}",
+    "status.noServerShort": "Žádné spojení.",
     "status.waking": "Server se probouzí…",
     "call.viaPush": "Kontakt je offline — oznámení odesláno…",
     "call.connecting": "Připojování…",

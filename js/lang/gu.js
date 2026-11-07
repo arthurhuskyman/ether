@@ -671,6 +671,7 @@ window.__LANG_DICTS["gu"] = {
     "fx2.callFilm.title": "કૉલ ફિલ્મ",
     "fx2.callFilm.people": "સહભાગીઓ: {n}",
     "fx2.callFilm.msgs": "કૉલ દરમિયાન {n} સંદેશા",
+    "status.noServerShort": "કોઈ જોડાણ નથી",
     "status.waking": "સર્વર શરૂ થઈ રહ્યું છે…",
     "call.viaPush": "સંપર્ક ઑફલાઇન છે — સૂચના મોકલી છે…",
     "call.connecting": "કનેક્ટ થઈ રહ્યું છે…",

@@ -671,6 +671,7 @@ window.__LANG_DICTS["kn"] = {
     "fx2.callFilm.title": "Call film",
     "fx2.callFilm.people": "ಭಾಗವಹಿಸುವವರು: {n}",
     "fx2.callFilm.msgs": "ಕರೆಯ ವೇಳೆ {n} ಸಂದೇಶಗಳು",
+    "status.noServerShort": "ಯಾವುದೇ ಸಂಪರ್ಕವಿಲ್ಲ",
     "status.waking": "ಸರ್ವರ್ ಆರಂಭವಾಗುತ್ತಿದೆ…",
     "call.viaPush": "ಸಂಪರ್ಕ ಆಫ್‌ಲೈನ್‌ನಲ್ಲಿದೆ — ಅಧಿಸೂಚನೆ ಕಳುಹಿಸಲಾಗಿದೆ…",
     "call.connecting": "ಸಂಪರ್ಕಿಸಲಾಗುತ್ತಿದೆ…",

@@ -671,6 +671,7 @@ window.__LANG_DICTS["km"] = {
     "fx2.callFilm.title": "Call film",
     "fx2.callFilm.people": "អ្នកចូលរួម {n} នាក់",
     "fx2.callFilm.msgs": "សារក្នុងអំឡុងពេលហៅ: {n}",
+    "status.noServerShort": "គ្មាន ទំនាក់ ទំនង",
     "status.waking": "ម៉ាស៊ីនមេកំពុងភ្ញាក់…",
     "call.viaPush": "ទំនាក់ទំនងនៅក្រៅបណ្តាញ — បានផ្ញើការជូនដំណឹង…",
     "call.connecting": "កំពុងភ្ជាប់…",

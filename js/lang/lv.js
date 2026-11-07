@@ -671,6 +671,7 @@ window.__LANG_DICTS["lv"] = {
     "fx2.callFilm.title": "Call film",
     "fx2.callFilm.people": "Dalībnieki: {n}",
     "fx2.callFilm.msgs": "ziņas zvana laikā: {n}",
+    "status.noServerShort": "Nav saiknes.",
     "status.waking": "Serveris mostas…",
     "call.viaPush": "Kontaktpersona nav tiešsaistē — paziņojums nosūtīts…",
     "call.connecting": "Savienojas…",

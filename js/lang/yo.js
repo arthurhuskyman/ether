@@ -671,6 +671,7 @@ window.__LANG_DICTS["yo"] = {
     "fx2.callFilm.title": "Call film",
     "fx2.callFilm.people": "olùkópa: {n}",
     "fx2.callFilm.msgs": "ìfiránṣẹ́ nígbà ìpè: {n}",
+    "status.noServerShort": "Kò sí asopọ kankan",
     "status.waking": "Olupin ń jí…",
     "call.viaPush": "Olùbáṣepọ̀ kò sí lórí ayélujára — a ti fi ìfitónilétí ránṣẹ́…",
     "call.connecting": "Ń sopọ̀…",

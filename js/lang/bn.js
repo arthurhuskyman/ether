@@ -671,6 +671,7 @@ window.__LANG_DICTS["bn"] = {
     "fx2.callFilm.title": "কল ফিল্ম",
     "fx2.callFilm.people": "জন অংশগ্রহণকারী: {n}",
     "fx2.callFilm.msgs": "কলের সময় {n}টি বার্তা",
+    "status.noServerShort": "কোন সংযোগ নেই",
     "status.waking": "সার্ভার চালু হচ্ছে…",
     "call.viaPush": "যোগাযোগটি অফলাইনে আছে — নোটিফিকেশন পাঠানো হয়েছে…",
     "call.connecting": "সংযোগ হচ্ছে…",

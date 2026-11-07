@@ -671,6 +671,7 @@ window.__LANG_DICTS["zh"] = {
     "fx2.callFilm.title": "通话影片",
     "fx2.callFilm.people": "位参与者: {n}",
     "fx2.callFilm.msgs": "通话期间 {n} 条消息",
+    "status.noServerShort": "没有连接",
     "status.waking": "服务器正在唤醒…",
     "call.viaPush": "对方离线 — 已发送通知…",
     "call.connecting": "正在连接…",

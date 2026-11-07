@@ -671,6 +671,7 @@ window.__LANG_DICTS["sq"] = {
     "fx2.callFilm.title": "Filmi i thirrjes",
     "fx2.callFilm.people": "pjesëmarrës: {n}",
     "fx2.callFilm.msgs": "mesazhe gjatë thirrjes: {n}",
+    "status.noServerShort": "Asnjë lidhje",
     "status.waking": "Serveri po zgjohet…",
     "call.viaPush": "Kontakti është jashtë linje — njoftimi u dërgua…",
     "call.connecting": "Po lidhet…",

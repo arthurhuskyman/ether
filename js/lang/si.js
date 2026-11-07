@@ -671,6 +671,7 @@ window.__LANG_DICTS["si"] = {
     "fx2.callFilm.title": "Call film",
     "fx2.callFilm.people": "සහභාගීන් {n} දෙනෙක්",
     "fx2.callFilm.msgs": "ඇමතුම අතරතුර පණිවිඩ {n}ක්",
+    "status.noServerShort": "කිසිම සම්බන්ධයක් නෑ.",
     "status.waking": "සේවාදායකය අවදි වෙමින්…",
     "call.viaPush": "සම්බන්ධතාව ඔෆ්ලයින් — දැනුම්දීමක් යවන ලදී…",
     "call.connecting": "සම්බන්ධ වෙමින්…",

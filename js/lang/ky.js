@@ -671,6 +671,7 @@ window.__LANG_DICTS["ky"] = {
     "fx2.callFilm.title": "Call film",
     "fx2.callFilm.people": "катышуучу: {n}",
     "fx2.callFilm.msgs": "Чалуу учурунда {n} билдирүү",
+    "status.noServerShort": "Байланыш жок",
     "status.waking": "Сервер ойгонууда…",
     "call.viaPush": "Байланыш тармакта эмес — билдирме жөнөтүлдү…",
     "call.connecting": "Туташууда…",

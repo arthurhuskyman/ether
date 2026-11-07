@@ -671,6 +671,7 @@ window.__LANG_DICTS["ro"] = {
     "fx2.callFilm.title": "Call film",
     "fx2.callFilm.people": "participanți: {n}",
     "fx2.callFilm.msgs": "mesaje în timpul apelului: {n}",
+    "status.noServerShort": "Fără legătură.",
     "status.waking": "Serverul se trezește…",
     "call.viaPush": "Contactul este offline — notificare trimisă…",
     "call.connecting": "Se conectează…",

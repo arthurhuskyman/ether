@@ -671,6 +671,7 @@ window.__LANG_DICTS["ja"] = {
     "fx2.callFilm.title": "通話フィルム",
     "fx2.callFilm.people": "参加者{n}人",
     "fx2.callFilm.msgs": "通話中のメッセージ{n}件",
+    "status.noServerShort": "繋がりがない",
     "status.waking": "サーバーを起動中…",
     "call.viaPush": "相手はオフラインです — 通知を送信しました…",
     "call.connecting": "接続中…",

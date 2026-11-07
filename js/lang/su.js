@@ -671,6 +671,7 @@ window.__LANG_DICTS["su"] = {
     "fx2.callFilm.title": "Pilem telepon",
     "fx2.callFilm.people": "pamilon: {n}",
     "fx2.callFilm.msgs": "pesen salila telepon: {n}",
+    "status.noServerShort": "Taya sambungan",
     "status.waking": "Server keur hudang…",
     "call.viaPush": "Kontak offline — bewara geus dikirim…",
     "call.connecting": "Nyambung…",

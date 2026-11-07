@@ -671,6 +671,7 @@ window.__LANG_DICTS["mn"] = {
     "fx2.callFilm.title": "Call film",
     "fx2.callFilm.people": "оролцогч: {n}",
     "fx2.callFilm.msgs": "Дуудлагын үеэр {n} мессеж",
+    "status.noServerShort": "Холбоогүй",
     "status.waking": "Сервер сэрж байна…",
     "call.viaPush": "Харилцагч офлайн байна — мэдэгдэл илгээлээ…",
     "call.connecting": "Холбогдож байна…",

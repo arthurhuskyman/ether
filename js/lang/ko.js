@@ -671,6 +671,7 @@ window.__LANG_DICTS["ko"] = {
     "fx2.callFilm.title": "Call film",
     "fx2.callFilm.people": "참가자 {n}명",
     "fx2.callFilm.msgs": "통화 중 메시지 {n}개",
+    "status.noServerShort": "연결이 없어",
     "status.waking": "서버를 깨우는 중…",
     "call.viaPush": "상대방이 오프라인입니다 — 알림을 보냈습니다…",
     "call.connecting": "연결 중…",

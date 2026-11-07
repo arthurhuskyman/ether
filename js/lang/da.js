@@ -671,6 +671,7 @@ window.__LANG_DICTS["da"] = {
     "fx2.callFilm.title": "Opkaldsfilm",
     "fx2.callFilm.people": "deltagere: {n}",
     "fx2.callFilm.msgs": "beskeder under opkaldet: {n}",
+    "status.noServerShort": "Ingen forbindelse",
     "status.waking": "Serveren vågner…",
     "call.viaPush": "Kontakten er offline — notifikation sendt…",
     "call.connecting": "Forbinder…",

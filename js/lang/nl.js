@@ -671,6 +671,7 @@ window.__LANG_DICTS["nl"] = {
     "fx2.callFilm.title": "Call film",
     "fx2.callFilm.people": "deelnemers: {n}",
     "fx2.callFilm.msgs": "berichten tijdens het gesprek: {n}",
+    "status.noServerShort": "Geen verbinding.",
     "status.waking": "Server wordt wakker…",
     "call.viaPush": "Contact is offline — melding verstuurd…",
     "call.connecting": "Verbinden…",

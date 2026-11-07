@@ -671,6 +671,7 @@ window.__LANG_DICTS["fi"] = {
     "fx2.callFilm.title": "Puhelun elokuva",
     "fx2.callFilm.people": "osallistujaa: {n}",
     "fx2.callFilm.msgs": "viestiä puhelun aikana: {n}",
+    "status.noServerShort": "Ei yhteyttä.",
     "status.waking": "Palvelin heräämässä…",
     "call.viaPush": "Yhteyshenkilö ei ole online — ilmoitus lähetetty…",
     "call.connecting": "Yhdistetään…",

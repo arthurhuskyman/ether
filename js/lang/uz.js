@@ -671,6 +671,7 @@ window.__LANG_DICTS["uz"] = {
     "fx2.callFilm.title": "Call film",
     "fx2.callFilm.people": "ishtirokchi: {n}",
     "fx2.callFilm.msgs": "Qo‘ng‘iroq paytida {n} ta xabar",
+    "status.noServerShort": "Aloqa yo'q",
     "status.waking": "Server ishga tushmoqda…",
     "call.viaPush": "Kontakt oflayn — bildirishnoma yuborildi…",
     "call.connecting": "Ulanmoqda…",

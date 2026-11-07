@@ -671,6 +671,7 @@ window.__LANG_DICTS["pa"] = {
     "fx2.callFilm.title": "Call film",
     "fx2.callFilm.people": "ਭਾਗੀਦਾਰ: {n}",
     "fx2.callFilm.msgs": "ਕਾਲ ਦੌਰਾਨ {n} ਸੁਨੇਹੇ",
+    "status.noServerShort": "ਕੋਈ ਸੰਪਰਕ ਨਹੀਂ",
     "status.waking": "ਸਰਵਰ ਜਾਗ ਰਿਹਾ ਹੈ…",
     "call.viaPush": "ਸੰਪਰਕ ਔਫਲਾਈਨ ਹੈ — ਸੂਚਨਾ ਭੇਜੀ ਗਈ…",
     "call.connecting": "ਜੁੜ ਰਿਹਾ ਹੈ…",

@@ -671,6 +671,7 @@ window.__LANG_DICTS["am"] = {
     "fx2.callFilm.title": "የጥሪ ፊልም",
     "fx2.callFilm.people": "ተሳታፊዎች: {n}",
     "fx2.callFilm.msgs": "በጥሪው ወቅት {n} መልዕክቶች",
+    "status.noServerShort": "ምንም ግንኙነት የለም",
     "status.waking": "አገልጋዩ እየነቃ ነው…",
     "call.viaPush": "እውቂያው ከመስመር ውጭ ነው — ማሳወቂያ ተልኳል…",
     "call.connecting": "በመገናኘት ላይ…",

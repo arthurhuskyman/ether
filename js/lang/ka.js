@@ -671,6 +671,7 @@ window.__LANG_DICTS["ka"] = {
     "fx2.callFilm.title": "ზარის ფილმი",
     "fx2.callFilm.people": "მონაწილე: {n}",
     "fx2.callFilm.msgs": "შეტყობინება ზარის დროს: {n}",
+    "status.noServerShort": "არანაირი კავშირი",
     "status.waking": "სერვერი იღვიძებს…",
     "call.viaPush": "კონტაქტი ოფლაინშია — შეტყობინება გაიგზავნა…",
     "call.connecting": "ვუკავშირდებით…",

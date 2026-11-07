@@ -671,6 +671,7 @@ window.__LANG_DICTS["hy"] = {
     "fx2.callFilm.title": "Զանգի ֆիլմ",
     "fx2.callFilm.people": "մասնակից: {n}",
     "fx2.callFilm.msgs": "հաղորդագրություն զանգի ընթացքում: {n}",
+    "status.noServerShort": "Ոչ մի կապ",
     "status.waking": "Սերվերը արթնանում է…",
     "call.viaPush": "Կոնտակտը ցանցում չէ — ծանուցումն ուղարկված է…",
     "call.connecting": "Միացում…",

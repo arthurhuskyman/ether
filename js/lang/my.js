@@ -671,6 +671,7 @@ window.__LANG_DICTS["my"] = {
     "fx2.callFilm.title": "Call film",
     "fx2.callFilm.people": "ပါဝင်သူ {n} ဦး",
     "fx2.callFilm.msgs": "ခေါ်ဆိုစဉ် မက်ဆေ့ချ် {n} ခု",
+    "status.noServerShort": "ဆက်စပ်မှုမရှိဘူး။",
     "status.waking": "ဆာဗာ နိုးလာနေပါသည်…",
     "call.viaPush": "အဆက်အသွယ် အော့ဖ်လိုင်းဖြစ်နေသည် — အကြောင်းကြားချက် ပို့ပြီးပါပြီ…",
     "call.connecting": "ချိတ်ဆက်နေသည်…",

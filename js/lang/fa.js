@@ -671,6 +671,7 @@ window.__LANG_DICTS["fa"] = {
     "fx2.callFilm.title": "فیلم تماس",
     "fx2.callFilm.people": "شرکت‌کننده: {n}",
     "fx2.callFilm.msgs": "پیام در طول تماس: {n}",
+    "status.noServerShort": "هيچ ارتباطي نداره",
     "status.waking": "سرور در حال بیدار شدن است…",
     "call.viaPush": "مخاطب آفلاین است — اعلان ارسال شد…",
     "call.connecting": "در حال اتصال…",

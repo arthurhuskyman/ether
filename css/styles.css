@@ -325,8 +325,9 @@ html[data-scheme="light"] .glass-content {
   display: flex; align-items: center; gap: 5px; margin-top: 2px;
   border: none; background: none; padding: 0; cursor: pointer;
   font-size: var(--fs-xs); font-weight: 600; color: var(--danger-text);
-  flex: 0 0 auto;
+  flex: 0 1 auto; min-width: 0; max-width: 55%; /* V.88.1: не вытесняет заголовок экрана */
 }
+.nav-conn-indicator .nci-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nav-conn-indicator { position: relative; }
 .nav-conn-indicator::after { content: ""; position: absolute; inset: -14px -10px; } /* область нажатия >= 44px, вид не меняется */
 .nav-conn-indicator::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
@@ -553,11 +554,10 @@ html[data-scheme="light"] .glass-content {
 @media (prefers-reduced-motion: reduce) { .skeleton-avatar, .skeleton-line { animation: none; } }
 .chat-filters { display: flex; flex-shrink: 0; gap: 4px; padding: 20px 8px 4px; overflow-x: auto; scrollbar-width: none; }
 .chat-filters::-webkit-scrollbar { display: none; }
-/* Стандартные чипы (Все, Непрочитанные, Группы, Личные, Звонки) всегда помещаются в строку на любом языке: они
-   сжимаются (с многоточием в самом крайнем случае), а прокручивается только хвост из пользовательских папок. */
+/* V.88.1: чипы фильтров показывают название целиком; не помещаются — строка прокручивается вбок. */
 .chat-filter-chip {
-  flex: 0 1 auto; min-width: 3.2em; min-height: 36px; box-sizing: border-box; border: none; cursor: pointer;
-  padding: 7px 7px; border-radius: 999px;
+  flex: 0 0 auto; min-width: 3.2em; min-height: 36px; box-sizing: border-box; border: none; cursor: pointer;
+  padding: 7px 12px; border-radius: 999px; /* V.88.1: названия целиком, строка прокручивается (сжатие давало «Но…», «Гр…») */
   background: var(--bg-2); color: var(--ink-1);
   font-size: 0.78125rem; font-weight: 600;
   display: inline-block; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;

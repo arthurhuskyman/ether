@@ -671,6 +671,7 @@ window.__LANG_DICTS["hu"] = {
     "fx2.callFilm.title": "Hívásfilm",
     "fx2.callFilm.people": "résztvevő: {n}",
     "fx2.callFilm.msgs": "üzenet a hívás alatt: {n}",
+    "status.noServerShort": "Nincs kapcsolat.",
     "status.waking": "A szerver ébred…",
     "call.viaPush": "A partner offline — értesítés elküldve…",
     "call.connecting": "Csatlakozás…",

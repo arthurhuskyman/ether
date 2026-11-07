@@ -671,6 +671,7 @@ window.__LANG_DICTS["tl"] = {
     "fx2.callFilm.title": "Call film",
     "fx2.callFilm.people": "kalahok: {n}",
     "fx2.callFilm.msgs": "mensahe habang tumatawag: {n}",
+    "status.noServerShort": "Walang koneksyon",
     "status.waking": "Gumigising ang server…",
     "call.viaPush": "Offline ang contact — naipadala na ang notification…",
     "call.connecting": "Kumokonekta…",

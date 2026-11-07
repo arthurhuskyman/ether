@@ -671,6 +671,7 @@ window.__LANG_DICTS["es"] = {
     "fx2.callFilm.title": "Película de la llamada",
     "fx2.callFilm.people": "participantes: {n}",
     "fx2.callFilm.msgs": "mensajes durante la llamada: {n}",
+    "status.noServerShort": "No hay conexión.",
     "status.waking": "El servidor se está activando…",
     "call.viaPush": "El contacto no está en línea — notificación enviada…",
     "call.connecting": "Conectando…",

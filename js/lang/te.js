@@ -671,6 +671,7 @@ window.__LANG_DICTS["te"] = {
     "fx2.callFilm.title": "కాల్ ఫిల్మ్",
     "fx2.callFilm.people": "మంది పాల్గొన్నవారు: {n}",
     "fx2.callFilm.msgs": "కాల్ సమయంలో {n} సందేశాలు",
+    "status.noServerShort": "సంబంధం లేదు",
     "status.waking": "సర్వర్ మేల్కొంటోంది…",
     "call.viaPush": "కాంటాక్ట్ ఆఫ్‌లైన్‌లో ఉన్నారు — నోటిఫికేషన్ పంపబడింది…",
     "call.connecting": "కనెక్ట్ అవుతోంది…",

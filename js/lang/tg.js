@@ -671,6 +671,7 @@ window.__LANG_DICTS["tg"] = {
     "fx2.callFilm.title": "Call film",
     "fx2.callFilm.people": "иштирокчӣ: {n}",
     "fx2.callFilm.msgs": "паём ҳангоми занг: {n}",
+    "status.noServerShort": "Пайвастшавӣ нест",
     "status.waking": "Сервер бедор мешавад…",
     "call.viaPush": "Тамос офлайн аст — огоҳинома фиристода шуд…",
     "call.connecting": "Пайваст шуда истодааст…",

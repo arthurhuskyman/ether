@@ -671,6 +671,7 @@ window.__LANG_DICTS["he"] = {
     "fx2.callFilm.title": "סרט שיחה",
     "fx2.callFilm.people": "משתתפים: {n}",
     "fx2.callFilm.msgs": "הודעות במהלך השיחה: {n}",
+    "status.noServerShort": "אין קשר.",
     "status.waking": "השרת מתעורר…",
     "call.viaPush": "איש הקשר לא מחובר — נשלחה התראה…",
     "call.connecting": "מתחבר…",

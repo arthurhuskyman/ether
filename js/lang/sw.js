@@ -671,6 +671,7 @@ window.__LANG_DICTS["sw"] = {
     "fx2.callFilm.title": "Filamu ya simu",
     "fx2.callFilm.people": "Washiriki {n}",
     "fx2.callFilm.msgs": "Jumbe {n} wakati wa simu",
+    "status.noServerShort": "Hakuna uhusiano",
     "status.waking": "Seva inaamka…",
     "call.viaPush": "Mwasiliani hayupo mtandaoni — arifa imetumwa…",
     "call.connecting": "Inaunganisha…",
