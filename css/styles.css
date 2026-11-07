@@ -2131,7 +2131,7 @@ html[data-voice-style="cassette"] .fx-voice-deco.cassette, html[data-voice-style
 @media (prefers-reduced-motion: reduce) { .voice-bubble.fx-playing .fx-disc, .voice-bubble.fx-playing .fx-reel { animation: none; } }
 
 /* Шапка чата: одна точка входа в карточку контакта/группы — нажатие на аватар и имя (кнопка «⋯» убрана как дубль). */
-#chat-peer-name::after { content: "›"; margin-inline-start: 5px; opacity: 0.45; font-weight: 400; }
+/* V.88.3: «›» после имени убран — вся шапка и так нажимается, стрелка выглядела как ещё один значок */
 
 /* «Искать везде» — мост от поля поиска вкладки к общему поиску */
 .search-everywhere { display: block; width: 100%; text-align: start; border: none; background: transparent; color: var(--accent); font-weight: 600; font-size: var(--fs-sm); padding: 2px 4px 10px; cursor: pointer; }
@@ -3164,6 +3164,14 @@ html.a11y-zoom input, html.a11y-zoom textarea, html.a11y-zoom select { font-size
 .p85-sec-badge[data-state="changed"] { color: var(--warning-text); background: rgba(255, 179, 64, 0.15); }
 .p85-sec-badge svg { display: block; }
 .p85-sec-check { font-weight: 700; line-height: 1; }
+/* V.88.3: лаконичная шапка чата — один значок безопасности у имени (только когда есть что сказать), кристалл — на углу аватара */
+#nav-chat-mode #chat-trust-badge { display: none; }
+#nav-chat-mode .p85-sec-badge { flex: none; justify-content: center; min-width: 32px; min-height: 32px; margin-block: -6px; margin-inline: -5px -8px; padding: 0; background: none; color: var(--success-text, var(--success, #2fb26a)); }
+#nav-chat-mode .p85-sec-badge[data-state="e2e"] { display: none; } /* шифрование включено всегда — не повод для постоянного значка; экран безопасности есть в карточке и меню */
+#nav-chat-mode .p85-sec-badge[data-state="changed"] { color: var(--warning-text, #b26a00); }
+#nav-chat-mode .chat-peer-name-row { display: flex; align-items: center; min-width: 0; }
+#nav-chat-mode .chat-header-info { justify-content: flex-start; } /* блок собеседника — сразу после «‹», а не по центру с пустотой слева */
+#chat-peer-tap > .fx-vault { position: relative; z-index: 1; flex: none; align-self: center; margin-inline: -18px -4px; transform: translateY(10px); padding: 2px; border-radius: 50%; background: var(--surface, #fff); box-shadow: 0 0 0 1px var(--border, rgba(0,0,0,.08)); line-height: 0; }
 /* Альбомы в ленте */
 .p85-album { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; max-width: min(320px, 82%); }
 .p85-album.mine { align-self: flex-end; }

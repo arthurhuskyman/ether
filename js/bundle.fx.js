@@ -112,7 +112,9 @@ const nameEl = document.getElementById("chat-peer-name"); if (!nameEl) return;
 let v = document.getElementById("fx-vault-crystal");
 const c = state.chatId ? state.contacts.get(state.chatId) : null;
 if (!FX.get("vault") || !c || isGroup(c) || c.isSelf || c.messages.length === 0) { if (v) v.remove(); return; }
-if (!v) { v = document.createElement("span"); v.id = "fx-vault-crystal"; v.className = "fx-vault"; nameEl.insertAdjacentElement("afterend", v); }
+if (!v) { v = document.createElement("span"); v.id = "fx-vault-crystal"; v.className = "fx-vault"; }
+const av = document.getElementById("chat-peer-avatar");
+if (av && v.previousElementSibling !== av) av.insertAdjacentElement("afterend", v);
 const lvl = vaultLevel(c.messages.length);
 v.style.setProperty("--vault", lvl.toFixed(2));
 v.title = String(c.messages.length);

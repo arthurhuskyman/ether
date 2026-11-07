@@ -100,7 +100,7 @@ function p85SecurityState(c) {
 }
 function p85RenderSecBadge() {
   const c = state.chatId ? state.contacts.get(state.chatId) : null;
-  const tb = document.getElementById("chat-transport-badge"); if (!tb) return;
+  const tb = document.getElementById("chat-peer-name"); if (!tb) return; // V.88.3: единственный значок безопасности — рядом с именем (раньше дублировал #chat-trust-badge)
   let b = document.getElementById("p85-sec-badge");
   const st = p85SecurityState(c);
   if (!st) { if (b) b.classList.add("hidden"); return; }
@@ -111,7 +111,8 @@ function p85RenderSecBadge() {
   }
   b.classList.remove("hidden");
   b.dataset.state = st;
-  b.innerHTML = Icons.html(st === "changed" ? "warning" : "shield", 14) + (st === "verified" ? '<span class="p85-sec-check" aria-hidden="true">✓</span>' : "");
+  b.innerHTML = st === "changed" ? Icons.html("warning", 15)
+    : '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v5c0 4.4 2.9 8.3 7 9.5 4.1-1.2 7-5.1 7-9.5V6z"/>' + (st === "verified" ? '<path d="m9 12 2 2 4-4"/>' : "") + "</svg>";
   const label = T("p85.sec." + st);
   b.setAttribute("aria-label", label); b.title = label;
 }
