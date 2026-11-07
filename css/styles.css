@@ -3171,7 +3171,7 @@ html.a11y-zoom input, html.a11y-zoom textarea, html.a11y-zoom select { font-size
 #nav-chat-mode .p85-sec-badge[data-state="changed"] { color: var(--warning-text, #b26a00); }
 #nav-chat-mode .chat-peer-name-row { display: flex; align-items: center; min-width: 0; }
 #nav-chat-mode .chat-header-info { justify-content: flex-start; } /* блок собеседника — сразу после «‹», а не по центру с пустотой слева */
-#chat-peer-tap > .fx-vault { position: relative; z-index: 1; flex: none; align-self: center; margin-inline: -18px -4px; transform: translateY(10px); padding: 2px; border-radius: 50%; background: var(--surface, #fff); box-shadow: 0 0 0 1px var(--border, rgba(0,0,0,.08)); line-height: 0; }
+#chat-peer-tap > .fx-vault { position: relative; z-index: 1; flex: none; align-self: center; margin-inline: -18px -4px; transform: translateY(10px); padding: 2px; border-radius: 50%; background: var(--bg-1); box-shadow: 0 0 0 1px var(--border, rgba(0,0,0,.08)); line-height: 0; }
 /* Альбомы в ленте */
 .p85-album { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; max-width: min(320px, 82%); }
 .p85-album.mine { align-self: flex-end; }
